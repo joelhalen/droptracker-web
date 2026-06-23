@@ -40,6 +40,11 @@ export function UserNav() {
 
   return (
     <div className="flex items-center gap-4">
+      {me.is_superadmin && (
+        <Link href="/admin" className="text-osrs-red hover:text-osrs-gold-bright">
+          Admin
+        </Link>
+      )}
       <Link href="/dashboard" className="hover:text-osrs-gold-bright">
         {me.display_name ?? "My account"}
       </Link>

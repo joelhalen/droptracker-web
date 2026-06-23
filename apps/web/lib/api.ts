@@ -15,21 +15,26 @@ import {
   GroupDiagnosticsSchema,
   GroupMembersPageSchema,
   GroupProfileSchema,
+  AdminLookupResponseSchema,
   GroupSubscriptionSchema,
   GuildStatusSchema,
   LeaderboardPageSchema,
   MeSchema,
   PlayerProfileSchema,
   SearchResultsSchema,
+  ServiceLogsSchema,
+  ServiceStatusSchema,
   SubscriptionTierSchema,
   WomGroupPreviewSchema,
   WomSyncResultSchema,
   type AccountSettings,
   type AccountSettingsPatch,
+  type AdminLookupResponse,
   type AnnouncementInput,
   type AnnouncementPage,
   type CheckoutSession,
   type CreateGroupInput,
+  type DiscordSendInput,
   type GroupConfigPatch,
   type GroupDiagnostics,
   type GroupMembersPage,
@@ -41,7 +46,11 @@ import {
   type Me,
   type PlayerProfile,
   type SearchResults,
+  type ServiceAction,
+  type ServiceLogs,
+  type ServiceStatus,
   type SubscriptionTier,
+  type SubscriptionTierInput,
   type WomGroupPreview,
   type WomSyncResult,
 } from "@droptracker/api-types";
@@ -56,10 +65,13 @@ import {
   mockGroupProfile,
   mockGroupSubscription,
   mockGuildStatus,
+  mockLookup,
   mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
   mockSearch,
+  mockServiceLogs,
+  mockServices,
   mockSubscriptionTiers,
   mockWomLookup,
   mockWomSync,
@@ -100,7 +112,7 @@ async function apiGet(path: string, opts: FetchOpts = {}): Promise<unknown> {
 }
 
 async function apiSend(
-  method: "POST" | "PATCH" | "PUT",
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
   path: string,
   body: unknown,
 ): Promise<unknown> {
@@ -389,6 +401,79 @@ export const api = {
       async () =>
         CheckoutSessionSchema.parse(await apiSend("POST", `/groups/${groupId}/subscription/portal`, {})),
       () => ({ url: null }),
+    );
+  },
+
+  // --- Superadmin --------------------------------------------------------
+  async adminServices(): Promise<ServiceStatus[]> {
+    return withFallback(
+      async () => ServiceStatusSchema.array().parse(await apiGet(`/admin/services`, { authed: true })),
+      () => mockServices(),
+    );
+  },
+
+  async adminServiceAction(unit: string, action: ServiceAction["action"]): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/admin/services/${encodeURIComponent(unit)}`, { action });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminServiceLogs(unit: string): Promise<ServiceLogs> {
+    return withFallback(
+      async () =>
+        ServiceLogsSchema.parse(
+          await apiGet(`/admin/services/${encodeURIComponent(unit)}/logs`, { authed: true }),
+        ),
+      () => mockServiceLogs(unit),
+    );
+  },
+
+  async adminSendDiscord(input: DiscordSendInput): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/admin/discord/send`, input);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminLookup(q: string): Promise<AdminLookupResponse> {
+    if (!q.trim()) return { results: [] };
+    return withFallback(
+      async () =>
+        AdminLookupResponseSchema.parse(
+          await apiGet(`/admin/lookup?q=${encodeURIComponent(q)}`, { authed: true }),
+        ),
+      () => mockLookup(q),
+    );
+  },
+
+  async adminSaveTier(tier: SubscriptionTierInput, isNew: boolean): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend(
+          isNew ? "POST" : "PATCH",
+          isNew ? `/admin/subscriptions/tiers` : `/admin/subscriptions/tiers/${encodeURIComponent(tier.key)}`,
+          tier,
+        );
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminDeleteTier(key: string): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/admin/subscriptions/tiers/${encodeURIComponent(key)}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
     );
   },
 };

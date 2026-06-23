@@ -115,6 +115,8 @@ export const MeSchema = z.object({
   discord_id: z.string(),
   display_name: z.string().optional(),
   avatar_url: z.string().nullable().optional(),
+  /** Site staff: unlocks the superadmin surfaces (FRONTEND_PLAN.md §9). */
+  is_superadmin: z.boolean().default(false),
   players: z.array(PlayerSummarySchema).default([]),
   groups: z
     .array(
@@ -306,5 +308,74 @@ export type GroupSubscription = z.infer<typeof GroupSubscriptionSchema>;
 /** Provider-hosted checkout/billing redirect. `url` is null when unavailable. */
 export const CheckoutSessionSchema = z.object({ url: z.string().nullable() });
 export type CheckoutSession = z.infer<typeof CheckoutSessionSchema>;
+
+/** Editable tier definition for superadmin tier management (FRONTEND_PLAN.md §9). */
+export const SubscriptionTierInputSchema = SubscriptionTierSchema;
+export type SubscriptionTierInput = z.infer<typeof SubscriptionTierInputSchema>;
+
+/**
+ * Superadmin: backend service control (FRONTEND_PLAN.md §9, §14.1
+ * `ServiceManagement`). The three managed units.
+ */
+export const SERVICE_UNITS = [
+  "droptracker-core",
+  "droptracker-api",
+  "droptracker-webhooks",
+] as const;
+
+export const ServiceStatusSchema = z.object({
+  unit: z.string(),
+  name: z.string(),
+  status: z.enum(["running", "stopped", "failed", "unknown"]),
+  active: z.boolean(),
+  /** Unix seconds since the current state began. */
+  since: z.number().int().nullable(),
+});
+export type ServiceStatus = z.infer<typeof ServiceStatusSchema>;
+
+export const ServiceActionSchema = z.object({
+  action: z.enum(["start", "stop", "restart"]),
+});
+export type ServiceAction = z.infer<typeof ServiceActionSchema>;
+
+export const ServiceLogsSchema = z.object({
+  unit: z.string(),
+  lines: z.array(z.string()),
+});
+export type ServiceLogs = z.infer<typeof ServiceLogsSchema>;
+
+/** Superadmin Discord message sender (FRONTEND_PLAN.md §14.1 actionSendMessage). */
+export const DiscordSendInputSchema = z.object({
+  channel_id: z.string().min(1),
+  content: z.string().min(1).max(2000),
+});
+export type DiscordSendInput = z.infer<typeof DiscordSendInputSchema>;
+
+/** Superadmin cross-content lookup (FRONTEND_PLAN.md §9, §14.1 Lookup). */
+export const LOOKUP_CATEGORIES = [
+  "player",
+  "group",
+  "drop",
+  "clog",
+  "pb",
+  "ca",
+  "pet",
+  "item",
+  "npc",
+] as const;
+
+export const AdminLookupResultSchema = z.object({
+  category: z.enum(LOOKUP_CATEGORIES),
+  id: z.string(),
+  label: z.string(),
+  detail: z.string().optional(),
+  href: z.string().optional(),
+});
+export type AdminLookupResult = z.infer<typeof AdminLookupResultSchema>;
+
+export const AdminLookupResponseSchema = z.object({
+  results: z.array(AdminLookupResultSchema),
+});
+export type AdminLookupResponse = z.infer<typeof AdminLookupResponseSchema>;
 
 export * from "./group-config";

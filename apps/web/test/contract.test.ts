@@ -1,18 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  AdminLookupResponseSchema,
   AnnouncementPageSchema,
   GroupConfigPatchSchema,
   LeaderboardPageSchema,
+  MeSchema,
   PlayerProfileSchema,
+  ServiceStatusSchema,
   allConfigKeys,
   getConfigField,
 } from "@droptracker/api-types";
 import openapi from "@droptracker/api-types/openapi" with { type: "json" };
 import {
   mockAnnouncements,
+  mockLookup,
+  mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
+  mockServices,
 } from "../lib/mock-data";
 
 // Contract test: every path the BFF client calls must exist in the published
@@ -37,6 +43,9 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => LeaderboardPageSchema.parse(mockPlayerLeaderboard(1, 10)));
   assert.doesNotThrow(() => PlayerProfileSchema.parse(mockPlayerProfile(42)));
   assert.doesNotThrow(() => AnnouncementPageSchema.parse(mockAnnouncements()));
+  assert.doesNotThrow(() => MeSchema.parse(mockMe()));
+  assert.doesNotThrow(() => ServiceStatusSchema.array().parse(mockServices()));
+  assert.doesNotThrow(() => AdminLookupResponseSchema.parse(mockLookup("zez")));
 });
 
 // Every config key (incl. seasonal mirrors) must resolve to a field — guards the

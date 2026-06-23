@@ -19,6 +19,13 @@ export async function requireUser(returnTo: string): Promise<Me> {
   return user;
 }
 
+/** Require site-staff (superadmin); send non-staff home (FRONTEND_PLAN.md §9). */
+export async function requireSuperadmin(returnTo: string): Promise<Me> {
+  const user = await requireUser(returnTo);
+  if (!user.is_superadmin) redirect("/");
+  return user;
+}
+
 /** Roles a user holds on a group, derived from the `/me` payload. */
 export function groupRole(user: Me, groupId: number): "owner" | "admin" | "member" | null {
   return user.groups.find((g) => g.id === groupId)?.role ?? null;

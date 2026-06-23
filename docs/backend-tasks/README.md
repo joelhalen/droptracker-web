@@ -63,12 +63,15 @@ keep the two in lockstep.
 | 09 | [Announcements + Discord syndication](./09-announcements.md) | announcements composer + public feed | §10 |
 | 10 | [Group management + creation wizard](./10-group-management-and-wizard.md) | admin members/wom-sync/diagnostics, `/groups/new` | §9, §6.3 |
 | 11 | [Group recurring subscriptions (upgrades)](./11-group-subscriptions.md) | subscription tab, `/premium` | §14.1 `/Upgrades/`, §9 |
+| 12 | [Superadmin surfaces](./12-superadmin.md) | `/admin/*` (services, Discord sender, lookup, tiers, global news) | §9, §14.1 |
 
 Tasks 01, 08 are foundational. 02 depends on 08 (session/oauth tables, if not
 using stateless JWT). 04 can ship first for a read-only public site (Phase 1).
 09 depends on 08 (announcements table) + 07 (realtime event). 10 wraps mostly
 existing endpoints behind session auth. 11 adds a recurring-billing model and
-**replaces** the points-based feature store (which is out of scope).
+**replaces** the points-based feature store (which is out of scope). 12 needs the
+`is_superadmin` flag from 02 and the tier table from 11; the SQL executor is
+deliberately **not** ported.
 
 ## Definition of done (per task)
 

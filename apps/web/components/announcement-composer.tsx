@@ -3,14 +3,19 @@
 import { useState, useTransition } from "react";
 import type { AnnouncementInput } from "@droptracker/api-types";
 import { publishAnnouncement } from "@/app/(admin)/groups/[id]/announcements/actions";
+import { publishGlobalAnnouncement } from "@/app/(admin)/admin/announcements/actions";
 
-export function AnnouncementComposer({ groupId }: { groupId: number }) {
+/**
+ * Announcement composer for both group (pass `groupId`) and global (omit it,
+ * superadmin) scopes.
+ */
+export function AnnouncementComposer({ groupId }: { groupId?: number }) {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
   const [preview, setPreview] = useState(false);
   const [form, setForm] = useState<AnnouncementInput>({
-    scope_type: "group",
-    group_id: groupId,
+    scope_type: groupId ? "group" : "global",
+    group_id: groupId ?? null,
     title: "",
     body_md: "",
     pinned: false,
@@ -26,7 +31,8 @@ export function AnnouncementComposer({ groupId }: { groupId: number }) {
     e.preventDefault();
     if (!valid) return;
     startTransition(async () => {
-      await publishAnnouncement(groupId, form);
+      if (groupId) await publishAnnouncement(groupId, form);
+      else await publishGlobalAnnouncement(form);
       setForm((f) => ({ ...f, title: "", body_md: "", pinned: false }));
       setDone(true);
       setTimeout(() => setDone(false), 2500);

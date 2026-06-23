@@ -5,6 +5,7 @@
  */
 import type {
   AccountSettings,
+  AdminLookupResponse,
   AnnouncementPage,
   GroupDiagnostics,
   GroupMembersPage,
@@ -15,6 +16,8 @@ import type {
   Me,
   PlayerProfile,
   SearchResults,
+  ServiceLogs,
+  ServiceStatus,
   SubscriptionTier,
   WomGroupPreview,
   WomSyncResult,
@@ -116,6 +119,7 @@ export function mockMe(): Me {
     discord_id: "207526562331885568",
     display_name: "MockUser",
     avatar_url: null,
+    is_superadmin: true,
     players: [
       { id: 1337, name: "Zezima", global_rank: 1, total_loot: money(2_000_000_000) },
       { id: 1338, name: "Zezima Alt", global_rank: 482, total_loot: money(86_000_000) },
@@ -300,5 +304,35 @@ export function mockGroupSubscription(groupId: number): GroupSubscription {
     provider: "stripe",
     current_period_end: Math.floor(Date.now() / 1000) + 18 * 86400,
     cancel_at_period_end: false,
+  };
+}
+
+export function mockServices(): ServiceStatus[] {
+  const now = Math.floor(Date.now() / 1000);
+  return [
+    { unit: "droptracker-core", name: "Core processor", status: "running", active: true, since: now - 86400 * 3 },
+    { unit: "droptracker-api", name: "Intake API", status: "running", active: true, since: now - 86400 * 3 },
+    { unit: "droptracker-webhooks", name: "Webhooks / notifications", status: "running", active: true, since: now - 3600 },
+  ];
+}
+
+export function mockServiceLogs(unit: string): ServiceLogs {
+  const now = new Date();
+  const lines = Array.from({ length: 20 }, (_, i) => {
+    const t = new Date(now.getTime() - (20 - i) * 1000).toISOString().slice(11, 19);
+    return `${t} ${unit}[1234]: processed batch ${1000 + i} ok`;
+  });
+  return { unit, lines };
+}
+
+export function mockLookup(q: string): AdminLookupResponse {
+  return {
+    results: [
+      { category: "player", id: "1337", label: `Zezima (matches "${q}")`, detail: "rank #1", href: "/players/1337" },
+      { category: "group", id: "101", label: `Clan 1`, detail: "128 members", href: "/groups/101" },
+      { category: "item", id: "20997", label: "Twisted bow", detail: "item #20997" },
+      { category: "npc", id: "8061", label: "Vorkath", detail: "npc #8061" },
+      { category: "drop", id: "55012", label: "Tumeken's shadow", detail: "by Zezima · 1.1B" },
+    ],
   };
 }

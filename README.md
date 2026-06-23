@@ -79,6 +79,11 @@ Built so far (FRONTEND_PLAN.md §17):
   (current plan, tiers, subscribe/switch/cancel/resume, billing portal) and a
   public `/premium` pricing page. Replaces the points-based feature store, which
   is out of scope.
+- **Site admin (superadmin):** gated `/admin` shell — global announcements,
+  Discord message sender, backend service management (start/stop/restart + logs),
+  cross-content lookup, and subscription-tier CRUD. (The SQL executor is
+  deliberately not ported.)
+- **XenForo cutover:** expanded 301 redirect map from legacy URLs (§14.2).
 
 Everything runs today on built-in mock data (`USE_MOCK_API`) so the UI is
 demonstrable before the backend exists — including a dev mock sign-in.
@@ -93,5 +98,5 @@ group-config, manual submission, realtime/Redis keys, migrations).
 
 ### Still to come
 
-Native React lootboards (§12), site-admin (superadmin) tooling, the events system
-(Phase 6), and XenForo cutover with 301s (Phase 5).
+Native React lootboards (§12), the events system (Phase 6), documentation/MDX
+(§19), and final cutover (domain switch + sitemap of dynamic entities, Phase 5).
