@@ -58,8 +58,32 @@ Web API v1 exists.
 
 ## Status
 
-Phase 0/1 scaffold (FRONTEND_PLAN.md §17): monorepo, OSRS-themed design shell,
-public global leaderboard + player/group/announcement pages (SSR/ISR), the BFF
-Discord OAuth + session flow, an SSE hook wired into live leaderboard updates,
-and CI (lint · typecheck · test · build). Subsequent phases add identity
-dashboards, group admin, announcements CRUD, and XenForo cutover.
+Built so far (FRONTEND_PLAN.md §17):
+
+- **Phase 1 — public read site:** OSRS-themed shell; global leaderboard home,
+  `/leaderboards` (player/group tabs, day/week/month/all-time periods),
+  player/group profiles, announcements list + detail, and `/search`. SSR/ISR with
+  an SSE hook wired into live leaderboard updates.
+- **Phase 2 — identity & dashboard:** BFF Discord OAuth + httpOnly session,
+  auth-aware nav, gated `(dashboard)` route group — my accounts, `/settings`
+  (notification/privacy/DM + Patreon/premium prefs), and `/submit` (manual
+  submission). Server Actions for writes.
+- **Phase 3 (start) — group admin:** typed group-config **registry** (the 55+
+  `group_configurations` keys, §11.1) shared in `packages/api-types`, and the
+  authorized `/groups/{id}/settings` editor built on it.
+
+Everything runs today on built-in mock data (`USE_MOCK_API`) so the UI is
+demonstrable before the backend exists — including a dev mock sign-in.
+
+### Backend dependencies
+
+The authed/live features depend on the **Web API v1**, which lives in the
+**backend repo**. Implementation specs for that repo's agent are in
+[`docs/backend-tasks/`](./docs/backend-tasks/README.md) — one self-contained
+`.md` per unit of work (API skeleton, OAuth/sessions, settings, leaderboards,
+group-config, manual submission, realtime/Redis keys, migrations).
+
+### Still to come
+
+Announcements CRUD + Discord syndication (Phase 4), group creation wizard,
+diagnostics, points/premium, events (Phase 6), and XenForo cutover (Phase 5).

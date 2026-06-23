@@ -137,3 +137,56 @@ export const RealtimeEventSchema = z.object({
   data: z.record(z.string(), z.unknown()),
 });
 export type RealtimeEvent = z.infer<typeof RealtimeEventSchema>;
+
+/**
+ * Account settings (FRONTEND_PLAN.md §9 "Notification & privacy prefs",
+ * PATCH /api/v1/me). Mirrors the PHP `/account/droptracker` form.
+ */
+export const AccountSettingsSchema = z.object({
+  public: z.boolean(),
+  hidden: z.boolean(),
+  global_ping: z.boolean(),
+  group_ping: z.boolean(),
+  never_ping: z.boolean(),
+  dm_on_rank_change: z.boolean(),
+  dm_on_points: z.boolean(),
+  update_logs_opt_in: z.boolean(),
+  patreon_group: z.number().int().nullable(),
+  premium_group: z.number().int().nullable(),
+});
+export type AccountSettings = z.infer<typeof AccountSettingsSchema>;
+/** PATCH body: any subset of the settings. */
+export const AccountSettingsPatchSchema = AccountSettingsSchema.partial();
+export type AccountSettingsPatch = z.infer<typeof AccountSettingsPatchSchema>;
+
+/** Combined player+group search results (FRONTEND_PLAN.md §9 "Search"). */
+export const SearchResultsSchema = z.object({
+  players: z.array(PlayerSummarySchema),
+  groups: z.array(
+    z.object({
+      id: z.number().int(),
+      name: z.string(),
+      member_count: z.number().int().optional(),
+    }),
+  ),
+});
+export type SearchResults = z.infer<typeof SearchResultsSchema>;
+
+/**
+ * Manual submission input (FRONTEND_PLAN.md §6.3, wraps `/manual-submit`).
+ * The proof image/video is uploaded separately via the B2 presign flow; this
+ * carries the metadata.
+ */
+export const ManualSubmissionSchema = z.object({
+  type: z.enum(["drop", "clog", "pb", "ca", "pet"]),
+  player_id: z.number().int(),
+  npc_name: z.string().optional(),
+  item_name: z.string().optional(),
+  value: z.number().int().nonnegative().optional(),
+  quantity: z.number().int().positive().default(1),
+  proof_upload_key: z.string().optional(),
+  notes: z.string().max(500).optional(),
+});
+export type ManualSubmission = z.infer<typeof ManualSubmissionSchema>;
+
+export * from "./group-config";

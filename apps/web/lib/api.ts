@@ -9,24 +9,35 @@
  */
 import { cookies } from "next/headers";
 import {
+  AccountSettingsSchema,
   AnnouncementPageSchema,
   GroupProfileSchema,
   LeaderboardPageSchema,
   MeSchema,
   PlayerProfileSchema,
+  SearchResultsSchema,
+  type AccountSettings,
+  type AccountSettingsPatch,
   type AnnouncementPage,
+  type GroupConfigPatch,
   type GroupProfile,
   type LeaderboardPage,
+  type ManualSubmission,
   type Me,
   type PlayerProfile,
+  type SearchResults,
 } from "@droptracker/api-types";
 import { env, SESSION_COOKIE } from "./env";
 import {
+  mockAccountSettings,
   mockAnnouncements,
+  mockGroupConfig,
   mockGroupLeaderboard,
   mockGroupProfile,
+  mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
+  mockSearch,
 } from "./mock-data";
 
 type FetchOpts = {
@@ -61,6 +72,31 @@ async function apiGet(path: string, opts: FetchOpts = {}): Promise<unknown> {
 
   if (!res.ok) throw new ApiError(res.status, `Web API ${res.status} for ${path}`);
   return res.json();
+}
+
+async function apiSend(
+  method: "POST" | "PATCH" | "PUT",
+  path: string,
+  body: unknown,
+): Promise<unknown> {
+  const url = `${env.webApiInternalUrl}/api/v1${path}`;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json",
+      ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(res.status, `Web API ${res.status} for ${method} ${path}`);
+  return res.status === 204 ? null : res.json();
+}
+
+/** True when the caller holds a session cookie (real or dev-mock). */
+async function hasSessionCookie(): Promise<boolean> {
+  return Boolean((await cookies()).get(SESSION_COOKIE)?.value);
 }
 
 /** Run `fetcher`; if the Web API is down and mocks are enabled, use `fallback`. */
@@ -134,8 +170,61 @@ export const api = {
       return MeSchema.parse(await apiGet(`/me`, { authed: true }));
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) return null;
-      if (env.useMockApi) return null;
+      // In mock mode, treat any present session cookie (incl. the dev mock
+      // login) as an authenticated mock user so the dashboard is demonstrable.
+      if (env.useMockApi) return (await hasSessionCookie()) ? mockMe() : null;
       throw err;
     }
+  },
+
+  async settings(): Promise<AccountSettings> {
+    return withFallback(
+      async () => AccountSettingsSchema.parse(await apiGet(`/me/settings`, { authed: true })),
+      () => mockAccountSettings(),
+    );
+  },
+
+  async updateSettings(patch: AccountSettingsPatch): Promise<AccountSettings> {
+    return withFallback(
+      async () => AccountSettingsSchema.parse(await apiSend("PATCH", `/me`, patch)),
+      () => ({ ...mockAccountSettings(), ...patch }),
+    );
+  },
+
+  async search(q: string): Promise<SearchResults> {
+    if (!q.trim()) return { players: [], groups: [] };
+    return withFallback(
+      async () =>
+        SearchResultsSchema.parse(await apiGet(`/search?q=${encodeURIComponent(q)}`, { revalidate: 10 })),
+      () => mockSearch(q),
+    );
+  },
+
+  async groupConfig(groupId: number): Promise<Record<string, string | number | boolean | null>> {
+    return withFallback(
+      async () =>
+        (await apiGet(`/groups/${groupId}/config`, { authed: true })) as Record<
+          string,
+          string | number | boolean | null
+        >,
+      () => mockGroupConfig(),
+    );
+  },
+
+  async updateGroupConfig(groupId: number, patch: GroupConfigPatch): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("PATCH", `/groups/${groupId}/config`, patch);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async manualSubmit(input: ManualSubmission): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/submissions/manual`, input)) as { id: number },
+      () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
   },
 };

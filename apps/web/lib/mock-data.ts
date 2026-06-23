@@ -4,11 +4,15 @@
  * falls back to these only when the real API is unreachable.
  */
 import type {
+  AccountSettings,
   AnnouncementPage,
   GroupProfile,
   LeaderboardPage,
+  Me,
   PlayerProfile,
+  SearchResults,
 } from "@droptracker/api-types";
+import { GROUP_CONFIG_FIELDS } from "@droptracker/api-types";
 
 const fmt = (n: number): string => {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
@@ -97,6 +101,59 @@ export function mockGroupProfile(id: number): GroupProfile {
       { id: 10, type: "drop", label: "Scythe of vitur", value: money(750_000_000), ts: 1719000000 },
     ],
   };
+}
+
+export function mockMe(): Me {
+  return {
+    user_id: 1,
+    discord_id: "207526562331885568",
+    display_name: "MockUser",
+    avatar_url: null,
+    players: [
+      { id: 1337, name: "Zezima", global_rank: 1, total_loot: money(2_000_000_000) },
+      { id: 1338, name: "Zezima Alt", global_rank: 482, total_loot: money(86_000_000) },
+    ],
+    groups: [
+      { id: 2, name: "Global", role: "member" },
+      { id: 101, name: "Clan 1", role: "owner" },
+      { id: 102, name: "Clan 2", role: "admin" },
+    ],
+  };
+}
+
+export function mockAccountSettings(): AccountSettings {
+  return {
+    public: true,
+    hidden: false,
+    global_ping: true,
+    group_ping: true,
+    never_ping: false,
+    dm_on_rank_change: false,
+    dm_on_points: true,
+    update_logs_opt_in: true,
+    patreon_group: 101,
+    premium_group: 101,
+  };
+}
+
+export function mockSearch(q: string): SearchResults {
+  const term = q.toLowerCase();
+  return {
+    players: NAMES.filter((n) => n.toLowerCase().includes(term))
+      .slice(0, 5)
+      .map((name, i) => ({
+        id: 1000 + i,
+        name,
+        global_rank: i + 1,
+        total_loot: money(500_000_000 / (i + 1)),
+      })),
+    groups: [{ id: 101, name: `Clan matching "${q}"`, member_count: 128 }],
+  };
+}
+
+/** Mock config: every key set to its registry default. */
+export function mockGroupConfig(): Record<string, string | number | boolean | null> {
+  return Object.fromEntries(GROUP_CONFIG_FIELDS.map((f) => [f.key, f.default]));
 }
 
 export function mockAnnouncements(): AnnouncementPage {

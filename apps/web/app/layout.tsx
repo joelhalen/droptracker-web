@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { UserNav } from "@/components/user-nav";
 
 export const metadata: Metadata = {
   title: {
@@ -30,15 +31,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/leaderboards" className="hover:text-osrs-gold-bright">
                   Leaderboards
                 </Link>
+                <Link href="/search" className="hover:text-osrs-gold-bright">
+                  Search
+                </Link>
                 <Link href="/announcements" className="hover:text-osrs-gold-bright">
                   News
                 </Link>
-                <Link
-                  href="/api/auth/login"
-                  className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 font-medium transition-colors"
-                >
-                  Sign in with Discord
-                </Link>
+                <UserNav />
               </nav>
             </div>
           </header>

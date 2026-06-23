@@ -1,6 +1,8 @@
 import base from "@droptracker/config/eslint/base.mjs";
 
 export default [
+  // Next.js generates these; not ours to lint.
+  { ignores: ["next-env.d.ts", ".next/**"] },
   ...base,
   {
     rules: {

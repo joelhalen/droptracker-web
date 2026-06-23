@@ -4,7 +4,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
-import { issueOAuthState } from "@/lib/session";
+import { issueOAuthState, setSession } from "@/lib/session";
 
 const DISCORD_AUTHORIZE = "https://discord.com/api/oauth2/authorize";
 const SCOPES = ["identify", "guilds"];
@@ -14,8 +14,13 @@ export async function GET(req: NextRequest) {
   const state = await issueOAuthState(redirectTo);
 
   if (!env.discord.clientId) {
-    // No OAuth app configured yet (e.g. local scaffold). Explain instead of
-    // bouncing the user to a broken Discord URL.
+    // No OAuth app configured. In mock mode, perform a dev sign-in so the
+    // authenticated UI is demonstrable end-to-end without a live backend.
+    if (env.useMockApi) {
+      await setSession("mock-session");
+      return NextResponse.redirect(new URL(redirectTo, env.siteUrl));
+    }
+    // Otherwise explain instead of bouncing the user to a broken Discord URL.
     return NextResponse.json(
       {
         title: "Discord OAuth not configured",

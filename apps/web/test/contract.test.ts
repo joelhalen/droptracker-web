@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   AnnouncementPageSchema,
+  GroupConfigPatchSchema,
   LeaderboardPageSchema,
   PlayerProfileSchema,
+  allConfigKeys,
+  getConfigField,
 } from "@droptracker/api-types";
 import openapi from "@droptracker/api-types/openapi" with { type: "json" };
 import {
@@ -34,4 +37,15 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => LeaderboardPageSchema.parse(mockPlayerLeaderboard(1, 10)));
   assert.doesNotThrow(() => PlayerProfileSchema.parse(mockPlayerProfile(42)));
   assert.doesNotThrow(() => AnnouncementPageSchema.parse(mockAnnouncements()));
+});
+
+// Every config key (incl. seasonal mirrors) must resolve to a field — guards the
+// `seasonal_boards` prefix collision (a base key that starts with `seasonal_`).
+test("group-config registry resolves all keys", () => {
+  for (const key of allConfigKeys()) {
+    assert.ok(getConfigField(key), `unresolved config field for key ${key}`);
+  }
+  assert.equal(getConfigField("seasonal_boards")?.key, "seasonal_boards");
+  // An empty patch is always valid (PATCH sends only changed keys).
+  assert.doesNotThrow(() => GroupConfigPatchSchema.parse({}));
 });
