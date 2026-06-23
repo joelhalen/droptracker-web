@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+.turbo/
+
+# Env
+.env
+.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Generated API types (regenerated from openapi.json via `pnpm gen:api-types`)
+packages/api-types/src/generated/openapi.ts
+
+# Misc
+*.tsbuildinfo
+.vercel

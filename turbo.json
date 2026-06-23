@@ -1,0 +1,37 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": [
+    "NODE_ENV",
+    "USE_MOCK_API",
+    "NEXT_PUBLIC_API_BASE",
+    "WEB_API_INTERNAL_URL",
+    "SESSION_COOKIE_SECRET",
+    "DISCORD_BOT_CLIENT_ID",
+    "DISCORD_BOT_CLIENT_SECRET",
+    "DISCORD_REDIRECT_URI",
+    "JWT_TOKEN_KEY",
+    "NEXTAUTH_URL"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"]
+    },
+    "gen": {
+      "outputs": ["src/generated/**"]
+    }
+  }
+}

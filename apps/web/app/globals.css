@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/*
+ * OSRS-flavored theme tokens (FRONTEND_PLAN.md §4 "OSRS-flavored theme tokens").
+ * Tailwind v4 reads these `@theme` values to generate utilities such as
+ * `bg-osrs-parchment`, `text-osrs-gold`, `border-osrs-bronze`.
+ */
+@theme {
+  --color-osrs-parchment: #efe6d2;
+  --color-osrs-parchment-dark: #d8c9a3;
+  --color-osrs-brown: #3e3529;
+  --color-osrs-brown-dark: #28221a;
+  --color-osrs-bronze: #7a5a32;
+  --color-osrs-gold: #ffb83f;
+  --color-osrs-gold-bright: #ffd966;
+  --color-osrs-red: #c0392b;
+  --color-osrs-green: #2f7d32;
+  --color-osrs-stone: #5a5a52;
+
+  --font-display: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+
+  --radius-osrs: 0.375rem;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background:
+    radial-gradient(circle at top, var(--color-osrs-brown), var(--color-osrs-brown-dark)) fixed;
+  color: var(--color-osrs-parchment);
+  font-family: var(--font-display);
+}
+
+/* Thin gold accent for section headers. */
+.heading-rule {
+  border-bottom: 2px solid var(--color-osrs-bronze);
+}
