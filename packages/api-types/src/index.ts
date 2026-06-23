@@ -189,4 +189,77 @@ export const ManualSubmissionSchema = z.object({
 });
 export type ManualSubmission = z.infer<typeof ManualSubmissionSchema>;
 
+/** Announcement create/update input (FRONTEND_PLAN.md §10). */
+export const AnnouncementInputSchema = z.object({
+  scope_type: z.enum(["global", "group"]),
+  group_id: z.number().int().nullable().optional(),
+  title: z.string().min(1).max(200),
+  body_md: z.string().min(1),
+  pinned: z.boolean().default(false),
+  cover_image_url: z.string().url().nullable().optional(),
+  /** Also syndicate to the group's announcements Discord channel (§10.1). */
+  post_to_discord: z.boolean().default(true),
+});
+export type AnnouncementInput = z.infer<typeof AnnouncementInputSchema>;
+
+/** Group member row (FRONTEND_PLAN.md §9 "Members"). */
+export const GroupMemberSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  group_rank: z.string().optional(),
+  total_loot: MoneySchema.optional(),
+  hidden: z.boolean().default(false),
+});
+export type GroupMember = z.infer<typeof GroupMemberSchema>;
+
+export const GroupMembersPageSchema = z.object({
+  members: z.array(GroupMemberSchema),
+  meta: PageMetaSchema,
+});
+export type GroupMembersPage = z.infer<typeof GroupMembersPageSchema>;
+
+/** WOM membership sync result (FRONTEND_PLAN.md §6.3 wom-sync). */
+export const WomSyncResultSchema = z.object({
+  added: z.number().int(),
+  removed: z.number().int(),
+  total: z.number().int(),
+  synced_ts: z.number().int(),
+});
+export type WomSyncResult = z.infer<typeof WomSyncResultSchema>;
+
+/** Pipeline heartbeat for the admin diagnostics panel (FRONTEND_PLAN.md §9). */
+export const GroupDiagnosticsSchema = z.object({
+  intake_healthy: z.boolean(),
+  last_submission_ts: z.number().int().nullable(),
+  members_synced_ts: z.number().int().nullable(),
+  activity_7d: z.array(z.object({ date: z.string(), submissions: z.number().int() })),
+  warnings: z.array(z.string()).default([]),
+});
+export type GroupDiagnostics = z.infer<typeof GroupDiagnosticsSchema>;
+
+/** Group-creation wizard payloads (FRONTEND_PLAN.md §6.3, §7.1). */
+export const WomGroupPreviewSchema = z.object({
+  wom_id: z.number().int(),
+  name: z.string(),
+  member_count: z.number().int(),
+  already_registered: z.boolean(),
+});
+export type WomGroupPreview = z.infer<typeof WomGroupPreviewSchema>;
+
+export const GuildStatusSchema = z.object({
+  guild_id: z.string(),
+  bot_present: z.boolean(),
+  owns_group: z.boolean(),
+  group_id: z.number().int().nullable(),
+});
+export type GuildStatus = z.infer<typeof GuildStatusSchema>;
+
+export const CreateGroupInputSchema = z.object({
+  name: z.string().min(1).max(100),
+  wom_id: z.number().int().positive(),
+  guild_id: z.string().min(1),
+  discord_url: z.string().url().optional().or(z.literal("")),
+});
+export type CreateGroupInput = z.infer<typeof CreateGroupInputSchema>;
+
 export * from "./group-config";

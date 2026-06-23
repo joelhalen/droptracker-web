@@ -11,33 +11,50 @@ import { cookies } from "next/headers";
 import {
   AccountSettingsSchema,
   AnnouncementPageSchema,
+  GroupDiagnosticsSchema,
+  GroupMembersPageSchema,
   GroupProfileSchema,
+  GuildStatusSchema,
   LeaderboardPageSchema,
   MeSchema,
   PlayerProfileSchema,
   SearchResultsSchema,
+  WomGroupPreviewSchema,
+  WomSyncResultSchema,
   type AccountSettings,
   type AccountSettingsPatch,
+  type AnnouncementInput,
   type AnnouncementPage,
+  type CreateGroupInput,
   type GroupConfigPatch,
+  type GroupDiagnostics,
+  type GroupMembersPage,
   type GroupProfile,
+  type GuildStatus,
   type LeaderboardPage,
   type ManualSubmission,
   type Me,
   type PlayerProfile,
   type SearchResults,
+  type WomGroupPreview,
+  type WomSyncResult,
 } from "@droptracker/api-types";
 import { env, SESSION_COOKIE } from "./env";
 import {
   mockAccountSettings,
   mockAnnouncements,
+  mockDiagnostics,
   mockGroupConfig,
   mockGroupLeaderboard,
+  mockGroupMembers,
   mockGroupProfile,
+  mockGuildStatus,
   mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
   mockSearch,
+  mockWomLookup,
+  mockWomSync,
 } from "./mock-data";
 
 type FetchOpts = {
@@ -161,7 +178,7 @@ export const api = {
         AnnouncementPageSchema.parse(
           await apiGet(`/announcements?scope=${encodeURIComponent(scope)}`, { revalidate: 30 }),
         ),
-      () => mockAnnouncements(),
+      () => mockAnnouncements(scope),
     );
   },
 
@@ -225,6 +242,86 @@ export const api = {
     return withFallback(
       async () => (await apiSend("POST", `/submissions/manual`, input)) as { id: number },
       () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  // --- Announcements (write) --------------------------------------------
+  async createAnnouncement(input: AnnouncementInput): Promise<{ id: number }> {
+    const path =
+      input.scope_type === "group" && input.group_id
+        ? `/groups/${input.group_id}/announcements`
+        : `/announcements`;
+    return withFallback(
+      async () => (await apiSend("POST", path, input)) as { id: number },
+      () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  // --- Group admin -------------------------------------------------------
+  async groupMembers(groupId: number, page = 1): Promise<GroupMembersPage> {
+    return withFallback(
+      async () =>
+        GroupMembersPageSchema.parse(
+          await apiGet(`/groups/${groupId}/members?page=${page}`, { authed: true }),
+        ),
+      () => mockGroupMembers(groupId, page),
+    );
+  },
+
+  async setHiddenPlayer(
+    groupId: number,
+    playerId: number,
+    hidden: boolean,
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("PATCH", `/groups/${groupId}/hidden-players`, {
+          player_id: playerId,
+          hidden,
+        });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async womSync(groupId: number): Promise<WomSyncResult> {
+    return withFallback(
+      async () => WomSyncResultSchema.parse(await apiSend("POST", `/groups/${groupId}/wom-sync`, {})),
+      () => mockWomSync(),
+    );
+  },
+
+  async diagnostics(groupId: number): Promise<GroupDiagnostics> {
+    return withFallback(
+      async () =>
+        GroupDiagnosticsSchema.parse(await apiGet(`/groups/${groupId}/diagnostics`, { authed: true })),
+      () => mockDiagnostics(),
+    );
+  },
+
+  // --- Group creation wizard --------------------------------------------
+  async womLookup(womId: number): Promise<WomGroupPreview> {
+    return withFallback(
+      async () => WomGroupPreviewSchema.parse(await apiGet(`/groups/wom-lookup/${womId}`, { authed: true })),
+      () => mockWomLookup(womId),
+    );
+  },
+
+  async guildStatus(guildId: string): Promise<GuildStatus> {
+    return withFallback(
+      async () =>
+        GuildStatusSchema.parse(
+          await apiGet(`/groups/guild-status/${encodeURIComponent(guildId)}`, { authed: true }),
+        ),
+      () => mockGuildStatus(guildId),
+    );
+  },
+
+  async createGroup(input: CreateGroupInput): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/groups`, input)) as { id: number },
+      () => ({ id: Math.floor(100 + Math.random() * 900) }),
     );
   },
 };

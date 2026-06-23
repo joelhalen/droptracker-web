@@ -6,11 +6,16 @@
 import type {
   AccountSettings,
   AnnouncementPage,
+  GroupDiagnostics,
+  GroupMembersPage,
   GroupProfile,
+  GuildStatus,
   LeaderboardPage,
   Me,
   PlayerProfile,
   SearchResults,
+  WomGroupPreview,
+  WomSyncResult,
 } from "@droptracker/api-types";
 import { GROUP_CONFIG_FIELDS } from "@droptracker/api-types";
 
@@ -156,20 +161,85 @@ export function mockGroupConfig(): Record<string, string | number | boolean | nu
   return Object.fromEntries(GROUP_CONFIG_FIELDS.map((f) => [f.key, f.default]));
 }
 
-export function mockAnnouncements(): AnnouncementPage {
+export function mockAnnouncements(scope = "global"): AnnouncementPage {
+  const isGroup = scope.startsWith("group:");
+  const groupId = isGroup ? Number(scope.split(":")[1]) : null;
   return {
-    items: [
-      {
-        id: 1,
-        scope_type: "global",
-        title: "Welcome to the new DropTracker",
-        body_md:
-          "The site is being rebuilt on a real-time, Discord-native platform. Leaderboards now update live.",
-        pinned: true,
-        author_name: "DropTracker Team",
-        published_at: 1719000000,
-      },
-    ],
+    items: isGroup
+      ? [
+          {
+            id: 100 + (groupId ?? 0),
+            scope_type: "group",
+            group_id: groupId,
+            title: "Clan event this weekend",
+            body_md: "We're running a bossing mass on Saturday. Sign up in Discord!",
+            pinned: false,
+            author_name: "Clan Staff",
+            published_at: 1718990000,
+          },
+        ]
+      : [
+          {
+            id: 1,
+            scope_type: "global",
+            title: "Welcome to the new DropTracker",
+            body_md:
+              "The site is being rebuilt on a real-time, Discord-native platform. Leaderboards now update live.",
+            pinned: true,
+            author_name: "DropTracker Team",
+            published_at: 1719000000,
+          },
+        ],
     next_cursor: null,
+  };
+}
+
+export function mockGroupMembers(_groupId: number, page = 1, limit = 25): GroupMembersPage {
+  const members = Array.from({ length: limit }, (_, i) => {
+    const n = (page - 1) * limit + i;
+    return {
+      id: 2000 + n,
+      name: `${NAMES[n % NAMES.length]}${n}`,
+      group_rank: i === 0 ? "Owner" : i < 3 ? "Admin" : "Member",
+      total_loot: money(Math.round(500_000_000 / (n + 1))),
+      hidden: n % 11 === 0,
+    };
+  });
+  return { members, meta: { page, limit, total: 128 } };
+}
+
+export function mockWomSync(): WomSyncResult {
+  return { added: 3, removed: 1, total: 128, synced_ts: Math.floor(Date.now() / 1000) };
+}
+
+export function mockDiagnostics(): GroupDiagnostics {
+  const today = Math.floor(Date.now() / 86_400_000);
+  return {
+    intake_healthy: true,
+    last_submission_ts: Math.floor(Date.now() / 1000) - 120,
+    members_synced_ts: Math.floor(Date.now() / 1000) - 3600,
+    activity_7d: Array.from({ length: 7 }, (_, i) => ({
+      date: new Date((today - (6 - i)) * 86_400_000).toISOString().slice(0, 10),
+      submissions: Math.round(50 + Math.random() * 200),
+    })),
+    warnings: [],
+  };
+}
+
+export function mockWomLookup(womId: number): WomGroupPreview {
+  return {
+    wom_id: womId,
+    name: `WOM Group ${womId}`,
+    member_count: 84,
+    already_registered: womId % 7 === 0,
+  };
+}
+
+export function mockGuildStatus(guildId: string): GuildStatus {
+  return {
+    guild_id: guildId,
+    bot_present: true,
+    owns_group: false,
+    group_id: null,
   };
 }

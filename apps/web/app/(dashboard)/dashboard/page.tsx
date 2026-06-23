@@ -30,7 +30,15 @@ export default async function DashboardPage() {
       </section>
 
       <section>
-        <h2 className="text-osrs-gold mb-4 text-2xl font-bold">My groups</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-osrs-gold text-2xl font-bold">My groups</h2>
+          <Link
+            href="/groups/new"
+            className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
+          >
+            + Create group
+          </Link>
+        </div>
         <ul className="divide-osrs-bronze/20 divide-y">
           {user.groups.map((g) => {
             const canAdmin = g.role === "owner" || g.role === "admin";
@@ -43,7 +51,7 @@ export default async function DashboardPage() {
                   <span className="text-osrs-parchment-dark/60 capitalize">{g.role}</span>
                   {canAdmin && (
                     <Link
-                      href={`/groups/${g.id}/settings` as Route}
+                      href={`/groups/${g.id}/admin` as Route}
                       className="bg-osrs-bronze/60 hover:bg-osrs-bronze rounded px-2 py-1 text-xs"
                     >
                       Manage

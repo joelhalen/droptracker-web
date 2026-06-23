@@ -59,10 +59,14 @@ keep the two in lockstep.
 | 05 | [Typed group-config endpoints](./05-group-config-endpoints.md) | `/groups/{id}/settings` | §11 |
 | 06 | [Manual submission + uploads](./06-manual-submission-and-uploads.md) | `/submit` | §6.3, §12 |
 | 07 | [Realtime SSE + Redis pub/sub + key canonicalization](./07-realtime-and-redis-keys.md) | live updates | §8 |
-| 08 | [Data-model migrations](./08-data-model-migrations.md) | 02, 05, announcements | §13 |
+| 08 | [Data-model migrations](./08-data-model-migrations.md) | 02, 05, 09 | §13 |
+| 09 | [Announcements + Discord syndication](./09-announcements.md) | announcements composer + public feed | §10 |
+| 10 | [Group management + creation wizard](./10-group-management-and-wizard.md) | admin members/wom-sync/diagnostics, `/groups/new` | §9, §6.3 |
 
 Tasks 01, 08 are foundational. 02 depends on 08 (session/oauth tables, if not
 using stateless JWT). 04 can ship first for a read-only public site (Phase 1).
+09 depends on 08 (announcements table) + 07 (realtime event). 10 wraps mostly
+existing endpoints behind session auth.
 
 ## Definition of done (per task)
 

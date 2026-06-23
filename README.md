@@ -68,9 +68,13 @@ Built so far (FRONTEND_PLAN.md §17):
   auth-aware nav, gated `(dashboard)` route group — my accounts, `/settings`
   (notification/privacy/DM + Patreon/premium prefs), and `/submit` (manual
   submission). Server Actions for writes.
-- **Phase 3 (start) — group admin:** typed group-config **registry** (the 55+
-  `group_configurations` keys, §11.1) shared in `packages/api-types`, and the
-  authorized `/groups/{id}/settings` editor built on it.
+- **Phase 3 — group admin:** gated `(admin)/groups/{id}` shell with an admin hub
+  and tabs — typed config editor (built on the shared 55+ key **registry**, §11.1),
+  members management (WOM sync + hide/unhide players), and a diagnostics panel.
+  Plus the multi-step **group-creation wizard** (`/groups/new`: WOM lookup → guild
+  status → create).
+- **Phase 4 — announcements:** group announcements composer (Markdown + preview,
+  pin, "also post to Discord") wired to the public announcements feed/pages.
 
 Everything runs today on built-in mock data (`USE_MOCK_API`) so the UI is
 demonstrable before the backend exists — including a dev mock sign-in.
@@ -85,5 +89,6 @@ group-config, manual submission, realtime/Redis keys, migrations).
 
 ### Still to come
 
-Announcements CRUD + Discord syndication (Phase 4), group creation wizard,
-diagnostics, points/premium, events (Phase 6), and XenForo cutover (Phase 5).
+Points/premium dashboards and the feature store (Phase 2/3 remainder), native
+React lootboards (§12), site-admin tooling, the events system (Phase 6), and
+XenForo cutover with 301s (Phase 5).
