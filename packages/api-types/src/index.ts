@@ -262,4 +262,49 @@ export const CreateGroupInputSchema = z.object({
 });
 export type CreateGroupInput = z.infer<typeof CreateGroupInputSchema>;
 
+/**
+ * Group recurring subscriptions / upgrades (FRONTEND_PLAN.md §14.1 `/Upgrades/`,
+ * §9 "group upgrade status"). Replaces the points-based feature store: a group
+ * subscribes to a recurring tier; billing lifecycle lives in the backend.
+ */
+export const SubscriptionTierSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  /** Price in minor currency units (e.g. cents) per interval. */
+  price_cents: z.number().int().nonnegative(),
+  currency: z.string().default("USD"),
+  interval: z.enum(["month", "year"]).default("month"),
+  /** Human-readable perks for the tier card. */
+  features: z.array(z.string()).default([]),
+  recommended: z.boolean().default(false),
+});
+export type SubscriptionTier = z.infer<typeof SubscriptionTierSchema>;
+
+export const SubscriptionStatus = [
+  "none",
+  "active",
+  "trialing",
+  "past_due",
+  "canceled",
+  "expired",
+] as const;
+
+export const GroupSubscriptionSchema = z.object({
+  group_id: z.number().int(),
+  /** Active tier key, or null when on the free plan. */
+  tier_key: z.string().nullable(),
+  status: z.enum(SubscriptionStatus),
+  provider: z.enum(["patreon", "stripe", "manual"]).nullable(),
+  /** Unix seconds when the current paid period ends / renews. */
+  current_period_end: z.number().int().nullable(),
+  /** When true, the subscription ends at `current_period_end` (not renewing). */
+  cancel_at_period_end: z.boolean().default(false),
+});
+export type GroupSubscription = z.infer<typeof GroupSubscriptionSchema>;
+
+/** Provider-hosted checkout/billing redirect. `url` is null when unavailable. */
+export const CheckoutSessionSchema = z.object({ url: z.string().nullable() });
+export type CheckoutSession = z.infer<typeof CheckoutSessionSchema>;
+
 export * from "./group-config";

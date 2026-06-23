@@ -75,6 +75,10 @@ Built so far (FRONTEND_PLAN.md §17):
   status → create).
 - **Phase 4 — announcements:** group announcements composer (Markdown + preview,
   pin, "also post to Discord") wired to the public announcements feed/pages.
+- **Group subscriptions (upgrades):** per-group recurring subscription management
+  (current plan, tiers, subscribe/switch/cancel/resume, billing portal) and a
+  public `/premium` pricing page. Replaces the points-based feature store, which
+  is out of scope.
 
 Everything runs today on built-in mock data (`USE_MOCK_API`) so the UI is
 demonstrable before the backend exists — including a dev mock sign-in.
@@ -89,6 +93,5 @@ group-config, manual submission, realtime/Redis keys, migrations).
 
 ### Still to come
 
-Points/premium dashboards and the feature store (Phase 2/3 remainder), native
-React lootboards (§12), site-admin tooling, the events system (Phase 6), and
-XenForo cutover with 301s (Phase 5).
+Native React lootboards (§12), site-admin (superadmin) tooling, the events system
+(Phase 6), and XenForo cutover with 301s (Phase 5).

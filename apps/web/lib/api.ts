@@ -11,31 +11,37 @@ import { cookies } from "next/headers";
 import {
   AccountSettingsSchema,
   AnnouncementPageSchema,
+  CheckoutSessionSchema,
   GroupDiagnosticsSchema,
   GroupMembersPageSchema,
   GroupProfileSchema,
+  GroupSubscriptionSchema,
   GuildStatusSchema,
   LeaderboardPageSchema,
   MeSchema,
   PlayerProfileSchema,
   SearchResultsSchema,
+  SubscriptionTierSchema,
   WomGroupPreviewSchema,
   WomSyncResultSchema,
   type AccountSettings,
   type AccountSettingsPatch,
   type AnnouncementInput,
   type AnnouncementPage,
+  type CheckoutSession,
   type CreateGroupInput,
   type GroupConfigPatch,
   type GroupDiagnostics,
   type GroupMembersPage,
   type GroupProfile,
+  type GroupSubscription,
   type GuildStatus,
   type LeaderboardPage,
   type ManualSubmission,
   type Me,
   type PlayerProfile,
   type SearchResults,
+  type SubscriptionTier,
   type WomGroupPreview,
   type WomSyncResult,
 } from "@droptracker/api-types";
@@ -48,11 +54,13 @@ import {
   mockGroupLeaderboard,
   mockGroupMembers,
   mockGroupProfile,
+  mockGroupSubscription,
   mockGuildStatus,
   mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
   mockSearch,
+  mockSubscriptionTiers,
   mockWomLookup,
   mockWomSync,
 } from "./mock-data";
@@ -322,6 +330,65 @@ export const api = {
     return withFallback(
       async () => (await apiSend("POST", `/groups`, input)) as { id: number },
       () => ({ id: Math.floor(100 + Math.random() * 900) }),
+    );
+  },
+
+  // --- Group subscriptions / upgrades -----------------------------------
+  async subscriptionTiers(): Promise<SubscriptionTier[]> {
+    return withFallback(
+      async () =>
+        SubscriptionTierSchema.array().parse(
+          await apiGet(`/subscriptions/tiers`, { revalidate: 300 }),
+        ),
+      () => mockSubscriptionTiers(),
+    );
+  },
+
+  async groupSubscription(groupId: number): Promise<GroupSubscription> {
+    return withFallback(
+      async () =>
+        GroupSubscriptionSchema.parse(await apiGet(`/groups/${groupId}/subscription`, { authed: true })),
+      () => mockGroupSubscription(groupId),
+    );
+  },
+
+  /** Begin (or switch to) a paid tier; returns a provider-hosted redirect URL. */
+  async subscriptionCheckout(groupId: number, tierKey: string): Promise<CheckoutSession> {
+    return withFallback(
+      async () =>
+        CheckoutSessionSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/subscription/checkout`, { tier_key: tierKey }),
+        ),
+      () => ({ url: null }),
+    );
+  },
+
+  async cancelSubscription(groupId: number): Promise<GroupSubscription> {
+    return withFallback(
+      async () =>
+        GroupSubscriptionSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/subscription/cancel`, {}),
+        ),
+      () => ({ ...mockGroupSubscription(groupId), cancel_at_period_end: true }),
+    );
+  },
+
+  async resumeSubscription(groupId: number): Promise<GroupSubscription> {
+    return withFallback(
+      async () =>
+        GroupSubscriptionSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/subscription/resume`, {}),
+        ),
+      () => ({ ...mockGroupSubscription(groupId), cancel_at_period_end: false }),
+    );
+  },
+
+  /** Open the provider's billing portal (update card, invoices, cancel). */
+  async billingPortal(groupId: number): Promise<CheckoutSession> {
+    return withFallback(
+      async () =>
+        CheckoutSessionSchema.parse(await apiSend("POST", `/groups/${groupId}/subscription/portal`, {})),
+      () => ({ url: null }),
     );
   },
 };

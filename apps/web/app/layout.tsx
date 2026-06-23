@@ -43,8 +43,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </header>
           <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
           <footer className="border-osrs-bronze/40 text-osrs-parchment-dark/70 mt-16 border-t">
-            <div className="mx-auto max-w-6xl px-4 py-6 text-xs">
-              DropTracker — not affiliated with Jagex. Built on Next.js.
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-xs">
+              <span>DropTracker — not affiliated with Jagex. Built on Next.js.</span>
+              <nav className="flex gap-4">
+                <Link href="/premium" className="hover:text-osrs-gold-bright">
+                  Premium
+                </Link>
+                <Link href="/announcements" className="hover:text-osrs-gold-bright">
+                  News
+                </Link>
+              </nav>
             </div>
           </footer>
         </Providers>

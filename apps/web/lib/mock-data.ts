@@ -9,11 +9,13 @@ import type {
   GroupDiagnostics,
   GroupMembersPage,
   GroupProfile,
+  GroupSubscription,
   GuildStatus,
   LeaderboardPage,
   Me,
   PlayerProfile,
   SearchResults,
+  SubscriptionTier,
   WomGroupPreview,
   WomSyncResult,
 } from "@droptracker/api-types";
@@ -241,5 +243,62 @@ export function mockGuildStatus(guildId: string): GuildStatus {
     bot_present: true,
     owns_group: false,
     group_id: null,
+  };
+}
+
+export function mockSubscriptionTiers(): SubscriptionTier[] {
+  return [
+    {
+      key: "free",
+      name: "Free",
+      description: "Core drop tracking for every clan.",
+      price_cents: 0,
+      currency: "USD",
+      interval: "month",
+      features: ["Live leaderboards", "Drop notifications", "Public group page"],
+      recommended: false,
+    },
+    {
+      key: "premium",
+      name: "Premium",
+      description: "More history, seasonal boards, and priority processing.",
+      price_cents: 500,
+      currency: "USD",
+      interval: "month",
+      features: [
+        "Everything in Free",
+        "Seasonal lootboards",
+        "Extended submission history",
+        "Custom board themes",
+        "Priority processing",
+      ],
+      recommended: true,
+    },
+    {
+      key: "premium_plus",
+      name: "Premium+",
+      description: "For large, competitive clans.",
+      price_cents: 1500,
+      currency: "USD",
+      interval: "month",
+      features: [
+        "Everything in Premium",
+        "Unlimited members",
+        "Advanced analytics",
+        "Early access to new features",
+      ],
+      recommended: false,
+    },
+  ];
+}
+
+export function mockGroupSubscription(groupId: number): GroupSubscription {
+  return {
+    group_id: groupId,
+    tier_key: "premium",
+    status: "active",
+    provider: "stripe",
+    current_period_end: Math.floor(Date.now() / 1000) + 18 * 86400,
+    cancel_at_period_end: false,
   };
 }
