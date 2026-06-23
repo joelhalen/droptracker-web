@@ -1,0 +1,116 @@
+import type { Metadata, Route } from "next";
+import Link from "next/link";
+import { api } from "@/lib/api";
+import { LeaderboardTable } from "@/components/leaderboard-table";
+
+export const revalidate = 15;
+
+export const metadata: Metadata = {
+  title: "Leaderboards",
+  description: "Global Old School RuneScape loot leaderboards for players and clans.",
+};
+
+const PERIODS: { key: string; label: string }[] = [
+  { key: "all", label: "All-time" },
+  { key: "month", label: "Monthly" },
+  { key: "week", label: "Weekly" },
+  { key: "day", label: "Daily" },
+];
+
+/** Map a friendly period key to a concrete partition (FRONTEND_PLAN.md §6.5). */
+function resolvePeriod(key: string | undefined): string {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(now.getUTCDate()).padStart(2, "0");
+  switch (key) {
+    case "month":
+      return `${y}${m}`;
+    case "week": {
+      const week = Math.ceil(
+        ((now.getTime() - Date.UTC(y, 0, 1)) / 86_400_000 + new Date(Date.UTC(y, 0, 1)).getUTCDay() + 1) / 7,
+      );
+      return `${y}W${String(week).padStart(2, "0")}`;
+    }
+    case "day":
+      return `${y}${m}${d}`;
+    default:
+      return "all";
+  }
+}
+
+type SearchParams = Promise<{ tab?: string; period?: string; page?: string }>;
+
+export default async function LeaderboardsPage({ searchParams }: { searchParams: SearchParams }) {
+  const sp = await searchParams;
+  const tab = sp.tab === "groups" ? "groups" : "players";
+  const periodKey = sp.period ?? "all";
+  const period = resolvePeriod(periodKey);
+  const page = Math.max(1, Number(sp.page ?? "1") || 1);
+
+  const board =
+    tab === "groups"
+      ? await api.groupLeaderboard({ period, page, limit: 50 })
+      : await api.playerLeaderboard({ period, scope: "global", page, limit: 50 });
+
+  const qs = (over: Record<string, string | number>) => {
+    const params = new URLSearchParams({ tab, period: periodKey, page: String(page), ...Object.fromEntries(Object.entries(over).map(([k, v]) => [k, String(v)])) });
+    return `?${params}` as Route;
+  };
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-osrs-gold text-3xl font-bold">Leaderboards</h1>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-1">
+          {(["players", "groups"] as const).map((t) => (
+            <Link
+              key={t}
+              href={qs({ tab: t, page: 1 })}
+              className={`rounded px-3 py-1.5 text-sm capitalize ${
+                tab === t ? "bg-osrs-bronze text-osrs-parchment" : "text-osrs-parchment-dark/80 hover:text-osrs-gold-bright"
+              }`}
+            >
+              {t}
+            </Link>
+          ))}
+        </div>
+        <span className="text-osrs-bronze">|</span>
+        <div className="flex flex-wrap gap-1">
+          {PERIODS.map((p) => (
+            <Link
+              key={p.key}
+              href={qs({ period: p.key, page: 1 })}
+              className={`rounded px-3 py-1.5 text-sm ${
+                periodKey === p.key ? "bg-osrs-bronze text-osrs-parchment" : "text-osrs-parchment-dark/80 hover:text-osrs-gold-bright"
+              }`}
+            >
+              {p.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <LeaderboardTable entries={board.entries} scope="global" kind={tab} />
+
+      <div className="flex items-center justify-between pt-2 text-sm">
+        {page > 1 ? (
+          <Link href={qs({ page: page - 1 })} className="hover:text-osrs-gold-bright">
+            ← Previous
+          </Link>
+        ) : (
+          <span />
+        )}
+        <span className="text-osrs-parchment-dark/70">Page {page}</span>
+        {board.entries.length >= board.meta.limit ? (
+          <Link href={qs({ page: page + 1 })} className="hover:text-osrs-gold-bright">
+            Next →
+          </Link>
+        ) : (
+          <span />
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,28 @@
+{
+  "name": "droptracker-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "First-party web platform for DropTracker (Next.js BFF + Web API contract).",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\"",
+    "gen:api-types": "turbo run gen --filter=@droptracker/api-types"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "turbo": "^2.5.0",
+    "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp", "unrs-resolver"]
+  }
+}
