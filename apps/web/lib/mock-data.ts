@@ -7,6 +7,8 @@ import type {
   AccountSettings,
   AdminLookupResponse,
   AnnouncementPage,
+  EventDetail,
+  EventSummary,
   GroupDiagnostics,
   GroupMembersPage,
   GroupProfile,
@@ -348,6 +350,64 @@ export function mockLootboard(groupId: number, period: string): Lootboard {
   });
   const total = items.reduce((s, it) => s + it.value.value, 0);
   return { group_id: groupId, period, total: money(total), items };
+}
+
+const DAY = 86400;
+
+export function mockEvents(groupId?: number, status?: string): EventSummary[] {
+  const now = Math.floor(Date.now() / 1000);
+  const all: EventSummary[] = [
+    {
+      id: 1,
+      group_id: groupId ?? 101,
+      name: "Summer Bingo 2026",
+      description: "A 5×5 bingo of bossing and skilling tasks.",
+      status: "active",
+      starts_at: now - 3 * DAY,
+      ends_at: now + 11 * DAY,
+      has_bingo: true,
+    },
+    {
+      id: 2,
+      group_id: groupId ?? 101,
+      name: "Spring Boss Race",
+      description: "Most KC across the GWD bosses wins.",
+      status: "past",
+      starts_at: now - 40 * DAY,
+      ends_at: now - 26 * DAY,
+      has_bingo: false,
+    },
+  ];
+  return all.filter((e) => (status ? e.status === status : true));
+}
+
+export function mockEvent(id: number): EventDetail {
+  const now = Math.floor(Date.now() / 1000);
+  const summary = mockEvents().find((e) => e.id === id) ?? mockEvents()[0]!;
+  const cells = Array.from({ length: 25 }, (_, i) => ({
+    index: i,
+    label: ["Twisted bow", "Any pet", "99 Slayer", "Vorkath 50kc", "Inferno cape"][i % 5]!,
+    task_id: null,
+    completed_by: i % 4 === 0 ? ["Team Red"] : [],
+  }));
+  return {
+    ...summary,
+    id,
+    tasks: [
+      { id: 11, type: "kc_target", label: "Vorkath 50 KC", target: "Vorkath", target_value: 50, points: 10 },
+      { id: 12, type: "item_collection", label: "Obtain a Twisted bow", target: "Twisted bow", points: 50 },
+      { id: 13, type: "skill_target", label: "Reach 99 Slayer", target: "Slayer", target_value: 99, points: 25 },
+      { id: 14, type: "xp_target", label: "Gain 10M Ranged XP", target: "Ranged", target_value: 10_000_000, points: 15 },
+    ],
+    teams: [
+      { id: 21, name: "Team Red", score: 120, member_count: 8 },
+      { id: 22, name: "Team Blue", score: 95, member_count: 7 },
+      { id: 23, name: "Team Green", score: 60, member_count: 6 },
+    ],
+    bingo: summary.has_bingo ? { size: 5, cells } : null,
+    starts_at: summary.starts_at ?? now,
+    ends_at: summary.ends_at ?? now + 7 * DAY,
+  };
 }
 
 export function mockLookup(q: string): AdminLookupResponse {

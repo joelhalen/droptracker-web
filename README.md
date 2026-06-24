@@ -87,6 +87,9 @@ Built so far (FRONTEND_PLAN.md §17):
 - **Native lootboards (§12):** React-rendered interactive lootboard
   (`/groups/{id}/lootboard`) — value-tiered tiles, hover for qty/value, period
   switcher — with the legacy PNG generator kept as a "Download image" share.
+- **Events (Phase 6):** public events listing + detail (tasks, team leaderboard,
+  read-only bingo board) and group-admin event management (create events, add
+  typed tasks and teams).
 
 Everything runs today on built-in mock data (`USE_MOCK_API`) so the UI is
 demonstrable before the backend exists — including a dev mock sign-in.
@@ -101,5 +104,6 @@ group-config, manual submission, realtime/Redis keys, migrations).
 
 ### Still to come
 
-The events system (Phase 6), documentation/MDX (§19), and final cutover (domain
-switch + sitemap of dynamic entities, Phase 5).
+Events enhancements (bingo designer, live scoring, effects/cooldowns/shop),
+documentation/MDX (§19), and final cutover (domain switch + sitemap of dynamic
+entities, Phase 5).

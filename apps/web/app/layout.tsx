@@ -31,6 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/leaderboards" className="hover:text-osrs-gold-bright">
                   Leaderboards
                 </Link>
+                <Link href="/events" className="hover:text-osrs-gold-bright">
+                  Events
+                </Link>
                 <Link href="/search" className="hover:text-osrs-gold-bright">
                   Search
                 </Link>

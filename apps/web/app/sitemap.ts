@@ -5,7 +5,7 @@ import { env } from "@/lib/env";
 // Web API can enumerate them.
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = env.siteUrl;
-  return ["/", "/leaderboards", "/announcements", "/premium"].map((path) => ({
+  return ["/", "/leaderboards", "/events", "/announcements", "/premium"].map((path) => ({
     url: `${base}${path}`,
     changeFrequency: "hourly",
     priority: path === "/" ? 1 : 0.7,

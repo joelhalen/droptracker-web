@@ -16,6 +16,8 @@ import {
   GroupMembersPageSchema,
   GroupProfileSchema,
   AdminLookupResponseSchema,
+  EventDetailSchema,
+  EventSummarySchema,
   LootboardImageSchema,
   LootboardSchema,
   GroupSubscriptionSchema,
@@ -37,6 +39,11 @@ import {
   type CheckoutSession,
   type CreateGroupInput,
   type DiscordSendInput,
+  type EventDetail,
+  type EventInput,
+  type EventSummary,
+  type EventTaskInput,
+  type EventTeamInput,
   type GroupConfigPatch,
   type GroupDiagnostics,
   type GroupMembersPage,
@@ -69,6 +76,8 @@ import {
   mockGroupProfile,
   mockGroupSubscription,
   mockGuildStatus,
+  mockEvent,
+  mockEvents,
   mockLookup,
   mockLootboard,
   mockMe,
@@ -194,6 +203,55 @@ export const api = {
     return withFallback(
       async () => GroupProfileSchema.parse(await apiGet(`/groups/${id}`, { revalidate: 30 })),
       () => mockGroupProfile(id),
+    );
+  },
+
+  // --- Events ------------------------------------------------------------
+  async events(params: { groupId?: number; status?: "active" | "past" } = {}): Promise<EventSummary[]> {
+    const q = new URLSearchParams();
+    if (params.groupId) q.set("groupId", String(params.groupId));
+    if (params.status) q.set("status", params.status);
+    return withFallback(
+      async () => EventSummarySchema.array().parse(await apiGet(`/events?${q}`, { revalidate: 30 })),
+      () => mockEvents(params.groupId, params.status),
+    );
+  },
+
+  async event(id: number): Promise<EventDetail> {
+    return withFallback(
+      async () => EventDetailSchema.parse(await apiGet(`/events/${id}`, { revalidate: 30 })),
+      () => mockEvent(id),
+    );
+  },
+
+  async createEvent(input: EventInput): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/events`, input)) as { id: number },
+      () => ({ id: Math.floor(100 + Math.random() * 900) }),
+    );
+  },
+
+  async addEventTask(eventId: number, input: EventTaskInput): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/events/${eventId}/tasks`, input)) as { id: number },
+      () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  async deleteEventTask(eventId: number, taskId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/events/${eventId}/tasks/${taskId}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async addEventTeam(eventId: number, input: EventTeamInput): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/events/${eventId}/teams`, input)) as { id: number },
+      () => ({ id: Math.floor(Math.random() * 100000) }),
     );
   },
 
