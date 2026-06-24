@@ -31,6 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/leaderboards" className="hover:text-osrs-gold-bright">
                   Leaderboards
                 </Link>
+                <Link href="/events" className="hover:text-osrs-gold-bright">
+                  Events
+                </Link>
                 <Link href="/search" className="hover:text-osrs-gold-bright">
                   Search
                 </Link>
@@ -46,6 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-xs">
               <span>DropTracker — not affiliated with Jagex. Built on Next.js.</span>
               <nav className="flex gap-4">
+                <Link href="/docs" className="hover:text-osrs-gold-bright">
+                  Docs
+                </Link>
                 <Link href="/premium" className="hover:text-osrs-gold-bright">
                   Premium
                 </Link>

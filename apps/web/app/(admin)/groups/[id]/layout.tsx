@@ -31,6 +31,7 @@ export default async function GroupAdminLayout({
     { href: `/groups/${groupId}/settings` as Route, label: "Settings" },
     { href: `/groups/${groupId}/announcements` as Route, label: "Announcements" },
     { href: `/groups/${groupId}/members` as Route, label: "Members" },
+    { href: `/groups/${groupId}/events` as Route, label: "Events" },
     { href: `/groups/${groupId}/subscription` as Route, label: "Subscription" },
     { href: `/groups/${groupId}/diagnostics` as Route, label: "Diagnostics" },
   ];

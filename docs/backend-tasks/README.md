@@ -64,6 +64,8 @@ keep the two in lockstep.
 | 10 | [Group management + creation wizard](./10-group-management-and-wizard.md) | admin members/wom-sync/diagnostics, `/groups/new` | §9, §6.3 |
 | 11 | [Group recurring subscriptions (upgrades)](./11-group-subscriptions.md) | subscription tab, `/premium` | §14.1 `/Upgrades/`, §9 |
 | 12 | [Superadmin surfaces](./12-superadmin.md) | `/admin/*` (services, Discord sender, lookup, tiers, global news) | §9, §14.1 |
+| 13 | [Native lootboard data](./13-native-lootboard.md) | `/groups/{id}/lootboard` | §12 |
+| 14 | [Events system](./14-events.md) | `/events`, `/groups/{id}/events*` | §9, §14.1 `/Events/` |
 
 Tasks 01, 08 are foundational. 02 depends on 08 (session/oauth tables, if not
 using stateless JWT). 04 can ship first for a read-only public site (Phase 1).

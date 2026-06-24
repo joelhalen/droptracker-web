@@ -378,4 +378,124 @@ export const AdminLookupResponseSchema = z.object({
 });
 export type AdminLookupResponse = z.infer<typeof AdminLookupResponseSchema>;
 
+/**
+ * Native lootboard data (FRONTEND_PLAN.md §12) — live loot rendered in React
+ * instead of a generated PNG. The image generator stays available as a
+ * "share" affordance via `generated_image_url` / the generate endpoint.
+ */
+export const LootItemSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  quantity: z.number().int(),
+  /** Total value for this row (unit value × quantity). */
+  value: MoneySchema,
+  icon_url: z.string().optional(),
+});
+export type LootItem = z.infer<typeof LootItemSchema>;
+
+export const LootboardSchema = z.object({
+  group_id: z.number().int(),
+  period: z.string(),
+  total: MoneySchema,
+  items: z.array(LootItemSchema),
+});
+export type Lootboard = z.infer<typeof LootboardSchema>;
+
+/** Result of the legacy image generator (wraps the existing CLI). */
+export const LootboardImageSchema = z.object({ url: z.string().nullable() });
+export type LootboardImage = z.infer<typeof LootboardImageSchema>;
+
+/**
+ * Events system (FRONTEND_PLAN.md §14.1 `/Events/`, §6.1/§6.3) — events with
+ * typed tasks, teams, and optional bingo boards. Entity-heavy; this is the
+ * Phase 6 surface the front-end consumes.
+ */
+export const EVENT_TASK_TYPES = [
+  "item_collection",
+  "kc_target",
+  "xp_target",
+  "ehp_target",
+  "ehb_target",
+  "pb_target",
+  "skill_target",
+] as const;
+
+export const EventTaskSchema = z.object({
+  id: z.number().int(),
+  type: z.enum(EVENT_TASK_TYPES),
+  label: z.string(),
+  /** e.g. boss/skill/item name the task is scoped to. */
+  target: z.string().optional(),
+  /** Numeric goal (kc, xp, level, seconds…), interpreted per `type`. */
+  target_value: z.number().int().optional(),
+  points: z.number().int().default(0),
+});
+export type EventTask = z.infer<typeof EventTaskSchema>;
+
+export const EventTeamSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  score: z.number().int().default(0),
+  member_count: z.number().int().default(0),
+});
+export type EventTeam = z.infer<typeof EventTeamSchema>;
+
+export const BingoCellSchema = z.object({
+  index: z.number().int(),
+  label: z.string(),
+  task_id: z.number().int().nullable().optional(),
+  /** Team (or player) names that have completed this cell. */
+  completed_by: z.array(z.string()).default([]),
+});
+export type BingoCell = z.infer<typeof BingoCellSchema>;
+
+export const BingoBoardSchema = z.object({
+  /** Board is `size` × `size`. */
+  size: z.number().int(),
+  cells: z.array(BingoCellSchema),
+});
+export type BingoBoard = z.infer<typeof BingoBoardSchema>;
+
+export const EVENT_STATUS = ["draft", "active", "past"] as const;
+
+export const EventSummarySchema = z.object({
+  id: z.number().int(),
+  group_id: z.number().int().nullable(),
+  name: z.string(),
+  description: z.string().optional(),
+  status: z.enum(EVENT_STATUS),
+  starts_at: z.number().int().nullable(),
+  ends_at: z.number().int().nullable(),
+  has_bingo: z.boolean().default(false),
+});
+export type EventSummary = z.infer<typeof EventSummarySchema>;
+
+export const EventDetailSchema = EventSummarySchema.extend({
+  tasks: z.array(EventTaskSchema).default([]),
+  teams: z.array(EventTeamSchema).default([]),
+  bingo: BingoBoardSchema.nullable().optional(),
+});
+export type EventDetail = z.infer<typeof EventDetailSchema>;
+
+export const EventInputSchema = z.object({
+  group_id: z.number().int(),
+  name: z.string().min(1).max(120),
+  description: z.string().max(2000).optional(),
+  starts_at: z.number().int().nullable().optional(),
+  ends_at: z.number().int().nullable().optional(),
+});
+export type EventInput = z.infer<typeof EventInputSchema>;
+
+export const EventTaskInputSchema = z.object({
+  type: z.enum(EVENT_TASK_TYPES),
+  label: z.string().min(1),
+  target: z.string().optional(),
+  target_value: z.number().int().nonnegative().optional(),
+  points: z.number().int().nonnegative().default(0),
+});
+export type EventTaskInput = z.infer<typeof EventTaskInputSchema>;
+
+export const EventTeamInputSchema = z.object({ name: z.string().min(1).max(80) });
+export type EventTeamInput = z.infer<typeof EventTeamInputSchema>;
+
 export * from "./group-config";

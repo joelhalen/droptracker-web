@@ -11,6 +11,7 @@ const CARDS = [
   { slug: "settings", title: "Settings", desc: "Notifications, lootboard, points, integrations." },
   { slug: "announcements", title: "Announcements", desc: "Post news and syndicate to Discord." },
   { slug: "members", title: "Members", desc: "WOM sync, hide/unhide players." },
+  { slug: "events", title: "Events", desc: "Create events, tasks, teams, and bingo." },
   { slug: "subscription", title: "Subscription", desc: "Manage the group's recurring plan." },
   { slug: "diagnostics", title: "Diagnostics", desc: "Pipeline heartbeat and recent activity." },
 ] as const;

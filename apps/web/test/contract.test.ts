@@ -3,8 +3,11 @@ import { test } from "node:test";
 import {
   AdminLookupResponseSchema,
   AnnouncementPageSchema,
+  EventDetailSchema,
+  EventSummarySchema,
   GroupConfigPatchSchema,
   LeaderboardPageSchema,
+  LootboardSchema,
   MeSchema,
   PlayerProfileSchema,
   ServiceStatusSchema,
@@ -14,7 +17,10 @@ import {
 import openapi from "@droptracker/api-types/openapi" with { type: "json" };
 import {
   mockAnnouncements,
+  mockEvent,
+  mockEvents,
   mockLookup,
+  mockLootboard,
   mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
@@ -46,6 +52,9 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => MeSchema.parse(mockMe()));
   assert.doesNotThrow(() => ServiceStatusSchema.array().parse(mockServices()));
   assert.doesNotThrow(() => AdminLookupResponseSchema.parse(mockLookup("zez")));
+  assert.doesNotThrow(() => LootboardSchema.parse(mockLootboard(42, "all")));
+  assert.doesNotThrow(() => EventSummarySchema.array().parse(mockEvents()));
+  assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(1)));
 });
 
 // Every config key (incl. seasonal mirrors) must resolve to a field — guards the

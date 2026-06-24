@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
       { source: "/groups/:id(\\d+)/config", destination: "/groups/:id/settings", permanent: true },
       { source: "/groups/:id(\\d+)/dashboard", destination: "/groups/:id/admin", permanent: true },
       { source: "/groups/:id(\\d+)/manual-submission", destination: "/submit", permanent: true },
-      { source: "/groups/:id(\\d+)/board-generator", destination: "/groups/:id/admin", permanent: true },
+      { source: "/groups/:id(\\d+)/board-generator", destination: "/groups/:id/lootboard", permanent: true },
       { source: "/groups/:id(\\d+)/points", destination: "/groups/:id", permanent: true },
 
       // Subscriptions (was feature store, now per-group subscription)
