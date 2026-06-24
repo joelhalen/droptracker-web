@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /*
  * OSRS-flavored theme tokens (FRONTEND_PLAN.md §4 "OSRS-flavored theme tokens").

@@ -49,6 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-xs">
               <span>DropTracker — not affiliated with Jagex. Built on Next.js.</span>
               <nav className="flex gap-4">
+                <Link href="/docs" className="hover:text-osrs-gold-bright">
+                  Docs
+                </Link>
                 <Link href="/premium" className="hover:text-osrs-gold-bright">
                   Premium
                 </Link>

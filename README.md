@@ -90,6 +90,10 @@ Built so far (FRONTEND_PLAN.md §17):
 - **Events (Phase 6):** public events listing + detail (tasks, team leaderboard,
   read-only bingo board) and group-admin event management (create events, add
   typed tasks and teams).
+- **Documentation (§19):** static MDX docs under `apps/web/content/docs/`,
+  rendered at `/docs` with a category sidebar. Statically generated, SEO-indexed,
+  and in the sitemap. (Chose static MDX over a user-editable wiki, per the plan's
+  Phase 1 recommendation.)
 
 Everything runs today on built-in mock data (`USE_MOCK_API`) so the UI is
 demonstrable before the backend exists — including a dev mock sign-in.
@@ -102,8 +106,14 @@ The authed/live features depend on the **Web API v1**, which lives in the
 `.md` per unit of work (API skeleton, OAuth/sessions, settings, leaderboards,
 group-config, manual submission, realtime/Redis keys, migrations).
 
+### Adding a doc
+
+Drop a `.mdx` file in `apps/web/content/docs/` with frontmatter
+(`title`, `description`, `category`, `order`). It's picked up automatically —
+sidebar, index, sitemap, and a statically generated `/docs/<slug>` page.
+
 ### Still to come
 
-Events enhancements (bingo designer, live scoring, effects/cooldowns/shop),
-documentation/MDX (§19), and final cutover (domain switch + sitemap of dynamic
+Events enhancements (bingo designer, live scoring, effects/cooldowns/shop) — on
+hold — and the final cutover (domain switch + sitemap of dynamic player/group
 entities, Phase 5).
