@@ -58,8 +58,45 @@ Web API v1 exists.
 
 ## Status
 
-Phase 0/1 scaffold (FRONTEND_PLAN.md §17): monorepo, OSRS-themed design shell,
-public global leaderboard + player/group/announcement pages (SSR/ISR), the BFF
-Discord OAuth + session flow, an SSE hook wired into live leaderboard updates,
-and CI (lint · typecheck · test · build). Subsequent phases add identity
-dashboards, group admin, announcements CRUD, and XenForo cutover.
+Built so far (FRONTEND_PLAN.md §17):
+
+- **Phase 1 — public read site:** OSRS-themed shell; global leaderboard home,
+  `/leaderboards` (player/group tabs, day/week/month/all-time periods),
+  player/group profiles, announcements list + detail, and `/search`. SSR/ISR with
+  an SSE hook wired into live leaderboard updates.
+- **Phase 2 — identity & dashboard:** BFF Discord OAuth + httpOnly session,
+  auth-aware nav, gated `(dashboard)` route group — my accounts, `/settings`
+  (notification/privacy/DM + Patreon/premium prefs), and `/submit` (manual
+  submission). Server Actions for writes.
+- **Phase 3 — group admin:** gated `(admin)/groups/{id}` shell with an admin hub
+  and tabs — typed config editor (built on the shared 55+ key **registry**, §11.1),
+  members management (WOM sync + hide/unhide players), and a diagnostics panel.
+  Plus the multi-step **group-creation wizard** (`/groups/new`: WOM lookup → guild
+  status → create).
+- **Phase 4 — announcements:** group announcements composer (Markdown + preview,
+  pin, "also post to Discord") wired to the public announcements feed/pages.
+- **Group subscriptions (upgrades):** per-group recurring subscription management
+  (current plan, tiers, subscribe/switch/cancel/resume, billing portal) and a
+  public `/premium` pricing page. Replaces the points-based feature store, which
+  is out of scope.
+- **Site admin (superadmin):** gated `/admin` shell — global announcements,
+  Discord message sender, backend service management (start/stop/restart + logs),
+  cross-content lookup, and subscription-tier CRUD. (The SQL executor is
+  deliberately not ported.)
+- **XenForo cutover:** expanded 301 redirect map from legacy URLs (§14.2).
+
+Everything runs today on built-in mock data (`USE_MOCK_API`) so the UI is
+demonstrable before the backend exists — including a dev mock sign-in.
+
+### Backend dependencies
+
+The authed/live features depend on the **Web API v1**, which lives in the
+**backend repo**. Implementation specs for that repo's agent are in
+[`docs/backend-tasks/`](./docs/backend-tasks/README.md) — one self-contained
+`.md` per unit of work (API skeleton, OAuth/sessions, settings, leaderboards,
+group-config, manual submission, realtime/Redis keys, migrations).
+
+### Still to come
+
+Native React lootboards (§12), the events system (Phase 6), documentation/MDX
+(§19), and final cutover (domain switch + sitemap of dynamic entities, Phase 5).

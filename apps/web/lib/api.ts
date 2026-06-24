@@ -9,24 +9,72 @@
  */
 import { cookies } from "next/headers";
 import {
+  AccountSettingsSchema,
   AnnouncementPageSchema,
+  CheckoutSessionSchema,
+  GroupDiagnosticsSchema,
+  GroupMembersPageSchema,
   GroupProfileSchema,
+  AdminLookupResponseSchema,
+  GroupSubscriptionSchema,
+  GuildStatusSchema,
   LeaderboardPageSchema,
   MeSchema,
   PlayerProfileSchema,
+  SearchResultsSchema,
+  ServiceLogsSchema,
+  ServiceStatusSchema,
+  SubscriptionTierSchema,
+  WomGroupPreviewSchema,
+  WomSyncResultSchema,
+  type AccountSettings,
+  type AccountSettingsPatch,
+  type AdminLookupResponse,
+  type AnnouncementInput,
   type AnnouncementPage,
+  type CheckoutSession,
+  type CreateGroupInput,
+  type DiscordSendInput,
+  type GroupConfigPatch,
+  type GroupDiagnostics,
+  type GroupMembersPage,
   type GroupProfile,
+  type GroupSubscription,
+  type GuildStatus,
   type LeaderboardPage,
+  type ManualSubmission,
   type Me,
   type PlayerProfile,
+  type SearchResults,
+  type ServiceAction,
+  type ServiceLogs,
+  type ServiceStatus,
+  type SubscriptionTier,
+  type SubscriptionTierInput,
+  type WomGroupPreview,
+  type WomSyncResult,
 } from "@droptracker/api-types";
 import { env, SESSION_COOKIE } from "./env";
 import {
+  mockAccountSettings,
   mockAnnouncements,
+  mockDiagnostics,
+  mockGroupConfig,
   mockGroupLeaderboard,
+  mockGroupMembers,
   mockGroupProfile,
+  mockGroupSubscription,
+  mockGuildStatus,
+  mockLookup,
+  mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
+  mockSearch,
+  mockServiceLogs,
+  mockServices,
+  mockSubscriptionTiers,
+  mockWomLookup,
+  mockWomSync,
 } from "./mock-data";
 
 type FetchOpts = {
@@ -61,6 +109,31 @@ async function apiGet(path: string, opts: FetchOpts = {}): Promise<unknown> {
 
   if (!res.ok) throw new ApiError(res.status, `Web API ${res.status} for ${path}`);
   return res.json();
+}
+
+async function apiSend(
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
+  path: string,
+  body: unknown,
+): Promise<unknown> {
+  const url = `${env.webApiInternalUrl}/api/v1${path}`;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json",
+      ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(res.status, `Web API ${res.status} for ${method} ${path}`);
+  return res.status === 204 ? null : res.json();
+}
+
+/** True when the caller holds a session cookie (real or dev-mock). */
+async function hasSessionCookie(): Promise<boolean> {
+  return Boolean((await cookies()).get(SESSION_COOKIE)?.value);
 }
 
 /** Run `fetcher`; if the Web API is down and mocks are enabled, use `fallback`. */
@@ -125,7 +198,7 @@ export const api = {
         AnnouncementPageSchema.parse(
           await apiGet(`/announcements?scope=${encodeURIComponent(scope)}`, { revalidate: 30 }),
         ),
-      () => mockAnnouncements(),
+      () => mockAnnouncements(scope),
     );
   },
 
@@ -134,8 +207,273 @@ export const api = {
       return MeSchema.parse(await apiGet(`/me`, { authed: true }));
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) return null;
-      if (env.useMockApi) return null;
+      // In mock mode, treat any present session cookie (incl. the dev mock
+      // login) as an authenticated mock user so the dashboard is demonstrable.
+      if (env.useMockApi) return (await hasSessionCookie()) ? mockMe() : null;
       throw err;
     }
+  },
+
+  async settings(): Promise<AccountSettings> {
+    return withFallback(
+      async () => AccountSettingsSchema.parse(await apiGet(`/me/settings`, { authed: true })),
+      () => mockAccountSettings(),
+    );
+  },
+
+  async updateSettings(patch: AccountSettingsPatch): Promise<AccountSettings> {
+    return withFallback(
+      async () => AccountSettingsSchema.parse(await apiSend("PATCH", `/me`, patch)),
+      () => ({ ...mockAccountSettings(), ...patch }),
+    );
+  },
+
+  async search(q: string): Promise<SearchResults> {
+    if (!q.trim()) return { players: [], groups: [] };
+    return withFallback(
+      async () =>
+        SearchResultsSchema.parse(await apiGet(`/search?q=${encodeURIComponent(q)}`, { revalidate: 10 })),
+      () => mockSearch(q),
+    );
+  },
+
+  async groupConfig(groupId: number): Promise<Record<string, string | number | boolean | null>> {
+    return withFallback(
+      async () =>
+        (await apiGet(`/groups/${groupId}/config`, { authed: true })) as Record<
+          string,
+          string | number | boolean | null
+        >,
+      () => mockGroupConfig(),
+    );
+  },
+
+  async updateGroupConfig(groupId: number, patch: GroupConfigPatch): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("PATCH", `/groups/${groupId}/config`, patch);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async manualSubmit(input: ManualSubmission): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/submissions/manual`, input)) as { id: number },
+      () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  // --- Announcements (write) --------------------------------------------
+  async createAnnouncement(input: AnnouncementInput): Promise<{ id: number }> {
+    const path =
+      input.scope_type === "group" && input.group_id
+        ? `/groups/${input.group_id}/announcements`
+        : `/announcements`;
+    return withFallback(
+      async () => (await apiSend("POST", path, input)) as { id: number },
+      () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  // --- Group admin -------------------------------------------------------
+  async groupMembers(groupId: number, page = 1): Promise<GroupMembersPage> {
+    return withFallback(
+      async () =>
+        GroupMembersPageSchema.parse(
+          await apiGet(`/groups/${groupId}/members?page=${page}`, { authed: true }),
+        ),
+      () => mockGroupMembers(groupId, page),
+    );
+  },
+
+  async setHiddenPlayer(
+    groupId: number,
+    playerId: number,
+    hidden: boolean,
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("PATCH", `/groups/${groupId}/hidden-players`, {
+          player_id: playerId,
+          hidden,
+        });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async womSync(groupId: number): Promise<WomSyncResult> {
+    return withFallback(
+      async () => WomSyncResultSchema.parse(await apiSend("POST", `/groups/${groupId}/wom-sync`, {})),
+      () => mockWomSync(),
+    );
+  },
+
+  async diagnostics(groupId: number): Promise<GroupDiagnostics> {
+    return withFallback(
+      async () =>
+        GroupDiagnosticsSchema.parse(await apiGet(`/groups/${groupId}/diagnostics`, { authed: true })),
+      () => mockDiagnostics(),
+    );
+  },
+
+  // --- Group creation wizard --------------------------------------------
+  async womLookup(womId: number): Promise<WomGroupPreview> {
+    return withFallback(
+      async () => WomGroupPreviewSchema.parse(await apiGet(`/groups/wom-lookup/${womId}`, { authed: true })),
+      () => mockWomLookup(womId),
+    );
+  },
+
+  async guildStatus(guildId: string): Promise<GuildStatus> {
+    return withFallback(
+      async () =>
+        GuildStatusSchema.parse(
+          await apiGet(`/groups/guild-status/${encodeURIComponent(guildId)}`, { authed: true }),
+        ),
+      () => mockGuildStatus(guildId),
+    );
+  },
+
+  async createGroup(input: CreateGroupInput): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/groups`, input)) as { id: number },
+      () => ({ id: Math.floor(100 + Math.random() * 900) }),
+    );
+  },
+
+  // --- Group subscriptions / upgrades -----------------------------------
+  async subscriptionTiers(): Promise<SubscriptionTier[]> {
+    return withFallback(
+      async () =>
+        SubscriptionTierSchema.array().parse(
+          await apiGet(`/subscriptions/tiers`, { revalidate: 300 }),
+        ),
+      () => mockSubscriptionTiers(),
+    );
+  },
+
+  async groupSubscription(groupId: number): Promise<GroupSubscription> {
+    return withFallback(
+      async () =>
+        GroupSubscriptionSchema.parse(await apiGet(`/groups/${groupId}/subscription`, { authed: true })),
+      () => mockGroupSubscription(groupId),
+    );
+  },
+
+  /** Begin (or switch to) a paid tier; returns a provider-hosted redirect URL. */
+  async subscriptionCheckout(groupId: number, tierKey: string): Promise<CheckoutSession> {
+    return withFallback(
+      async () =>
+        CheckoutSessionSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/subscription/checkout`, { tier_key: tierKey }),
+        ),
+      () => ({ url: null }),
+    );
+  },
+
+  async cancelSubscription(groupId: number): Promise<GroupSubscription> {
+    return withFallback(
+      async () =>
+        GroupSubscriptionSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/subscription/cancel`, {}),
+        ),
+      () => ({ ...mockGroupSubscription(groupId), cancel_at_period_end: true }),
+    );
+  },
+
+  async resumeSubscription(groupId: number): Promise<GroupSubscription> {
+    return withFallback(
+      async () =>
+        GroupSubscriptionSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/subscription/resume`, {}),
+        ),
+      () => ({ ...mockGroupSubscription(groupId), cancel_at_period_end: false }),
+    );
+  },
+
+  /** Open the provider's billing portal (update card, invoices, cancel). */
+  async billingPortal(groupId: number): Promise<CheckoutSession> {
+    return withFallback(
+      async () =>
+        CheckoutSessionSchema.parse(await apiSend("POST", `/groups/${groupId}/subscription/portal`, {})),
+      () => ({ url: null }),
+    );
+  },
+
+  // --- Superadmin --------------------------------------------------------
+  async adminServices(): Promise<ServiceStatus[]> {
+    return withFallback(
+      async () => ServiceStatusSchema.array().parse(await apiGet(`/admin/services`, { authed: true })),
+      () => mockServices(),
+    );
+  },
+
+  async adminServiceAction(unit: string, action: ServiceAction["action"]): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/admin/services/${encodeURIComponent(unit)}`, { action });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminServiceLogs(unit: string): Promise<ServiceLogs> {
+    return withFallback(
+      async () =>
+        ServiceLogsSchema.parse(
+          await apiGet(`/admin/services/${encodeURIComponent(unit)}/logs`, { authed: true }),
+        ),
+      () => mockServiceLogs(unit),
+    );
+  },
+
+  async adminSendDiscord(input: DiscordSendInput): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/admin/discord/send`, input);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminLookup(q: string): Promise<AdminLookupResponse> {
+    if (!q.trim()) return { results: [] };
+    return withFallback(
+      async () =>
+        AdminLookupResponseSchema.parse(
+          await apiGet(`/admin/lookup?q=${encodeURIComponent(q)}`, { authed: true }),
+        ),
+      () => mockLookup(q),
+    );
+  },
+
+  async adminSaveTier(tier: SubscriptionTierInput, isNew: boolean): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend(
+          isNew ? "POST" : "PATCH",
+          isNew ? `/admin/subscriptions/tiers` : `/admin/subscriptions/tiers/${encodeURIComponent(tier.key)}`,
+          tier,
+        );
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminDeleteTier(key: string): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/admin/subscriptions/tiers/${encodeURIComponent(key)}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
   },
 };

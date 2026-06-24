@@ -4,11 +4,25 @@
  * falls back to these only when the real API is unreachable.
  */
 import type {
+  AccountSettings,
+  AdminLookupResponse,
   AnnouncementPage,
+  GroupDiagnostics,
+  GroupMembersPage,
   GroupProfile,
+  GroupSubscription,
+  GuildStatus,
   LeaderboardPage,
+  Me,
   PlayerProfile,
+  SearchResults,
+  ServiceLogs,
+  ServiceStatus,
+  SubscriptionTier,
+  WomGroupPreview,
+  WomSyncResult,
 } from "@droptracker/api-types";
+import { GROUP_CONFIG_FIELDS } from "@droptracker/api-types";
 
 const fmt = (n: number): string => {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
@@ -99,20 +113,226 @@ export function mockGroupProfile(id: number): GroupProfile {
   };
 }
 
-export function mockAnnouncements(): AnnouncementPage {
+export function mockMe(): Me {
   return {
-    items: [
-      {
-        id: 1,
-        scope_type: "global",
-        title: "Welcome to the new DropTracker",
-        body_md:
-          "The site is being rebuilt on a real-time, Discord-native platform. Leaderboards now update live.",
-        pinned: true,
-        author_name: "DropTracker Team",
-        published_at: 1719000000,
-      },
+    user_id: 1,
+    discord_id: "207526562331885568",
+    display_name: "MockUser",
+    avatar_url: null,
+    is_superadmin: true,
+    players: [
+      { id: 1337, name: "Zezima", global_rank: 1, total_loot: money(2_000_000_000) },
+      { id: 1338, name: "Zezima Alt", global_rank: 482, total_loot: money(86_000_000) },
     ],
+    groups: [
+      { id: 2, name: "Global", role: "member" },
+      { id: 101, name: "Clan 1", role: "owner" },
+      { id: 102, name: "Clan 2", role: "admin" },
+    ],
+  };
+}
+
+export function mockAccountSettings(): AccountSettings {
+  return {
+    public: true,
+    hidden: false,
+    global_ping: true,
+    group_ping: true,
+    never_ping: false,
+    dm_on_rank_change: false,
+    dm_on_points: true,
+    update_logs_opt_in: true,
+    patreon_group: 101,
+    premium_group: 101,
+  };
+}
+
+export function mockSearch(q: string): SearchResults {
+  const term = q.toLowerCase();
+  return {
+    players: NAMES.filter((n) => n.toLowerCase().includes(term))
+      .slice(0, 5)
+      .map((name, i) => ({
+        id: 1000 + i,
+        name,
+        global_rank: i + 1,
+        total_loot: money(500_000_000 / (i + 1)),
+      })),
+    groups: [{ id: 101, name: `Clan matching "${q}"`, member_count: 128 }],
+  };
+}
+
+/** Mock config: every key set to its registry default. */
+export function mockGroupConfig(): Record<string, string | number | boolean | null> {
+  return Object.fromEntries(GROUP_CONFIG_FIELDS.map((f) => [f.key, f.default]));
+}
+
+export function mockAnnouncements(scope = "global"): AnnouncementPage {
+  const isGroup = scope.startsWith("group:");
+  const groupId = isGroup ? Number(scope.split(":")[1]) : null;
+  return {
+    items: isGroup
+      ? [
+          {
+            id: 100 + (groupId ?? 0),
+            scope_type: "group",
+            group_id: groupId,
+            title: "Clan event this weekend",
+            body_md: "We're running a bossing mass on Saturday. Sign up in Discord!",
+            pinned: false,
+            author_name: "Clan Staff",
+            published_at: 1718990000,
+          },
+        ]
+      : [
+          {
+            id: 1,
+            scope_type: "global",
+            title: "Welcome to the new DropTracker",
+            body_md:
+              "The site is being rebuilt on a real-time, Discord-native platform. Leaderboards now update live.",
+            pinned: true,
+            author_name: "DropTracker Team",
+            published_at: 1719000000,
+          },
+        ],
     next_cursor: null,
+  };
+}
+
+export function mockGroupMembers(_groupId: number, page = 1, limit = 25): GroupMembersPage {
+  const members = Array.from({ length: limit }, (_, i) => {
+    const n = (page - 1) * limit + i;
+    return {
+      id: 2000 + n,
+      name: `${NAMES[n % NAMES.length]}${n}`,
+      group_rank: i === 0 ? "Owner" : i < 3 ? "Admin" : "Member",
+      total_loot: money(Math.round(500_000_000 / (n + 1))),
+      hidden: n % 11 === 0,
+    };
+  });
+  return { members, meta: { page, limit, total: 128 } };
+}
+
+export function mockWomSync(): WomSyncResult {
+  return { added: 3, removed: 1, total: 128, synced_ts: Math.floor(Date.now() / 1000) };
+}
+
+export function mockDiagnostics(): GroupDiagnostics {
+  const today = Math.floor(Date.now() / 86_400_000);
+  return {
+    intake_healthy: true,
+    last_submission_ts: Math.floor(Date.now() / 1000) - 120,
+    members_synced_ts: Math.floor(Date.now() / 1000) - 3600,
+    activity_7d: Array.from({ length: 7 }, (_, i) => ({
+      date: new Date((today - (6 - i)) * 86_400_000).toISOString().slice(0, 10),
+      submissions: Math.round(50 + Math.random() * 200),
+    })),
+    warnings: [],
+  };
+}
+
+export function mockWomLookup(womId: number): WomGroupPreview {
+  return {
+    wom_id: womId,
+    name: `WOM Group ${womId}`,
+    member_count: 84,
+    already_registered: womId % 7 === 0,
+  };
+}
+
+export function mockGuildStatus(guildId: string): GuildStatus {
+  return {
+    guild_id: guildId,
+    bot_present: true,
+    owns_group: false,
+    group_id: null,
+  };
+}
+
+export function mockSubscriptionTiers(): SubscriptionTier[] {
+  return [
+    {
+      key: "free",
+      name: "Free",
+      description: "Core drop tracking for every clan.",
+      price_cents: 0,
+      currency: "USD",
+      interval: "month",
+      features: ["Live leaderboards", "Drop notifications", "Public group page"],
+      recommended: false,
+    },
+    {
+      key: "premium",
+      name: "Premium",
+      description: "More history, seasonal boards, and priority processing.",
+      price_cents: 500,
+      currency: "USD",
+      interval: "month",
+      features: [
+        "Everything in Free",
+        "Seasonal lootboards",
+        "Extended submission history",
+        "Custom board themes",
+        "Priority processing",
+      ],
+      recommended: true,
+    },
+    {
+      key: "premium_plus",
+      name: "Premium+",
+      description: "For large, competitive clans.",
+      price_cents: 1500,
+      currency: "USD",
+      interval: "month",
+      features: [
+        "Everything in Premium",
+        "Unlimited members",
+        "Advanced analytics",
+        "Early access to new features",
+      ],
+      recommended: false,
+    },
+  ];
+}
+
+export function mockGroupSubscription(groupId: number): GroupSubscription {
+  return {
+    group_id: groupId,
+    tier_key: "premium",
+    status: "active",
+    provider: "stripe",
+    current_period_end: Math.floor(Date.now() / 1000) + 18 * 86400,
+    cancel_at_period_end: false,
+  };
+}
+
+export function mockServices(): ServiceStatus[] {
+  const now = Math.floor(Date.now() / 1000);
+  return [
+    { unit: "droptracker-core", name: "Core processor", status: "running", active: true, since: now - 86400 * 3 },
+    { unit: "droptracker-api", name: "Intake API", status: "running", active: true, since: now - 86400 * 3 },
+    { unit: "droptracker-webhooks", name: "Webhooks / notifications", status: "running", active: true, since: now - 3600 },
+  ];
+}
+
+export function mockServiceLogs(unit: string): ServiceLogs {
+  const now = new Date();
+  const lines = Array.from({ length: 20 }, (_, i) => {
+    const t = new Date(now.getTime() - (20 - i) * 1000).toISOString().slice(11, 19);
+    return `${t} ${unit}[1234]: processed batch ${1000 + i} ok`;
+  });
+  return { unit, lines };
+}
+
+export function mockLookup(q: string): AdminLookupResponse {
+  return {
+    results: [
+      { category: "player", id: "1337", label: `Zezima (matches "${q}")`, detail: "rank #1", href: "/players/1337" },
+      { category: "group", id: "101", label: `Clan 1`, detail: "128 members", href: "/groups/101" },
+      { category: "item", id: "20997", label: "Twisted bow", detail: "item #20997" },
+      { category: "npc", id: "8061", label: "Vorkath", detail: "npc #8061" },
+      { category: "drop", id: "55012", label: "Tumeken's shadow", detail: "by Zezima · 1.1B" },
+    ],
   };
 }
