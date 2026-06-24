@@ -378,4 +378,31 @@ export const AdminLookupResponseSchema = z.object({
 });
 export type AdminLookupResponse = z.infer<typeof AdminLookupResponseSchema>;
 
+/**
+ * Native lootboard data (FRONTEND_PLAN.md §12) — live loot rendered in React
+ * instead of a generated PNG. The image generator stays available as a
+ * "share" affordance via `generated_image_url` / the generate endpoint.
+ */
+export const LootItemSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  quantity: z.number().int(),
+  /** Total value for this row (unit value × quantity). */
+  value: MoneySchema,
+  icon_url: z.string().optional(),
+});
+export type LootItem = z.infer<typeof LootItemSchema>;
+
+export const LootboardSchema = z.object({
+  group_id: z.number().int(),
+  period: z.string(),
+  total: MoneySchema,
+  items: z.array(LootItemSchema),
+});
+export type Lootboard = z.infer<typeof LootboardSchema>;
+
+/** Result of the legacy image generator (wraps the existing CLI). */
+export const LootboardImageSchema = z.object({ url: z.string().nullable() });
+export type LootboardImage = z.infer<typeof LootboardImageSchema>;
+
 export * from "./group-config";

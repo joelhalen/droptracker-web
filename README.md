@@ -84,6 +84,9 @@ Built so far (FRONTEND_PLAN.md §17):
   cross-content lookup, and subscription-tier CRUD. (The SQL executor is
   deliberately not ported.)
 - **XenForo cutover:** expanded 301 redirect map from legacy URLs (§14.2).
+- **Native lootboards (§12):** React-rendered interactive lootboard
+  (`/groups/{id}/lootboard`) — value-tiered tiles, hover for qty/value, period
+  switcher — with the legacy PNG generator kept as a "Download image" share.
 
 Everything runs today on built-in mock data (`USE_MOCK_API`) so the UI is
 demonstrable before the backend exists — including a dev mock sign-in.
@@ -98,5 +101,5 @@ group-config, manual submission, realtime/Redis keys, migrations).
 
 ### Still to come
 
-Native React lootboards (§12), the events system (Phase 6), documentation/MDX
-(§19), and final cutover (domain switch + sitemap of dynamic entities, Phase 5).
+The events system (Phase 6), documentation/MDX (§19), and final cutover (domain
+switch + sitemap of dynamic entities, Phase 5).

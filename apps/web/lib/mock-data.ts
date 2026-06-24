@@ -13,6 +13,7 @@ import type {
   GroupSubscription,
   GuildStatus,
   LeaderboardPage,
+  Lootboard,
   Me,
   PlayerProfile,
   SearchResults,
@@ -323,6 +324,30 @@ export function mockServiceLogs(unit: string): ServiceLogs {
     return `${t} ${unit}[1234]: processed batch ${1000 + i} ok`;
   });
   return { unit, lines };
+}
+
+export function mockLootboard(groupId: number, period: string): Lootboard {
+  const ITEMS: [number, string, number][] = [
+    [20997, "Twisted bow", 1_100_000_000],
+    [22486, "Scythe of vitur", 750_000_000],
+    [27277, "Tumeken's shadow", 1_050_000_000],
+    [11802, "Armadyl godsword", 18_000_000],
+    [12924, "Toxic blowpipe", 4_500_000],
+    [4151, "Abyssal whip", 1_800_000],
+    [11785, "Armadyl crossbow", 32_000_000],
+    [21006, "Dragon hunter lance", 60_000_000],
+    [13652, "Dragon claws", 95_000_000],
+    [11926, "Occult necklace", 600_000],
+    [25738, "Masori body", 60_000_000],
+    [19481, "Hydra leather", 18_000],
+  ];
+  const items = ITEMS.map(([item_id, name, unit], i) => {
+    const quantity = 1 + ((i * 7) % 11);
+    const total = unit * quantity;
+    return { item_id, name, quantity, value: money(total) };
+  });
+  const total = items.reduce((s, it) => s + it.value.value, 0);
+  return { group_id: groupId, period, total: money(total), items };
 }
 
 export function mockLookup(q: string): AdminLookupResponse {

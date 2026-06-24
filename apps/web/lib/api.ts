@@ -16,6 +16,8 @@ import {
   GroupMembersPageSchema,
   GroupProfileSchema,
   AdminLookupResponseSchema,
+  LootboardImageSchema,
+  LootboardSchema,
   GroupSubscriptionSchema,
   GuildStatusSchema,
   LeaderboardPageSchema,
@@ -42,6 +44,8 @@ import {
   type GroupSubscription,
   type GuildStatus,
   type LeaderboardPage,
+  type Lootboard,
+  type LootboardImage,
   type ManualSubmission,
   type Me,
   type PlayerProfile,
@@ -66,6 +70,7 @@ import {
   mockGroupSubscription,
   mockGuildStatus,
   mockLookup,
+  mockLootboard,
   mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
@@ -189,6 +194,29 @@ export const api = {
     return withFallback(
       async () => GroupProfileSchema.parse(await apiGet(`/groups/${id}`, { revalidate: 30 })),
       () => mockGroupProfile(id),
+    );
+  },
+
+  async lootboard(groupId: number, period = "all"): Promise<Lootboard> {
+    return withFallback(
+      async () =>
+        LootboardSchema.parse(
+          await apiGet(`/groups/${groupId}/lootboard?period=${encodeURIComponent(period)}`, {
+            revalidate: 30,
+          }),
+        ),
+      () => mockLootboard(groupId, period),
+    );
+  },
+
+  /** Trigger the legacy image generator (share affordance, FRONTEND_PLAN.md §12). */
+  async generateLootboardImage(groupId: number, period = "all"): Promise<LootboardImage> {
+    return withFallback(
+      async () =>
+        LootboardImageSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/lootboard/generate`, { period }),
+        ),
+      () => ({ url: null }),
     );
   },
 

@@ -31,14 +31,22 @@ export default async function GroupPage({ params }: { params: Params }) {
             <p className="text-osrs-parchment-dark/80 max-w-2xl">{group.description}</p>
           )}
         </div>
-        {group.discord_url && (
-          <a
-            href={group.discord_url}
-            className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
+        <div className="flex gap-2">
+          <Link
+            href={`/groups/${group.id}/lootboard`}
+            className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
           >
-            Join Discord
-          </a>
-        )}
+            Lootboard
+          </Link>
+          {group.discord_url && (
+            <a
+              href={group.discord_url}
+              className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
+            >
+              Join Discord
+            </a>
+          )}
+        </div>
       </header>
 
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
