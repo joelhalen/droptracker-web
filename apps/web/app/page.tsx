@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { Card, EmptyState } from "@/components/ui";
 
 // Public homepage: SSR snapshot with ISR; client hydrates live updates.
 export const revalidate = 15;
@@ -14,16 +15,41 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-12">
-      <section>
-        <h1 className="text-osrs-gold mb-1 text-3xl font-bold">Loot leaderboards</h1>
-        <p className="text-osrs-parchment-dark/80">
-          Live Old School RuneScape drop tracking. Updated in real time as drops come in.
-        </p>
-      </section>
+      <Card padding="p-8 sm:p-10" className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="from-osrs-gold/10 pointer-events-none absolute inset-0 bg-gradient-to-br via-transparent to-transparent"
+        />
+        <div className="relative">
+          <h5 className="text-osrs-gold text-sm font-medium">
+            Welcome to
+            </h5>
+          <h1 className="text-osrs-gold text-4xl font-bold tracking-tight sm:text-5xl">
+            DropTracker.io
+          </h1>
+          <p className="text-osrs-parchment-dark/80 mt-3 max-w-xl text-base sm:text-lg">
+            An all-in-one loot and achievement tracking solution for Old School RuneScape players and groups — featuring real-time notifications, leaderboards and events.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/leaderboards"
+              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors"
+            >
+              View leaderboards
+            </Link>
+            <Link
+              href="/docs/getting-started"
+              className="border-osrs-bronze/50 hover:bg-osrs-surface-2 rounded-lg border px-5 py-2.5 text-sm font-medium transition-colors"
+            >
+              Get started
+            </Link>
+          </div>
+        </div>
+      </Card>
 
-      <div className="grid gap-10 lg:grid-cols-3">
+      <div className="grid gap-8 lg:grid-cols-3">
         <section className="lg:col-span-2">
-          <div className="heading-rule mb-4 flex items-baseline justify-between pb-1">
+          <div className="mb-4 flex items-baseline justify-between">
             <h2 className="text-osrs-gold text-xl font-semibold">Top players</h2>
             <Link href="/leaderboards" className="text-osrs-parchment-dark/70 text-sm hover:text-osrs-gold-bright">
               View all →
@@ -33,7 +59,7 @@ export default async function HomePage() {
         </section>
 
         <section>
-          <div className="heading-rule mb-4 flex items-baseline justify-between pb-1">
+          <div className="mb-4 flex items-baseline justify-between">
             <h2 className="text-osrs-gold text-xl font-semibold">Top clans</h2>
             <Link
               href="/leaderboards?tab=groups"
@@ -47,19 +73,23 @@ export default async function HomePage() {
       </div>
 
       <section>
-        <div className="heading-rule mb-4 pb-1">
-          <h2 className="text-osrs-gold text-xl font-semibold">Latest news</h2>
-        </div>
-        <ul className="space-y-3">
-          {news.items.map((a) => (
-            <li key={a.id} className="border-osrs-bronze/20 rounded border p-4">
-              <Link href={`/announcements/${a.id}`} className="text-osrs-gold-bright font-medium">
-                {a.title}
-              </Link>
-              <p className="text-osrs-parchment-dark/80 mt-1 line-clamp-2 text-sm">{a.body_md}</p>
-            </li>
-          ))}
-        </ul>
+        <h2 className="text-osrs-gold mb-4 text-xl font-semibold">Latest news</h2>
+        {news.items.length ? (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {news.items.map((a) => (
+              <li key={a.id}>
+                <Card padding="p-4" className="hover:border-osrs-gold/40 h-full transition-colors">
+                  <Link href={`/announcements/${a.id}`} className="text-osrs-gold-bright font-medium">
+                    {a.title}
+                  </Link>
+                  <p className="text-osrs-parchment-dark/80 mt-1 line-clamp-2 text-sm">{a.body_md}</p>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState title="No announcements yet" hint="Check back soon for DropTracker news and updates." />
+        )}
       </section>
     </div>
   );

@@ -125,7 +125,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "use_dynamic_colors", label: "Dynamic colors", category: "board", type: "boolean", help: "Color item tiles by relative value.", default: true },
   { key: "use_gp_colors", label: "GP colors", category: "board", type: "boolean", help: "Use GP-value color thresholds on the board.", default: true },
   { key: "repost_lootboard", label: "Repost lootboard", category: "board", type: "boolean", help: "Repost (vs. edit) the board on each update.", default: false },
-  { key: "seasonal_boards", label: "Seasonal boards", category: "board", type: "boolean", help: "Maintain a parallel seasonal lootboard.", default: false },
+  { key: "seasonal_boards", label: "Seasonal boards", category: "board", type: "boolean", help: "When enabled, automatically use themed boards for holidays/seasons when made available globally.", default: false },
 
   // --- Points -------------------------------------------------------------
   { key: "split_gp_tracking", label: "Track split GP", category: "points", type: "boolean", help: "Account for loot splits when crediting GP/points.", default: false },

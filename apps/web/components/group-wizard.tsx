@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { GuildStatus, WomGroupPreview } from "@droptracker/api-types";
 import { checkGuild, createGroup, lookupWom } from "@/app/(admin)/groups/new/actions";
+import { getErrorMessage } from "@/lib/errors";
 
 type Step = 1 | 2 | 3;
 
@@ -28,40 +29,52 @@ export function GroupWizard() {
   const onLookupWom = () =>
     startTransition(async () => {
       setError(null);
-      const preview = await lookupWom(Number(womId));
-      setWom(preview);
-      if (!name) setName(preview.name);
-      if (preview.already_registered) {
-        setError("This WOM group is already registered with DropTracker.");
-      } else {
-        setStep(2);
+      try {
+        const preview = await lookupWom(Number(womId));
+        setWom(preview);
+        if (!name) setName(preview.name);
+        if (preview.already_registered) {
+          setError("This WOM group is already registered with DropTracker.");
+        } else {
+          setStep(2);
+        }
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't find that Wise Old Man group. Check the ID and try again."));
       }
     });
 
   const onCheckGuild = () =>
     startTransition(async () => {
       setError(null);
-      const status = await checkGuild(guildId);
-      setGuild(status);
-      if (!status.bot_present) {
-        setError("The DropTracker bot is not in that server. Invite it, then retry.");
-      } else if (status.owns_group) {
-        setError("That server already owns a group.");
-      } else {
-        setStep(3);
+      try {
+        const status = await checkGuild(guildId);
+        setGuild(status);
+        if (!status.bot_present) {
+          setError("The DropTracker bot is not in that server. Invite it, then retry.");
+        } else if (status.owns_group) {
+          setError("That server already owns a group.");
+        } else {
+          setStep(3);
+        }
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't check that Discord server. Please try again."));
       }
     });
 
   const onCreate = () =>
     startTransition(async () => {
       setError(null);
-      const res = await createGroup({
-        name,
-        wom_id: Number(womId),
-        guild_id: guildId,
-        discord_url: discordUrl,
-      });
-      router.push(`/groups/${res.id}/admin`);
+      try {
+        const res = await createGroup({
+          name,
+          wom_id: Number(womId),
+          guild_id: guildId,
+          discord_url: discordUrl,
+        });
+        router.push(`/groups/${res.id}/admin`);
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't create the group. Please try again."));
+      }
     });
 
   return (

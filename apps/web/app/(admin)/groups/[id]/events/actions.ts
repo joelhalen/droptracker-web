@@ -27,6 +27,19 @@ export async function createGroupEvent(groupId: number, input: Omit<EventInput, 
   return { ok: true as const, id: result.id };
 }
 
+export async function updateGroupEvent(
+  groupId: number,
+  eventId: number,
+  patch: Partial<Pick<EventInput, "name" | "description" | "starts_at" | "ends_at">>,
+) {
+  await assertAdmin(groupId);
+  const parsed = EventInputSchema.omit({ group_id: true }).partial().parse(patch);
+  const result = await api.updateEvent(eventId, parsed);
+  revalidatePath(`/groups/${groupId}/events`);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  return result;
+}
+
 export async function addEventTask(groupId: number, eventId: number, input: EventTaskInput) {
   await assertAdmin(groupId);
   const parsed = EventTaskInputSchema.parse(input);

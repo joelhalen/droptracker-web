@@ -31,7 +31,14 @@ export function groupRole(user: Me, groupId: number): "owner" | "admin" | "membe
   return user.groups.find((g) => g.id === groupId)?.role ?? null;
 }
 
+/**
+ * Superadmins can administer any group (as if they were its owner), even ones
+ * they've never joined — mirrors the backend's `resolve_group_role` (which
+ * they wouldn't even appear as a member of in `user.groups` for, so this must
+ * short-circuit rather than rely on the per-group role lookup below).
+ */
 export function canAdminGroup(user: Me, groupId: number): boolean {
+  if (user.is_superadmin) return true;
   const role = groupRole(user, groupId);
   return role === "owner" || role === "admin";
 }

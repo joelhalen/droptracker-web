@@ -4,6 +4,8 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { createGroupEvent } from "@/app/(admin)/groups/[id]/events/actions";
+import { getErrorMessage } from "@/lib/errors";
+import { Alert } from "@/components/ui";
 
 /** Convert a datetime-local value to unix seconds (or null). */
 const toUnix = (v: string): number | null => (v ? Math.floor(new Date(v).getTime() / 1000) : null);
@@ -15,6 +17,7 @@ export function EventCreateForm({ groupId }: { groupId: number }) {
   const [description, setDescription] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const field =
     "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
@@ -22,19 +25,25 @@ export function EventCreateForm({ groupId }: { groupId: number }) {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
+    setError(null);
     startTransition(async () => {
-      const res = await createGroupEvent(groupId, {
-        name,
-        description: description || undefined,
-        starts_at: toUnix(startsAt),
-        ends_at: toUnix(endsAt),
-      });
-      router.push(`/groups/${groupId}/events/${res.id}` as Route);
+      try {
+        const res = await createGroupEvent(groupId, {
+          name,
+          description: description || undefined,
+          starts_at: toUnix(startsAt),
+          ends_at: toUnix(endsAt),
+        });
+        router.push(`/groups/${groupId}/events/${res.id}` as Route);
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't create the event. Please try again."));
+      }
     });
   };
 
   return (
     <form onSubmit={onSubmit} className="space-y-3">
+      {error && <Alert variant="error">{error}</Alert>}
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -48,7 +57,7 @@ export function EventCreateForm({ groupId }: { groupId: number }) {
         rows={2}
         className={field}
       />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Starts</span>
           <input

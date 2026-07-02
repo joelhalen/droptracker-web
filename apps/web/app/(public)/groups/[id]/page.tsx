@@ -2,6 +2,8 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { orNotFound } from "@/lib/fetch";
+import { SubmissionList } from "@/components/submission-list";
 
 export const revalidate = 30;
 
@@ -9,18 +11,22 @@ type Params = Promise<{ id: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
-  const group = await api.group(Number(id));
-  return {
-    title: group.name,
-    description: group.description ?? `${group.name} — ${group.member_count} members.`,
-  };
+  try {
+    const group = await api.group(Number(id));
+    return {
+      title: group.name,
+      description: group.description ?? `${group.name} — ${group.member_count} members.`,
+    };
+  } catch {
+    return { title: "Group" };
+  }
 }
 
 export default async function GroupPage({ params }: { params: Params }) {
   const { id } = await params;
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
-  const group = await api.group(groupId);
+  const group = await orNotFound(api.group(groupId));
 
   return (
     <div className="space-y-8">
@@ -62,14 +68,11 @@ export default async function GroupPage({ params }: { params: Params }) {
 
       <section>
         <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Recent submissions</h2>
-        <ul className="divide-osrs-bronze/20 divide-y">
-          {group.recent_submissions.map((s) => (
-            <li key={s.id} className="flex items-center justify-between py-2.5 text-sm">
-              <span>{s.label}</span>
-              {s.value && <span className="tabular-nums">{s.value.value_formatted}</span>}
-            </li>
-          ))}
-        </ul>
+        <SubmissionList
+          submissions={group.recent_submissions}
+          showPlayer
+          emptyHint="Tracked loot for this clan will appear here."
+        />
       </section>
     </div>
   );

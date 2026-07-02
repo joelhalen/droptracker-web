@@ -15,14 +15,23 @@ export function ServicePanel({ services }: { services: ServiceStatus[] }) {
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState<string | null>(null);
   const [logs, setLogs] = useState<{ unit: string; lines: string[] } | null>(null);
+  const [confirmStop, setConfirmStop] = useState<string | null>(null);
+  const [error, setError] = useState<{ unit: string; message: string } | null>(null);
 
-  const act = (unit: string, action: "start" | "stop" | "restart") => {
+  const act = (unit: string, action: "start" | "stop" | "restart", confirm = false) => {
+    setError(null);
     setBusy(`${unit}:${action}`);
     startTransition(async () => {
-      await runServiceAction(unit, action);
+      const result = await runServiceAction(unit, action, confirm);
+      if (!result.ok) setError({ unit, message: result.error });
+      setConfirmStop(null);
       setBusy(null);
     });
   };
+
+  // Stopping a running service interrupts processing for everyone — always
+  // confirm, mirroring the backend's own guard for the intake API.
+  const onStopClick = (unit: string) => setConfirmStop(unit);
 
   const viewLogs = (unit: string) => {
     setBusy(`${unit}:logs`);
@@ -43,6 +52,7 @@ export function ServicePanel({ services }: { services: ServiceStatus[] }) {
             <div>
               <div className="font-medium">{s.name}</div>
               <div className="text-osrs-parchment-dark/50 text-xs">{s.unit}</div>
+              {error?.unit === s.unit && <div className="text-osrs-red mt-1 text-xs">{error.message}</div>}
             </div>
             <div className="flex items-center gap-3">
               <span className={`text-sm capitalize ${STATUS_STYLES[s.status]}`}>● {s.status}</span>
@@ -54,19 +64,34 @@ export function ServicePanel({ services }: { services: ServiceStatus[] }) {
                 >
                   {busy === `${s.unit}:restart` ? "…" : "Restart"}
                 </button>
-                <button
-                  onClick={() => act(s.unit, s.active ? "stop" : "start")}
-                  disabled={pending}
-                  className={`${btn} ${
-                    s.active ? "bg-osrs-red/20 text-osrs-red" : "bg-osrs-green/20 text-osrs-green"
-                  }`}
-                >
-                  {busy === `${s.unit}:stop` || busy === `${s.unit}:start`
-                    ? "…"
-                    : s.active
-                      ? "Stop"
-                      : "Start"}
-                </button>
+                {s.active && confirmStop === s.unit ? (
+                  <>
+                    <button
+                      onClick={() => act(s.unit, "stop", true)}
+                      disabled={pending}
+                      className={`${btn} bg-osrs-red text-osrs-parchment`}
+                    >
+                      {busy === `${s.unit}:stop` ? "…" : "Confirm stop"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmStop(null)}
+                      disabled={pending}
+                      className={`${btn} border-osrs-bronze/50 hover:bg-osrs-bronze/30 border`}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => (s.active ? onStopClick(s.unit) : act(s.unit, "start"))}
+                    disabled={pending}
+                    className={`${btn} ${
+                      s.active ? "bg-osrs-red/20 text-osrs-red" : "bg-osrs-green/20 text-osrs-green"
+                    }`}
+                  >
+                    {busy === `${s.unit}:start` ? "…" : s.active ? "Stop" : "Start"}
+                  </button>
+                )}
                 <button
                   onClick={() => viewLogs(s.unit)}
                   disabled={pending}

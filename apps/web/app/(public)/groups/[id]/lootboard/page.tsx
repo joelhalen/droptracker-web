@@ -2,6 +2,7 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { orNotFound } from "@/lib/fetch";
 import { PERIOD_OPTIONS, resolvePeriod } from "@/lib/period";
 import { LootboardGrid } from "@/components/lootboard-grid";
 
@@ -12,8 +13,12 @@ type SearchParams = Promise<{ period?: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
-  const group = await api.group(Number(id));
-  return { title: `${group.name} — Lootboard` };
+  try {
+    const group = await api.group(Number(id));
+    return { title: `${group.name} — Lootboard` };
+  } catch {
+    return { title: "Lootboard" };
+  }
 }
 
 export default async function GroupLootboardPage({
@@ -29,7 +34,7 @@ export default async function GroupLootboardPage({
   const { period: periodKey = "all" } = await searchParams;
 
   const [group, board] = await Promise.all([
-    api.group(groupId),
+    orNotFound(api.group(groupId)),
     api.lootboard(groupId, resolvePeriod(periodKey)),
   ]);
 

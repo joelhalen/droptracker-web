@@ -6,11 +6,15 @@
  * scope and apply `leaderboard_delta` events to the rows in place
  * (FRONTEND_PLAN.md §8.4).
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import type { LeaderboardEntry } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
+import { formatGp } from "@/lib/format";
+import { EmptyState } from "@/components/ui";
+
+const BADGE_DURATION_MS = 2500;
 
 type Props = {
   entries: LeaderboardEntry[];
@@ -23,6 +27,12 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
   const [rows, setRows] = useState(entries);
   // Track ids that just changed so we can flash them.
   const [flashing, setFlashing] = useState<Set<number>>(new Set());
+
+  // Re-sync when the server sends a fresh snapshot (period/page/tab change).
+  // Without this, useState would keep the initial page's rows on navigation.
+  useEffect(() => {
+    setRows(entries);
+  }, [entries]);
 
   const { state } = useEventStream([scope], (event) => {
     if (event.type !== "leaderboard_delta") return;
@@ -44,14 +54,35 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
         next.delete(id);
         return next;
       });
-    }, 1200);
+      // Clear the delta once its badge has faded so a stale "+X" doesn't
+      // linger on the row until the next update.
+      setRows((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, delta: undefined } : r)),
+      );
+    }, BADGE_DURATION_MS);
   });
 
   const hrefBase = kind === "players" ? "/players" : "/groups";
   const liveLabel = useMemo(
-    () => (state === "open" ? "● live" : state === "connecting" ? "○ connecting" : "○ offline"),
+    () =>
+      state === "open"
+        ? "● live"
+        : state === "connecting"
+          ? "○ connecting"
+          : "○ offline",
     [state],
   );
+
+  if (!rows.length) {
+    return (
+      <EmptyState
+        title={
+          kind === "players" ? "No ranked players yet" : "No ranked clans yet"
+        }
+        hint="Leaderboards populate as drops are tracked for this period."
+      />
+    );
+  }
 
   return (
     <div>
@@ -63,33 +94,49 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
           {liveLabel}
         </span>
       </div>
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="text-osrs-gold/80 text-left">
-            <th className="w-12 px-3 py-2">#</th>
-            <th className="px-3 py-2">Name</th>
-            <th className="px-3 py-2 text-right">Loot</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr
-              key={r.id}
-              className={`border-osrs-bronze/20 border-t transition-colors ${
-                flashing.has(r.id) ? "bg-osrs-gold/15" : ""
-              }`}
-            >
-              <td className="text-osrs-parchment-dark px-3 py-2 tabular-nums">{r.rank}</td>
-              <td className="px-3 py-2">
-                <Link href={`${hrefBase}/${r.id}` as Route} className="hover:text-osrs-gold-bright">
-                  {r.name}
-                </Link>
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums">{r.loot.value_formatted}</td>
+      <div className="border-osrs-bronze/20 overflow-x-auto rounded border">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="text-osrs-gold/80 text-left">
+              <th className="w-12 px-3 py-2">#</th>
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2 text-right">Loot</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr
+                key={r.id}
+                className={`border-osrs-bronze/20 border-t transition-colors ${
+                  flashing.has(r.id) ? "bg-osrs-gold/15" : ""
+                }`}
+              >
+                <td className="text-osrs-parchment-dark px-3 py-2 tabular-nums">
+                  {r.rank}
+                </td>
+                <td className="px-3 py-2">
+                  <Link
+                    href={`${hrefBase}/${r.id}` as Route}
+                    className="hover:text-osrs-gold-bright"
+                  >
+                    {r.name}
+                  </Link>
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">
+                  <span className="relative inline-block">
+                    {r.loot.value_formatted}
+                    {r.delta != null && r.delta > 0 && (
+                      <span className="text-osrs-green animate-fade-up absolute -top-4 right-0 text-xs font-semibold whitespace-nowrap">
+                        +{formatGp(r.delta)}
+                      </span>
+                    )}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

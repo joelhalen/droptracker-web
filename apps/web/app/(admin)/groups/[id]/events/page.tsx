@@ -2,8 +2,8 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { formatDate } from "@/lib/format";
 import { EventCreateForm } from "@/components/event-create-form";
+import { EmptyState } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Events" };
 
@@ -40,12 +40,10 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
             ))}
           </ul>
         ) : (
-          <p className="text-osrs-parchment-dark/60 text-sm">No events yet.</p>
-        )}
-        {events.length > 0 && (
-          <p className="text-osrs-parchment-dark/50 mt-3 text-xs">
-            Created {formatDate(events[0]!.starts_at)} onward.
-          </p>
+          <EmptyState
+            title="No events yet"
+            hint="Create one to add tasks, teams, and bingo boards."
+          />
         )}
       </section>
     </div>

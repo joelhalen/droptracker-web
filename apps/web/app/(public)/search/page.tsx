@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { SearchBox } from "@/components/search-box";
+import { EmptyState } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Search",
@@ -20,6 +21,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
         <h1 className="text-osrs-gold mb-4 text-3xl font-bold">Search</h1>
         <SearchBox initial={q} />
       </div>
+
+      {!results && (
+        <p className="text-osrs-parchment-dark/60 text-sm">
+          Search for a player or clan by name to see their profile and loot.
+        </p>
+      )}
 
       {results && (
         <div className="space-y-8">
@@ -41,7 +48,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
                 ))}
               </ul>
             ) : (
-              <p className="text-osrs-parchment-dark/60 text-sm">No players found.</p>
+              <EmptyState title="No players found" />
             )}
           </section>
 
@@ -61,7 +68,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
                 ))}
               </ul>
             ) : (
-              <p className="text-osrs-parchment-dark/60 text-sm">No clans found.</p>
+              <EmptyState title="No clans found" />
             )}
           </section>
         </div>

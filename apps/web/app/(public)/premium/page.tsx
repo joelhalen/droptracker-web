@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
+import { EmptyState } from "@/components/ui";
+import { InlineMarkdown } from "@/components/markdown";
 
 export const revalidate = 300;
 
@@ -22,6 +24,13 @@ export default async function PremiumPage() {
           processing for your whole group. Manage it from your group&apos;s admin page.
         </p>
       </header>
+
+      {tiers.length === 0 && (
+        <EmptyState
+          title="Plans coming soon"
+          hint="Premium subscription tiers aren't available just yet. Check back shortly."
+        />
+      )}
 
       <div className="mx-auto grid max-w-4xl gap-4 sm:grid-cols-3">
         {tiers.map((t) => (
@@ -47,7 +56,7 @@ export default async function PremiumPage() {
               {t.features.map((f) => (
                 <li key={f} className="flex gap-2">
                   <span className="text-osrs-green">✓</span>
-                  <span>{f}</span>
+                  <InlineMarkdown>{f}</InlineMarkdown>
                 </li>
               ))}
             </ul>

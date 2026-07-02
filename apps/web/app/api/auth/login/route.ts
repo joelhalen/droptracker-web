@@ -37,7 +37,13 @@ export async function GET(req: NextRequest) {
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", SCOPES.join(" "));
   url.searchParams.set("state", state);
-  url.searchParams.set("prompt", "none");
+  // Note: no `prompt=none`. With `prompt=none` Discord refuses to show the
+  // consent screen and instead returns an error (e.g. `consent_required`)
+  // whenever a fresh grant is needed — such as after we added the `guilds`
+  // scope — which lands back in the callback with no `code`, no session, and an
+  // immediate silent bounce back into sign-in. Omitting it lets Discord skip
+  // consent automatically for already-authorized users and prompt only when a
+  // grant is genuinely required.
 
   return NextResponse.redirect(url);
 }

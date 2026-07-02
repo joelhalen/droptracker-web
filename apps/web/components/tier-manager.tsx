@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import type { SubscriptionTier } from "@droptracker/api-types";
 import { formatPrice } from "@/lib/format";
+import { InlineMarkdown } from "@/components/markdown";
 import { deleteTier, saveTier } from "@/app/(admin)/admin/tiers/actions";
 
 const blankTier = (): SubscriptionTier => ({
@@ -160,6 +161,9 @@ function TierForm({
 
       <label className="block">
         <span className="mb-1 block text-sm font-medium">Features (one per line)</span>
+        <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">
+          Supports **bold**, *italic*, and [links](url).
+        </span>
         <textarea
           value={featuresText}
           onChange={(e) => setFeaturesText(e.target.value)}
@@ -167,6 +171,24 @@ function TierForm({
           className={field}
         />
       </label>
+
+      {featuresText.trim() && (
+        <div>
+          <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">Preview</span>
+          <ul className="border-osrs-bronze/20 space-y-1.5 rounded border p-3 text-sm">
+            {featuresText
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .map((f, i) => (
+                <li key={i} className="flex gap-2">
+                  <span className="text-osrs-green">✓</span>
+                  <InlineMarkdown>{f}</InlineMarkdown>
+                </li>
+              ))}
+          </ul>
+        </div>
+      )}
 
       <label className="flex cursor-pointer items-center gap-2 text-sm">
         <input

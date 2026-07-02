@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { Markdown } from "@/components/markdown";
 
 export const revalidate = 30;
 
@@ -37,9 +38,7 @@ export default async function AnnouncementPage({ params }: { params: Params }) {
           {item.author_name ? ` · ${item.author_name}` : ""}
         </p>
       </header>
-      {/* Markdown rendering (e.g. react-markdown) lands in a later phase; plain
-          text is safe by default here. */}
-      <div className="prose-invert whitespace-pre-wrap leading-relaxed">{item.body_md}</div>
+      <Markdown>{item.body_md}</Markdown>
     </article>
   );
 }

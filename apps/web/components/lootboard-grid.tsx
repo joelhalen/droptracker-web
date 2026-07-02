@@ -10,6 +10,7 @@ import { useState, useTransition } from "react";
 import type { Lootboard } from "@droptracker/api-types";
 import { lootValueClass } from "@/lib/format";
 import { generateLootboardImage } from "@/app/(public)/groups/[id]/lootboard/actions";
+import { EmptyState } from "@/components/ui";
 
 export function LootboardGrid({ board }: { board: Lootboard }) {
   const [pending, startTransition] = useTransition();
@@ -44,7 +45,7 @@ export function LootboardGrid({ board }: { board: Lootboard }) {
       {notice && <p className="text-osrs-parchment-dark/70 text-sm">{notice}</p>}
 
       {board.items.length === 0 ? (
-        <p className="text-osrs-parchment-dark/60 text-sm">No loot tracked for this period yet.</p>
+        <EmptyState title="No loot tracked for this period yet" />
       ) : (
         <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
           {board.items.map((it) => (

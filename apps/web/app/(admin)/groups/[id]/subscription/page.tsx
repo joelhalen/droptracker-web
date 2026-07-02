@@ -19,7 +19,7 @@ export default async function GroupSubscriptionPage({ params }: { params: Params
   ]);
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <p className="text-osrs-parchment-dark/70 mb-6 text-sm">
         Manage this group&apos;s recurring subscription. Billing is handled by our payment provider.
       </p>

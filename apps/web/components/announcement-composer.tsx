@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import type { AnnouncementInput } from "@droptracker/api-types";
 import { publishAnnouncement } from "@/app/(admin)/groups/[id]/announcements/actions";
 import { publishGlobalAnnouncement } from "@/app/(admin)/admin/announcements/actions";
+import { getErrorMessage } from "@/lib/errors";
+import { Alert } from "@/components/ui";
 
 /**
  * Announcement composer for both group (pass `groupId`) and global (omit it,
@@ -12,6 +14,7 @@ import { publishGlobalAnnouncement } from "@/app/(admin)/admin/announcements/act
 export function AnnouncementComposer({ groupId }: { groupId?: number }) {
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
   const [form, setForm] = useState<AnnouncementInput>({
     scope_type: groupId ? "group" : "global",
@@ -30,12 +33,17 @@ export function AnnouncementComposer({ groupId }: { groupId?: number }) {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!valid) return;
+    setError(null);
     startTransition(async () => {
-      if (groupId) await publishAnnouncement(groupId, form);
-      else await publishGlobalAnnouncement(form);
-      setForm((f) => ({ ...f, title: "", body_md: "", pinned: false }));
-      setDone(true);
-      setTimeout(() => setDone(false), 2500);
+      try {
+        if (groupId) await publishAnnouncement(groupId, form);
+        else await publishGlobalAnnouncement(form);
+        setForm((f) => ({ ...f, title: "", body_md: "", pinned: false }));
+        setDone(true);
+        setTimeout(() => setDone(false), 2500);
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't publish the announcement. Please try again."));
+      }
     });
   };
 
@@ -107,6 +115,7 @@ export function AnnouncementComposer({ groupId }: { groupId?: number }) {
         </button>
         {done && <span className="text-osrs-green text-sm">Published.</span>}
       </div>
+      {error && <Alert variant="error">{error}</Alert>}
     </form>
   );
 }

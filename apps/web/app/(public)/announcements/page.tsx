@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { EmptyState } from "@/components/ui";
 
 export const revalidate = 30;
 
@@ -15,6 +16,9 @@ export default async function AnnouncementsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-osrs-gold text-3xl font-bold">News &amp; Announcements</h1>
+      {news.items.length === 0 && (
+        <EmptyState title="No announcements yet" hint="Check back soon for DropTracker news and updates." />
+      )}
       <ul className="space-y-4">
         {news.items.map((a) => (
           <li key={a.id} className="border-osrs-bronze/20 rounded border p-5">

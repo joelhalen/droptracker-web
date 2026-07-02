@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { orNotFound } from "@/lib/fetch";
 import { formatDate } from "@/lib/format";
 import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 import { BingoBoard } from "@/components/bingo-board";
+import { EmptyState } from "@/components/ui";
 
 export const revalidate = 30;
 
@@ -12,8 +14,12 @@ type Params = Promise<{ id: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
-  const event = await api.event(Number(id));
-  return { title: event.name, description: event.description };
+  try {
+    const event = await api.event(Number(id));
+    return { title: event.name, description: event.description };
+  } catch {
+    return { title: "Event" };
+  }
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -26,7 +32,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   const { id } = await params;
   const eventId = Number(id);
   if (!Number.isFinite(eventId)) notFound();
-  const event = await api.event(eventId);
+  const event = await orNotFound(api.event(eventId));
 
   const teams = [...event.teams].sort((a, b) => b.score - a.score);
 
@@ -88,7 +94,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                 ))}
               </ul>
             ) : (
-              <p className="text-osrs-parchment-dark/60 text-sm">No tasks yet.</p>
+              <EmptyState title="No tasks yet" />
             )}
           </div>
         </section>
@@ -114,7 +120,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
               ))}
             </ol>
           ) : (
-            <p className="text-osrs-parchment-dark/60 text-sm">No teams yet.</p>
+            <EmptyState title="No teams yet" />
           )}
         </aside>
       </div>

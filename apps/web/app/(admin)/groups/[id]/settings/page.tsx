@@ -16,7 +16,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
   const config = await api.groupConfig(groupId);
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <p className="text-osrs-parchment-dark/70 mb-6 text-sm">
         Notification, lootboard, points, and integration configuration.
       </p>

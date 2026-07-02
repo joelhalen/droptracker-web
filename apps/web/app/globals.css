@@ -18,9 +18,48 @@
   --color-osrs-green: #2f7d32;
   --color-osrs-stone: #5a5a52;
 
+  /*
+   * Elevation scale (design system refresh). The original palette used one
+   * background color everywhere and faked depth with border opacity — flat
+   * and hard to read hierarchy. These add real, distinct layers: page canvas
+   * darkest, cards a clear step up, popovers/sticky-chrome a further step.
+   * Additive only — nothing above was renamed, existing `osrs-brown(-dark)`
+   * usages keep working untouched.
+   */
+  --color-osrs-surface-0: #15110c;
+  --color-osrs-surface-1: #211a12;
+  --color-osrs-surface-2: #2c2318;
+  --color-osrs-surface-3: #3a2f20;
+
+  /* Vivid "live/active" accent — drop ticker, online indicators, active nav. */
+  --color-osrs-ember: #ff8c42;
+
   --font-display: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
 
   --radius-osrs: 0.375rem;
+
+  --shadow-osrs-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-osrs-pop: 0 4px 12px rgba(0, 0, 0, 0.45), 0 16px 40px rgba(0, 0, 0, 0.4);
+
+  --animate-fade-up: fade-up 2.5s ease-out forwards;
+
+  @keyframes fade-up {
+    0% {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    15% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    75% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
 }
 
 :root {
@@ -29,7 +68,8 @@
 
 body {
   background:
-    radial-gradient(circle at top, var(--color-osrs-brown), var(--color-osrs-brown-dark)) fixed;
+    radial-gradient(ellipse 1400px 700px at 50% -10%, var(--color-osrs-brown) 0%, var(--color-osrs-surface-0) 55%)
+    var(--color-osrs-surface-0) fixed;
   color: var(--color-osrs-parchment);
   font-family: var(--font-display);
 }
@@ -37,4 +77,39 @@ body {
 /* Thin gold accent for section headers. */
 .heading-rule {
   border-bottom: 2px solid var(--color-osrs-bronze);
+}
+
+/*
+ * Reusable card surfaces (design system refresh). `.card` is the standard
+ * resting-state panel — replaces the old copy-pasted
+ * `border-osrs-bronze/20 rounded border p-4` pattern that had drifted
+ * slightly differently across ~15 files. `.card-pop` is for anything that
+ * should read as floating above the page (modals, dropdown panels).
+ */
+.card {
+  background: var(--color-osrs-surface-1);
+  border: 1px solid color-mix(in srgb, var(--color-osrs-bronze) 30%, transparent);
+  border-radius: 12px;
+  box-shadow: var(--shadow-osrs-card);
+}
+
+.card-pop {
+  background: var(--color-osrs-surface-2);
+  border: 1px solid color-mix(in srgb, var(--color-osrs-bronze) 40%, transparent);
+  border-radius: 12px;
+  box-shadow: var(--shadow-osrs-pop);
+}
+
+/*
+ * Live drop ticker marquee (components/live-drop-ticker.tsx). Plain keyframes
+ * (not a Tailwind `@theme` animate token) so the component can set its own
+ * `animation-duration` proportional to content length via inline style.
+ */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
 }

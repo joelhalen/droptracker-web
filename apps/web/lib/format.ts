@@ -23,6 +23,16 @@ export function lootValueClass(value: number): string {
   return "border-osrs-bronze/30 bg-osrs-brown-dark/40";
 }
 
+/** Abbreviated GP formatting matching the backend's `format_number` exactly (K/M/B, 2dp). */
+export function formatGp(value: number): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "-" : "";
+  if (abs >= 1_000_000_000) return `${sign}${(abs / 1_000_000_000).toFixed(2)}B`;
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(2)}K`;
+  return `${sign}${abs.toLocaleString()}`;
+}
+
 export function formatDate(unixSeconds: number | null): string {
   if (!unixSeconds) return "—";
   return new Date(unixSeconds * 1000).toLocaleDateString(undefined, {
@@ -30,4 +40,15 @@ export function formatDate(unixSeconds: number | null): string {
     month: "short",
     day: "numeric",
   });
+}
+
+/** "3m ago" / "2h ago" style relative time, falling back to a date past ~2 days. */
+export function formatRelativeTime(unixSeconds: number | null): string {
+  if (!unixSeconds) return "—";
+  const diffSec = Math.floor(Date.now() / 1000) - unixSeconds;
+  if (diffSec < 60) return "just now";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  if (diffSec < 172800) return `${Math.floor(diffSec / 86400)}d ago`;
+  return formatDate(unixSeconds);
 }

@@ -93,9 +93,24 @@ export function mockPlayerProfile(id: number): PlayerProfile {
     top_npc: "Vorkath",
     groups: [{ id: 2, name: "Global" }],
     recent_submissions: [
-      { id: 1, type: "drop", label: "Twisted bow", value: money(1_100_000_000), ts: 1719000000 },
-      { id: 2, type: "pet", label: "Vorki", ts: 1718990000 },
-      { id: 3, type: "clog", label: "Zaryte vambraces", value: money(28_000_000), ts: 1718980000 },
+      {
+        id: 1,
+        type: "drop",
+        label: "Twisted bow",
+        value: money(1_100_000_000),
+        image_url: "https://www.droptracker.io/img/itemdb/20997.png",
+        npc_name: "Alchemical Hydra",
+        ts: Math.floor(Date.now() / 1000) - 300,
+      },
+      { id: 2, type: "pet", label: "Vorki", npc_name: "Vorkath", ts: Math.floor(Date.now() / 1000) - 3600 },
+      {
+        id: 3,
+        type: "clog",
+        label: "Zaryte vambraces",
+        value: money(28_000_000),
+        image_url: "https://www.droptracker.io/img/itemdb/26235.png",
+        ts: Math.floor(Date.now() / 1000) - 86400,
+      },
     ],
   };
 }
@@ -111,7 +126,17 @@ export function mockGroupProfile(id: number): GroupProfile {
     discord_url: "https://discord.gg/droptracker",
     top_player: { id: 1337, name: "Zezima", total_loot: money(2_000_000_000) },
     recent_submissions: [
-      { id: 10, type: "drop", label: "Scythe of vitur", value: money(750_000_000), ts: 1719000000 },
+      {
+        id: 10,
+        type: "drop",
+        label: "Scythe of vitur",
+        value: money(750_000_000),
+        image_url: "https://www.droptracker.io/img/itemdb/22325.png",
+        npc_name: "Theatre of Blood",
+        player_id: 1337,
+        player_name: "Zezima",
+        ts: Math.floor(Date.now() / 1000) - 900,
+      },
     ],
   };
 }

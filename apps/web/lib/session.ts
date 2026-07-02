@@ -24,7 +24,7 @@ export async function issueOAuthState(redirectTo: string): Promise<string> {
   const token = `${payload}.${sign(payload)}`;
   (await cookies()).set(OAUTH_STATE_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: env.cookieSecure,
     sameSite: "lax",
     path: "/",
     maxAge: STATE_TTL_MS / 1000,
@@ -57,7 +57,7 @@ export async function consumeOAuthState(returned: string): Promise<{ redirectTo:
 export async function setSession(token: string, maxAgeSeconds = 60 * 60 * 24 * 7): Promise<void> {
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: env.cookieSecure,
     sameSite: "lax",
     path: "/",
     maxAge: maxAgeSeconds,

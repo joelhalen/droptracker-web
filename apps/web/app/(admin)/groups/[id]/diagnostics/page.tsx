@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { EmptyState } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Diagnostics" };
 
@@ -52,6 +53,9 @@ export default async function GroupDiagnosticsPage({ params }: { params: Params 
         <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
           Submissions (last 7 days)
         </h2>
+        {diag.activity_7d.length === 0 ? (
+          <EmptyState title="No activity recorded in the last 7 days" />
+        ) : (
         <div className="flex h-40 items-end gap-2">
           {diag.activity_7d.map((d) => (
             <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
@@ -64,6 +68,7 @@ export default async function GroupDiagnosticsPage({ params }: { params: Params 
             </div>
           ))}
         </div>
+        )}
       </section>
 
       {diag.warnings.length > 0 && (

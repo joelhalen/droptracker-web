@@ -53,6 +53,11 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
       ? await api.groupLeaderboard({ period, page, limit: 50 })
       : await api.playerLeaderboard({ period, scope: "global", page, limit: 50 });
 
+  const limit = board.meta.limit || 50;
+  const totalPages = board.meta.total > 0 ? Math.ceil(board.meta.total / limit) : 0;
+  // Prefer authoritative total when present; otherwise fall back to a full page.
+  const hasNext = totalPages ? page < totalPages : board.entries.length >= limit;
+
   const qs = (over: Record<string, string | number>) => {
     const params = new URLSearchParams({ tab, period: periodKey, page: String(page), ...Object.fromEntries(Object.entries(over).map(([k, v]) => [k, String(v)])) });
     return `?${params}` as Route;
@@ -94,23 +99,28 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
 
       <LeaderboardTable entries={board.entries} scope="global" kind={tab} />
 
-      <div className="flex items-center justify-between pt-2 text-sm">
-        {page > 1 ? (
-          <Link href={qs({ page: page - 1 })} className="hover:text-osrs-gold-bright">
-            ← Previous
-          </Link>
-        ) : (
-          <span />
-        )}
-        <span className="text-osrs-parchment-dark/70">Page {page}</span>
-        {board.entries.length >= board.meta.limit ? (
-          <Link href={qs({ page: page + 1 })} className="hover:text-osrs-gold-bright">
-            Next →
-          </Link>
-        ) : (
-          <span />
-        )}
-      </div>
+      {board.entries.length > 0 && (
+        <div className="flex items-center justify-between pt-2 text-sm">
+          {page > 1 ? (
+            <Link href={qs({ page: page - 1 })} className="hover:text-osrs-gold-bright">
+              ← Previous
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="text-osrs-parchment-dark/70">
+            Page {page}
+            {totalPages ? ` of ${totalPages}` : ""}
+          </span>
+          {hasNext ? (
+            <Link href={qs({ page: page + 1 })} className="hover:text-osrs-gold-bright">
+              Next →
+            </Link>
+          ) : (
+            <span />
+          )}
+        </div>
+      )}
     </div>
   );
 }

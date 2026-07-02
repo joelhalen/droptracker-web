@@ -1,8 +1,8 @@
-import type { Route } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { requireUser, canAdminGroup } from "@/lib/auth";
+import { TabNav, type NavTab } from "@/components/tab-nav";
 
 type Params = Promise<{ id: string }>;
 
@@ -26,14 +26,15 @@ export default async function GroupAdminLayout({
 
   const group = await api.group(groupId);
 
-  const tabs: { href: Route; label: string }[] = [
-    { href: `/groups/${groupId}/admin` as Route, label: "Overview" },
-    { href: `/groups/${groupId}/settings` as Route, label: "Settings" },
-    { href: `/groups/${groupId}/announcements` as Route, label: "Announcements" },
-    { href: `/groups/${groupId}/members` as Route, label: "Members" },
-    { href: `/groups/${groupId}/events` as Route, label: "Events" },
-    { href: `/groups/${groupId}/subscription` as Route, label: "Subscription" },
-    { href: `/groups/${groupId}/diagnostics` as Route, label: "Diagnostics" },
+  const tabs: NavTab[] = [
+    { href: `/groups/${groupId}/admin`, label: "Overview" },
+    { href: `/groups/${groupId}/settings`, label: "Settings" },
+    { href: `/groups/${groupId}/announcements`, label: "Announcements" },
+    { href: `/groups/${groupId}/members`, label: "Members" },
+    // Events owns a nested [eventId] detail route — stay active there too.
+    { href: `/groups/${groupId}/events`, label: "Events", matchPrefix: true },
+    { href: `/groups/${groupId}/subscription`, label: "Subscription" },
+    { href: `/groups/${groupId}/diagnostics`, label: "Diagnostics" },
   ];
 
   return (
@@ -48,13 +49,7 @@ export default async function GroupAdminLayout({
         <h1 className="text-osrs-gold mt-1 text-2xl font-bold">Manage {group.name}</h1>
       </header>
 
-      <nav className="border-osrs-bronze/30 flex flex-wrap gap-1 border-b pb-2 text-sm">
-        {tabs.map((t) => (
-          <Link key={t.href} href={t.href} className="hover:bg-osrs-bronze/30 rounded px-3 py-1.5">
-            {t.label}
-          </Link>
-        ))}
-      </nav>
+      <TabNav tabs={tabs} />
 
       <div>{children}</div>
     </div>

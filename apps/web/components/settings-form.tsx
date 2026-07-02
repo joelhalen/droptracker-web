@@ -3,6 +3,8 @@
 import { useState, useTransition } from "react";
 import type { AccountSettings, Me } from "@droptracker/api-types";
 import { saveSettings } from "@/app/(dashboard)/settings/actions";
+import { getErrorMessage } from "@/lib/errors";
+import { Alert } from "@/components/ui";
 
 type ToggleKey = Exclude<keyof AccountSettings, "patreon_group" | "premium_group">;
 
@@ -21,15 +23,21 @@ export function SettingsForm({ initial, groups }: { initial: AccountSettings; gr
   const [settings, setSettings] = useState(initial);
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const dirty = JSON.stringify(settings) !== JSON.stringify(initial);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     startTransition(async () => {
-      await saveSettings(settings);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      try {
+        await saveSettings(settings);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't save your settings. Please try again."));
+      }
     });
   };
 
@@ -85,6 +93,7 @@ export function SettingsForm({ initial, groups }: { initial: AccountSettings; gr
         </button>
         {saved && <span className="text-osrs-green text-sm">Saved.</span>}
       </div>
+      {error && <Alert variant="error">{error}</Alert>}
     </form>
   );
 }

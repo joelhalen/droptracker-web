@@ -59,7 +59,13 @@ export const SubmissionSchema = z.object({
   type: z.enum(["drop", "clog", "pb", "ca", "pet", "level", "quest"]),
   label: z.string(),
   value: MoneySchema.optional(),
+  quantity: z.number().int().optional(),
+  /** Item/NPC icon (`/img/itemdb/{id}.png` or `/img/npcdb/{id}.png`), not a proof screenshot. */
   image_url: z.string().optional(),
+  npc_name: z.string().nullable().optional(),
+  /** Who received this submission — populated on group-scope listings. */
+  player_id: z.number().int().nullable().optional(),
+  player_name: z.string().nullable().optional(),
   ts: z.number().int(),
 });
 export type Submission = z.infer<typeof SubmissionSchema>;
@@ -203,6 +209,31 @@ export const AnnouncementInputSchema = z.object({
   post_to_discord: z.boolean().default(true),
 });
 export type AnnouncementInput = z.infer<typeof AnnouncementInputSchema>;
+
+/** Docs CMS (superadmin-editable, replaces the old static .mdx files). */
+export const DocSummarySchema = z.object({
+  slug: z.string(),
+  title: z.string(),
+  description: z.string().nullable().optional(),
+  category: z.string(),
+  order: z.number().int(),
+});
+export type DocSummary = z.infer<typeof DocSummarySchema>;
+
+export const DocSchema = DocSummarySchema.extend({
+  content: z.string(),
+});
+export type Doc = z.infer<typeof DocSchema>;
+
+export const DocInputSchema = z.object({
+  slug: z.string().min(1).max(120),
+  title: z.string().min(1).max(200),
+  description: z.string().max(300).nullable().optional(),
+  category: z.string().min(1).max(80),
+  order: z.number().int().default(100),
+  content: z.string().min(1),
+});
+export type DocInput = z.infer<typeof DocInputSchema>;
 
 /** Group member row (FRONTEND_PLAN.md §9 "Members"). */
 export const GroupMemberSchema = z.object({
@@ -377,6 +408,114 @@ export const AdminLookupResponseSchema = z.object({
   results: z.array(AdminLookupResultSchema),
 });
 export type AdminLookupResponse = z.infer<typeof AdminLookupResponseSchema>;
+
+/**
+ * Superadmin site overview KPIs (dashboard landing). Flexible tiles: each stat
+ * has a machine `key`, human `label`, numeric `value`, and optional `hint`.
+ */
+export const AdminOverviewStatSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  value: z.number().int(),
+  hint: z.string().optional(),
+});
+export type AdminOverviewStat = z.infer<typeof AdminOverviewStatSchema>;
+
+export const AdminOverviewSchema = z.object({
+  stats: z.array(AdminOverviewStatSchema),
+  generated_at: z.number().int(),
+});
+export type AdminOverview = z.infer<typeof AdminOverviewSchema>;
+
+/** Comped (manual) subscription grant input (§12). */
+export const AdminSubscriptionGrantInputSchema = z.object({
+  tier_key: z.string().min(1),
+  days: z.number().int().positive().max(3650),
+});
+export type AdminSubscriptionGrantInput = z.infer<typeof AdminSubscriptionGrantInputSchema>;
+
+/**
+ * Superadmin curated data viewer/editor (§12). Whitelisted entities only — there
+ * is deliberately no arbitrary SQL executor.
+ */
+export const ADMIN_DATA_ENTITIES = [
+  "players",
+  "groups",
+  "users",
+  "group_configurations",
+  "subscription_tiers",
+  "group_subscriptions",
+  "audit_log",
+  "announcements",
+  "notification_queue",
+  "discord_outbox",
+] as const;
+export type AdminDataEntity = (typeof ADMIN_DATA_ENTITIES)[number];
+
+/** A single row is an open record of column → JSON-safe scalar. */
+export const AdminDataRowSchema = z.record(
+  z.string(),
+  z.union([z.string(), z.number(), z.boolean(), z.null()]),
+);
+export type AdminDataRow = z.infer<typeof AdminDataRowSchema>;
+
+export const AdminDataListResponseSchema = z.object({
+  entity: z.string(),
+  columns: z.array(z.string()),
+  rows: z.array(AdminDataRowSchema),
+  editable: z.array(z.string()),
+  meta: PageMetaSchema,
+});
+export type AdminDataListResponse = z.infer<typeof AdminDataListResponseSchema>;
+
+export const AdminDataRecordResponseSchema = z.object({
+  entity: z.string(),
+  id: z.union([z.string(), z.number()]),
+  record: AdminDataRowSchema,
+  editable: z.array(z.string()),
+});
+export type AdminDataRecordResponse = z.infer<typeof AdminDataRecordResponseSchema>;
+
+/** PATCH body: only allowlisted editable columns are accepted (422 otherwise). */
+export const AdminDataPatchInputSchema = z.object({
+  fields: z.record(
+    z.string(),
+    z.union([z.string(), z.number(), z.boolean(), z.null()]),
+  ),
+});
+export type AdminDataPatchInput = z.infer<typeof AdminDataPatchInputSchema>;
+
+/** Application log tail (§12) — from the `logs` analytics table. */
+export const AdminLogEntrySchema = z.object({
+  ts: z.number().int(),
+  level: z.string(),
+  source: z.string(),
+  message: z.string(),
+});
+export type AdminLogEntry = z.infer<typeof AdminLogEntrySchema>;
+
+export const AdminLogsResponseSchema = z.object({
+  entries: z.array(AdminLogEntrySchema),
+  sources: z.array(z.string()),
+});
+export type AdminLogsResponse = z.infer<typeof AdminLogsResponseSchema>;
+
+/** Superadmin per-group staff overview (§12). */
+export const AdminGroupOverviewSchema = z.object({
+  group: z.object({
+    id: z.number().int(),
+    name: z.string(),
+    member_count: z.number().int(),
+    guild_id: z.string().nullable(),
+    wom_id: z.number().int().nullable(),
+  }),
+  subscription: GroupSubscriptionSchema,
+  config_summary: z.record(z.string(), z.string().nullable()),
+  activity_7d: z.array(z.object({ date: z.string(), submissions: z.number().int() })),
+  last_submission_ts: z.number().int().nullable(),
+  warnings: z.array(z.string()).default([]),
+});
+export type AdminGroupOverview = z.infer<typeof AdminGroupOverviewSchema>;
 
 /**
  * Native lootboard data (FRONTEND_PLAN.md §12) — live loot rendered in React

@@ -1,9 +1,17 @@
-import type { Route } from "next";
-import Link from "next/link";
 import { requireSuperadmin } from "@/lib/auth";
+import { TabNav, type NavTab } from "@/components/tab-nav";
 
-const TABS: { href: Route; label: string }[] = [
+// `href` is a plain string cast to `Route` at render time: some of these routes
+// are newly added and may not yet be in the generated typed-routes manifest.
+// No tab needs `matchPrefix` — none of these own nested dynamic child routes
+// (see tab-nav.tsx for why "/admin" itself must stay exact-match-only).
+const TABS: NavTab[] = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin/data", label: "Data" },
+  { href: "/admin/logs", label: "Logs" },
+  { href: "/admin/groups", label: "Groups" },
+  { href: "/admin/users", label: "Users" },
+  { href: "/admin/audit", label: "Audit log" },
   { href: "/admin/announcements", label: "Global news" },
   { href: "/admin/discord", label: "Discord sender" },
   { href: "/admin/services", label: "Services" },
@@ -24,13 +32,7 @@ export default async function SuperadminLayout({ children }: { children: React.R
         <h1 className="text-osrs-gold mt-2 text-2xl font-bold">Administration</h1>
       </header>
 
-      <nav className="border-osrs-bronze/30 flex flex-wrap gap-1 border-b pb-2 text-sm">
-        {TABS.map((t) => (
-          <Link key={t.href} href={t.href} className="hover:bg-osrs-bronze/30 rounded px-3 py-1.5">
-            {t.label}
-          </Link>
-        ))}
-      </nav>
+      <TabNav tabs={TABS} />
 
       <div>{children}</div>
     </div>

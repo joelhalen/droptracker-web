@@ -3,6 +3,9 @@
 import { useState, useTransition } from "react";
 import type { GroupSubscription, SubscriptionTier } from "@droptracker/api-types";
 import { formatDate, formatPrice } from "@/lib/format";
+import { getErrorMessage } from "@/lib/errors";
+import { Alert, EmptyState } from "@/components/ui";
+import { InlineMarkdown } from "@/components/markdown";
 import {
   cancelSubscription,
   openBillingPortal,
@@ -31,6 +34,7 @@ export function SubscriptionManager({
   const [sub, setSub] = useState(initial);
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const paidTiers = tiers.filter((t) => t.price_cents > 0);
   const isActive = sub.status === "active" || sub.status === "trialing";
@@ -39,32 +43,52 @@ export function SubscriptionManager({
     if (url) {
       window.location.href = url;
     } else {
-      setNotice("Billing is not configured in this environment (mock mode).");
+      setNotice("Billing is not configured in this environment yet.");
     }
   };
 
   const onCheckout = (tierKey: string) =>
     startTransition(async () => {
       setNotice(null);
-      const { url } = await startCheckout(groupId, tierKey);
-      redirectOrNotice(url);
+      setError(null);
+      try {
+        const { url } = await startCheckout(groupId, tierKey);
+        redirectOrNotice(url);
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't start checkout. Please try again."));
+      }
     });
 
   const onPortal = () =>
     startTransition(async () => {
       setNotice(null);
-      const { url } = await openBillingPortal(groupId);
-      redirectOrNotice(url);
+      setError(null);
+      try {
+        const { url } = await openBillingPortal(groupId);
+        redirectOrNotice(url);
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't open the billing portal. Please try again."));
+      }
     });
 
   const onCancel = () =>
     startTransition(async () => {
-      setSub(await cancelSubscription(groupId));
+      setError(null);
+      try {
+        setSub(await cancelSubscription(groupId));
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't cancel the subscription. Please try again."));
+      }
     });
 
   const onResume = () =>
     startTransition(async () => {
-      setSub(await resumeSubscription(groupId));
+      setError(null);
+      try {
+        setSub(await resumeSubscription(groupId));
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't resume the subscription. Please try again."));
+      }
     });
 
   return (
@@ -126,11 +150,13 @@ export function SubscriptionManager({
           </p>
         )}
         {notice && <p className="text-osrs-parchment-dark/70 mt-3 text-sm">{notice}</p>}
+        {error && <Alert variant="error" className="mt-3">{error}</Alert>}
       </section>
 
       {/* Available tiers */}
       <section>
         <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Plans</h2>
+        {paidTiers.length === 0 && <EmptyState title="No paid plans are available right now" />}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {paidTiers.map((t) => {
             const current = sub.tier_key === t.key && isActive;
@@ -157,7 +183,7 @@ export function SubscriptionManager({
                   {t.features.map((f) => (
                     <li key={f} className="flex gap-2">
                       <span className="text-osrs-green">✓</span>
-                      <span>{f}</span>
+                      <InlineMarkdown>{f}</InlineMarkdown>
                     </li>
                   ))}
                 </ul>
