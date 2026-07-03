@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import type { GroupSubscription, SubscriptionTier } from "@droptracker/api-types";
 import { formatDate, formatPrice } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, EmptyState } from "@/components/ui";
+import { Alert, Badge, EmptyState, SubscriptionStatusBadge, TierBadge } from "@/components/ui";
 import { InlineMarkdown } from "@/components/markdown";
 import {
   cancelSubscription,
@@ -12,15 +12,6 @@ import {
   resumeSubscription,
   startCheckout,
 } from "@/app/(admin)/groups/[id]/subscription/actions";
-
-const STATUS_STYLES: Record<GroupSubscription["status"], string> = {
-  none: "text-osrs-parchment-dark/60",
-  active: "text-osrs-green",
-  trialing: "text-osrs-green",
-  past_due: "text-osrs-red",
-  canceled: "text-osrs-red",
-  expired: "text-osrs-red",
-};
 
 export function SubscriptionManager({
   groupId,
@@ -94,20 +85,23 @@ export function SubscriptionManager({
   return (
     <div className="space-y-8">
       {/* Current plan */}
-      <section className="border-osrs-bronze/30 rounded border p-5">
+      <section className="bg-osrs-surface-1 border-osrs-bronze/30 shadow-osrs-card rounded-xl border p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-osrs-parchment-dark/70 text-xs uppercase tracking-wide">
               Current plan
             </div>
-            <div className="text-osrs-gold text-2xl font-bold">
+            <div className="text-osrs-gold flex flex-wrap items-center gap-2 text-2xl font-bold">
               {tiers.find((t) => t.key === sub.tier_key)?.name ?? "Free"}
+              <TierBadge
+                tierKey={sub.tier_key}
+                name={tiers.find((t) => t.key === sub.tier_key)?.name}
+              />
             </div>
-            <div className={`mt-1 text-sm capitalize ${STATUS_STYLES[sub.status]}`}>
-              {sub.status.replace("_", " ")}
+            <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm">
+              {sub.status !== "none" && <SubscriptionStatusBadge status={sub.status} />}
               {sub.current_period_end && (
                 <span className="text-osrs-parchment-dark/60">
-                  {" · "}
                   {sub.cancel_at_period_end ? "ends" : "renews"} {formatDate(sub.current_period_end)}
                 </span>
               )}
@@ -163,16 +157,16 @@ export function SubscriptionManager({
             return (
               <div
                 key={t.key}
-                className={`flex flex-col rounded border p-5 ${
-                  t.recommended ? "border-osrs-gold/60" : "border-osrs-bronze/20"
+                className={`bg-osrs-surface-1 shadow-osrs-card flex flex-col rounded-xl border p-5 ${
+                  t.recommended ? "border-osrs-gold/60" : "border-osrs-bronze/30"
                 }`}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-osrs-gold-bright text-lg font-semibold">{t.name}</span>
-                  {t.recommended && (
-                    <span className="bg-osrs-gold/20 text-osrs-gold rounded px-1.5 py-0.5 text-xs">
-                      Popular
-                    </span>
+                  {current ? (
+                    <Badge tone="green">Current</Badge>
+                  ) : (
+                    t.recommended && <Badge tone="gold">Popular</Badge>
                   )}
                 </div>
                 <div className="text-osrs-parchment mt-1 text-2xl font-bold">{formatPrice(t)}</div>

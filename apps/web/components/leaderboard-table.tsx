@@ -8,11 +8,10 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import type { Route } from "next";
-import Link from "next/link";
 import type { LeaderboardEntry } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp } from "@/lib/format";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, EntityChip, RankMedal } from "@/components/ui";
 
 const BADGE_DURATION_MS = 2500;
 
@@ -63,6 +62,7 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
   });
 
   const hrefBase = kind === "players" ? "/players" : "/groups";
+  const maxLoot = rows.reduce((max, r) => Math.max(max, r.loot.value), 0);
   const liveLabel = useMemo(
     () =>
       state === "open"
@@ -111,18 +111,22 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                   flashing.has(r.id) ? "bg-osrs-gold/15" : ""
                 }`}
               >
-                <td className="text-osrs-parchment-dark px-3 py-2 tabular-nums">
-                  {r.rank}
+                <td className="px-3 py-2">
+                  <RankMedal rank={r.rank} />
                 </td>
                 <td className="px-3 py-2">
-                  <Link
-                    href={`${hrefBase}/${r.id}` as Route}
-                    className="hover:text-osrs-gold-bright"
-                  >
-                    {r.name}
-                  </Link>
+                  <EntityChip href={`${hrefBase}/${r.id}` as Route} name={r.name} size="sm" />
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums">
+                {/* Relative loot bar behind the value: instant read of the
+                    gap between ranks without scanning the numbers. */}
+                <td className="relative px-3 py-2 text-right tabular-nums">
+                  {maxLoot > 0 && r.loot.value > 0 && (
+                    <span
+                      aria-hidden
+                      className="bg-osrs-gold/10 absolute inset-y-1.5 right-0 rounded-l"
+                      style={{ width: `${Math.max(2, (r.loot.value / maxLoot) * 100)}%` }}
+                    />
+                  )}
                   <span className="relative inline-block">
                     {r.loot.value_formatted}
                     {r.delta != null && r.delta > 0 && (

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
-import { EmptyState } from "@/components/ui";
+import { Badge, EmptyState } from "@/components/ui";
 import { InlineMarkdown } from "@/components/markdown";
 
 export const revalidate = 300;
@@ -36,17 +36,13 @@ export default async function PremiumPage() {
         {tiers.map((t) => (
           <div
             key={t.key}
-            className={`flex flex-col rounded border p-5 ${
-              t.recommended ? "border-osrs-gold/60" : "border-osrs-bronze/20"
+            className={`bg-osrs-surface-1 shadow-osrs-card flex flex-col rounded-xl border p-5 ${
+              t.recommended ? "border-osrs-gold/60" : "border-osrs-bronze/30"
             }`}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-osrs-gold-bright text-lg font-semibold">{t.name}</span>
-              {t.recommended && (
-                <span className="bg-osrs-gold/20 text-osrs-gold rounded px-1.5 py-0.5 text-xs">
-                  Popular
-                </span>
-              )}
+              {t.recommended && <Badge tone="gold">Popular</Badge>}
             </div>
             <div className="text-osrs-parchment mt-1 text-2xl font-bold">{formatPrice(t)}</div>
             {t.description && (

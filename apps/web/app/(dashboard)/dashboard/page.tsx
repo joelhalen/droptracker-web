@@ -1,7 +1,7 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, EntityChip, RoleBadge } from "@/components/ui";
 
 export const metadata: Metadata = { title: "My accounts" };
 
@@ -18,12 +18,14 @@ export default async function DashboardPage() {
         {user.players.length ? (
           <ul className="divide-osrs-bronze/20 divide-y">
             {user.players.map((p) => (
-              <li key={p.id} className="flex items-center justify-between py-3">
-                <Link href={`/players/${p.id}`} className="hover:text-osrs-gold-bright font-medium">
-                  {p.name}
-                </Link>
-                <span className="text-osrs-parchment-dark/70 text-sm tabular-nums">
-                  Rank #{p.global_rank ?? "—"} · {p.total_loot?.value_formatted ?? "—"}
+              <li key={p.id} className="flex items-center justify-between gap-3 py-3">
+                <EntityChip
+                  href={`/players/${p.id}`}
+                  name={p.name}
+                  subtitle={`Global rank #${p.global_rank ?? "—"}`}
+                />
+                <span className="text-osrs-gold-bright text-sm tabular-nums">
+                  {p.total_loot?.value_formatted ?? "—"}
                 </span>
               </li>
             ))}
@@ -55,21 +57,20 @@ export default async function DashboardPage() {
             {user.groups.map((g) => {
               const canAdmin = g.role === "owner" || g.role === "admin";
               return (
-                <li key={g.id} className="flex items-center justify-between py-3">
-                  <Link href={`/groups/${g.id}`} className="hover:text-osrs-gold-bright font-medium">
-                    {g.name}
-                  </Link>
-                  <span className="flex items-center gap-3 text-sm">
-                    <span className="text-osrs-parchment-dark/60 capitalize">{g.role}</span>
-                    {canAdmin && (
-                      <Link
-                        href={`/groups/${g.id}/admin` as Route}
-                        className="bg-osrs-bronze/60 hover:bg-osrs-bronze rounded px-2 py-1 text-xs"
-                      >
-                        Manage
-                      </Link>
-                    )}
-                  </span>
+                <li key={g.id} className="flex items-center justify-between gap-3 py-3">
+                  <EntityChip
+                    href={`/groups/${g.id}`}
+                    name={g.name}
+                    badges={<RoleBadge role={g.role} />}
+                  />
+                  {canAdmin && (
+                    <Link
+                      href={`/groups/${g.id}/admin` as Route}
+                      className="bg-osrs-bronze/60 hover:bg-osrs-bronze shrink-0 rounded px-2 py-1 text-xs"
+                    >
+                      Manage
+                    </Link>
+                  )}
                 </li>
               );
             })}

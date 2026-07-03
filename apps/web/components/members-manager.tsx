@@ -6,7 +6,7 @@ import Link from "next/link";
 import type { GroupMember, WomSyncResult } from "@droptracker/api-types";
 import { setHidden, syncWom } from "@/app/(admin)/groups/[id]/members/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, EmptyState } from "@/components/ui";
+import { Alert, Badge, EmptyState, EntityChip } from "@/components/ui";
 
 export function MembersManager({
   groupId,
@@ -94,14 +94,21 @@ export function MembersManager({
             </thead>
             <tbody>
               {rows.map((m) => (
-                <tr key={m.id} className="border-osrs-bronze/20 border-t">
+                <tr
+                  key={m.id}
+                  className={`border-osrs-bronze/20 border-t ${m.hidden ? "opacity-60" : ""}`}
+                >
                   <td className="px-3 py-2">
-                    <Link href={`/players/${m.id}`} className="hover:text-osrs-gold-bright">
-                      {m.name}
-                    </Link>
+                    <EntityChip href={`/players/${m.id}`} name={m.name} size="sm" />
                   </td>
-                  <td className="text-osrs-parchment-dark/70 px-3 py-2">{m.group_rank ?? "—"}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2">
+                    {m.group_rank ? (
+                      <Badge tone="bronze">{m.group_rank}</Badge>
+                    ) : (
+                      <span className="text-osrs-parchment-dark/50">—</span>
+                    )}
+                  </td>
+                  <td className="text-osrs-gold-bright px-3 py-2 text-right tabular-nums">
                     {m.total_loot?.value_formatted ?? "—"}
                   </td>
                   <td className="px-3 py-2 text-right">
