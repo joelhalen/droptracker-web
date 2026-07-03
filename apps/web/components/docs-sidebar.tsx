@@ -3,9 +3,9 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { DocMeta } from "@/lib/docs";
+import type { DocSummary } from "@droptracker/api-types";
 
-export function DocsSidebar({ groups }: { groups: { category: string; docs: DocMeta[] }[] }) {
+export function DocsSidebar({ groups }: { groups: { category: string; docs: DocSummary[] }[] }) {
   const pathname = usePathname();
 
   return (

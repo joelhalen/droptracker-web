@@ -1,6 +1,7 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
-import { getDocsByCategory } from "@/lib/docs";
+import { api } from "@/lib/api";
+import { groupDocsByCategory } from "@/lib/docs";
 
 export const metadata: Metadata = {
   title: "Documentation",
@@ -8,7 +9,7 @@ export const metadata: Metadata = {
 };
 
 export default async function DocsIndexPage() {
-  const groups = await getDocsByCategory();
+  const groups = groupDocsByCategory(await api.docs());
 
   return (
     <div className="space-y-8">

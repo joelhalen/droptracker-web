@@ -15,13 +15,30 @@ export function Card({
   children,
   className = "",
   padding = "p-5",
+  id,
 }: {
   children: ReactNode;
   className?: string;
   padding?: string;
+  id?: string;
 }) {
-  return <div className={`card ${padding} ${className}`}>{children}</div>;
+  return (
+    <div id={id} className={`card ${padding} ${className}`}>
+      {children}
+    </div>
+  );
 }
+
+/**
+ * Shared text-input/select/textarea styling — the exact class string that had
+ * independently drifted across ~14 files (each declaring its own local
+ * `field`/`input` constant with the same intent but no guaranteed
+ * consistency). Not a full sweep of all 14 yet; consolidated here so new and
+ * touched call sites (starting with the group-config editor) stop drifting
+ * further.
+ */
+export const fieldInputClass =
+  "border-osrs-bronze/40 bg-osrs-surface-2 focus:border-osrs-gold focus:ring-osrs-gold/20 rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:ring-2";
 
 /** A single stat tile — big number, small label. Used in stat-tile grids (hero, dashboards). */
 export function StatTile({

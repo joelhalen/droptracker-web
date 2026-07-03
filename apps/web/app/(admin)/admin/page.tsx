@@ -15,6 +15,7 @@ const CARDS: { href: string; title: string; desc: string }[] = [
   { href: "/admin/users", title: "Users", desc: "Look up a user; manage superadmin access." },
   { href: "/admin/audit", title: "Audit log", desc: "Browse every admin action taken on the site." },
   { href: "/admin/announcements", title: "Global news", desc: "Publish site-wide announcements." },
+  { href: "/admin/docs", title: "Docs", desc: "Add, edit, and delete documentation pages." },
   { href: "/admin/discord", title: "Discord sender", desc: "Send a message to any channel via the bot." },
   { href: "/admin/services", title: "Services", desc: "Start/stop/restart backend services; view logs." },
   { href: "/admin/lookup", title: "Lookup", desc: "Cross-content search across players, groups, drops…" },

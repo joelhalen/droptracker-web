@@ -1,13 +1,13 @@
 import type { MetadataRoute } from "next";
 import { env } from "@/lib/env";
-import { getAllDocs } from "@/lib/docs";
+import { api } from "@/lib/api";
 
 // Static public routes + docs. Dynamic player/group entries will be added once
 // the Web API can enumerate them.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = env.siteUrl;
   const staticPaths = ["/", "/leaderboards", "/events", "/announcements", "/premium", "/docs"];
-  const docs = await getAllDocs();
+  const docs = await api.docs();
 
   return [
     ...staticPaths.map((path) => ({

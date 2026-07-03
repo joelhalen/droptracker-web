@@ -13,6 +13,7 @@ const TABS: NavTab[] = [
   { href: "/admin/users", label: "Users" },
   { href: "/admin/audit", label: "Audit log" },
   { href: "/admin/announcements", label: "Global news" },
+  { href: "/admin/docs", label: "Docs" },
   { href: "/admin/discord", label: "Discord sender" },
   { href: "/admin/services", label: "Services" },
   { href: "/admin/lookup", label: "Lookup" },

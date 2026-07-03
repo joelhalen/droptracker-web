@@ -10,9 +10,7 @@
  */
 import { useMemo, useState } from "react";
 import type { DiscordChannel } from "@/lib/api";
-
-const input =
-  "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-1.5 text-sm outline-none";
+import { fieldInputClass as input } from "@/components/ui";
 
 export function DiscordChannelPicker({
   channels,

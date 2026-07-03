@@ -2,7 +2,7 @@
 
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { AdminDataList, AdminDataRow } from "@/lib/api";
 import { fetchRecord, saveRecord } from "@/app/(admin)/admin/data/actions";
 import { EmptyState } from "@/components/ui";
@@ -184,21 +184,42 @@ function RecordDrawer({
   const [confirming, setConfirming] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
 
-  if (!loaded && !loadPending) {
+  // A one-shot fetch must live in an effect, not a state-setting call directly
+  // in the render body: React doesn't guarantee a transition's pending flag
+  // flips synchronously before the next render re-enters the same branch, so
+  // a `!loadPending` guard alone doesn't reliably prevent re-firing (proved
+  // out as a real, reproducible request loop in the docs-manager.tsx sibling
+  // of this exact pattern). Depends on `[entity, id]`, not `[]`: the parent
+  // renders this drawer without a `key`, so selecting a different row reuses
+  // this same component instance with new props rather than remounting it.
+  useEffect(() => {
+    let active = true;
+    setLoaded(false);
+    setError(null);
     startLoad(async () => {
       try {
         const res = await fetchRecord(entity, id);
+        if (!active) return;
         setRecord(res.record);
         // Prefer server-declared editable fields; fall back to list-level hint.
         setEditable(res.editable.length ? res.editable : [...editableHint]);
         setForm(res.record);
         setLoaded(true);
       } catch (e) {
-        setError((e as Error).message || "Failed to load record.");
-        setLoaded(true);
+        if (active) {
+          setError((e as Error).message || "Failed to load record.");
+          setLoaded(true);
+        }
       }
     });
-  }
+    return () => {
+      active = false;
+    };
+    // editableHint deliberately omitted: it's derived from `entity` (already a
+    // dep) and is a new Set reference on every parent render, so including it
+    // would re-run this effect on every render instead of only on selection
+    // change.
+  }, [entity, id]);
 
   const set = (k: string, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
 

@@ -1,31 +1,33 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { getAllDocs, getDoc, getDocsByCategory } from "../lib/docs";
+import type { DocSummary } from "@droptracker/api-types";
+import { groupDocsByCategory } from "../lib/docs";
 
-// The static MDX docs must load with valid frontmatter (FRONTEND_PLAN.md §19).
-test("docs load with required frontmatter and unique slugs", async () => {
-  const docs = await getAllDocs();
-  assert.ok(docs.length > 0, "expected at least one doc");
+// Docs pages are DB-backed now (superadmin CMS, /admin/docs) — the only pure,
+// unit-testable logic left in lib/docs.ts is this grouping helper. Loading
+// itself (api.docs()/api.doc()) needs a live backend, out of scope here.
+const FIXTURE: DocSummary[] = [
+  { slug: "getting-started", title: "Getting started", description: null, category: "Getting started", order: 1 },
+  { slug: "how-it-works", title: "How it works", description: null, category: "Getting started", order: 2 },
+  { slug: "link-account", title: "Linking your account", description: null, category: "Account", order: 1 },
+];
 
-  const slugs = new Set<string>();
-  for (const d of docs) {
-    assert.ok(d.title, `doc ${d.slug} missing title`);
-    assert.ok(d.category, `doc ${d.slug} missing category`);
-    assert.ok(!slugs.has(d.slug), `duplicate slug ${d.slug}`);
-    slugs.add(d.slug);
-  }
+test("groups docs by category, preserving input order", () => {
+  const groups = groupDocsByCategory(FIXTURE);
+  assert.deepEqual(
+    groups.map((g) => g.category),
+    ["Getting started", "Account"],
+  );
+  assert.equal(groups[0]?.docs.length, 2);
+  assert.equal(groups[1]?.docs.length, 1);
 });
 
-test("getDoc resolves a known slug and rejects unknown", async () => {
-  assert.ok(await getDoc("getting-started"), "getting-started should exist");
-  assert.equal(await getDoc("does-not-exist"), null);
+test("preserves within-category order (caller is expected to pre-sort)", () => {
+  const groups = groupDocsByCategory(FIXTURE);
+  const orders = groups[0]?.docs.map((d) => d.order) ?? [];
+  assert.deepEqual(orders, [1, 2]);
 });
 
-test("docs group by category in sorted order", async () => {
-  const groups = await getDocsByCategory();
-  assert.ok(groups.length > 0);
-  for (const g of groups) {
-    const orders = g.docs.map((d) => d.order);
-    assert.deepEqual(orders, [...orders].sort((a, b) => a - b), `${g.category} not order-sorted`);
-  }
+test("empty input yields no groups", () => {
+  assert.deepEqual(groupDocsByCategory([]), []);
 });
