@@ -17,11 +17,13 @@ export function DiscordChannelPicker({
   value,
   onChange,
   placeholder = "Discord channel id",
+  disabled = false,
 }: {
   channels: DiscordChannel[];
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -49,9 +51,10 @@ export function DiscordChannelPicker({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`${input} w-full`}
+          disabled={disabled}
+          className={`${input} w-full disabled:cursor-not-allowed disabled:opacity-60`}
         />
-        {channels.length > 0 && (
+        {channels.length > 0 && !disabled && (
           <button
             type="button"
             onClick={() => setManualOverride(false)}
@@ -87,9 +90,10 @@ export function DiscordChannelPicker({
         }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder="Search channels…"
-        className={`${input} w-full`}
+        disabled={disabled}
+        className={`${input} w-full disabled:cursor-not-allowed disabled:opacity-60`}
       />
-      {open && (
+      {open && !disabled && (
         <ul className="border-osrs-bronze/30 bg-osrs-brown-dark absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded border text-sm shadow-lg">
           {matches.length === 0 ? (
             <li className="text-osrs-parchment-dark/60 px-3 py-2">No matching channels.</li>
@@ -117,7 +121,8 @@ export function DiscordChannelPicker({
       <button
         type="button"
         onClick={() => setManualOverride(true)}
-        className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright mt-1 text-xs"
+        disabled={disabled}
+        className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright mt-1 text-xs disabled:opacity-50"
       >
         Enter a channel ID manually instead
       </button>

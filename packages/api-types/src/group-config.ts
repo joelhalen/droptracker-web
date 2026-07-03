@@ -28,6 +28,7 @@ export type ConfigFieldType =
   | "string"
   | "text" // multi-line
   | "csv" // comma-separated list
+  | "bosslist" // comma-separated boss names, picked from GET /groups/{id}/pb-bosses
   | "select";
 
 export interface ConfigField {
@@ -44,6 +45,8 @@ export interface ConfigField {
   max?: number;
   /** Whether a `seasonal_`-prefixed mirror of this key exists (§11.1). */
   seasonalMirror?: boolean;
+  /** Subscription entitlement required to edit this field (Task 15). */
+  entitlement?: string;
 }
 
 export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
@@ -89,9 +92,10 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
 
   // --- Personal best ------------------------------------------------------
   { key: "notify_pbs", label: "Notify personal bests", category: "pbs", type: "boolean", help: "Post personal-best notifications.", default: true, seasonalMirror: true },
-  { key: "personal_best_embed_boss_list", label: "Tracked bosses", category: "pbs", type: "csv", help: "Comma-separated boss names to include in PB embeds. Empty = all.", default: "" },
+  { key: "personal_best_embed_boss_list", label: "Hall of Fame bosses", category: "pbs", type: "bosslist", help: "Bosses featured in the Hall of Fame personal-best embeds. Empty = no Hall of Fame.", default: "", entitlement: "hall_of_fame" },
   { key: "number_of_pbs_to_display", label: "PBs to display", category: "pbs", type: "int", help: "How many recent PBs to show in the embed.", default: 5, min: 1, max: 25 },
   { key: "channel_id_to_send_pb_embeds", label: "PB embed channel", category: "pbs", type: "channel", help: "Optional override channel for PB embeds.", default: null },
+  { key: "hof_individual_boss_messages", label: "Individual Hall of Fame messages", category: "pbs", type: "boolean", help: "Post one Hall of Fame message per boss. When off, only the directory message is posted and members use its drop-down to view each boss's leaderboard.", default: false, entitlement: "hall_of_fame" },
 
   // --- Combat achievements ------------------------------------------------
   {
@@ -179,6 +183,7 @@ function fieldSchema(f: ConfigField): z.ZodTypeAny {
     case "string":
     case "text":
     case "csv":
+    case "bosslist":
       return z.string();
     default:
       return z.string();

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 import { ConfigEditor } from "@/components/config-editor";
 
 export const metadata: Metadata = { title: "Group settings" };
@@ -13,14 +14,25 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
 
-  const config = await api.groupConfig(groupId);
+  const [config, subscription, tiers, user] = await Promise.all([
+    api.groupConfig(groupId),
+    api.groupSubscription(groupId).catch(() => null),
+    api.subscriptionTiers().catch(() => []),
+    getUser(),
+  ]);
 
   return (
     <div>
       <p className="text-osrs-parchment-dark/70 mb-6 text-sm">
         Notification, lootboard, points, and integration configuration.
       </p>
-      <ConfigEditor groupId={groupId} initial={config} />
+      <ConfigEditor
+        groupId={groupId}
+        initial={config}
+        subscription={subscription}
+        tiers={tiers}
+        isSuperadmin={user?.is_superadmin}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { requireUser, canAdminGroup } from "@/lib/auth";
+import { hasEntitlement } from "@/lib/entitlements";
 import { TabNav, type NavTab } from "@/components/tab-nav";
 import { NameTile, SubscriptionStatusBadge, TierBadge } from "@/components/ui";
 
@@ -38,8 +39,12 @@ export default async function GroupAdminLayout({
     { href: `/groups/${groupId}/settings`, label: "Settings" },
     { href: `/groups/${groupId}/announcements`, label: "Announcements" },
     { href: `/groups/${groupId}/members`, label: "Members" },
-    // Events owns a nested [eventId] detail route — stay active there too.
-    { href: `/groups/${groupId}/events`, label: "Events", matchPrefix: true },
+    {
+      href: `/groups/${groupId}/events`,
+      label: "Events",
+      matchPrefix: true,
+      locked: !hasEntitlement(subscription, "events", { isSuperadmin: user.is_superadmin }),
+    },
     { href: `/groups/${groupId}/subscription`, label: "Subscription" },
     { href: `/groups/${groupId}/diagnostics`, label: "Diagnostics" },
   ];

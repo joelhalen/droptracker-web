@@ -2,7 +2,9 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 import { EventCreateForm } from "@/components/event-create-form";
+import { FeatureGate } from "@/components/feature-gate";
 import { EmptyState } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Events" };
@@ -14,9 +16,14 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
 
-  const events = await api.events({ groupId });
+  const [events, subscription, tiers, user] = await Promise.all([
+    api.events({ groupId }),
+    api.groupSubscription(groupId).catch(() => null),
+    api.subscriptionTiers().catch(() => []),
+    getUser(),
+  ]);
 
-  return (
+  const content = (
     <div className="grid gap-10 lg:grid-cols-2">
       <section>
         <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">New event</h2>
@@ -47,5 +54,17 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
         )}
       </section>
     </div>
+  );
+
+  return (
+    <FeatureGate
+      entitlement="events"
+      subscription={subscription}
+      tiers={tiers}
+      groupId={groupId}
+      isSuperadmin={user?.is_superadmin}
+    >
+      {content}
+    </FeatureGate>
   );
 }

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
 import { PERIOD_OPTIONS, resolvePeriod } from "@/lib/period";
-import { LootboardGrid } from "@/components/lootboard-grid";
+import { LootboardCanvas } from "@/components/lootboard-canvas";
 
 export const revalidate = 30;
 
@@ -66,7 +66,7 @@ export default async function GroupLootboardPage({
         ))}
       </div>
 
-      <LootboardGrid board={board} />
+      <LootboardCanvas board={board} />
     </div>
   );
 }

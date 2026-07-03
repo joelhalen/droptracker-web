@@ -9,6 +9,7 @@
  * and for React Hook Form on the client (FRONTEND_PLAN.md §4 "Forms/validation").
  */
 import { z } from "zod";
+import { GroupEntitlementsSchema, TierEntitlementsSchema } from "./entitlements";
 
 /** Time partitions supported by the leaderboard API (FRONTEND_PLAN.md §6.5). */
 export const PeriodSchema = z
@@ -310,6 +311,8 @@ export const SubscriptionTierSchema = z.object({
   interval: z.enum(["month", "year"]).default("month"),
   /** Human-readable perks for the tier card. */
   features: z.array(z.string()).default([]),
+  /** Machine-readable capabilities (runtime access control). */
+  entitlements: TierEntitlementsSchema.default({}),
   recommended: z.boolean().default(false),
 });
 export type SubscriptionTier = z.infer<typeof SubscriptionTierSchema>;
@@ -333,6 +336,8 @@ export const GroupSubscriptionSchema = z.object({
   current_period_end: z.number().int().nullable(),
   /** When true, the subscription ends at `current_period_end` (not renewing). */
   cancel_at_period_end: z.boolean().default(false),
+  /** Resolved capabilities for this group's active tier (present on Web API reads). */
+  entitlements: GroupEntitlementsSchema.optional(),
 });
 export type GroupSubscription = z.infer<typeof GroupSubscriptionSchema>;
 
@@ -529,14 +534,51 @@ export const LootItemSchema = z.object({
   /** Total value for this row (unit value × quantity). */
   value: MoneySchema,
   icon_url: z.string().optional(),
+  /** True for the coin pile (item 995) — value only, no quantity label. */
+  is_coin: z.boolean().optional(),
 });
 export type LootItem = z.infer<typeof LootItemSchema>;
+
+/** A high-value recent drop shown in the board's bottom panel. */
+export const LootboardRecentDropSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  icon_url: z.string().optional(),
+  player_id: z.number().int(),
+  player_name: z.string(),
+  quantity: z.number().int(),
+  value: MoneySchema,
+  /** ISO-ish timestamp string ("YYYY-MM-DD HH:MM:SS"). */
+  date_added: z.string().nullable().optional(),
+});
+export type LootboardRecentDrop = z.infer<typeof LootboardRecentDropSchema>;
+
+/** A leaderboard row shown in the board's left panel. */
+export const LootboardLeaderboardRowSchema = z.object({
+  rank: z.number().int(),
+  player_id: z.number().int(),
+  player_name: z.string(),
+  total: MoneySchema,
+});
+export type LootboardLeaderboardRow = z.infer<typeof LootboardLeaderboardRowSchema>;
 
 export const LootboardSchema = z.object({
   group_id: z.number().int(),
   period: z.string(),
   total: MoneySchema,
   items: z.array(LootItemSchema),
+  /**
+   * Native board fields (mirrors the PIL generator). Optional so older API
+   * responses / mocks that only carry `items` still validate; when present the
+   * front-end renders the 1:1 template board instead of the fallback grid.
+   */
+  background_url: z.string().optional(),
+  canvas: z.object({ width: z.number(), height: z.number() }).optional(),
+  header: z.string().optional(),
+  use_gp_colors: z.boolean().optional(),
+  use_dynamic_colors: z.boolean().optional(),
+  recent_drops: z.array(LootboardRecentDropSchema).optional(),
+  leaderboard: z.array(LootboardLeaderboardRowSchema).optional(),
 });
 export type Lootboard = z.infer<typeof LootboardSchema>;
 
@@ -638,3 +680,4 @@ export const EventTeamInputSchema = z.object({ name: z.string().min(1).max(80) }
 export type EventTeamInput = z.infer<typeof EventTeamInputSchema>;
 
 export * from "./group-config";
+export * from "./entitlements";

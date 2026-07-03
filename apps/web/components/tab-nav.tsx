@@ -11,7 +11,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
 
-export type NavTab = { href: string; label: string; matchPrefix?: boolean };
+export type NavTab = { href: string; label: string; matchPrefix?: boolean; locked?: boolean };
 
 function isActive(pathname: string, tab: NavTab): boolean {
   if (pathname === tab.href) return true;
@@ -24,18 +24,26 @@ export function TabNav({ tabs, className = "" }: { tabs: NavTab[]; className?: s
     <nav className={`border-osrs-bronze/30 flex flex-wrap gap-1 border-b pb-2 text-sm ${className}`}>
       {tabs.map((t) => {
         const active = isActive(pathname, t);
+        const className = `rounded px-3 py-1.5 transition-colors ${
+          active
+            ? "bg-osrs-bronze text-osrs-parchment"
+            : "hover:bg-osrs-bronze/30 text-osrs-parchment-dark/80"
+        } ${t.locked ? "opacity-60" : ""}`;
+        const label = (
+          <>
+            {t.label}
+            {t.locked ? <span className="ml-1 opacity-70">🔒</span> : null}
+          </>
+        );
         return (
           <Link
             key={t.href}
             href={t.href as Route}
             aria-current={active ? "page" : undefined}
-            className={`rounded px-3 py-1.5 transition-colors ${
-              active
-                ? "bg-osrs-bronze text-osrs-parchment"
-                : "hover:bg-osrs-bronze/30 text-osrs-parchment-dark/80"
-            }`}
+            className={className}
+            title={t.locked ? "Requires a subscription upgrade" : undefined}
           >
-            {t.label}
+            {label}
           </Link>
         );
       })}

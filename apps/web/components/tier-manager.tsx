@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { SubscriptionTier } from "@droptracker/api-types";
+import { ENTITLEMENT_FIELDS } from "@droptracker/api-types";
 import { formatPrice } from "@/lib/format";
 import { InlineMarkdown } from "@/components/markdown";
 import { deleteTier, saveTier } from "@/app/(admin)/admin/tiers/actions";
@@ -14,6 +15,7 @@ const blankTier = (): SubscriptionTier => ({
   currency: "USD",
   interval: "month",
   features: [],
+  entitlements: Object.fromEntries(ENTITLEMENT_FIELDS.map((f) => [f.key, f.default])),
   recommended: false,
 });
 
@@ -84,6 +86,12 @@ function TierForm({
 
   const set = <K extends keyof SubscriptionTier>(k: K, v: SubscriptionTier[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  const setEntitlement = (key: string, value: boolean) =>
+    setForm((f) => ({
+      ...f,
+      entitlements: { ...f.entitlements, [key]: value },
+    }));
 
   const field =
     "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
@@ -162,7 +170,7 @@ function TierForm({
       <label className="block">
         <span className="mb-1 block text-sm font-medium">Features (one per line)</span>
         <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">
-          Supports **bold**, *italic*, and [links](url).
+          Marketing copy for the pricing page. Supports **bold**, *italic*, and [links](url).
         </span>
         <textarea
           value={featuresText}
@@ -171,6 +179,27 @@ function TierForm({
           className={field}
         />
       </label>
+
+      <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-4">
+        <legend className="text-osrs-gold px-1 text-sm font-semibold">Capabilities</legend>
+        <p className="text-osrs-parchment-dark/60 text-xs">
+          Runtime access control — which features groups on this tier can use.
+        </p>
+        {ENTITLEMENT_FIELDS.map((ent) => (
+          <label key={ent.key} className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={form.entitlements?.[ent.key] ?? ent.default}
+              onChange={(e) => setEntitlement(ent.key, e.target.checked)}
+              className="mt-1 size-4"
+            />
+            <span>
+              <span className="block text-sm font-medium">{ent.label}</span>
+              <span className="text-osrs-parchment-dark/60 block text-xs">{ent.help}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
 
       {featuresText.trim() && (
         <div>

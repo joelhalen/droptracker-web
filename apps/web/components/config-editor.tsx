@@ -6,11 +6,19 @@ import {
   GROUP_CONFIG_FIELDS,
   getConfigField,
   type ConfigField,
+  type GroupSubscription,
+  type SubscriptionTier,
 } from "@droptracker/api-types";
-import { saveGroupConfig, fetchGroupDiscordChannels } from "@/app/(admin)/groups/[id]/settings/actions";
+import {
+  saveGroupConfig,
+  fetchGroupDiscordChannels,
+  fetchGroupPbBosses,
+} from "@/app/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
+import { hasEntitlement } from "@/lib/entitlements";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
 import { DiscordChannelPicker } from "@/components/discord-channel-picker";
+import { BossListPicker } from "@/components/boss-list-picker";
 import type { DiscordChannel } from "@/lib/api";
 
 type ConfigValue = string | number | boolean | null;
@@ -48,7 +56,19 @@ function normalize(map: ConfigMap): ConfigMap {
 /** Anchor id for a category's card, used by the jump-to sidebar + scroll-spy. */
 const sectionId = (categoryId: string) => `cfg-${categoryId}`;
 
-export function ConfigEditor({ groupId, initial }: { groupId: number; initial: ConfigMap }) {
+export function ConfigEditor({
+  groupId,
+  initial,
+  subscription = null,
+  tiers: _tiers = [],
+  isSuperadmin = false,
+}: {
+  groupId: number;
+  initial: ConfigMap;
+  subscription?: GroupSubscription | null;
+  tiers?: SubscriptionTier[];
+  isSuperadmin?: boolean;
+}) {
   const normalized = useMemo(() => normalize(initial), [initial]);
   const [baseline, setBaseline] = useState<ConfigMap>(normalized);
   const [values, setValues] = useState<ConfigMap>(normalized);
@@ -58,6 +78,8 @@ export function ConfigEditor({ groupId, initial }: { groupId: number; initial: C
 
   // Fetched once here (not per-field) since up to 9 fields share this same list.
   const [channels, setChannels] = useState<DiscordChannel[]>([]);
+  // Boss names with stored PBs, for the Hall of Fame "bosslist" picker.
+  const [bosses, setBosses] = useState<string[]>([]);
   useEffect(() => {
     let active = true;
     fetchGroupDiscordChannels(groupId)
@@ -66,6 +88,13 @@ export function ConfigEditor({ groupId, initial }: { groupId: number; initial: C
       })
       .catch(() => {
         /* picker falls back to manual entry when the list is empty */
+      });
+    fetchGroupPbBosses(groupId)
+      .then((res) => {
+        if (active) setBosses(res.bosses);
+      })
+      .catch(() => {
+        /* boss picker falls back to manual entry when the list is empty */
       });
     return () => {
       active = false;
@@ -98,15 +127,24 @@ export function ConfigEditor({ groupId, initial }: { groupId: number; initial: C
     return () => observer.disconnect();
   }, [categories]);
 
+  const isFieldLocked = (field: ConfigField) =>
+    Boolean(
+      field.entitlement &&
+        !hasEntitlement(subscription, field.entitlement as "events" | "hall_of_fame", {
+          isSuperadmin,
+        }),
+    );
+
   // Only send keys whose value changed (FRONTEND_PLAN.md §11.2 bulk upsert).
   const changed = useMemo(() => {
     const patch: ConfigMap = {};
     for (const f of GROUP_CONFIG_FIELDS) {
+      if (isFieldLocked(f)) continue;
       const v = values[f.key] ?? null;
       if (v !== (baseline[f.key] ?? null)) patch[f.key] = v;
     }
     return patch;
-  }, [values, baseline]);
+  }, [values, baseline, subscription, isSuperadmin]);
 
   const dirtyCount = Object.keys(changed).length;
   const changedByCategory = useMemo(() => {
@@ -179,8 +217,8 @@ export function ConfigEditor({ groupId, initial }: { groupId: number; initial: C
         {categories.map((cat) => {
           const fields = GROUP_CONFIG_FIELDS.filter((f) => f.category === cat.id);
           const toggles = fields.filter((f) => f.type === "boolean");
-          const compact = fields.filter((f) => !["boolean", "text", "csv"].includes(f.type));
-          const wide = fields.filter((f) => f.type === "text" || f.type === "csv");
+          const compact = fields.filter((f) => !["boolean", "text", "csv", "bosslist"].includes(f.type));
+          const wide = fields.filter((f) => ["text", "csv", "bosslist"].includes(f.type));
 
           return (
             <Card key={cat.id} id={sectionId(cat.id)} padding="p-6" className="scroll-mt-24">
@@ -195,6 +233,9 @@ export function ConfigEditor({ groupId, initial }: { groupId: number; initial: C
                       value={values[f.key] ?? f.default}
                       onChange={(v) => set(f.key, v)}
                       channels={channels}
+                      bosses={bosses}
+                      locked={isFieldLocked(f)}
+                      groupId={groupId}
                     />
                   ))}
                 </div>
@@ -209,6 +250,9 @@ export function ConfigEditor({ groupId, initial }: { groupId: number; initial: C
                       value={values[f.key] ?? f.default}
                       onChange={(v) => set(f.key, v)}
                       channels={channels}
+                      bosses={bosses}
+                      locked={isFieldLocked(f)}
+                      groupId={groupId}
                     />
                   ))}
                 </div>
@@ -226,6 +270,8 @@ export function ConfigEditor({ groupId, initial }: { groupId: number; initial: C
                       field={f}
                       value={Boolean(values[f.key] ?? f.default)}
                       onChange={(v) => set(f.key, v)}
+                      locked={isFieldLocked(f)}
+                      groupId={groupId}
                     />
                   ))}
                 </div>
@@ -266,22 +312,32 @@ function ToggleField({
   field,
   value,
   onChange,
+  locked = false,
+  groupId,
 }: {
   field: ConfigField;
   value: boolean;
   onChange: (v: boolean) => void;
+  locked?: boolean;
+  groupId: number;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={value}
-      onClick={() => onChange(!value)}
-      className="border-osrs-bronze/15 hover:border-osrs-gold/40 bg-osrs-surface-2/50 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors"
+      aria-disabled={locked}
+      disabled={locked}
+      onClick={() => !locked && onChange(!value)}
+      className="border-osrs-bronze/15 hover:border-osrs-gold/40 bg-osrs-surface-2/50 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
     >
       <span className="min-w-0">
-        <span className="block text-sm font-medium">{field.label}</span>
+        <span className="block text-sm font-medium">
+          {field.label}
+          {locked ? <span className="text-osrs-parchment-dark/50 ml-1 text-xs">🔒 Premium</span> : null}
+        </span>
         <span className="text-osrs-parchment-dark/60 mt-0.5 block text-xs">{field.help}</span>
+        {locked ? <LockedFieldHint groupId={groupId} /> : null}
       </span>
       <span
         aria-hidden="true"
@@ -304,21 +360,33 @@ function InputField({
   value,
   onChange,
   channels,
+  bosses,
+  locked = false,
+  groupId,
 }: {
   field: ConfigField;
   value: ConfigValue;
   onChange: (v: ConfigValue) => void;
   channels: DiscordChannel[];
+  bosses: string[];
+  locked?: boolean;
+  groupId: number;
 }) {
+  const disabled = locked;
   return (
-    <label className="block">
-      <span className="block text-sm font-medium">{field.label}</span>
+    <label className={`block ${disabled ? "opacity-60" : ""}`}>
+      <span className="block text-sm font-medium">
+        {field.label}
+        {locked ? <span className="text-osrs-parchment-dark/50 ml-1 text-xs">🔒 Premium</span> : null}
+      </span>
       <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">{field.help}</span>
+      {locked ? <LockedFieldHint groupId={groupId} /> : null}
       {field.type === "select" ? (
         <select
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
-          className={`${fieldInputClass} w-full`}
+          disabled={disabled}
+          className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
         >
           {field.options?.map((o) => (
             <option key={o.value} value={o.value}>
@@ -330,7 +398,8 @@ function InputField({
         <textarea
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
-          className={`${fieldInputClass} w-full`}
+          disabled={disabled}
+          className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
           rows={2}
         />
       ) : field.type === "int" ? (
@@ -340,19 +409,44 @@ function InputField({
           max={field.max}
           value={value == null ? "" : Number(value)}
           onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
-          className={`${fieldInputClass} w-full`}
+          disabled={disabled}
+          className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
         />
       ) : field.type === "channel" ? (
-        <DiscordChannelPicker channels={channels} value={String(value ?? "")} onChange={(v) => onChange(v)} />
+        <DiscordChannelPicker
+          channels={channels}
+          value={String(value ?? "")}
+          onChange={(v) => onChange(v)}
+          disabled={disabled}
+        />
+      ) : field.type === "bosslist" ? (
+        <BossListPicker
+          bosses={bosses}
+          value={String(value ?? "")}
+          onChange={(v) => onChange(v)}
+          disabled={disabled}
+        />
       ) : (
         <input
           type="text"
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
-          className={`${fieldInputClass} w-full`}
+          disabled={disabled}
+          className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
           placeholder={field.type === "csv" ? "comma,separated" : ""}
         />
       )}
     </label>
+  );
+}
+
+function LockedFieldHint({ groupId }: { groupId: number }) {
+  return (
+    <a
+      href={`/groups/${groupId}/subscription`}
+      className="text-osrs-gold-bright mt-1 block text-xs hover:underline"
+    >
+      Upgrade subscription to unlock →
+    </a>
   );
 }

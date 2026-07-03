@@ -28,6 +28,14 @@ const cinzel = localFont({
   variable: "--font-cinzel",
 });
 
+// The actual OSRS UI face, used only by the native lootboard so it matches the
+// PIL-generated board 1:1 (disc/lootboard/generator.py renders with this ttf).
+const runescape = localFont({
+  src: "./fonts/runescape_uf.ttf",
+  display: "swap",
+  variable: "--font-runescape",
+});
+
 // "Events" owns a nested /events/[id] detail route — stay highlighted there too.
 const HEADER_TABS: NavTab[] = [
   { href: "/leaderboards", label: "Leaderboards" },
@@ -53,7 +61,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // suppressHydrationWarning: the theme init script may set data-theme on
     // <html> before React hydrates — that attribute diff is expected.
-    <html lang="en" className={`${figtree.variable} ${cinzel.variable}`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${figtree.variable} ${cinzel.variable} ${runescape.variable}`}
+      suppressHydrationWarning
+    >
       <body className="min-h-screen antialiased">
         {/* Apply the stored theme before first paint (components/theme.tsx). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />

@@ -105,7 +105,7 @@ type FetchOpts = {
   revalidate?: number;
 };
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
@@ -319,6 +319,13 @@ export interface DiscordChannelList {
   channels: DiscordChannel[];
   /** False when the bot hasn't cached this guild's channels yet (or is down) —
    * the frontend must still allow typing a raw channel id in that case. */
+  cached: boolean;
+}
+
+/** GET /groups/{id}/pb-bosses — boss names with at least one stored PB,
+ * i.e. the valid values for `personal_best_embed_boss_list`. */
+export interface PbBossList {
+  bosses: string[];
   cached: boolean;
 }
 
@@ -563,6 +570,17 @@ export const api = {
           { id: "222222222222222222", name: "lootboard", position: 1 },
           { id: "333333333333333333", name: "announcements", position: 2 },
         ],
+        cached: true,
+      }),
+    );
+  },
+
+  /** Boss names that have PBs stored, for the Hall of Fame boss picker. */
+  async groupPbBosses(groupId: number): Promise<PbBossList> {
+    return withFallback(
+      async () => (await apiGet(`/groups/${groupId}/pb-bosses`, { authed: true })) as PbBossList,
+      () => ({
+        bosses: ["Chambers Of Xeric", "Theatre Of Blood", "Tombs Of Amascut", "Vorkath", "Zulrah"],
         cached: true,
       }),
     );
