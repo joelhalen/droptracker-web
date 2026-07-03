@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { api } from "@/lib/api";
 import { SearchBox } from "@/components/search-box";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, EntityChip } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Search",
@@ -37,13 +36,17 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
             {results.players.length ? (
               <ul className="divide-osrs-bronze/20 divide-y">
                 {results.players.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between py-2.5 text-sm">
-                    <Link href={`/players/${p.id}`} className="hover:text-osrs-gold-bright">
-                      {p.name}
-                    </Link>
-                    <span className="text-osrs-parchment-dark/70 tabular-nums">
-                      {p.total_loot?.value_formatted ?? ""}
-                    </span>
+                  <li key={p.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <EntityChip
+                      href={`/players/${p.id}`}
+                      name={p.name}
+                      subtitle={p.global_rank != null ? `Global rank #${p.global_rank}` : "Player"}
+                    />
+                    {p.total_loot && (
+                      <span className="text-osrs-gold-bright shrink-0 tabular-nums">
+                        {p.total_loot.value_formatted}
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -57,13 +60,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
             {results.groups.length ? (
               <ul className="divide-osrs-bronze/20 divide-y">
                 {results.groups.map((g) => (
-                  <li key={g.id} className="flex items-center justify-between py-2.5 text-sm">
-                    <Link href={`/groups/${g.id}`} className="hover:text-osrs-gold-bright">
-                      {g.name}
-                    </Link>
-                    {g.member_count != null && (
-                      <span className="text-osrs-parchment-dark/70">{g.member_count} members</span>
-                    )}
+                  <li key={g.id} className="py-2.5 text-sm">
+                    <EntityChip
+                      href={`/groups/${g.id}`}
+                      name={g.name}
+                      subtitle={
+                        g.member_count != null
+                          ? `${g.member_count} member${g.member_count === 1 ? "" : "s"}`
+                          : "Clan"
+                      }
+                    />
                   </li>
                 ))}
               </ul>

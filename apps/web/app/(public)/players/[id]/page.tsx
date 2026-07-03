@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
 import { SubmissionList } from "@/components/submission-list";
+import { EntityChip, NameTile, StatTile } from "@/components/ui";
 
 export const revalidate = 30;
 
@@ -40,18 +40,22 @@ export default async function PlayerPage({ params }: { params: Params }) {
     <div className="space-y-8">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-osrs-gold text-3xl font-bold">{player.name}</h1>
-          <p className="text-osrs-parchment-dark/80">
-            Global rank #{player.global_rank ?? "—"} · {player.points ?? 0} points
-          </p>
-        </div>
-        <div className="text-right">
-          <div className="text-osrs-parchment-dark/70 text-xs uppercase tracking-wide">Total loot</div>
-          <div className="text-osrs-gold-bright text-2xl font-bold tabular-nums">
-            {player.total_loot?.value_formatted ?? "—"}
+      <header className="space-y-5">
+        <div className="flex items-center gap-4">
+          <NameTile name={player.name} size="lg" />
+          <div>
+            <h1 className="text-osrs-gold text-3xl font-bold">{player.name}</h1>
+            <p className="text-osrs-parchment-dark/80 text-sm">Old School RuneScape player</p>
           </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatTile label="Total loot" value={player.total_loot?.value_formatted ?? "—"} />
+          <StatTile
+            label="Global rank"
+            value={player.global_rank != null ? `#${player.global_rank}` : "—"}
+          />
+          <StatTile label="Points" value={(player.points ?? 0).toLocaleString()} />
+          <StatTile label="Top NPC" value={player.top_npc ?? "—"} />
         </div>
       </header>
 
@@ -65,12 +69,10 @@ export default async function PlayerPage({ params }: { params: Params }) {
           <div>
             <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Groups</h2>
             {player.groups.length ? (
-              <ul className="space-y-1 text-sm">
+              <ul className="space-y-2.5 text-sm">
                 {player.groups.map((g) => (
                   <li key={g.id}>
-                    <Link href={`/groups/${g.id}`} className="hover:text-osrs-gold-bright">
-                      {g.name}
-                    </Link>
+                    <EntityChip href={`/groups/${g.id}`} name={g.name} size="sm" />
                   </li>
                 ))}
               </ul>
@@ -78,12 +80,6 @@ export default async function PlayerPage({ params }: { params: Params }) {
               <p className="text-osrs-parchment-dark/60 text-sm">Not in any groups.</p>
             )}
           </div>
-          {player.top_npc && (
-            <div>
-              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Top NPC</h2>
-              <p className="text-sm">{player.top_npc}</p>
-            </div>
-          )}
         </aside>
       </div>
     </div>

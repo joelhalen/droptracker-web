@@ -70,7 +70,7 @@ export function LiveDropTicker() {
 
   if (drops.length === 0) {
     return (
-      <div className="border-osrs-bronze/40 bg-osrs-brown-dark/90 border-b">
+      <div className="border-osrs-bronze/40 bg-osrs-surface-1/95 border-b">
         <div className="text-osrs-parchment-dark/50 px-4 py-1.5 text-center text-xs">
           Live drop feed — waiting for the next big drop…
         </div>
@@ -82,7 +82,7 @@ export function LiveDropTicker() {
   const durationSec = Math.max(12, drops.length * 4);
 
   return (
-    <div className="border-osrs-bronze/40 bg-osrs-brown-dark/90 overflow-hidden border-b py-1.5">
+    <div className="border-osrs-bronze/40 bg-osrs-surface-1/95 overflow-hidden border-b py-1.5">
       {/* Content is duplicated so the marquee loops seamlessly at -50%. */}
       <div
         key={drops[0]?.key}

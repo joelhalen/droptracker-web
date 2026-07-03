@@ -1,12 +1,11 @@
 "use client";
 
 import type { Route } from "next";
-import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { AdminUserOverview } from "@/lib/api";
 import { formatDate, formatRelativeTime } from "@/lib/format";
 import { setUserSuperadmin } from "@/app/(admin)/admin/users/actions";
-import { EmptyState } from "@/components/ui";
+import { Badge, EmptyState, EntityChip, RoleBadge, SuperadminBadge } from "@/components/ui";
 
 function actorLabel(actor: AdminUserOverview["recent_audit"][number]["actor"]): string {
   if (!actor) return "system";
@@ -52,13 +51,9 @@ export function UserOverviewPanel({
           <img src={user.avatar_url} alt="" className="size-12 rounded-full" />
         )}
         <div>
-          <div className="text-osrs-gold text-2xl font-bold">
+          <div className="text-osrs-gold flex flex-wrap items-center gap-2 text-2xl font-bold">
             {user.display_name ?? user.username ?? `User #${user.user_id}`}
-            {isSuperadmin && (
-              <span className="bg-osrs-red/20 text-osrs-red ml-2 rounded px-1.5 py-0.5 align-middle text-xs">
-                Superadmin
-              </span>
-            )}
+            {isSuperadmin && <SuperadminBadge />}
           </div>
           <div className="text-osrs-parchment-dark/60 mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <span>ID #{user.user_id}</span>
@@ -131,13 +126,14 @@ export function UserOverviewPanel({
         ) : (
           <ul className="divide-osrs-bronze/20 divide-y">
             {players.map((p) => (
-              <li key={p.id} className="flex items-center justify-between py-2 text-sm">
-                <Link href={`/players/${p.id}` as Route} className="hover:text-osrs-gold-bright">
-                  {p.name}
-                </Link>
-                <span className="text-osrs-parchment-dark/60 text-xs">
-                  {p.hidden && "hidden"} {p.wom_id != null && `WOM ${p.wom_id}`}
-                </span>
+              <li key={p.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <EntityChip
+                  href={`/players/${p.id}` as Route}
+                  name={p.name}
+                  size="sm"
+                  subtitle={p.wom_id != null ? `WOM #${p.wom_id}` : undefined}
+                />
+                {p.hidden && <Badge tone="neutral">Hidden</Badge>}
               </li>
             ))}
           </ul>
@@ -152,11 +148,9 @@ export function UserOverviewPanel({
         ) : (
           <ul className="divide-osrs-bronze/20 divide-y">
             {groups.map((g) => (
-              <li key={g.id} className="flex items-center justify-between py-2 text-sm">
-                <Link href={`/groups/${g.id}` as Route} className="hover:text-osrs-gold-bright">
-                  {g.name}
-                </Link>
-                <span className="text-osrs-parchment-dark/60 text-xs capitalize">{g.role}</span>
+              <li key={g.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                <EntityChip href={`/groups/${g.id}` as Route} name={g.name} size="sm" />
+                <RoleBadge role={g.role} />
               </li>
             ))}
           </ul>

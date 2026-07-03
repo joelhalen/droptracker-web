@@ -1,10 +1,32 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/providers";
-import { UserNav } from "@/components/user-nav";
 import { LiveDropTicker } from "@/components/live-drop-ticker";
-import { HeaderNav, type NavTab } from "@/components/tab-nav";
+import { SiteHeader } from "@/components/site-header";
+import { THEME_INIT_SCRIPT } from "@/components/theme";
+import type { NavTab } from "@/components/tab-nav";
+
+/*
+ * Committed variable fonts (UI refresh): Figtree for body/UI text, Cinzel as
+ * the RuneScape-flavored display face for the brand and headings. Local files
+ * (app/fonts/) so builds never depend on a fonts CDN; globals.css maps them
+ * into the `--font-sans` / `--font-display` theme tokens.
+ */
+const figtree = localFont({
+  src: "./fonts/figtree-latin.woff2",
+  weight: "300 900",
+  display: "swap",
+  variable: "--font-figtree",
+});
+
+const cinzel = localFont({
+  src: "./fonts/cinzel-latin.woff2",
+  weight: "400 900",
+  display: "swap",
+  variable: "--font-cinzel",
+});
 
 // "Events" owns a nested /events/[id] detail route — stay highlighted there too.
 const HEADER_TABS: NavTab[] = [
@@ -29,24 +51,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the theme init script may set data-theme on
+    // <html> before React hydrates — that attribute diff is expected.
+    <html lang="en" className={`${figtree.variable} ${cinzel.variable}`} suppressHydrationWarning>
       <body className="min-h-screen antialiased">
+        {/* Apply the stored theme before first paint (components/theme.tsx). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <Providers>
           {/* Ticker + header stick together as one unit — avoids a fragile
               hardcoded pixel offset between two separately-sticky elements. */}
           <div className="sticky top-0 z-40">
             <LiveDropTicker />
-            <header className="bg-osrs-surface-2/95 border-osrs-bronze/30 border-b shadow-lg backdrop-blur">
-              <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5">
-                <Link href="/" className="text-osrs-gold text-xl font-bold tracking-tight">
-                  Drop<span className="text-osrs-gold-bright">Tracker</span>
-                </Link>
-                <nav className="flex items-center gap-6 text-sm">
-                  <HeaderNav tabs={HEADER_TABS} />
-                  <UserNav />
-                </nav>
-              </div>
-            </header>
+            <SiteHeader tabs={HEADER_TABS} />
           </div>
           <main className="mx-auto max-w-6xl px-4 py-10">{children}</main>
           <footer className="border-osrs-bronze/30 bg-osrs-surface-1/60 text-osrs-parchment-dark/70 mt-20 border-t">

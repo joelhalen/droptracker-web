@@ -2,16 +2,16 @@ import type { Route } from "next";
 import Link from "next/link";
 import type { Submission } from "@droptracker/api-types";
 import { formatRelativeTime } from "@/lib/format";
-import { EmptyState } from "@/components/ui";
+import { Badge, EmptyState, type BadgeTone } from "@/components/ui";
 
-const TYPE_LABEL: Record<string, string> = {
-  drop: "Drop",
-  clog: "Collection log",
-  pb: "Personal best",
-  ca: "Combat achievement",
-  pet: "Pet",
-  level: "Level",
-  quest: "Quest",
+const TYPE_META: Record<string, { label: string; tone: BadgeTone }> = {
+  drop: { label: "Drop", tone: "gold" },
+  clog: { label: "Collection log", tone: "purple" },
+  pb: { label: "Personal best", tone: "sky" },
+  ca: { label: "Combat achievement", tone: "red" },
+  pet: { label: "Pet", tone: "ember" },
+  level: { label: "Level", tone: "green" },
+  quest: { label: "Quest", tone: "sky" },
 };
 
 /**
@@ -45,10 +45,10 @@ export function SubmissionList({
           )}
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="text-osrs-parchment-dark/60 text-xs uppercase">
-                {TYPE_LABEL[s.type] ?? s.type}
-              </span>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <Badge tone={TYPE_META[s.type]?.tone ?? "neutral"}>
+                {TYPE_META[s.type]?.label ?? s.type}
+              </Badge>
               <span className="truncate font-medium">{s.label}</span>
               {s.quantity != null && s.quantity > 1 && (
                 <span className="text-osrs-parchment-dark/60 text-xs">×{s.quantity}</span>
