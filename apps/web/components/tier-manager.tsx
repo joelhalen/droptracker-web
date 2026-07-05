@@ -87,7 +87,7 @@ function TierForm({
   const set = <K extends keyof SubscriptionTier>(k: K, v: SubscriptionTier[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
 
-  const setEntitlement = (key: string, value: boolean) =>
+  const setEntitlement = (key: string, value: boolean | number) =>
     setForm((f) => ({
       ...f,
       entitlements: { ...f.entitlements, [key]: value },
@@ -185,20 +185,36 @@ function TierForm({
         <p className="text-osrs-parchment-dark/60 text-xs">
           Runtime access control — which features groups on this tier can use.
         </p>
-        {ENTITLEMENT_FIELDS.map((ent) => (
-          <label key={ent.key} className="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              checked={form.entitlements?.[ent.key] ?? ent.default}
-              onChange={(e) => setEntitlement(ent.key, e.target.checked)}
-              className="mt-1 size-4"
-            />
-            <span>
-              <span className="block text-sm font-medium">{ent.label}</span>
-              <span className="text-osrs-parchment-dark/60 block text-xs">{ent.help}</span>
-            </span>
-          </label>
-        ))}
+        {ENTITLEMENT_FIELDS.map((ent) =>
+          ent.kind === "int" ? (
+            <label key={ent.key} className="flex items-start gap-3">
+              <input
+                type="number"
+                min={0}
+                value={Number(form.entitlements?.[ent.key] ?? ent.default)}
+                onChange={(e) => setEntitlement(ent.key, Math.max(0, Number(e.target.value)))}
+                className={`${field} mt-0.5 w-24 shrink-0`}
+              />
+              <span>
+                <span className="block text-sm font-medium">{ent.label}</span>
+                <span className="text-osrs-parchment-dark/60 block text-xs">{ent.help}</span>
+              </span>
+            </label>
+          ) : (
+            <label key={ent.key} className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={Boolean(form.entitlements?.[ent.key] ?? ent.default)}
+                onChange={(e) => setEntitlement(ent.key, e.target.checked)}
+                className="mt-1 size-4"
+              />
+              <span>
+                <span className="block text-sm font-medium">{ent.label}</span>
+                <span className="text-osrs-parchment-dark/60 block text-xs">{ent.help}</span>
+              </span>
+            </label>
+          ),
+        )}
       </fieldset>
 
       {featuresText.trim() && (

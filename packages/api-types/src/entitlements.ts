@@ -18,8 +18,10 @@ export interface EntitlementField {
   label: string;
   category: EntitlementCategory;
   help: string;
+  /** Value shape; boolean when omitted. */
+  kind?: "bool" | "int";
   /** Default for tiers that explicitly configure entitlements (missing key). */
-  default: boolean;
+  default: boolean | number;
 }
 
 export const ENTITLEMENT_CATEGORIES: { id: EntitlementCategory; label: string }[] = [
@@ -34,6 +36,14 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     category: "features",
     help: "Create and manage group events (tasks, teams, scoreboards).",
     default: false,
+  },
+  {
+    key: "events_max_active",
+    label: "Max active events",
+    category: "features",
+    help: "How many events a group may have active at the same time (enforced at activation; drafts are unlimited).",
+    kind: "int",
+    default: 1,
   },
   {
     key: "hall_of_fame",
@@ -58,15 +68,18 @@ export function getEntitlementField(key: string): EntitlementField | undefined {
   return ENTITLEMENT_FIELDS.find((f) => f.key === key);
 }
 
+const fieldValueSchema = (f: EntitlementField) =>
+  f.kind === "int" ? z.number().int().nonnegative() : z.boolean();
+
 /** Per-tier entitlement map stored on `subscription_tiers.entitlements`. */
 export const TierEntitlementsSchema = z.object(
-  Object.fromEntries(ENTITLEMENT_FIELDS.map((f) => [f.key, z.boolean().optional()])),
+  Object.fromEntries(ENTITLEMENT_FIELDS.map((f) => [f.key, fieldValueSchema(f).optional()])),
 );
 export type TierEntitlements = z.infer<typeof TierEntitlementsSchema>;
 
 /** Resolved entitlements for a group (every registry key present). */
 export const GroupEntitlementsSchema = z.object(
-  Object.fromEntries(ENTITLEMENT_FIELDS.map((f) => [f.key, z.boolean()])),
+  Object.fromEntries(ENTITLEMENT_FIELDS.map((f) => [f.key, fieldValueSchema(f)])),
 );
 export type GroupEntitlements = z.infer<typeof GroupEntitlementsSchema>;
 

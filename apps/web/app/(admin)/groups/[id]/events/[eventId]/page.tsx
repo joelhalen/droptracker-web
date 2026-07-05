@@ -18,7 +18,7 @@ export default async function ManageEventPage({ params }: { params: Params }) {
   if (!Number.isFinite(groupId) || !Number.isFinite(evId)) notFound();
 
   const [event, subscription, tiers, user] = await Promise.all([
-    orNotFound(api.event(evId)),
+    orNotFound(api.eventForAdmin(evId)),
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
     getUser(),

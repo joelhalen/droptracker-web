@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
 import { formatDate } from "@/lib/format";
 import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 import { BingoBoard } from "@/components/bingo-board";
+import { EventJoinPanel } from "@/components/event-join-panel";
 import { EmptyState } from "@/components/ui";
 
 export const revalidate = 30;
@@ -32,9 +34,13 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   const { id } = await params;
   const eventId = Number(id);
   if (!Number.isFinite(eventId)) notFound();
-  const event = await orNotFound(api.event(eventId));
+  const [event, user] = await Promise.all([
+    orNotFound(api.event(eventId)),
+    getUser().catch(() => null),
+  ]);
 
   const teams = [...event.teams].sort((a, b) => b.score - a.score);
+  const players = user ? user.players.map((p) => ({ id: p.id, name: p.name })) : null;
 
   return (
     <div className="space-y-8">
@@ -99,29 +105,61 @@ export default async function EventDetailPage({ params }: { params: Params }) {
           </div>
         </section>
 
-        <aside>
-          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Teams</h2>
-          {teams.length ? (
-            <ol className="space-y-2">
-              {teams.map((team, i) => (
-                <li
-                  key={team.id}
-                  className="border-osrs-bronze/20 flex items-center justify-between rounded border px-3 py-2 text-sm"
-                >
-                  <span>
-                    <span className="text-osrs-parchment-dark/50 mr-2 tabular-nums">{i + 1}</span>
-                    {team.name}
-                    <span className="text-osrs-parchment-dark/50 ml-2 text-xs">
-                      {team.member_count} players
-                    </span>
-                  </span>
-                  <span className="text-osrs-gold-bright tabular-nums">{team.score}</span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <EmptyState title="No teams yet" />
-          )}
+        <aside className="space-y-8">
+          <div>
+            <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+              Participate
+            </h2>
+            <EventJoinPanel event={event} players={players} />
+          </div>
+
+          <div>
+            <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Teams</h2>
+            {teams.length ? (
+              <ol className="space-y-2">
+                {teams.map((team, i) => (
+                  <li
+                    key={team.id}
+                    className="border-osrs-bronze/20 rounded border px-3 py-2 text-sm"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span>
+                        <span className="text-osrs-parchment-dark/50 mr-2 tabular-nums">
+                          {i + 1}
+                        </span>
+                        {team.name}
+                        <span className="text-osrs-parchment-dark/50 ml-2 text-xs">
+                          {team.member_count} players
+                        </span>
+                      </span>
+                      <span className="text-osrs-gold-bright tabular-nums">{team.score}</span>
+                    </div>
+                    {(team.members?.length ?? 0) > 0 && (
+                      <ul className="text-osrs-parchment-dark/70 mt-2 space-y-0.5 text-xs">
+                        {team.members!.map((m) => (
+                          <li key={m.player_id} className="flex items-center justify-between">
+                            <Link
+                              href={`/players/${m.player_id}`}
+                              className="hover:text-osrs-gold-bright"
+                            >
+                              {m.player_name}
+                            </Link>
+                            {m.joined_at && (
+                              <span className="text-osrs-parchment-dark/40">
+                                joined {formatDate(m.joined_at)}
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyState title="No teams yet" />
+            )}
+          </div>
         </aside>
       </div>
     </div>

@@ -2,11 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  EventAwardInputSchema,
   EventInputSchema,
+  EventRevokeInputSchema,
   EventTaskInputSchema,
+  EventTaskPatchSchema,
   EventTeamInputSchema,
+  type EventAwardInput,
   type EventInput,
+  type EventRevokeInput,
   type EventTaskInput,
+  type EventTaskPatch,
   type EventTeamInput,
 } from "@droptracker/api-types";
 import { api } from "@/lib/api";
@@ -43,7 +49,18 @@ export async function createGroupEvent(groupId: number, input: Omit<EventInput, 
 export async function updateGroupEvent(
   groupId: number,
   eventId: number,
-  patch: Partial<Pick<EventInput, "name" | "description" | "starts_at" | "ends_at">>,
+  patch: Partial<
+    Pick<
+      EventInput,
+      | "name"
+      | "description"
+      | "starts_at"
+      | "ends_at"
+      | "formation_mode"
+      | "join_code"
+      | "requires_confirmation"
+    >
+  >,
 ) {
   await assertEventsEntitlement(groupId);
   const parsed = EventInputSchema.omit({ group_id: true }).partial().parse(patch);
@@ -74,4 +91,104 @@ export async function addEventTeam(groupId: number, eventId: number, input: Even
   const result = await api.addEventTeam(eventId, parsed);
   revalidatePath(`/groups/${groupId}/events/${eventId}`);
   return { ok: true as const, id: result.id };
+}
+
+/** Admin roster add — also moves a player already on another team in this
+ * event (their join timestamp, the credit cutoff, resets on the new team). */
+export async function addEventTeamMember(
+  groupId: number,
+  eventId: number,
+  teamId: number,
+  playerId: number,
+) {
+  await assertEventsEntitlement(groupId);
+  await api.addEventTeamMember(eventId, teamId, playerId);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const };
+}
+
+export async function removeEventTeamMember(
+  groupId: number,
+  eventId: number,
+  teamId: number,
+  playerId: number,
+) {
+  await assertEventsEntitlement(groupId);
+  await api.removeEventTeamMember(eventId, teamId, playerId);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const };
+}
+
+/** Search the group's members by name for the roster add-player picker. */
+export async function searchGroupPlayers(groupId: number, q: string) {
+  await assertEventsEntitlement(groupId);
+  const page = await api.groupMembers(groupId, 1, q.trim());
+  return page.members.map((m) => ({ id: m.id, name: m.name }));
+}
+
+// --- Verification queue & manual actions (Task 18) --------------------------
+
+/** Admin-only completion ledger read (used by the Review section refresh). */
+export async function listEventCompletions(
+  groupId: number,
+  eventId: number,
+  params: { status?: string; teamId?: number; taskId?: number } = {},
+) {
+  await assertEventsEntitlement(groupId);
+  return api.eventCompletions(eventId, params);
+}
+
+export async function confirmEventCompletion(groupId: number, eventId: number, completionId: number) {
+  await assertEventsEntitlement(groupId);
+  await api.confirmEventCompletion(eventId, completionId);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const };
+}
+
+export async function rejectEventCompletion(
+  groupId: number,
+  eventId: number,
+  completionId: number,
+  note?: string,
+) {
+  await assertEventsEntitlement(groupId);
+  await api.rejectEventCompletion(eventId, completionId, note);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  return { ok: true as const };
+}
+
+/** Manual award — the escape hatch for pre-join credit and custom/ehp/ehb tasks. */
+export async function awardEventCompletion(groupId: number, eventId: number, input: EventAwardInput) {
+  await assertEventsEntitlement(groupId);
+  const parsed = EventAwardInputSchema.parse(input);
+  const result = await api.awardEventCompletion(eventId, parsed);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const, id: result.id };
+}
+
+export async function revokeEventCompletion(groupId: number, eventId: number, input: EventRevokeInput) {
+  await assertEventsEntitlement(groupId);
+  const parsed = EventRevokeInputSchema.parse(input);
+  await api.revokeEventCompletion(eventId, parsed);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const };
+}
+
+/** Per-task edits (requires_confirmation toggle, points, label, target…). */
+export async function updateEventTask(
+  groupId: number,
+  eventId: number,
+  taskId: number,
+  patch: EventTaskPatch,
+) {
+  await assertEventsEntitlement(groupId);
+  const parsed = EventTaskPatchSchema.parse(patch);
+  const result = await api.updateEventTask(eventId, taskId, parsed);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  return result;
 }

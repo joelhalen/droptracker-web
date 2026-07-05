@@ -30,12 +30,93 @@ export const PageMetaSchema = z.object({
 });
 export type PageMeta = z.infer<typeof PageMetaSchema>;
 
+/** Must stay in lockstep with BADGE_TONES in apps/web/components/ui.tsx. */
+export const BadgeToneSchema = z.enum([
+  "gold",
+  "green",
+  "red",
+  "neutral",
+  "purple",
+  "sky",
+  "ember",
+  "bronze",
+]);
+export type BadgeTone = z.infer<typeof BadgeToneSchema>;
+
+/** Compact chip embedded on leaderboard rows (server sends up to 6; the UI
+ * shows the first few with a "+N" overflow). `context` carries the award's
+ * specifics (day / npc / team size) so chips can read "Daily Loot Champion
+ * (Jul 3, 2026)" rather than looking identical across players. */
+export const CompactBadgeSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  tone: BadgeToneSchema.catch("neutral"),
+  emoji: z.string().nullable().optional(),
+  icon_url: z.string().nullable().optional(),
+  count: z.number().int().optional(),
+  context: z.record(z.unknown()).nullable().optional(),
+});
+export type CompactBadge = z.infer<typeof CompactBadgeSchema>;
+
+/** A player's badge award as shown on their profile. */
+export const PlayerBadgeSchema = z.object({
+  id: z.number().int(),
+  key: z.string(),
+  name: z.string(),
+  description: z.string(),
+  icon_url: z.string().nullable().optional(),
+  icon_emoji: z.string().nullable().optional(),
+  tone: BadgeToneSchema.catch("neutral"),
+  semantic: z.enum(["permanent", "held"]),
+  status: z.enum(["active", "lost", "revoked"]),
+  awarded_at_ts: z.number().int().nullable(),
+  lost_at_ts: z.number().int().nullable().optional(),
+  context: z.record(z.unknown()).nullable().optional(),
+});
+export type PlayerBadge = z.infer<typeof PlayerBadgeSchema>;
+
+export const BadgeDefinitionSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  description: z.string(),
+  icon_url: z.string().nullable().optional(),
+  icon_emoji: z.string().nullable().optional(),
+  tone: BadgeToneSchema.catch("neutral"),
+  semantic: z.enum(["permanent", "held"]),
+});
+export type BadgeDefinition = z.infer<typeof BadgeDefinitionSchema>;
+
+export const AdminBadgeSchema = BadgeDefinitionSchema.extend({
+  active: z.boolean(),
+  automatic: z.boolean(),
+  criteria: z.string().nullable().optional(),
+  active_awards: z.number().int().default(0),
+});
+export type AdminBadge = z.infer<typeof AdminBadgeSchema>;
+
+export const AdminBadgeInputSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9_]+$/, "snake_case identifier"),
+  name: z.string().min(1).max(100),
+  description: z.string().min(1).max(300),
+  tone: BadgeToneSchema,
+  semantic: z.enum(["permanent", "held"]).default("permanent"),
+  icon_url: z.string().max(512).optional(),
+  icon_emoji: z.string().max(16).optional(),
+  active: z.boolean().default(true),
+});
+export type AdminBadgeInput = z.infer<typeof AdminBadgeInputSchema>;
+
 export const LeaderboardEntrySchema = z.object({
   rank: z.number().int(),
   id: z.number().int(),
   name: z.string(),
   loot: MoneySchema,
   delta: z.number().int().optional(),
+  badges: z.array(CompactBadgeSchema).optional(),
 });
 export type LeaderboardEntry = z.infer<typeof LeaderboardEntrySchema>;
 
@@ -82,6 +163,7 @@ export const PlayerProfileSchema = PlayerSummarySchema.extend({
   top_npc: z.string().optional(),
   groups: z.array(GroupMembershipSchema).default([]),
   recent_submissions: z.array(SubmissionSchema).default([]),
+  badges: z.array(PlayerBadgeSchema).optional(),
 });
 export type PlayerProfile = z.infer<typeof PlayerProfileSchema>;
 
@@ -599,7 +681,28 @@ export const EVENT_TASK_TYPES = [
   "ehb_target",
   "pb_target",
   "skill_target",
+  /** Manual-confirmation-only tasks (no automated evaluation). */
+  "custom",
 ] as const;
+
+/** How players get onto teams (events-prd.md D4). */
+export const EVENT_FORMATION_MODES = ["self_join", "auto_assign", "admin_assign"] as const;
+
+/** Ledger row lifecycle for event completions (events-prd.md D3). */
+export const EVENT_COMPLETION_STATUSES = [
+  "auto",
+  "pending",
+  "confirmed",
+  "rejected",
+  "manual",
+  "revoked",
+] as const;
+
+/** Per-event Discord destination kinds (events-prd.md D8). */
+export const EVENT_CHANNEL_KINDS = ["announcements", "completions", "leaderboard", "admin"] as const;
+
+/** Square bingo boards only; 5×5 is the default. */
+export const EVENT_BOARD_SIZES = [3, 4, 5, 6, 7] as const;
 
 export const EventTaskSchema = z.object({
   id: z.number().int(),
@@ -610,14 +713,28 @@ export const EventTaskSchema = z.object({
   /** Numeric goal (kc, xp, level, seconds…), interpreted per `type`. */
   target_value: z.number().int().optional(),
   points: z.number().int().default(0),
+  /** Completions of this task queue for admin review instead of auto-applying. */
+  requires_confirmation: z.boolean().default(false),
+  /** JSON string: any_of/assembly/point_collection item lists etc. */
+  config: z.string().nullable().optional(),
 });
 export type EventTask = z.infer<typeof EventTaskSchema>;
+
+/** Roster entry. `joined_at` (unix) is the credit cutoff (events-prd.md D10). */
+export const EventMemberSchema = z.object({
+  player_id: z.number().int(),
+  player_name: z.string(),
+  joined_at: z.number().int().nullable(),
+});
+export type EventMember = z.infer<typeof EventMemberSchema>;
 
 export const EventTeamSchema = z.object({
   id: z.number().int(),
   name: z.string(),
   score: z.number().int().default(0),
   member_count: z.number().int().default(0),
+  /** Present on EventDetail reads (Task 16); absent on legacy payloads. */
+  members: z.array(EventMemberSchema).optional(),
 });
 export type EventTeam = z.infer<typeof EventTeamSchema>;
 
@@ -648,22 +765,54 @@ export const EventSummarySchema = z.object({
   starts_at: z.number().int().nullable(),
   ends_at: z.number().int().nullable(),
   has_bingo: z.boolean().default(false),
+  formation_mode: z.enum(EVENT_FORMATION_MODES).default("admin_assign"),
+  /** Event-level force: all completions queue for admin review. */
+  requires_confirmation: z.boolean().default(false),
+  board_size: z.number().int().default(5),
+  bonus_line_points: z.number().int().default(0),
+  bonus_blackout_points: z.number().int().default(0),
+  activated_at: z.number().int().nullable().optional(),
+  ended_at: z.number().int().nullable().optional(),
 });
 export type EventSummary = z.infer<typeof EventSummarySchema>;
+
+/** The signed-in viewer's stake in an event (Task 16). */
+export const EventViewerSchema = z.object({
+  /** Ids of the viewer's linked players already on a team in this event. */
+  player_ids_on_event: z.array(z.number().int()).default([]),
+  /** Team of the viewer's first joined player, if any. */
+  team_id: z.number().int().nullable().optional(),
+});
+export type EventViewer = z.infer<typeof EventViewerSchema>;
 
 export const EventDetailSchema = EventSummarySchema.extend({
   tasks: z.array(EventTaskSchema).default([]),
   teams: z.array(EventTeamSchema).default([]),
   bingo: BingoBoardSchema.nullable().optional(),
+  /** Present (possibly null) for signed-in requesters; null when signed out. */
+  viewer: EventViewerSchema.nullable().optional(),
+  /** True when self-join requires a join code (the code itself never appears
+   * on public reads). */
+  join_requires_code: z.boolean().default(false),
+  /** Admin-only: present only when the requester administers the event. */
+  join_code: z.string().nullable().optional(),
+  discord_guild_id: z.string().nullable().optional(),
 });
 export type EventDetail = z.infer<typeof EventDetailSchema>;
 
 export const EventInputSchema = z.object({
-  group_id: z.number().int(),
+  /** null ⇒ global event (superadmin only). */
+  group_id: z.number().int().nullable(),
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional(),
   starts_at: z.number().int().nullable().optional(),
   ends_at: z.number().int().nullable().optional(),
+  formation_mode: z.enum(EVENT_FORMATION_MODES).optional(),
+  requires_confirmation: z.boolean().optional(),
+  join_code: z.string().max(32).nullable().optional(),
+  board_size: z.number().int().min(3).max(7).optional(),
+  bonus_line_points: z.number().int().nonnegative().optional(),
+  bonus_blackout_points: z.number().int().nonnegative().optional(),
 });
 export type EventInput = z.infer<typeof EventInputSchema>;
 
@@ -673,11 +822,107 @@ export const EventTaskInputSchema = z.object({
   target: z.string().optional(),
   target_value: z.number().int().nonnegative().optional(),
   points: z.number().int().nonnegative().default(0),
+  requires_confirmation: z.boolean().optional(),
+  /** JSON string: any_of/assembly/point_collection item lists etc. */
+  config: z.string().nullable().optional(),
 });
 export type EventTaskInput = z.infer<typeof EventTaskInputSchema>;
 
+/** PATCH /events/{id}/tasks/{taskId} — partial task edit (Task 18). */
+export const EventTaskPatchSchema = z.object({
+  label: z.string().min(1).max(255).optional(),
+  target: z.string().nullable().optional(),
+  target_value: z.number().int().nonnegative().nullable().optional(),
+  points: z.number().int().nonnegative().optional(),
+  requires_confirmation: z.boolean().optional(),
+});
+export type EventTaskPatch = z.infer<typeof EventTaskPatchSchema>;
+
+/** POST /events/{id}/award — manual ledger row + immediate apply (events-prd.md
+ * D10: the retro-credit escape hatch; also completes custom/ehp/ehb tasks). */
+export const EventAwardInputSchema = z.object({
+  task_id: z.number().int(),
+  team_id: z.number().int(),
+  quantity: z.number().int().positive().optional(),
+  note: z.string().max(255).optional(),
+});
+export type EventAwardInput = z.infer<typeof EventAwardInputSchema>;
+
+/** POST /events/{id}/revoke — revoke an applied (auto/confirmed/manual) ledger
+ * row; the engine recomputes progress/score/bingo from surviving rows. */
+export const EventRevokeInputSchema = z.object({
+  completion_id: z.number().int(),
+  note: z.string().max(255).optional(),
+});
+export type EventRevokeInput = z.infer<typeof EventRevokeInputSchema>;
+
+/** Ledger entry: one qualifying submission or manual admin action. */
+export const EventCompletionSchema = z.object({
+  id: z.number().int(),
+  event_id: z.number().int(),
+  task_id: z.number().int(),
+  task_label: z.string().nullable().optional(),
+  team_id: z.number().int().nullable(),
+  team_name: z.string().nullable().optional(),
+  player_id: z.number().int().nullable(),
+  player_name: z.string().nullable().optional(),
+  status: z.enum(EVENT_COMPLETION_STATUSES),
+  quantity: z.number().int().default(1),
+  source_type: z.string().nullable().optional(),
+  submission_guid: z.string().nullable().optional(),
+  proof_url: z.string().nullable().optional(),
+  note: z.string().nullable().optional(),
+  created_at: z.number().int(),
+});
+export type EventCompletion = z.infer<typeof EventCompletionSchema>;
+
+/** Per-(task, team) rollup driven by the completion engine. */
+export const EventProgressSchema = z.object({
+  task_id: z.number().int(),
+  team_id: z.number().int(),
+  progress: z.number().int().default(0),
+  completed: z.boolean().default(false),
+  completed_at: z.number().int().nullable().optional(),
+});
+export type EventProgress = z.infer<typeof EventProgressSchema>;
+
+/** Per-event Discord destinations (events-prd.md D8). */
+export const EventChannelConfigSchema = z.object({
+  guild_id: z.string().nullable(),
+  guild_name: z.string().nullable().optional(),
+  channels: z.record(z.enum(EVENT_CHANNEL_KINDS), z.string()).default({}),
+});
+export type EventChannelConfig = z.infer<typeof EventChannelConfigSchema>;
+
+/** Curated task preset from the library (seeded from the legacy task store). */
+export const EventTaskLibraryItemSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  type: z.enum(EVENT_TASK_TYPES),
+  target: z.string().nullable().optional(),
+  target_value: z.number().int().nullable().optional(),
+  default_points: z.number().int().default(0),
+  difficulty: z.string().nullable().optional(),
+  config: z.string().nullable().optional(),
+});
+export type EventTaskLibraryItem = z.infer<typeof EventTaskLibraryItemSchema>;
+
 export const EventTeamInputSchema = z.object({ name: z.string().min(1).max(80) });
 export type EventTeamInput = z.infer<typeof EventTeamInputSchema>;
+
+/** POST /events/{id}/join (Task 16). `team_id` is required for self_join
+ * events with more than one team and forbidden for auto_assign. */
+export const EventJoinInputSchema = z.object({
+  player_id: z.number().int(),
+  team_id: z.number().int().optional(),
+  join_code: z.string().max(32).optional(),
+});
+export type EventJoinInput = z.infer<typeof EventJoinInputSchema>;
+
+/** POST /events/{id}/leave and admin roster add (Task 16). */
+export const EventMemberInputSchema = z.object({ player_id: z.number().int() });
+export type EventMemberInput = z.infer<typeof EventMemberInputSchema>;
 
 export * from "./group-config";
 export * from "./entitlements";

@@ -10,8 +10,11 @@
 import { cookies } from "next/headers";
 import {
   AccountSettingsSchema,
+  AdminBadgeSchema,
   AnnouncementPageSchema,
   AnnouncementSchema,
+  BadgeDefinitionSchema,
+  PlayerBadgeSchema,
   CheckoutSessionSchema,
   DocSchema,
   DocSummarySchema,
@@ -19,6 +22,7 @@ import {
   GroupMembersPageSchema,
   GroupProfileSchema,
   AdminLookupResponseSchema,
+  EventCompletionSchema,
   EventDetailSchema,
   EventSummarySchema,
   LootboardImageSchema,
@@ -36,7 +40,11 @@ import {
   WomSyncResultSchema,
   type AccountSettings,
   type AccountSettingsPatch,
+  type AdminBadge,
+  type AdminBadgeInput,
   type AdminLookupResponse,
+  type BadgeDefinition,
+  type PlayerBadge as PlayerBadgeAward,
   type Announcement,
   type AnnouncementInput,
   type AnnouncementPage,
@@ -46,10 +54,15 @@ import {
   type Doc,
   type DocInput,
   type DocSummary,
+  type EventAwardInput,
+  type EventCompletion,
   type EventDetail,
   type EventInput,
+  type EventJoinInput,
+  type EventRevokeInput,
   type EventSummary,
   type EventTaskInput,
+  type EventTaskPatch,
   type EventTeamInput,
   type GroupConfigPatch,
   type GroupDiagnostics,
@@ -84,6 +97,7 @@ import {
   mockGroupSubscription,
   mockGuildStatus,
   mockEvent,
+  mockEventCompletions,
   mockEvents,
   mockLookup,
   mockLootboard,
@@ -390,6 +404,15 @@ export const api = {
     );
   },
 
+  /** Authed event read: includes the viewer block and, for event admins, the
+   * join code. Uncached (viewer-specific). */
+  async eventForAdmin(id: number): Promise<EventDetail> {
+    return withFallback(
+      async () => EventDetailSchema.parse(await apiGet(`/events/${id}`, { authed: true })),
+      () => mockEvent(id),
+    );
+  },
+
   async createEvent(input: EventInput): Promise<{ id: number }> {
     return withFallback(
       async () => (await apiSend("POST", `/events`, input)) as { id: number },
@@ -399,7 +422,18 @@ export const api = {
 
   async updateEvent(
     eventId: number,
-    patch: Partial<Pick<EventInput, "name" | "description" | "starts_at" | "ends_at">>,
+    patch: Partial<
+      Pick<
+        EventInput,
+        | "name"
+        | "description"
+        | "starts_at"
+        | "ends_at"
+        | "formation_mode"
+        | "join_code"
+        | "requires_confirmation"
+      >
+    >,
   ): Promise<EventDetail> {
     return withFallback(
       async () => EventDetailSchema.parse(await apiSend("PATCH", `/events/${eventId}`, patch)),
@@ -428,6 +462,132 @@ export const api = {
     return withFallback(
       async () => (await apiSend("POST", `/events/${eventId}/teams`, input)) as { id: number },
       () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  // --- Event verification queue & manual actions (Task 18) -----------------
+  async updateEventTask(
+    eventId: number,
+    taskId: number,
+    patch: EventTaskPatch,
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("PATCH", `/events/${eventId}/tasks/${taskId}`, patch);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Admin-only ledger read (verification queue + full history). */
+  async eventCompletions(
+    eventId: number,
+    params: { status?: string; teamId?: number; taskId?: number } = {},
+  ): Promise<EventCompletion[]> {
+    const q = new URLSearchParams();
+    if (params.status) q.set("status", params.status);
+    if (params.teamId) q.set("teamId", String(params.teamId));
+    if (params.taskId) q.set("taskId", String(params.taskId));
+    return withFallback(
+      async () =>
+        EventCompletionSchema.array().parse(
+          await apiGet(`/events/${eventId}/completions?${q}`, { authed: true }),
+        ),
+      () => mockEventCompletions(eventId, params.status),
+    );
+  },
+
+  async confirmEventCompletion(eventId: number, completionId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/completions/${completionId}/confirm`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async rejectEventCompletion(
+    eventId: number,
+    completionId: number,
+    note?: string,
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend(
+          "POST",
+          `/events/${eventId}/completions/${completionId}/reject`,
+          note ? { note } : {},
+        );
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async awardEventCompletion(eventId: number, input: EventAwardInput): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/events/${eventId}/award`, input)) as { id: number },
+      () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  async revokeEventCompletion(eventId: number, input: EventRevokeInput): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/revoke`, input);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  // --- Event membership (Task 16) ------------------------------------------
+  async joinEvent(eventId: number, input: EventJoinInput): Promise<{ team_id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/events/${eventId}/join`, input)) as { team_id: number },
+      () => ({ team_id: input.team_id ?? 21 }),
+    );
+  },
+
+  async leaveEvent(eventId: number, playerId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/leave`, { player_id: playerId });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async addEventTeamMember(
+    eventId: number,
+    teamId: number,
+    playerId: number,
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/teams/${teamId}/members`, {
+          player_id: playerId,
+        });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async removeEventTeamMember(
+    eventId: number,
+    teamId: number,
+    playerId: number,
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/events/${eventId}/teams/${teamId}/members/${playerId}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
     );
   },
 
@@ -652,11 +812,13 @@ export const api = {
   },
 
   // --- Group admin -------------------------------------------------------
-  async groupMembers(groupId: number, page = 1): Promise<GroupMembersPage> {
+  async groupMembers(groupId: number, page = 1, q?: string): Promise<GroupMembersPage> {
+    const params = new URLSearchParams({ page: String(page) });
+    if (q) params.set("q", q);
     return withFallback(
       async () =>
         GroupMembersPageSchema.parse(
-          await apiGet(`/groups/${groupId}/members?page=${page}`, { authed: true }),
+          await apiGet(`/groups/${groupId}/members?${params}`, { authed: true }),
         ),
       () => mockGroupMembers(groupId, page),
     );
@@ -849,6 +1011,76 @@ export const api = {
     return withFallback(
       async () => {
         await apiSend("DELETE", `/admin/subscriptions/tiers/${encodeURIComponent(key)}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  // --- Badges -------------------------------------------------------------
+  async badges(): Promise<BadgeDefinition[]> {
+    return withFallback(
+      async () => BadgeDefinitionSchema.array().parse(await apiGet(`/badges`, { revalidate: 300 })),
+      () => [],
+    );
+  },
+
+  async playerBadges(playerId: number): Promise<PlayerBadgeAward[]> {
+    return withFallback(
+      async () =>
+        PlayerBadgeSchema.array().parse(
+          await apiGet(`/players/${playerId}/badges`, { revalidate: 0 }),
+        ),
+      () => [],
+    );
+  },
+
+  async adminBadges(): Promise<AdminBadge[]> {
+    return withFallback(
+      async () => AdminBadgeSchema.array().parse(await apiGet(`/admin/badges`, { authed: true })),
+      () => [],
+    );
+  },
+
+  async adminSaveBadge(input: AdminBadgeInput): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/admin/badges`, input);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminDeleteBadge(key: string): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/admin/badges/${encodeURIComponent(key)}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminAwardBadge(
+    playerId: number,
+    badgeKey: string,
+    note?: string,
+  ): Promise<{ award_id: number }> {
+    return withFallback(
+      async () =>
+        (await apiSend("POST", `/admin/players/${playerId}/badges`, {
+          badge_key: badgeKey,
+          note,
+        })) as { award_id: number },
+      () => ({ award_id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  async adminRevokeBadge(playerId: number, awardId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/admin/players/${playerId}/badges/${awardId}`, {});
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,

@@ -7,6 +7,7 @@ import type {
   AccountSettings,
   AdminLookupResponse,
   AnnouncementPage,
+  EventCompletion,
   EventDetail,
   EventSummary,
   GroupDiagnostics,
@@ -422,6 +423,13 @@ const DAY = 86400;
 
 export function mockEvents(groupId?: number, status?: string): EventSummary[] {
   const now = Math.floor(Date.now() / 1000);
+  const eventDefaults = {
+    formation_mode: "self_join" as const,
+    requires_confirmation: false,
+    board_size: 5,
+    bonus_line_points: 10,
+    bonus_blackout_points: 100,
+  };
   const all: EventSummary[] = [
     {
       id: 1,
@@ -432,6 +440,8 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
       starts_at: now - 3 * DAY,
       ends_at: now + 11 * DAY,
       has_bingo: true,
+      activated_at: now - 3 * DAY,
+      ...eventDefaults,
     },
     {
       id: 2,
@@ -442,6 +452,9 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
       starts_at: now - 40 * DAY,
       ends_at: now - 26 * DAY,
       has_bingo: false,
+      activated_at: now - 40 * DAY,
+      ended_at: now - 26 * DAY,
+      ...eventDefaults,
     },
   ];
   return all.filter((e) => (status ? e.status === status : true));
@@ -460,20 +473,95 @@ export function mockEvent(id: number): EventDetail {
     ...summary,
     id,
     tasks: [
-      { id: 11, type: "kc_target", label: "Vorkath 50 KC", target: "Vorkath", target_value: 50, points: 10 },
-      { id: 12, type: "item_collection", label: "Obtain a Twisted bow", target: "Twisted bow", points: 50 },
-      { id: 13, type: "skill_target", label: "Reach 99 Slayer", target: "Slayer", target_value: 99, points: 25 },
-      { id: 14, type: "xp_target", label: "Gain 10M Ranged XP", target: "Ranged", target_value: 10_000_000, points: 15 },
+      { id: 11, type: "kc_target", label: "Vorkath 50 KC", target: "Vorkath", target_value: 50, points: 10, requires_confirmation: false },
+      { id: 12, type: "item_collection", label: "Obtain a Twisted bow", target: "Twisted bow", points: 50, requires_confirmation: true },
+      { id: 13, type: "skill_target", label: "Reach 99 Slayer", target: "Slayer", target_value: 99, points: 25, requires_confirmation: false },
+      { id: 14, type: "xp_target", label: "Gain 10M Ranged XP", target: "Ranged", target_value: 10_000_000, points: 15, requires_confirmation: false },
     ],
     teams: [
-      { id: 21, name: "Team Red", score: 120, member_count: 8 },
-      { id: 22, name: "Team Blue", score: 95, member_count: 7 },
-      { id: 23, name: "Team Green", score: 60, member_count: 6 },
+      {
+        id: 21,
+        name: "Team Red",
+        score: 120,
+        member_count: 3,
+        members: [
+          { player_id: 1337, player_name: "Zezima", joined_at: now - 3 * DAY },
+          { player_id: 2001, player_name: "Woox", joined_at: now - 2 * DAY },
+          { player_id: 2002, player_name: "B0aty", joined_at: now - 2 * DAY },
+        ],
+      },
+      {
+        id: 22,
+        name: "Team Blue",
+        score: 95,
+        member_count: 2,
+        members: [
+          { player_id: 2003, player_name: "Framed", joined_at: now - 3 * DAY },
+          { player_id: 2004, player_name: "Settled", joined_at: now - DAY },
+        ],
+      },
+      { id: 23, name: "Team Green", score: 60, member_count: 0, members: [] },
     ],
     bingo: summary.has_bingo ? { size: 5, cells } : null,
+    viewer: { player_ids_on_event: [1337], team_id: 21 },
+    join_requires_code: false,
+    join_code: null,
     starts_at: summary.starts_at ?? now,
     ends_at: summary.ends_at ?? now + 7 * DAY,
   };
+}
+
+/** Admin-only completion ledger (Task 18 verification queue). */
+export function mockEventCompletions(eventId: number, status?: string): EventCompletion[] {
+  const now = Math.floor(Date.now() / 1000);
+  const all: EventCompletion[] = [
+    {
+      id: 501,
+      event_id: eventId,
+      task_id: 12,
+      task_label: "Obtain a Twisted bow",
+      team_id: 21,
+      team_name: "Team Red",
+      player_id: 1337,
+      player_name: "Zezima",
+      status: "pending",
+      quantity: 1,
+      source_type: "drop",
+      submission_guid: "mock-guid-501",
+      proof_url: "https://www.droptracker.io/img/itemdb/20997.png",
+      created_at: now - 1800,
+    },
+    {
+      id: 502,
+      event_id: eventId,
+      task_id: 11,
+      task_label: "Vorkath 50 KC",
+      team_id: 22,
+      team_name: "Team Blue",
+      player_id: 1338,
+      player_name: "Zezima Alt",
+      status: "auto",
+      quantity: 1,
+      source_type: "drop",
+      submission_guid: "mock-guid-502",
+      created_at: now - 7200,
+    },
+    {
+      id: 503,
+      event_id: eventId,
+      task_id: 13,
+      task_label: "Reach 99 Slayer",
+      team_id: 21,
+      team_name: "Team Red",
+      player_id: null,
+      status: "manual",
+      quantity: 1,
+      source_type: "manual",
+      note: "Awarded after screenshot proof in Discord",
+      created_at: now - 86400,
+    },
+  ];
+  return status && status !== "all" ? all.filter((c) => c.status === status) : all;
 }
 
 export function mockLookup(q: string): AdminLookupResponse {
