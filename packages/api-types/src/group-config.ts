@@ -93,7 +93,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // --- Personal best ------------------------------------------------------
   { key: "notify_pbs", label: "Notify personal bests", category: "pbs", type: "boolean", help: "Post personal-best notifications.", default: true, seasonalMirror: true },
   { key: "personal_best_embed_boss_list", label: "Hall of Fame bosses", category: "pbs", type: "bosslist", help: "Bosses featured in the Hall of Fame personal-best embeds. Empty = no Hall of Fame.", default: "", entitlement: "hall_of_fame" },
-  { key: "number_of_pbs_to_display", label: "PBs to display", category: "pbs", type: "int", help: "How many recent PBs to show in the embed.", default: 5, min: 1, max: 25 },
+  { key: "number_of_pbs_to_display", label: "PBs to display", category: "pbs", type: "int", help: "Top PB entries shown per team-size bracket in Hall of Fame messages.", default: 5, min: 1, max: 10 },
   { key: "channel_id_to_send_pb_embeds", label: "PB embed channel", category: "pbs", type: "channel", help: "Optional override channel for PB embeds.", default: null },
   { key: "hof_individual_boss_messages", label: "Individual Hall of Fame messages", category: "pbs", type: "boolean", help: "Post one Hall of Fame message per boss. When off, only the directory message is posted and members use its drop-down to view each boss's leaderboard.", default: false, entitlement: "hall_of_fame" },
 

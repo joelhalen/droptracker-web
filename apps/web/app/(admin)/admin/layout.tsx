@@ -18,6 +18,7 @@ const TABS: NavTab[] = [
   { href: "/admin/services", label: "Services" },
   { href: "/admin/lookup", label: "Lookup" },
   { href: "/admin/tiers", label: "Tiers" },
+  { href: "/admin/badges", label: "Badges" },
 ];
 
 /** Superadmin shell. Gates the whole /admin subtree to site staff. */

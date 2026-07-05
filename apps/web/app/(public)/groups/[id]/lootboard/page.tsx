@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
-import { PERIOD_OPTIONS, resolvePeriod } from "@/lib/period";
+import { PERIOD_OPTIONS, DEFAULT_PERIOD, resolvePeriod } from "@/lib/period";
 import { LootboardCanvas } from "@/components/lootboard-canvas";
 
 export const revalidate = 30;
@@ -31,7 +31,7 @@ export default async function GroupLootboardPage({
   const { id } = await params;
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
-  const { period: periodKey = "all" } = await searchParams;
+  const { period: periodKey = DEFAULT_PERIOD } = await searchParams;
 
   const [group, board] = await Promise.all([
     orNotFound(api.group(groupId)),

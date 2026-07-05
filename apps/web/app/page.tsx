@@ -2,14 +2,17 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { Card, EmptyState } from "@/components/ui";
+import { DEFAULT_PERIOD, resolvePeriod } from "@/lib/period";
 
 // Public homepage: SSR snapshot with ISR; client hydrates live updates.
 export const revalidate = 15;
 
 export default async function HomePage() {
+  // Default to the current month — the tracking system works month-to-month.
+  const period = resolvePeriod(DEFAULT_PERIOD);
   const [players, groups, news] = await Promise.all([
-    api.playerLeaderboard({ scope: "global", limit: 10 }),
-    api.groupLeaderboard({ limit: 5 }),
+    api.playerLeaderboard({ scope: "global", limit: 10, period }),
+    api.groupLeaderboard({ limit: 5, period }),
     api.announcements("global"),
   ]);
 

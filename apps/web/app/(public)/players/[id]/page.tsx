@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
+import { PlayerBadgeList } from "@/components/player-badges";
 import { SubmissionList } from "@/components/submission-list";
-import { EntityChip, NameTile, StatTile } from "@/components/ui";
+import { Card, EntityChip, NameTile, StatTile } from "@/components/ui";
 
 export const revalidate = 30;
 
@@ -58,6 +59,15 @@ export default async function PlayerPage({ params }: { params: Params }) {
           <StatTile label="Top NPC" value={player.top_npc ?? "—"} />
         </div>
       </header>
+
+      {player.badges && player.badges.length > 0 && (
+        <section>
+          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Badges</h2>
+          <Card padding="p-5">
+            <PlayerBadgeList badges={player.badges} />
+          </Card>
+        </section>
+      )}
 
       <div className="grid gap-8 md:grid-cols-3">
         <section className="md:col-span-2">

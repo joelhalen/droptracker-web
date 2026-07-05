@@ -12,6 +12,7 @@ import type { LeaderboardEntry } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp } from "@/lib/format";
 import { EmptyState, EntityChip, RankMedal } from "@/components/ui";
+import { PlayerBadgeIcons } from "@/components/player-badges";
 
 const BADGE_DURATION_MS = 2500;
 
@@ -115,7 +116,14 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                   <RankMedal rank={r.rank} />
                 </td>
                 <td className="px-3 py-2">
-                  <EntityChip href={`${hrefBase}/${r.id}` as Route} name={r.name} size="sm" />
+                  <EntityChip
+                    href={`${hrefBase}/${r.id}` as Route}
+                    name={r.name}
+                    size="sm"
+                    badges={
+                      r.badges?.length ? <PlayerBadgeIcons badges={r.badges} /> : undefined
+                    }
+                  />
                 </td>
                 {/* Relative loot bar behind the value: instant read of the
                     gap between ranks without scanning the numbers. */}

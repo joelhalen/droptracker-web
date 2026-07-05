@@ -2,6 +2,7 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { PERIOD_OPTIONS, DEFAULT_PERIOD, resolvePeriod } from "@/lib/period";
 
 export const revalidate = 15;
 
@@ -10,41 +11,12 @@ export const metadata: Metadata = {
   description: "Global Old School RuneScape loot leaderboards for players and clans.",
 };
 
-const PERIODS: { key: string; label: string }[] = [
-  { key: "all", label: "All-time" },
-  { key: "month", label: "Monthly" },
-  { key: "week", label: "Weekly" },
-  { key: "day", label: "Daily" },
-];
-
-/** Map a friendly period key to a concrete partition (FRONTEND_PLAN.md §6.5). */
-function resolvePeriod(key: string | undefined): string {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(now.getUTCDate()).padStart(2, "0");
-  switch (key) {
-    case "month":
-      return `${y}${m}`;
-    case "week": {
-      const week = Math.ceil(
-        ((now.getTime() - Date.UTC(y, 0, 1)) / 86_400_000 + new Date(Date.UTC(y, 0, 1)).getUTCDay() + 1) / 7,
-      );
-      return `${y}W${String(week).padStart(2, "0")}`;
-    }
-    case "day":
-      return `${y}${m}${d}`;
-    default:
-      return "all";
-  }
-}
-
 type SearchParams = Promise<{ tab?: string; period?: string; page?: string }>;
 
 export default async function LeaderboardsPage({ searchParams }: { searchParams: SearchParams }) {
   const sp = await searchParams;
   const tab = sp.tab === "groups" ? "groups" : "players";
-  const periodKey = sp.period ?? "all";
+  const periodKey = sp.period ?? DEFAULT_PERIOD;
   const period = resolvePeriod(periodKey);
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
 
@@ -83,7 +55,7 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
         </div>
         <span className="text-osrs-bronze">|</span>
         <div className="flex flex-wrap gap-1">
-          {PERIODS.map((p) => (
+          {PERIOD_OPTIONS.map((p) => (
             <Link
               key={p.key}
               href={qs({ period: p.key, page: 1 })}
