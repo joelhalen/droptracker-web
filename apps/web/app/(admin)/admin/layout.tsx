@@ -3,10 +3,11 @@ import { TabNav, type NavTab } from "@/components/tab-nav";
 
 // `href` is a plain string cast to `Route` at render time: some of these routes
 // are newly added and may not yet be in the generated typed-routes manifest.
-// No tab needs `matchPrefix` — none of these own nested dynamic child routes
-// (see tab-nav.tsx for why "/admin" itself must stay exact-match-only).
+// Only "Events" needs `matchPrefix` (it owns /admin/events/[eventId]); "/admin"
+// itself must stay exact-match-only (see tab-nav.tsx).
 const TABS: NavTab[] = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin/events", label: "Events", matchPrefix: true },
   { href: "/admin/data", label: "Data" },
   { href: "/admin/logs", label: "Logs" },
   { href: "/admin/groups", label: "Groups" },

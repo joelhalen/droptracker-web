@@ -48,7 +48,7 @@ const KIND_META: Record<EventChannelKind, { label: string; hint: string }> = {
   },
 };
 
-export function EventDiscord({ groupId, eventId }: { groupId: number; eventId: number }) {
+export function EventDiscord({ groupId, eventId }: { groupId: number | null; eventId: number }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);

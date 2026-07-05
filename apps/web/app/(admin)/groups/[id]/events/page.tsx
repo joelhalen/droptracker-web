@@ -11,27 +11,52 @@ export const metadata: Metadata = { title: "Events" };
 
 type Params = Promise<{ id: string }>;
 
+const STATUS_CHIP: Record<string, string> = {
+  draft: "bg-osrs-bronze/20 text-osrs-parchment-dark/80",
+  active: "bg-green-500/15 text-green-400",
+  past: "bg-osrs-brown-dark/60 text-osrs-parchment-dark/50",
+};
+
 export default async function GroupEventsPage({ params }: { params: Params }) {
   const { id } = await params;
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
 
+  // Authed list so the backend includes this admin's drafts (Task 21).
   const [events, subscription, tiers, user] = await Promise.all([
-    api.events({ groupId }),
+    api.eventsForAdmin({ groupId }),
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
     getUser(),
   ]);
 
+  // Tier concurrency (PRD D9): shown as "active X / Y"; the limit binds at
+  // activation (drafts are unlimited). Superadmins resolve to an effectively
+  // unlimited entitlement — render that as ∞ rather than a huge number.
+  const activeCount = events.filter((e) => e.status === "active").length;
+  const rawLimit = Number(subscription?.entitlements?.["events_max_active"] ?? 1);
+  const limitLabel = rawLimit >= 1_000_000 ? "∞" : String(rawLimit);
+
   const content = (
     <div className="grid gap-10 lg:grid-cols-2">
       <section>
         <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">New event</h2>
+        <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
+          New events start as drafts — add tasks, teams, and a board, then activate.
+        </p>
         <EventCreateForm groupId={groupId} />
       </section>
 
       <section>
-        <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Events</h2>
+        <div className="heading-rule mb-4 flex items-baseline justify-between pb-1">
+          <h2 className="text-osrs-gold text-lg font-semibold">Events</h2>
+          <span
+            className="text-osrs-parchment-dark/60 text-xs"
+            title="Simultaneously active events allowed by the group's subscription tier"
+          >
+            active {activeCount} / {limitLabel} (tier limit)
+          </span>
+        </div>
         {events.length ? (
           <ul className="divide-osrs-bronze/20 divide-y">
             {events.map((e) => (
@@ -42,7 +67,11 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
                 >
                   {e.name}
                 </Link>
-                <span className="text-osrs-parchment-dark/60 text-xs capitalize">{e.status}</span>
+                <span
+                  className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
+                >
+                  {e.status}
+                </span>
               </li>
             ))}
           </ul>

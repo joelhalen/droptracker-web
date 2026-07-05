@@ -10,7 +10,9 @@ import { Alert } from "@/components/ui";
 /** Convert a datetime-local value to unix seconds (or null). */
 const toUnix = (v: string): number | null => (v ? Math.floor(new Date(v).getTime() / 1000) : null);
 
-export function EventCreateForm({ groupId }: { groupId: number }) {
+/** `groupId` is null when creating a global event from /admin/events
+ * (superadmin-only). New events are drafts: configure them, then Activate. */
+export function EventCreateForm({ groupId }: { groupId: number | null }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState("");
@@ -34,7 +36,11 @@ export function EventCreateForm({ groupId }: { groupId: number }) {
           starts_at: toUnix(startsAt),
           ends_at: toUnix(endsAt),
         });
-        router.push(`/groups/${groupId}/events/${res.id}` as Route);
+        router.push(
+          (groupId == null
+            ? `/admin/events/${res.id}`
+            : `/groups/${groupId}/events/${res.id}`) as Route,
+        );
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't create the event. Please try again."));
       }

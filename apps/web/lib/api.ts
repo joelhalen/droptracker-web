@@ -434,6 +434,21 @@ export const api = {
     );
   },
 
+  /** Authed event list: same endpoint, but with the session cookie so the
+   * backend includes drafts the viewer administers (superadmin sees all,
+   * including global drafts). Uncached (viewer-specific). */
+  async eventsForAdmin(
+    params: { groupId?: number; status?: "draft" | "active" | "past" } = {},
+  ): Promise<EventSummary[]> {
+    const q = new URLSearchParams();
+    if (params.groupId) q.set("groupId", String(params.groupId));
+    if (params.status) q.set("status", params.status);
+    return withFallback(
+      async () => EventSummarySchema.array().parse(await apiGet(`/events?${q}`, { authed: true })),
+      () => mockEvents(params.groupId, params.status),
+    );
+  },
+
   async event(id: number): Promise<EventDetail> {
     return withFallback(
       async () => EventDetailSchema.parse(await apiGet(`/events/${id}`, { revalidate: 30 })),
@@ -477,6 +492,25 @@ export const api = {
     return withFallback(
       async () => EventDetailSchema.parse(await apiSend("PATCH", `/events/${eventId}`, patch)),
       () => mockEvent(eventId),
+    );
+  },
+
+  // --- Event lifecycle (Task 21) ---------------------------------------------
+  /** Explicit activation (draft -> active). 422 when the event isn't ready
+   * (no teams / incomplete bingo board / end date in the past); 409 at the
+   * tier's active-event limit. Returns the refreshed detail. */
+  async activateEvent(eventId: number): Promise<EventDetail> {
+    return withFallback(
+      async () => EventDetailSchema.parse(await apiSend("POST", `/events/${eventId}/activate`, {})),
+      () => ({ ...mockEvent(eventId), status: "active" as const }),
+    );
+  },
+
+  /** Explicit end (active -> past). Final standings are announced to Discord. */
+  async endEvent(eventId: number): Promise<EventDetail> {
+    return withFallback(
+      async () => EventDetailSchema.parse(await apiSend("POST", `/events/${eventId}/end`, {})),
+      () => ({ ...mockEvent(eventId), status: "past" as const }),
     );
   },
 

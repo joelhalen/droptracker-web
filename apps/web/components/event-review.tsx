@@ -28,7 +28,7 @@ export function EventReview({
   tasks,
   teams,
 }: {
-  groupId: number;
+  groupId: number | null;
   eventId: number;
   tasks: EventTask[];
   teams: EventTeam[];

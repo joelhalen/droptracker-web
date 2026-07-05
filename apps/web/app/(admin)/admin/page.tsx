@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 // `href` cast to `Route` at render time (see note in layout.tsx).
 const CARDS: { href: string; title: string; desc: string }[] = [
+  { href: "/admin/events", title: "Events", desc: "Oversee every event; create and run global events." },
   { href: "/admin/data", title: "Data viewer", desc: "Browse and edit whitelisted records safely." },
   { href: "/admin/logs", title: "Logs", desc: "Tail application logs by source." },
   { href: "/admin/groups", title: "Groups", desc: "Introspect groups; grant/revoke comped subs." },

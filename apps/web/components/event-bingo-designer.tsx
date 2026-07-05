@@ -105,7 +105,7 @@ export function EventBingoDesigner({
   tasks,
   onSaved,
 }: {
-  groupId: number;
+  groupId: number | null;
   event: EventDetail;
   tasks: EventTask[];
   /** Fired with the refreshed detail after a successful save (the PUT can
@@ -341,7 +341,7 @@ function CellEditor({
   onChange,
   onClose,
 }: {
-  groupId: number;
+  groupId: number | null;
   idx: number;
   size: number;
   cell: DesignerCell;

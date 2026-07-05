@@ -15,9 +15,11 @@ import { FORMATION_MODE_LABELS, TASK_TYPE_LABELS, taskGoal } from "@/lib/events"
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, EmptyState } from "@/components/ui";
 import {
+  activateEvent,
   addEventTask,
   addEventTeam,
   addEventTeamMember,
+  endEvent,
   removeEventTask,
   removeEventTeamMember,
   searchGroupPlayers,
@@ -41,12 +43,61 @@ const fromUnix = (v: number | null): string => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-export function EventManager({ groupId, event: initialEvent }: { groupId: number; event: EventDetail }) {
+/** Colored draft/active/past chip (explicit lifecycle, Task 21). */
+function StatusChip({ status }: { status: EventDetail["status"] }) {
+  const styles: Record<EventDetail["status"], string> = {
+    draft: "bg-osrs-bronze/20 text-osrs-parchment-dark/80",
+    active: "bg-green-500/15 text-green-400",
+    past: "bg-osrs-brown-dark/60 text-osrs-parchment-dark/50",
+  };
+  return (
+    <span className={`${styles[status]} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}>
+      {status}
+    </span>
+  );
+}
+
+const fmtWhen = (unix: number) => new Date(unix * 1000).toLocaleString();
+
+/** `groupId` is null for global events (superadmin-managed from /admin/events). */
+export function EventManager({ groupId, event: initialEvent }: { groupId: number | null; event: EventDetail }) {
   const [event, setEvent] = useState(initialEvent);
   const [tasks, setTasks] = useState<EventTask[]>(initialEvent.tasks);
   const [teams, setTeams] = useState<EventTeam[]>(initialEvent.teams);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [confirmingEnd, setConfirmingEnd] = useState(false);
+
+  const applyDetail = (detail: EventDetail) => {
+    setEvent(detail);
+    setTasks(detail.tasks);
+    setTeams(detail.teams);
+  };
+
+  /** Explicit activation — the API pre-flights readiness (teams/board/dates)
+   * and the tier's active-event limit; its 422/409 messages surface here. */
+  const onActivate = () => {
+    setError(null);
+    startTransition(async () => {
+      try {
+        applyDetail(await activateEvent(groupId, event.id));
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't activate the event. Please try again."));
+      }
+    });
+  };
+
+  const onEnd = () => {
+    setConfirmingEnd(false);
+    setError(null);
+    startTransition(async () => {
+      try {
+        applyDetail(await endEvent(groupId, event.id));
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't end the event. Please try again."));
+      }
+    });
+  };
 
   const [editingEvent, setEditingEvent] = useState(false);
   const [eventDraft, setEventDraft] = useState({
@@ -315,33 +366,100 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
           </div>
         </div>
       ) : (
-        <div className="flex items-center justify-between">
-          <div>
-            <Link
-              href={`/groups/${groupId}/events` as Route}
-              className="text-osrs-parchment-dark/60 text-sm hover:text-osrs-gold-bright"
-            >
-              ← Back to events
-            </Link>
-            <h2 className="text-osrs-gold mt-1 text-xl font-bold">{event.name}</h2>
-            <span className="text-osrs-parchment-dark/60 text-sm capitalize">
-              {event.status} · {event.formation_mode.replace(/_/g, " ")}
-              {event.join_requires_code ? " · join code set" : ""}
-            </span>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Link
+                href={(groupId == null ? "/admin/events" : `/groups/${groupId}/events`) as Route}
+                className="text-osrs-parchment-dark/60 text-sm hover:text-osrs-gold-bright"
+              >
+                ← Back to events
+              </Link>
+              <div className="mt-1 flex items-center gap-2">
+                <h2 className="text-osrs-gold text-xl font-bold">{event.name}</h2>
+                <StatusChip status={event.status} />
+                {groupId == null && (
+                  <span className="bg-osrs-gold/15 text-osrs-gold rounded px-1.5 py-0.5 text-xs">
+                    Global
+                  </span>
+                )}
+              </div>
+              <span className="text-osrs-parchment-dark/60 text-sm">
+                {event.formation_mode.replace(/_/g, " ")}
+                {event.join_requires_code ? " · join code set" : ""}
+              </span>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={startEditEvent}
+                className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright text-sm"
+              >
+                Edit
+              </button>
+              <Link
+                href={`/events/${event.id}` as Route}
+                className="text-osrs-gold-bright text-sm hover:underline"
+              >
+                View public page →
+              </Link>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={startEditEvent}
-              className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright text-sm"
-            >
-              Edit
-            </button>
-            <Link
-              href={`/events/${event.id}` as Route}
-              className="text-osrs-gold-bright text-sm hover:underline"
-            >
-              View public page →
-            </Link>
+
+          {/* Lifecycle (Task 21): scheduled window + explicit transitions. */}
+          <div className="border-osrs-bronze/20 flex flex-wrap items-center gap-x-4 gap-y-2 rounded border p-3 text-sm">
+            <span className="text-osrs-parchment-dark/70">
+              {event.status === "draft" &&
+                (event.starts_at
+                  ? `Scheduled to start ${fmtWhen(event.starts_at)} (auto-activates if it passes the checks)`
+                  : "Draft — not scheduled; activate it manually when it's ready")}
+              {event.status === "active" &&
+                (event.ends_at
+                  ? `Live${event.activated_at ? ` since ${fmtWhen(event.activated_at)}` : ""} · ends ${fmtWhen(event.ends_at)}`
+                  : `Live${event.activated_at ? ` since ${fmtWhen(event.activated_at)}` : ""} · no scheduled end`)}
+              {event.status === "past" &&
+                `Ended${event.ended_at ? ` ${fmtWhen(event.ended_at)}` : ""}`}
+            </span>
+            <span className="ml-auto flex items-center gap-2">
+              {event.status === "draft" && (
+                <button
+                  onClick={onActivate}
+                  disabled={pending}
+                  className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold-bright rounded px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+                >
+                  {pending ? "Activating…" : "Activate"}
+                </button>
+              )}
+              {event.status === "active" &&
+                (confirmingEnd ? (
+                  <>
+                    <span className="text-osrs-parchment-dark/70 text-xs">
+                      End the event now? This can&apos;t be undone.
+                    </span>
+                    <button
+                      onClick={onEnd}
+                      disabled={pending}
+                      className="bg-osrs-red/80 text-osrs-parchment hover:bg-osrs-red rounded px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+                    >
+                      {pending ? "Ending…" : "Yes, end it"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingEnd(false)}
+                      disabled={pending}
+                      className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingEnd(true)}
+                    disabled={pending}
+                    className="border-osrs-red/50 text-osrs-red hover:bg-osrs-red/10 rounded border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                  >
+                    End event
+                  </button>
+                ))}
+            </span>
           </div>
         </div>
       )}
@@ -485,9 +603,7 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
           onSaved={(detail) => {
             // The board PUT can create/delete tasks — refresh the whole
             // manager state from the returned detail.
-            setEvent(detail);
-            setTasks(detail.tasks);
-            setTeams(detail.teams);
+            applyDetail(detail);
           }}
         />
       </section>
@@ -510,7 +626,7 @@ function TeamRoster({
   onAddMember,
   onRemoveMember,
 }: {
-  groupId: number;
+  groupId: number | null;
   team: EventTeam;
   pending: boolean;
   onAddMember: (teamId: number, player: { id: number; name: string }) => void;
@@ -581,7 +697,7 @@ function TeamRoster({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search group members…"
+          placeholder={groupId == null ? "Search players…" : "Search group members…"}
           className={`${field} flex-1`}
         />
         <button
