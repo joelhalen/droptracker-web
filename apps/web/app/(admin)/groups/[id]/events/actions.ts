@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  BingoBoardInputSchema,
   EventAwardInputSchema,
   EventChannelConfigInputSchema,
   EventInputSchema,
@@ -9,6 +10,7 @@ import {
   EventTaskInputSchema,
   EventTaskPatchSchema,
   EventTeamInputSchema,
+  type BingoBoardInput,
   type EventAwardInput,
   type EventChannelConfigInput,
   type EventInput,
@@ -61,6 +63,8 @@ export async function updateGroupEvent(
       | "formation_mode"
       | "join_code"
       | "requires_confirmation"
+      | "bonus_line_points"
+      | "bonus_blackout_points"
     >
   >,
 ) {
@@ -128,6 +132,30 @@ export async function searchGroupPlayers(groupId: number, q: string) {
   await assertEventsEntitlement(groupId);
   const page = await api.groupMembers(groupId, 1, q.trim());
   return page.members.map((m) => ({ id: m.id, name: m.name }));
+}
+
+// --- Bingo designer (Task 20) ------------------------------------------------
+
+/** Replace the event's whole bingo board. Returns the refreshed event detail
+ * (the PUT may create/delete tasks, so the manager's task list changes too).
+ * The API answers 409 once the event has started. */
+export async function saveEventBingo(groupId: number, eventId: number, input: BingoBoardInput) {
+  await assertEventsEntitlement(groupId);
+  const parsed = BingoBoardInputSchema.parse(input);
+  await api.saveEventBingo(eventId, parsed);
+  const detail = await api.eventForAdmin(eventId);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  revalidatePath(`/events/${eventId}`);
+  return detail;
+}
+
+/** Search the curated task-preset library for the designer picker. */
+export async function searchEventTaskLibrary(
+  groupId: number,
+  params: { query?: string; type?: string; page?: number } = {},
+) {
+  await assertEventsEntitlement(groupId);
+  return api.eventTaskLibrary(params);
 }
 
 // --- Verification queue & manual actions (Task 18) --------------------------

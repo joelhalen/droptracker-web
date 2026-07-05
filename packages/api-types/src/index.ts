@@ -222,7 +222,7 @@ export type Me = z.infer<typeof MeSchema>;
 /** Realtime SSE event envelope (FRONTEND_PLAN.md §8.3). */
 export const RealtimeEventSchema = z.object({
   v: z.literal(1),
-  type: z.enum(["drop", "leaderboard_delta", "announcement", "submission"]),
+  type: z.enum(["drop", "leaderboard_delta", "announcement", "submission", "event_update"]),
   scope: z.string(),
   ts: z.number().int(),
   data: z.record(z.string(), z.unknown()),
@@ -738,12 +738,26 @@ export const EventTeamSchema = z.object({
 });
 export type EventTeam = z.infer<typeof EventTeamSchema>;
 
+/** One team's (or player's) completion of a cell, with enough context for the
+ * public board's popover (who + when). `completed_at` comes from the task's
+ * progress rollup; free cells have none. */
+export const BingoCellCompletionSchema = z.object({
+  team_id: z.number().int().nullable().optional(),
+  team_name: z.string().nullable().optional(),
+  player_id: z.number().int().nullable().optional(),
+  player_name: z.string().nullable().optional(),
+  completed_at: z.number().int().nullable().optional(),
+});
+export type BingoCellCompletion = z.infer<typeof BingoCellCompletionSchema>;
+
 export const BingoCellSchema = z.object({
   index: z.number().int(),
   label: z.string(),
   task_id: z.number().int().nullable().optional(),
   /** Team (or player) names that have completed this cell. */
   completed_by: z.array(z.string()).default([]),
+  /** Structured per-team completion state (Task 20 live board). */
+  completions: z.array(BingoCellCompletionSchema).optional(),
 });
 export type BingoCell = z.infer<typeof BingoCellSchema>;
 
@@ -918,6 +932,63 @@ export const EventTaskLibraryItemSchema = z.object({
   config: z.string().nullable().optional(),
 });
 export type EventTaskLibraryItem = z.infer<typeof EventTaskLibraryItemSchema>;
+
+/** One designer cell for PUT /events/{id}/bingo. Exactly one of `task_id`
+ * (existing event task) / `library_item_id` (copy a preset into the event's
+ * tasks) / `new_task` (create inline) — or none of them for a free cell. */
+export const BingoCellInputSchema = z
+  .object({
+    idx: z.number().int().nonnegative(),
+    /** Display label; defaults to the bound task's label ("Free space" for
+     * free cells) when omitted. */
+    label: z.string().max(255).optional(),
+    task_id: z.number().int().optional(),
+    library_item_id: z.number().int().optional(),
+    new_task: EventTaskInputSchema.optional(),
+    /** Points override for a library pick (defaults to the preset's
+     * default_points). */
+    points: z.number().int().nonnegative().optional(),
+  })
+  .superRefine((cell, ctx) => {
+    const bindings = [cell.task_id, cell.library_item_id, cell.new_task].filter(
+      (v) => v != null,
+    ).length;
+    if (bindings > 1) {
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Each cell takes exactly one of task_id, library_item_id or new_task — or none for a free cell.",
+      });
+    }
+  });
+export type BingoCellInput = z.infer<typeof BingoCellInputSchema>;
+
+/** PUT /events/{id}/bingo — replaces the whole board (drafts / not-started
+ * events only; the API answers 409 once the event has started). */
+export const BingoBoardInputSchema = z
+  .object({
+    size: z.number().int().refine((n) => (EVENT_BOARD_SIZES as readonly number[]).includes(n), {
+      message: `size must be one of ${EVENT_BOARD_SIZES.join(", ")}`,
+    }),
+    cells: z.array(BingoCellInputSchema),
+  })
+  .superRefine((board, ctx) => {
+    if (board.cells.length !== board.size * board.size) {
+      ctx.addIssue({
+        code: "custom",
+        message: `A ${board.size}×${board.size} board needs exactly ${board.size * board.size} cells.`,
+      });
+      return;
+    }
+    const idxs = new Set(board.cells.map((c) => c.idx));
+    if (idxs.size !== board.cells.length || [...idxs].some((i) => i < 0 || i >= board.cells.length)) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Cell idx values must cover 0…${board.cells.length - 1} exactly once.`,
+      });
+    }
+  });
+export type BingoBoardInput = z.infer<typeof BingoBoardInputSchema>;
 
 export const EventTeamInputSchema = z.object({ name: z.string().min(1).max(80) });
 export type EventTeamInput = z.infer<typeof EventTeamInputSchema>;

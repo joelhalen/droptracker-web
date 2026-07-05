@@ -24,6 +24,7 @@ import {
   updateEventTask,
   updateGroupEvent,
 } from "@/app/(admin)/groups/[id]/events/actions";
+import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventDiscord } from "@/components/event-discord";
 import { EventReview } from "@/components/event-review";
 
@@ -472,6 +473,23 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
         ) : (
           <EmptyState title="No teams yet" />
         )}
+      </section>
+
+      {/* Bingo board designer (Task 20) */}
+      <section>
+        <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Board</h3>
+        <EventBingoDesigner
+          groupId={groupId}
+          event={event}
+          tasks={tasks}
+          onSaved={(detail) => {
+            // The board PUT can create/delete tasks — refresh the whole
+            // manager state from the returned detail.
+            setEvent(detail);
+            setTasks(detail.tasks);
+            setTeams(detail.teams);
+          }}
+        />
       </section>
 
       {/* Per-event Discord destinations (Task 19) */}

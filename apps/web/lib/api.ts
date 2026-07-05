@@ -22,10 +22,12 @@ import {
   GroupMembersPageSchema,
   GroupProfileSchema,
   AdminLookupResponseSchema,
+  BingoBoardSchema,
   EventChannelConfigSchema,
   EventCompletionSchema,
   EventDetailSchema,
   EventSummarySchema,
+  EventTaskLibraryItemSchema,
   LootboardImageSchema,
   LootboardSchema,
   GroupSubscriptionSchema,
@@ -49,6 +51,8 @@ import {
   type Announcement,
   type AnnouncementInput,
   type AnnouncementPage,
+  type BingoBoard,
+  type BingoBoardInput,
   type CheckoutSession,
   type CreateGroupInput,
   type DiscordSendInput,
@@ -65,6 +69,7 @@ import {
   type EventRevokeInput,
   type EventSummary,
   type EventTaskInput,
+  type EventTaskLibraryItem,
   type EventTaskPatch,
   type EventTeamInput,
   type GroupConfigPatch,
@@ -105,6 +110,7 @@ import {
   mockEventDiscordChannels,
   mockEventDiscordGuilds,
   mockEvents,
+  mockEventTaskLibrary,
   mockLookup,
   mockLootboard,
   mockMe,
@@ -463,12 +469,52 @@ export const api = {
         | "formation_mode"
         | "join_code"
         | "requires_confirmation"
+        | "bonus_line_points"
+        | "bonus_blackout_points"
       >
     >,
   ): Promise<EventDetail> {
     return withFallback(
       async () => EventDetailSchema.parse(await apiSend("PATCH", `/events/${eventId}`, patch)),
       () => mockEvent(eventId),
+    );
+  },
+
+  // --- Bingo designer (Task 20) ---------------------------------------------
+  /** Replace the event's whole bingo board. 409 once the event has started. */
+  async saveEventBingo(eventId: number, input: BingoBoardInput): Promise<BingoBoard> {
+    return withFallback(
+      async () => BingoBoardSchema.parse(await apiSend("PUT", `/events/${eventId}/bingo`, input)),
+      () => ({
+        size: input.size,
+        cells: input.cells
+          .slice()
+          .sort((a, b) => a.idx - b.idx)
+          .map((c) => ({
+            index: c.idx,
+            label: c.label ?? c.new_task?.label ?? "Free space",
+            task_id: c.task_id ?? null,
+            completed_by: [],
+            completions: [],
+          })),
+      }),
+    );
+  },
+
+  /** Curated task presets for the designer picker (any group admin). */
+  async eventTaskLibrary(
+    params: { query?: string; type?: string; page?: number } = {},
+  ): Promise<EventTaskLibraryItem[]> {
+    const q = new URLSearchParams();
+    if (params.query) q.set("query", params.query);
+    if (params.type) q.set("type", params.type);
+    if (params.page) q.set("page", String(params.page));
+    return withFallback(
+      async () =>
+        EventTaskLibraryItemSchema.array().parse(
+          await apiGet(`/event-task-library?${q}`, { authed: true }),
+        ),
+      () => mockEventTaskLibrary(params.query, params.type),
     );
   },
 

@@ -11,6 +11,7 @@ import type {
   EventCompletion,
   EventDetail,
   EventSummary,
+  EventTaskLibraryItem,
   GroupDiagnostics,
   GroupMembersPage,
   GroupProfile,
@@ -467,8 +468,22 @@ export function mockEvent(id: number): EventDetail {
   const cells = Array.from({ length: 25 }, (_, i) => ({
     index: i,
     label: ["Twisted bow", "Any pet", "99 Slayer", "Vorkath 50kc", "Inferno cape"][i % 5]!,
-    task_id: null,
-    completed_by: i % 4 === 0 ? ["Team Red"] : [],
+    task_id: i % 5 === 0 ? 12 : null,
+    completed_by: i % 4 === 0 ? ["Team Red"] : i % 7 === 0 ? ["Team Blue"] : [],
+    completions:
+      i % 4 === 0
+        ? [
+            {
+              team_id: 21,
+              team_name: "Team Red",
+              player_id: 1337,
+              player_name: "Zezima",
+              completed_at: now - i * 3600,
+            },
+          ]
+        : i % 7 === 0
+          ? [{ team_id: 22, team_name: "Team Blue", player_id: 2003, player_name: "Framed", completed_at: now - 7200 }]
+          : [],
   }));
   return {
     ...summary,
@@ -563,6 +578,23 @@ export function mockEventCompletions(eventId: number, status?: string): EventCom
     },
   ];
   return status && status !== "all" ? all.filter((c) => c.status === status) : all;
+}
+
+/** Curated task presets for the bingo designer picker (Task 20). */
+export function mockEventTaskLibrary(query?: string, type?: string): EventTaskLibraryItem[] {
+  const all: EventTaskLibraryItem[] = [
+    { id: 1, name: "Abyssal whip", description: "Obtain an Abyssal whip", type: "item_collection", target: "Abyssal whip", target_value: 1, default_points: 5, difficulty: "air", config: null },
+    { id: 2, name: "Full Barrows set", description: "Collect any complete Barrows set", type: "item_collection", target: null, target_value: null, default_points: 25, difficulty: "earth", config: '{"kind":"any_of","items":["Dharok\'s helm","Dharok\'s platebody"]}' },
+    { id: 3, name: "Zulrah 50 KC", description: "Kill Zulrah 50 times", type: "kc_target", target: "Zulrah", target_value: 50, default_points: 15, difficulty: "water", config: null },
+    { id: 4, name: "Sub-20 Grotesque Guardians", description: "Beat the Guardians in under 20 minutes", type: "pb_target", target: "Grotesque Guardians", target_value: 1200, default_points: 30, difficulty: "fire", config: null },
+    { id: 5, name: "Twisted bow", description: "Obtain a Twisted bow", type: "item_collection", target: "Twisted bow", target_value: 1, default_points: 100, difficulty: "fire", config: null },
+  ];
+  const q = (query ?? "").trim().toLowerCase();
+  return all.filter(
+    (i) =>
+      (!q || i.name.toLowerCase().includes(q) || (i.description ?? "").toLowerCase().includes(q)) &&
+      (!type || i.type === type),
+  );
 }
 
 /** Per-event Discord destinations (Task 19). */

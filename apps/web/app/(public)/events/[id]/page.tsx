@@ -74,7 +74,13 @@ export default async function EventDetailPage({ params }: { params: Params }) {
               <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
                 Bingo board
               </h2>
-              <BingoBoard board={event.bingo} />
+              <BingoBoard
+                board={event.bingo}
+                teams={event.teams.map((t) => ({ id: t.id, name: t.name }))}
+                tasks={event.tasks}
+                eventId={event.id}
+                live={event.status === "active"}
+              />
             </div>
           )}
 
