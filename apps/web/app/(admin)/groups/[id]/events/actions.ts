@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import {
   EventAwardInputSchema,
+  EventChannelConfigInputSchema,
   EventInputSchema,
   EventRevokeInputSchema,
   EventTaskInputSchema,
   EventTaskPatchSchema,
   EventTeamInputSchema,
   type EventAwardInput,
+  type EventChannelConfigInput,
   type EventInput,
   type EventRevokeInput,
   type EventTaskInput,
@@ -177,6 +179,40 @@ export async function revokeEventCompletion(groupId: number, eventId: number, in
   revalidatePath(`/groups/${groupId}/events/${eventId}`);
   revalidatePath(`/events/${eventId}`);
   return { ok: true as const };
+}
+
+// --- Discord destinations (Task 19) ----------------------------------------
+
+/** The event's Discord destination config (guild + per-kind channels). */
+export async function getEventDiscord(groupId: number, eventId: number) {
+  await assertEventsEntitlement(groupId);
+  return api.eventDiscord(eventId);
+}
+
+/** Every guild the bot is in, for the guild picker (bot Redis cache). */
+export async function listEventDiscordGuilds(groupId: number) {
+  await assertEventsEntitlement(groupId);
+  return api.eventDiscordGuilds();
+}
+
+/** Text channels of one guild — works for any guild the bot is in, so events
+ * can target dedicated event servers. Stale ⇒ manual-id fallback in the UI. */
+export async function listEventDiscordChannels(groupId: number, guildId: string) {
+  await assertEventsEntitlement(groupId);
+  return api.eventDiscordChannels(guildId);
+}
+
+/** Replace the event's Discord destination; `guild_id: null` clears it. */
+export async function saveEventDiscord(
+  groupId: number,
+  eventId: number,
+  input: EventChannelConfigInput,
+) {
+  await assertEventsEntitlement(groupId);
+  const parsed = EventChannelConfigInputSchema.parse(input);
+  const result = await api.updateEventDiscord(eventId, parsed);
+  revalidatePath(`/groups/${groupId}/events/${eventId}`);
+  return result;
 }
 
 /** Per-task edits (requires_confirmation toggle, points, label, target…). */

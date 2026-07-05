@@ -894,6 +894,17 @@ export const EventChannelConfigSchema = z.object({
 });
 export type EventChannelConfig = z.infer<typeof EventChannelConfigSchema>;
 
+/** One notification-destination kind (announcements/completions/leaderboard/admin). */
+export type EventChannelKind = (typeof EVENT_CHANNEL_KINDS)[number];
+
+/** PUT /events/{id}/discord — set (or clear, with guild_id null) the event's
+ * Discord destination. Snowflakes travel as digit strings. */
+export const EventChannelConfigInputSchema = z.object({
+  guild_id: z.string().regex(/^\d+$/, "Discord ids are numeric").nullable(),
+  channels: z.record(z.enum(EVENT_CHANNEL_KINDS), z.string().regex(/^\d+$/)).default({}),
+});
+export type EventChannelConfigInput = z.infer<typeof EventChannelConfigInputSchema>;
+
 /** Curated task preset from the library (seeded from the legacy task store). */
 export const EventTaskLibraryItemSchema = z.object({
   id: z.number().int(),

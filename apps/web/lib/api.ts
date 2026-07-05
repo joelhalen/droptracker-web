@@ -22,6 +22,7 @@ import {
   GroupMembersPageSchema,
   GroupProfileSchema,
   AdminLookupResponseSchema,
+  EventChannelConfigSchema,
   EventCompletionSchema,
   EventDetailSchema,
   EventSummarySchema,
@@ -55,6 +56,8 @@ import {
   type DocInput,
   type DocSummary,
   type EventAwardInput,
+  type EventChannelConfig,
+  type EventChannelConfigInput,
   type EventCompletion,
   type EventDetail,
   type EventInput,
@@ -98,6 +101,9 @@ import {
   mockGuildStatus,
   mockEvent,
   mockEventCompletions,
+  mockEventDiscord,
+  mockEventDiscordChannels,
+  mockEventDiscordGuilds,
   mockEvents,
   mockLookup,
   mockLootboard,
@@ -341,6 +347,31 @@ export interface DiscordChannelList {
 export interface PbBossList {
   bosses: string[];
   cached: boolean;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Event Discord config (Task 19): guilds/channels from the bot's Redis caches. */
+/* -------------------------------------------------------------------------- */
+
+/** GET /events/discord/guilds — every guild the bot is a member of. */
+export interface EventDiscordGuild {
+  id: string;
+  name: string;
+  icon?: string | null;
+}
+export interface EventDiscordGuildList {
+  guilds: EventDiscordGuild[];
+  /** True when the bot hasn't refreshed `bot:guilds` yet (or is down) —
+   * the UI falls back to manual guild-id entry. */
+  stale: boolean;
+}
+
+/** GET /events/discord/guilds/{guildId}/channels */
+export interface EventDiscordChannelList {
+  channels: DiscordChannel[];
+  /** True on a cold cache; the request also asks the bot to warm it, so a
+   * retry usually succeeds within seconds. Manual-id entry stays available. */
+  stale: boolean;
 }
 
 export const api = {
@@ -588,6 +619,49 @@ export const api = {
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,
+    );
+  },
+
+  // --- Event Discord destinations (Task 19) --------------------------------
+  /** The event's Discord destination config (admin-only). */
+  async eventDiscord(eventId: number): Promise<EventChannelConfig> {
+    return withFallback(
+      async () =>
+        EventChannelConfigSchema.parse(await apiGet(`/events/${eventId}/discord`, { authed: true })),
+      () => mockEventDiscord(eventId),
+    );
+  },
+
+  /** Replace the event's Discord destination (guild + per-kind channels). */
+  async updateEventDiscord(
+    eventId: number,
+    input: EventChannelConfigInput,
+  ): Promise<EventChannelConfig> {
+    return withFallback(
+      async () =>
+        EventChannelConfigSchema.parse(await apiSend("PUT", `/events/${eventId}/discord`, input)),
+      () => ({ guild_id: input.guild_id, guild_name: null, channels: input.channels }),
+    );
+  },
+
+  /** Every guild the bot is in (bot-maintained Redis cache; never a live Discord call). */
+  async eventDiscordGuilds(): Promise<EventDiscordGuildList> {
+    return withFallback(
+      async () =>
+        (await apiGet(`/events/discord/guilds`, { authed: true })) as EventDiscordGuildList,
+      () => mockEventDiscordGuilds(),
+    );
+  },
+
+  /** Text channels of one guild (any guild the bot is in, not just group home guilds). */
+  async eventDiscordChannels(guildId: string): Promise<EventDiscordChannelList> {
+    return withFallback(
+      async () =>
+        (await apiGet(
+          `/events/discord/guilds/${encodeURIComponent(guildId)}/channels`,
+          { authed: true },
+        )) as EventDiscordChannelList,
+      () => mockEventDiscordChannels(guildId),
     );
   },
 

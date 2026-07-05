@@ -24,6 +24,7 @@ import {
   updateEventTask,
   updateGroupEvent,
 } from "@/app/(admin)/groups/[id]/events/actions";
+import { EventDiscord } from "@/components/event-discord";
 import { EventReview } from "@/components/event-review";
 
 const field =
@@ -472,6 +473,9 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
           <EmptyState title="No teams yet" />
         )}
       </section>
+
+      {/* Per-event Discord destinations (Task 19) */}
+      <EventDiscord groupId={groupId} eventId={event.id} />
 
       {/* Verification queue / ledger / manual awards (Task 18) */}
       <EventReview groupId={groupId} eventId={event.id} tasks={tasks} teams={teams} />

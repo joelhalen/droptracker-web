@@ -7,6 +7,7 @@ import type {
   AccountSettings,
   AdminLookupResponse,
   AnnouncementPage,
+  EventChannelConfig,
   EventCompletion,
   EventDetail,
   EventSummary,
@@ -562,6 +563,39 @@ export function mockEventCompletions(eventId: number, status?: string): EventCom
     },
   ];
   return status && status !== "all" ? all.filter((c) => c.status === status) : all;
+}
+
+/** Per-event Discord destinations (Task 19). */
+export function mockEventDiscord(_eventId: number): EventChannelConfig {
+  return {
+    guild_id: "444444444444444444",
+    guild_name: "Mock Clan Server",
+    channels: {
+      announcements: "333333333333333333",
+      completions: "111111111111111111",
+    },
+  };
+}
+
+export function mockEventDiscordGuilds() {
+  return {
+    guilds: [
+      { id: "444444444444444444", name: "Mock Clan Server", icon: null },
+      { id: "555555555555555555", name: "Mock Event Server", icon: null },
+    ],
+    stale: false,
+  };
+}
+
+export function mockEventDiscordChannels(_guildId: string) {
+  return {
+    channels: [
+      { id: "111111111111111111", name: "drops", position: 0 },
+      { id: "222222222222222222", name: "leaderboard", position: 1 },
+      { id: "333333333333333333", name: "announcements", position: 2 },
+    ],
+    stale: false,
+  };
 }
 
 export function mockLookup(q: string): AdminLookupResponse {
