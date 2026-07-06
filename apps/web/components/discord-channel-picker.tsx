@@ -2,7 +2,7 @@
 
 /**
  * Search-filterable Discord channel picker for "channel" config fields
- * (drop_channel_id, lootboard_channel_id, etc.). Channels come from the bot's
+ * (channel_id_to_post_loot, lootboard_channel_id, etc.). Channels come from the bot's
  * Redis cache (`GET /groups/{id}/discord-channels`) — the Web API never talks
  * to Discord directly. Always falls back to manual numeric-id entry: the cache
  * can be empty (bot never ran there yet, guild not linked) or stale (bot down),

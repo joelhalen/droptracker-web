@@ -62,14 +62,18 @@ export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
 
 export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // --- Channels ----------------------------------------------------------
-  { key: "drop_channel_id", label: "Drops channel", category: "channels", type: "channel", help: "Channel where drop notifications are posted.", default: null },
+  // Notification routing reads the channel_id_to_post_* keys (backend
+  // services/notification_service.py). Earlier *_channel_id names were dead
+  // keys nothing consumed; backend migration web20a moved saved values over.
+  { key: "channel_id_to_post_loot", label: "Drops channel", category: "channels", type: "channel", help: "Channel where drop notifications are posted.", default: null },
   { key: "lootboard_channel_id", label: "Lootboard channel", category: "channels", type: "channel", help: "Channel where the lootboard image is posted/updated.", default: null },
   { key: "lootboard_message_id", label: "Lootboard message id", category: "channels", type: "string", help: "Message the bot edits when reposting the board. Managed automatically.", default: null },
-  { key: "level_channel_id", label: "Levels channel", category: "channels", type: "channel", help: "Channel for level-up notifications.", default: null },
-  { key: "pb_channel_id", label: "Personal best channel", category: "channels", type: "channel", help: "Channel for personal-best notifications.", default: null },
-  { key: "ca_channel_id", label: "Combat achievements channel", category: "channels", type: "channel", help: "Channel for combat-achievement notifications.", default: null },
-  { key: "pet_channel_id", label: "Pets channel", category: "channels", type: "channel", help: "Channel for pet notifications.", default: null },
-  { key: "quest_channel_id", label: "Quests channel", category: "channels", type: "channel", help: "Channel for quest-completion notifications.", default: null },
+  { key: "channel_id_to_post_levels", label: "Levels channel", category: "channels", type: "channel", help: "Channel for level-up notifications. Falls back to the drops channel when unset.", default: null },
+  { key: "channel_id_to_post_pb", label: "Personal best channel", category: "channels", type: "channel", help: "Channel for personal-best notifications. Falls back to the drops channel when unset.", default: null },
+  { key: "channel_id_to_post_ca", label: "Combat achievements channel", category: "channels", type: "channel", help: "Channel for combat-achievement notifications. Falls back to the drops channel when unset.", default: null },
+  { key: "channel_id_to_post_pets", label: "Pets channel", category: "channels", type: "channel", help: "Channel for pet notifications. Falls back to the drops channel when unset.", default: null },
+  { key: "channel_id_to_post_quests", label: "Quests channel", category: "channels", type: "channel", help: "Channel for quest-completion notifications. Falls back to the drops channel when unset.", default: null },
+  { key: "channel_id_to_post_clog", label: "Collection log channel", category: "channels", type: "channel", help: "Channel for collection-log notifications. Falls back to the drops channel when unset.", default: null },
   { key: "channel_id_to_post_deaths", label: "Deaths channel", category: "channels", type: "channel", help: "Channel for player-death notifications. Falls back to the drops channel when unset.", default: null },
   { key: "channel_id_to_post_diaries", label: "Diaries channel", category: "channels", type: "channel", help: "Channel for achievement-diary notifications. Falls back to the drops channel when unset.", default: null },
   { key: "announcements_channel_id", label: "Announcements channel", category: "channels", type: "channel", help: "Channel where published announcements are syndicated (FRONTEND_PLAN.md §10).", default: null },
