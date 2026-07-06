@@ -765,8 +765,8 @@ auth (Discord OAuth primary), integration (new dedicated API + BFF).
 5. **Auth.js vs. custom OAuth handler** — recommend Auth.js Discord provider for the dance, backend-authoritative session.
 6. **Native vs. image lootboards** — keep images short-term; commit to native render timeline.
 7. **Old announcement content** — is there any XenForo news worth a one-time import?
-8. **Documentation disposition** — static MDX in repo, full user-editable wiki on the new site, or external wiki (Notion/Confluence)?
-9. **Events migration timeline** — events system is substantial (entity-heavy: tasks, teams, bingo, effects, cooldowns). Confirm Phase 6 timeline and whether old PHP UI stays on a subdomain as-is or gets a minimal read-only port earlier.
+8. **Documentation disposition** — ~~static MDX in repo, full user-editable wiki on the new site, or external wiki (Notion/Confluence)?~~ **RESOLVED 2026-07:** DB-backed docs CMS (superadmin `/admin/docs`, rendered at `/docs`); the interim static-MDX files were removed once content moved into the database.
+9. **Events migration timeline** — ~~events system is substantial (entity-heavy: tasks, teams, bingo, effects, cooldowns). Confirm Phase 6 timeline and whether old PHP UI stays on a subdomain as-is or gets a minimal read-only port earlier.~~ **RESOLVED:** events v2 designed in `docs/events-prd.md`, shipped 2026-07-05 (tasks 15–21); legacy system decommissioned 2026-07-06.
 
 ---
 

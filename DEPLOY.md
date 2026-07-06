@@ -53,6 +53,30 @@ USE_MOCK_API=true pnpm --filter @droptracker/web start
 
 For live-reload development, use `USE_MOCK_API=true pnpm dev` instead.
 
+## Production (droptracker.io)
+
+The live site runs on the DropTracker box as the systemd unit
+**`droptracker-node.service`** (unit file vendored in the backend repo at
+`deploy/systemd/`):
+
+- `next start` with `PORT=31380`, `WorkingDirectory=/store/droptracker/web/apps/web`
+- Env comes from `apps/web/.env.local`, which is a **symlink** to the repo-root
+  `.env` (real Discord OAuth, `USE_MOCK_API=false`,
+  `WEB_API_INTERNAL_URL=http://127.0.0.1:31325`)
+- It talks to the Web API v1 (`droptracker-webapi.service`, port 31325) from
+  the backend repo; Cloudflare fronts the box. Note `SESSION_COOKIE_SECURE`
+  must stay `false` while the origin is plain HTTP behind Cloudflare Flexible
+  SSL — Secure cookies get silently dropped and sign-in loops.
+
+To ship a change:
+
+```bash
+cd /store/droptracker/web
+pnpm install                 # if deps changed
+pnpm gen:api-types && pnpm build
+sudo systemctl restart droptracker-node
+```
+
 ## What works in mock mode
 
 Everything is clickable without a backend:

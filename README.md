@@ -34,6 +34,9 @@ infra/                 Dockerfile + deployment notes
 
 ## Getting started
 
+Requirements: **Node 20+** and **pnpm 10** (`corepack enable` gives you the
+pinned version from `package.json#packageManager`).
+
 ```bash
 pnpm install
 cp .env.example apps/web/.env.local   # fill in Discord OAuth etc. (optional for mock mode)
@@ -42,8 +45,14 @@ pnpm dev                               # http://localhost:3000
 ```
 
 With `USE_MOCK_API=true` (the default in development) the app serves built-in
-mock data and a synthetic live SSE stream, so it is fully runnable **before** the
-Web API v1 exists.
+mock data and a synthetic live SSE stream, so it is fully runnable **without a
+backend** — including a mock "Sign in with Discord". To develop against the
+real backend instead, set `USE_MOCK_API=false` and point
+`WEB_API_INTERNAL_URL` at a running Web API (`:31325` in production).
+
+> Development workflow, testing, and the OpenAPI sync process are covered in
+> [CONTRIBUTING.md](./CONTRIBUTING.md). Production deployment (systemd on the
+> DropTracker box) is in [DEPLOY.md](./DEPLOY.md).
 
 ## Scripts
 
@@ -79,21 +88,32 @@ Built so far (FRONTEND_PLAN.md §17):
   (current plan, tiers, subscribe/switch/cancel/resume, billing portal) and a
   public `/premium` pricing page. Replaces the points-based feature store, which
   is out of scope.
-- **Site admin (superadmin):** gated `/admin` shell — global announcements,
-  Discord message sender, backend service management (start/stop/restart + logs),
-  cross-content lookup, and subscription-tier CRUD. (The SQL executor is
-  deliberately not ported.)
+- **Site admin (superadmin):** gated `/admin` shell — overview/health tiles,
+  global announcements, Discord message sender, backend service management
+  (start/stop/restart + logs), cross-content lookup, user moderation
+  (grant/revoke superadmin), audit log, whitelisted data browser/editor,
+  docs CMS, badge management, global events review, and subscription-tier
+  CRUD. (The SQL executor is deliberately not ported.)
 - **XenForo cutover:** expanded 301 redirect map from legacy URLs (§14.2).
 - **Native lootboards (§12):** React-rendered interactive lootboard
   (`/groups/{id}/lootboard`) — value-tiered tiles, hover for qty/value, period
   switcher — with the legacy PNG generator kept as a "Download image" share.
-- **Events (Phase 6):** public events listing + detail (tasks, team leaderboard,
-  read-only bingo board) and group-admin event management (create events, add
-  typed tasks and teams).
-- **Documentation (§19):** static MDX docs under `apps/web/content/docs/`,
-  rendered at `/docs` with a category sidebar. Statically generated, SEO-indexed,
-  and in the sitemap. (Chose static MDX over a user-editable wiki, per the plan's
-  Phase 1 recommendation.)
+- **Events v2 (Phase 6 — shipped 2026-07):** public events listing + detail
+  (typed tasks, team leaderboard, live SSE-synced bingo board), join/team
+  formation modes, and full group-admin management — event creation, typed
+  task editor with item/NPC autocomplete, **bingo board designer**, lifecycle
+  controls (draft → active → past), verification queue (approve/reject/award),
+  and per-event Discord guild/channel configuration. Backend engine lives in
+  the backend repo (`services/event_engine.py` + `droptracker-events` worker).
+- **Badges:** player-profile badge display plus superadmin badge CRUD and
+  award/revoke at `/admin/badges`.
+- **Live drop ticker:** site-wide `feed` realtime scope rendered by
+  `components/live-drop-ticker.tsx`, hydrated from `/api/feed/recent`.
+- **Documentation:** docs are **DB-backed** via the superadmin CMS
+  (`/admin/docs`) and fetched at `/docs` through `api.docs()`/`api.doc(slug)`
+  with a category sidebar. (This replaced the original static-MDX approach;
+  the old `content/docs/*.mdx` files were removed — their content lives in
+  the database now.)
 
 Everything runs today on built-in mock data (`USE_MOCK_API`) so the UI is
 demonstrable before the backend exists — including a dev mock sign-in.
@@ -108,12 +128,12 @@ group-config, manual submission, realtime/Redis keys, migrations).
 
 ### Adding a doc
 
-Drop a `.mdx` file in `apps/web/content/docs/` with frontmatter
-(`title`, `description`, `category`, `order`). It's picked up automatically —
-sidebar, index, sitemap, and a statically generated `/docs/<slug>` page.
+Sign in as a superadmin and use the docs CMS at `/admin/docs` (create, edit,
+delete; set `title`, `category`, `order`). Pages are stored in the backend
+database and appear automatically in the `/docs` sidebar, index, and sitemap.
 
 ### Still to come
 
-Events enhancements (bingo designer, live scoring, effects/cooldowns/shop) — on
-hold — and the final cutover (domain switch + sitemap of dynamic player/group
-entities, Phase 5).
+Event extras from the PRD's later phases (effects/cooldowns/shop, board-race
+mode, plugin-side event UI) and the final cutover (domain switch + sitemap of
+dynamic player/group entities, Phase 5).

@@ -65,7 +65,16 @@ keep the two in lockstep.
 | 11 | [Group recurring subscriptions (upgrades)](./11-group-subscriptions.md) | subscription tab, `/premium` | §14.1 `/Upgrades/`, §9 |
 | 12 | [Superadmin surfaces](./12-superadmin.md) | `/admin/*` (services, Discord sender, lookup, tiers, global news) | §9, §14.1 |
 | 13 | [Native lootboard data](./13-native-lootboard.md) | `/groups/{id}/lootboard` | §12 |
-| 14 | [Events system](./14-events.md) | `/events`, `/groups/{id}/events*` | §9, §14.1 `/Events/` |
+| 14 | [Events system (v1 spec)](./14-events.md) | `/events`, `/groups/{id}/events*` | §9, §14.1 `/Events/` |
+| 15 | [Tier entitlements](./15-tier-entitlements.md) | feature gates across admin UI | §14.1 |
+| 15b | [Events schema v2](./15-events-schema-v2.md) | events v2 (supersedes 14's schema) | events-prd §4 |
+| 16 | [Event membership + formation](./16-event-membership.md) | join/team panels | events-prd §5 |
+| 17 | [Event completion engine](./17-event-completion-engine.md) | live scoring, progress | events-prd §6 |
+| 18 | [Event verification queue](./18-event-verification.md) | admin review UI | events-prd §6.3 |
+| 19 | [Event Discord integration](./19-event-discord.md) | per-event guild/channel config | events-prd §7 |
+| 20 | [Event bingo designer + bonus engine](./20-event-bingo.md) | bingo designer + live board | events-prd §5.2 |
+| 21 | [Event lifecycle + tier limits](./21-event-lifecycle-entitlements.md) | activate/end controls, tier usage | events-prd §8 |
+| 22 | [Legacy events decommission](./22-events-legacy-decommission.md) | — (backend cleanup) | events-prd §9 |
 
 Tasks 01, 08 are foundational. 02 depends on 08 (session/oauth tables, if not
 using stateless JWT). 04 can ship first for a read-only public site (Phase 1).
@@ -74,6 +83,12 @@ existing endpoints behind session auth. 11 adds a recurring-billing model and
 **replaces** the points-based feature store (which is out of scope). 12 needs the
 `is_superadmin` flag from 02 and the tier table from 11; the SQL executor is
 deliberately **not** ported.
+
+**Status (2026-07-06):** all of the above are implemented end-to-end — tasks
+01–13 shipped first, then the events v2 series 15–21 (deployed to production
+2026-07-05) and the legacy decommission (22, completed 2026-07-06 in the
+backend repo). These files remain as the authoritative specs/contracts for
+what was built; consult them when changing the corresponding endpoints.
 
 ## Definition of done (per task)
 
