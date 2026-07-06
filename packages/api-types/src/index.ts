@@ -432,6 +432,82 @@ export const SubscriptionTierInputSchema = SubscriptionTierSchema;
 export type SubscriptionTierInput = z.infer<typeof SubscriptionTierInputSchema>;
 
 /**
+ * Custom Discord embed templates (subscription-gated, `custom_embeds`
+ * entitlement). Backed by `group_embeds` / `group_embed_fields`; group 1 holds
+ * the system defaults every non-subscribed group falls back to.
+ */
+export const EMBED_TYPES = [
+  "drop",
+  "clog",
+  "pb",
+  "ca",
+  "pet",
+  "level_up",
+  "quest",
+  "lb",
+] as const;
+export type EmbedType = (typeof EMBED_TYPES)[number];
+
+export const EMBED_TYPE_LABELS: Record<EmbedType, string> = {
+  drop: "Drops",
+  clog: "Collection log",
+  pb: "Personal bests",
+  ca: "Combat achievements",
+  pet: "Pets",
+  level_up: "Level ups",
+  quest: "Quests",
+  lb: "Lootboard",
+};
+
+export const EmbedFieldSchema = z.object({
+  name: z.string(),
+  value: z.string(),
+  inline: z.boolean().default(true),
+});
+export type EmbedField = z.infer<typeof EmbedFieldSchema>;
+
+export const GroupEmbedSchema = z.object({
+  embed_type: z.enum(EMBED_TYPES),
+  title: z.string(),
+  description: z.string().default(""),
+  /** Hex color like `#ffb83f`, or null for Discord's default. */
+  color: z.string().nullable().default(null),
+  thumbnail: z.string().nullable().default(null),
+  image: z.string().nullable().default(null),
+  timestamp: z.boolean().default(false),
+  fields: z.array(EmbedFieldSchema).default([]),
+});
+export type GroupEmbed = z.infer<typeof GroupEmbedSchema>;
+
+/** Per-type editor payload: the group's own template + the system default. */
+export const GroupEmbedsResponseSchema = z.object({
+  embeds: z.array(
+    z.object({
+      embed_type: z.enum(EMBED_TYPES),
+      custom: GroupEmbedSchema.nullable(),
+      default: GroupEmbedSchema.nullable(),
+    }),
+  ),
+});
+export type GroupEmbedsResponse = z.infer<typeof GroupEmbedsResponseSchema>;
+
+/** PUT body for saving a group's template for one embed type. */
+export const GroupEmbedInputSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(1000).default(""),
+  color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable()
+    .optional(),
+  thumbnail: z.string().max(200).nullable().optional(),
+  image: z.string().max(200).nullable().optional(),
+  timestamp: z.boolean().default(false),
+  fields: z.array(EmbedFieldSchema).max(25).default([]),
+});
+export type GroupEmbedInput = z.infer<typeof GroupEmbedInputSchema>;
+
+/**
  * Superadmin: backend service control (FRONTEND_PLAN.md §9, §14.1
  * `ServiceManagement`). The three managed units.
  */
@@ -681,6 +757,7 @@ export const EVENT_TASK_TYPES = [
   "ehb_target",
   "pb_target",
   "skill_target",
+  "loot_value",
   /** Manual-confirmation-only tasks (no automated evaluation). */
   "custom",
 ] as const;
@@ -709,9 +786,9 @@ export const EventTaskSchema = z.object({
   type: z.enum(EVENT_TASK_TYPES),
   label: z.string(),
   /** e.g. boss/skill/item name the task is scoped to. */
-  target: z.string().optional(),
+  target: z.string().nullable().optional(),
   /** Numeric goal (kc, xp, level, seconds…), interpreted per `type`. */
-  target_value: z.number().int().optional(),
+  target_value: z.number().int().nullable().optional(),
   points: z.number().int().default(0),
   /** Completions of this task queue for admin review instead of auto-applying. */
   requires_confirmation: z.boolean().default(false),
@@ -932,6 +1009,14 @@ export const EventTaskLibraryItemSchema = z.object({
   config: z.string().nullable().optional(),
 });
 export type EventTaskLibraryItem = z.infer<typeof EventTaskLibraryItemSchema>;
+
+/** GET /events/meta/items | /events/meta/npcs — task-form autocomplete rows.
+ * `id` is the game id (itemdb/npcdb icon key), `name` the exact in-game name. */
+export const EventMetaEntrySchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+});
+export type EventMetaEntry = z.infer<typeof EventMetaEntrySchema>;
 
 /** One designer cell for PUT /events/{id}/bingo. Exactly one of `task_id`
  * (existing event task) / `library_item_id` (copy a preset into the event's

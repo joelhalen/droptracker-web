@@ -57,7 +57,6 @@ export function EventReview({
 
   useEffect(() => {
     reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   const act = (fn: () => Promise<unknown>) => {
@@ -154,7 +153,6 @@ export function EventReview({
             <li key={c.id} className="flex items-center gap-3 py-2.5 text-sm">
               {c.proof_url ? (
                 <a href={c.proof_url} target="_blank" rel="noreferrer" className="shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={c.proof_url}
                     alt="proof"

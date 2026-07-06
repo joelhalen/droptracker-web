@@ -27,9 +27,12 @@ import {
   EventCompletionSchema,
   EventDetailSchema,
   EventSummarySchema,
+  EventMetaEntrySchema,
   EventTaskLibraryItemSchema,
   LootboardImageSchema,
   LootboardSchema,
+  GroupEmbedSchema,
+  GroupEmbedsResponseSchema,
   GroupSubscriptionSchema,
   GuildStatusSchema,
   LeaderboardPageSchema,
@@ -69,11 +72,16 @@ import {
   type EventRevokeInput,
   type EventSummary,
   type EventTaskInput,
+  type EventMetaEntry,
   type EventTaskLibraryItem,
   type EventTaskPatch,
   type EventTeamInput,
+  type EmbedType,
   type GroupConfigPatch,
   type GroupDiagnostics,
+  type GroupEmbed,
+  type GroupEmbedInput,
+  type GroupEmbedsResponse,
   type GroupMembersPage,
   type GroupProfile,
   type GroupSubscription,
@@ -102,6 +110,7 @@ import {
   mockGroupLeaderboard,
   mockGroupMembers,
   mockGroupProfile,
+  mockGroupEmbeds,
   mockGroupSubscription,
   mockGuildStatus,
   mockEvent,
@@ -549,6 +558,28 @@ export const api = {
           await apiGet(`/event-task-library?${q}`, { authed: true }),
         ),
       () => mockEventTaskLibrary(params.query, params.type),
+    );
+  },
+
+  /** Item-name autocomplete for the task form (exact in-game names). */
+  async searchEventItems(query: string): Promise<EventMetaEntry[]> {
+    return withFallback(
+      async () =>
+        EventMetaEntrySchema.array().parse(
+          await apiGet(`/events/meta/items?q=${encodeURIComponent(query)}`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
+  /** NPC-name autocomplete for the task form (exact in-game names). */
+  async searchEventNpcs(query: string): Promise<EventMetaEntry[]> {
+    return withFallback(
+      async () =>
+        EventMetaEntrySchema.array().parse(
+          await apiGet(`/events/meta/npcs?q=${encodeURIComponent(query)}`, { authed: true }),
+        ),
+      () => [],
     );
   },
 
@@ -1082,6 +1113,44 @@ export const api = {
           await apiSend("POST", `/groups/${groupId}/subscription/resume`, {}),
         ),
       () => ({ ...mockGroupSubscription(groupId), cancel_at_period_end: false }),
+    );
+  },
+
+  // --- Custom Discord embeds (subscription-gated) ------------------------
+  /** Per-type embed templates: the group's custom template + system default. */
+  async groupEmbeds(groupId: number): Promise<GroupEmbedsResponse> {
+    return withFallback(
+      async () =>
+        GroupEmbedsResponseSchema.parse(await apiGet(`/groups/${groupId}/embeds`, { authed: true })),
+      () => mockGroupEmbeds(),
+    );
+  },
+
+  /** Save (upsert) the group's template for one embed type. Requires the `custom_embeds` entitlement. */
+  async saveGroupEmbed(
+    groupId: number,
+    embedType: EmbedType,
+    input: GroupEmbedInput,
+  ): Promise<GroupEmbed> {
+    return withFallback(
+      async () => {
+        const res = (await apiSend("PUT", `/groups/${groupId}/embeds/${embedType}`, input)) as {
+          embed: unknown;
+        };
+        return GroupEmbedSchema.parse(res.embed);
+      },
+      () => GroupEmbedSchema.parse({ embed_type: embedType, ...input }),
+    );
+  },
+
+  /** Remove the group's custom template for one type (reverts to the default). */
+  async deleteGroupEmbed(groupId: number, embedType: EmbedType): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/groups/${groupId}/embeds/${embedType}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
     );
   },
 

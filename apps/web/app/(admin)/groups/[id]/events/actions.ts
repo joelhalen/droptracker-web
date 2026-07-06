@@ -209,6 +209,18 @@ export async function searchEventTaskLibrary(
   return api.eventTaskLibrary(params);
 }
 
+/** Item-name autocomplete for the task form. */
+export async function searchEventItems(groupId: EventGroupId, q: string) {
+  await assertEventsEntitlement(groupId);
+  return api.searchEventItems(q.trim());
+}
+
+/** NPC-name autocomplete for the task form. */
+export async function searchEventNpcs(groupId: EventGroupId, q: string) {
+  await assertEventsEntitlement(groupId);
+  return api.searchEventNpcs(q.trim());
+}
+
 // --- Verification queue & manual actions (Task 18) --------------------------
 
 /** Admin-only completion ledger read (used by the Review section refresh). */

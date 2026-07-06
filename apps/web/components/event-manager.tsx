@@ -5,18 +5,15 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
   EVENT_FORMATION_MODES,
-  EVENT_TASK_TYPES,
   type EventDetail,
   type EventTask,
   type EventTeam,
-  type EventTaskInput,
 } from "@droptracker/api-types";
 import { FORMATION_MODE_LABELS, TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, EmptyState } from "@/components/ui";
 import {
   activateEvent,
-  addEventTask,
   addEventTeam,
   addEventTeamMember,
   endEvent,
@@ -28,6 +25,7 @@ import {
 } from "@/app/(admin)/groups/[id]/events/actions";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventDiscord } from "@/components/event-discord";
+import { EventTaskForm } from "@/components/event-task-form";
 import { EventReview } from "@/components/event-review";
 
 const field =
@@ -189,31 +187,9 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
     });
   };
 
-  const [task, setTask] = useState<EventTaskInput>({
-    type: "kc_target",
-    label: "",
-    target: "",
-    points: 0,
-  });
+  /** Task id being edited inline, or -1 for the create form, or null. */
+  const [taskFormFor, setTaskFormFor] = useState<number | null>(null);
   const [teamName, setTeamName] = useState("");
-
-  const onAddTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!task.label.trim()) return;
-    setError(null);
-    startTransition(async () => {
-      try {
-        const { id } = await addEventTask(groupId, event.id, task);
-        setTasks((prev) => [
-          ...prev,
-          { ...task, id, points: task.points ?? 0, requires_confirmation: task.requires_confirmation ?? false },
-        ]);
-        setTask({ type: task.type, label: "", target: "", points: 0 });
-      } catch (err) {
-        setError(getErrorMessage(err, "Couldn't add the task. Please try again."));
-      }
-    });
-  };
 
   /** Per-task manual-review toggle (PRD D3). */
   const onToggleTaskReview = (t: EventTask) => {
@@ -468,88 +444,92 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
 
       {/* Tasks */}
       <section>
-        <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Tasks</h3>
-        <form onSubmit={onAddTask} className="mb-4 grid gap-2 sm:grid-cols-[10rem_1fr_8rem_6rem_auto]">
-          <select
-            value={task.type}
-            onChange={(e) => setTask((t) => ({ ...t, type: e.target.value as EventTask["type"] }))}
-            className={field}
-          >
-            {EVENT_TASK_TYPES.map((tt) => (
-              <option key={tt} value={tt}>
-                {TASK_TYPE_LABELS[tt]}
-              </option>
-            ))}
-          </select>
-          <input
-            value={task.label}
-            onChange={(e) => setTask((t) => ({ ...t, label: e.target.value }))}
-            placeholder="Label"
-            className={field}
-          />
-          <input
-            value={task.target ?? ""}
-            onChange={(e) => setTask((t) => ({ ...t, target: e.target.value }))}
-            placeholder="Target"
-            className={field}
-          />
-          <input
-            type="number"
-            min={0}
-            value={task.points ?? 0}
-            onChange={(e) => setTask((t) => ({ ...t, points: Number(e.target.value) }))}
-            placeholder="Pts"
-            className={field}
-          />
-          <button
-            type="submit"
-            disabled={pending || !task.label.trim()}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
-          >
-            Add
-          </button>
-        </form>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="heading-rule text-osrs-gold pb-1 text-lg font-semibold">Tasks</h3>
+          {taskFormFor !== -1 && (
+            <button
+              onClick={() => setTaskFormFor(-1)}
+              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
+            >
+              New task
+            </button>
+          )}
+        </div>
+        {taskFormFor === -1 && (
+          <div className="mb-4">
+            <EventTaskForm
+              groupId={groupId}
+              eventId={event.id}
+              onSaved={(t) => {
+                setTasks((prev) => [...prev, t]);
+                setTaskFormFor(null);
+              }}
+              onCancel={() => setTaskFormFor(null)}
+            />
+          </div>
+        )}
 
         {tasks.length ? (
           <ul className="divide-osrs-bronze/20 divide-y">
-            {tasks.map((t) => (
-              <li key={t.id} className="flex items-center justify-between py-2.5 text-sm">
-                <span>
-                  <span className="text-osrs-parchment-dark/50 mr-2 text-xs uppercase">
-                    {TASK_TYPE_LABELS[t.type]}
+            {tasks.map((t) =>
+              taskFormFor === t.id ? (
+                <li key={t.id} className="py-2.5">
+                  <EventTaskForm
+                    groupId={groupId}
+                    eventId={event.id}
+                    initial={t}
+                    onSaved={(updated) => {
+                      setTasks((prev) => prev.map((x) => (x.id === t.id ? updated : x)));
+                      setTaskFormFor(null);
+                    }}
+                    onCancel={() => setTaskFormFor(null)}
+                  />
+                </li>
+              ) : (
+                <li key={t.id} className="flex items-center justify-between py-2.5 text-sm">
+                  <span>
+                    <span className="text-osrs-parchment-dark/50 mr-2 text-xs uppercase">
+                      {TASK_TYPE_LABELS[t.type]}
+                    </span>
+                    {t.label}
+                    {taskGoal(t) && (
+                      <span className="text-osrs-parchment-dark/60"> — {taskGoal(t)}</span>
+                    )}
+                    {t.points > 0 && (
+                      <span className="text-osrs-gold-bright ml-2 text-xs">{t.points} pts</span>
+                    )}
                   </span>
-                  {t.label}
-                  {taskGoal(t) && (
-                    <span className="text-osrs-parchment-dark/60"> — {taskGoal(t)}</span>
-                  )}
-                  {t.points > 0 && (
-                    <span className="text-osrs-gold-bright ml-2 text-xs">{t.points} pts</span>
-                  )}
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <label
-                    className="text-osrs-parchment-dark/60 flex cursor-pointer items-center gap-1 text-xs"
-                    title="Completions of this task queue for admin review"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={t.requires_confirmation}
-                      onChange={() => onToggleTaskReview(t)}
+                  <span className="flex shrink-0 items-center gap-2">
+                    <label
+                      className="text-osrs-parchment-dark/60 flex cursor-pointer items-center gap-1 text-xs"
+                      title="Completions of this task queue for admin review"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={t.requires_confirmation}
+                        onChange={() => onToggleTaskReview(t)}
+                        disabled={pending}
+                        className="size-3.5"
+                      />
+                      review
+                    </label>
+                    <button
+                      onClick={() => setTaskFormFor(t.id)}
+                      className="text-osrs-parchment-dark/70 hover:bg-osrs-bronze/15 rounded px-2 py-1 text-xs"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => onRemoveTask(t.id)}
                       disabled={pending}
-                      className="size-3.5"
-                    />
-                    review
-                  </label>
-                  <button
-                    onClick={() => onRemoveTask(t.id)}
-                    disabled={pending}
-                    className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
-                  >
-                    Remove
-                  </button>
-                </span>
-              </li>
-            ))}
+                      className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </span>
+                </li>
+              ),
+            )}
           </ul>
         ) : (
           <EmptyState title="No tasks yet" />

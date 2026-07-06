@@ -13,6 +13,7 @@ import type {
   EventSummary,
   EventTaskLibraryItem,
   GroupDiagnostics,
+  GroupEmbedsResponse,
   GroupMembersPage,
   GroupProfile,
   GroupSubscription,
@@ -28,7 +29,7 @@ import type {
   WomGroupPreview,
   WomSyncResult,
 } from "@droptracker/api-types";
-import { GROUP_CONFIG_FIELDS } from "@droptracker/api-types";
+import { EMBED_TYPES, GROUP_CONFIG_FIELDS } from "@droptracker/api-types";
 
 const fmt = (n: number): string => {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
@@ -338,7 +339,41 @@ export function mockGroupSubscription(groupId: number): GroupSubscription {
     provider: "stripe",
     current_period_end: Math.floor(Date.now() / 1000) + 18 * 86400,
     cancel_at_period_end: false,
-    entitlements: { events: true, hall_of_fame: true },
+    entitlements: { events: true, hall_of_fame: true, custom_embeds: true },
+  };
+}
+
+export function mockGroupEmbeds(): GroupEmbedsResponse {
+  return {
+    embeds: EMBED_TYPES.map((embed_type) => ({
+      embed_type,
+      custom:
+        embed_type === "drop"
+          ? {
+              embed_type,
+              title: "{item_name} — nice drop!",
+              description: "**{player_name}** just received **{item_name}** from {npc_name}!",
+              color: "#ffb83f",
+              thumbnail: "https://static.runelite.net/cache/item/icon/{item_id}.png",
+              image: null,
+              timestamp: true,
+              fields: [
+                { name: "Value", value: "{total_value} gp", inline: true },
+                { name: "Group rank", value: "#{group_rank}", inline: true },
+              ],
+            }
+          : null,
+      default: {
+        embed_type,
+        title: "{player_name} — new {item_name}",
+        description: "Default DropTracker notification.",
+        color: "#7a5a32",
+        thumbnail: null,
+        image: null,
+        timestamp: false,
+        fields: [{ name: "Player", value: "{player_name}", inline: true }],
+      },
+    })),
   };
 }
 

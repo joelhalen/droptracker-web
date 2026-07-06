@@ -52,6 +52,13 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     help: "Hall of Fame personal-best embeds and boss leaderboards in Discord.",
     default: false,
   },
+  {
+    key: "custom_embeds",
+    label: "Custom Discord embeds",
+    category: "features",
+    help: "Customize the Discord embeds the bot posts for drops, collection logs, personal bests, combat achievements, pets and the lootboard.",
+    default: false,
+  },
 ];
 
 export type EntitlementKey = (typeof ENTITLEMENT_FIELDS)[number]["key"];

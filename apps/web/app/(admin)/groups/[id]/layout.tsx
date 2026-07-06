@@ -37,6 +37,11 @@ export default async function GroupAdminLayout({
   const tabs: NavTab[] = [
     { href: `/groups/${groupId}/admin`, label: "Overview" },
     { href: `/groups/${groupId}/settings`, label: "Settings" },
+    {
+      href: `/groups/${groupId}/embeds`,
+      label: "Embeds",
+      locked: !hasEntitlement(subscription, "custom_embeds", { isSuperadmin: user.is_superadmin }),
+    },
     { href: `/groups/${groupId}/announcements`, label: "Announcements" },
     { href: `/groups/${groupId}/members`, label: "Members" },
     {
