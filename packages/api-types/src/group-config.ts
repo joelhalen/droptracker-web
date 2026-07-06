@@ -70,6 +70,8 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "ca_channel_id", label: "Combat achievements channel", category: "channels", type: "channel", help: "Channel for combat-achievement notifications.", default: null },
   { key: "pet_channel_id", label: "Pets channel", category: "channels", type: "channel", help: "Channel for pet notifications.", default: null },
   { key: "quest_channel_id", label: "Quests channel", category: "channels", type: "channel", help: "Channel for quest-completion notifications.", default: null },
+  { key: "channel_id_to_post_deaths", label: "Deaths channel", category: "channels", type: "channel", help: "Channel for player-death notifications. Falls back to the drops channel when unset.", default: null },
+  { key: "channel_id_to_post_diaries", label: "Diaries channel", category: "channels", type: "channel", help: "Channel for achievement-diary notifications. Falls back to the drops channel when unset.", default: null },
   { key: "announcements_channel_id", label: "Announcements channel", category: "channels", type: "channel", help: "Channel where published announcements are syndicated (FRONTEND_PLAN.md §10).", default: null },
 
   // --- Drop notifications -------------------------------------------------
@@ -82,6 +84,8 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "notify_pets", label: "Notify pets", category: "drops", type: "boolean", help: "Post a notification on pet drops.", default: true, seasonalMirror: true },
   { key: "notify_quests", label: "Notify quests", category: "drops", type: "boolean", help: "Post a notification on quest completions.", default: false, seasonalMirror: true },
   { key: "notify_special_quests", label: "Notify special quests", category: "drops", type: "boolean", help: "Notify on milestone/special quests even when general quest notifications are off.", default: true, seasonalMirror: true },
+  { key: "notify_deaths", label: "Notify deaths", category: "drops", type: "boolean", help: "Post a notification when a member dies.", default: false, seasonalMirror: true },
+  { key: "notify_diaries", label: "Notify achievement diaries", category: "drops", type: "boolean", help: "Post a notification on achievement-diary completions.", default: false, seasonalMirror: true },
 
   // --- Level notifications ------------------------------------------------
   { key: "notify_levels", label: "Notify levels", category: "levels", type: "boolean", help: "Post level-up notifications.", default: false, seasonalMirror: true },
