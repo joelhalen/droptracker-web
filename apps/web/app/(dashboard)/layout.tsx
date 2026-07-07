@@ -9,6 +9,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     { href: "/dashboard", label: "My accounts" },
     { href: "/settings", label: "Settings" },
     { href: "/submit", label: "Submit a drop" },
+    { href: "/tickets", label: "My tickets" },
   ] as const;
 
   return (

@@ -12,6 +12,7 @@ const TABS: NavTab[] = [
   { href: "/admin/logs", label: "Logs" },
   { href: "/admin/groups", label: "Groups" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/tickets", label: "Tickets", matchPrefix: true },
   { href: "/admin/audit", label: "Audit log" },
   { href: "/admin/announcements", label: "Global news" },
   { href: "/admin/docs", label: "Docs" },
