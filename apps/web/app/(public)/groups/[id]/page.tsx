@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
+import { CountUp } from "@/components/count-up";
+import { BossActivityList, RecordsShowcase, TopPlayersList } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
-import { EntityChip, NameTile, StatTile } from "@/components/ui";
+import { Card, EmptyState, EntityChip, NameTile, StatTile } from "@/components/ui";
 
 export const revalidate = 30;
 
@@ -29,9 +31,13 @@ export default async function GroupPage({ params }: { params: Params }) {
   if (!Number.isFinite(groupId)) notFound();
   const group = await orNotFound(api.group(groupId));
 
+  const hasTopPlayers = (group.top_players?.length ?? 0) > 0;
+  const hasBosses = (group.top_bosses?.length ?? 0) > 0;
+  const hasRecords = (group.records?.length ?? 0) > 0;
+
   return (
     <div className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="rise-in flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-center gap-4">
           <NameTile name={group.name} size="lg" />
           <div>
@@ -59,10 +65,22 @@ export default async function GroupPage({ params }: { params: Params }) {
         </div>
       </header>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <StatTile label="Members" value={String(group.member_count)} />
+      <div className="stagger-children grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatTile
+          label="Members"
+          value={<CountUp value={group.member_count} formatted={group.member_count.toLocaleString()} />}
+        />
         <StatTile label="Global rank" value={`#${group.global_rank ?? "—"}`} />
-        <StatTile label="Monthly loot" value={group.monthly_loot?.value_formatted ?? "—"} />
+        <StatTile
+          label="Monthly loot"
+          value={
+            group.monthly_loot ? (
+              <CountUp value={group.monthly_loot.value} formatted={group.monthly_loot.value_formatted} />
+            ) : (
+              "—"
+            )
+          }
+        />
         <div className="bg-osrs-surface-2/70 rounded-lg px-4 py-3">
           <div className="text-osrs-parchment-dark/60 text-xs tracking-wide uppercase">
             Top player
@@ -81,7 +99,54 @@ export default async function GroupPage({ params }: { params: Params }) {
         </div>
       </div>
 
-      <section>
+      {hasRecords && (
+        <section className="rise-in">
+          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+            Clan records
+          </h2>
+          <p className="text-osrs-parchment-dark/60 mb-3 -mt-2 text-sm">
+            Fastest kill times held by members of this clan.
+          </p>
+          <RecordsShowcase records={group.records!} />
+        </section>
+      )}
+
+      {(hasTopPlayers || hasBosses) && (
+        <div className="grid gap-8 md:grid-cols-2">
+          <section className="rise-in min-w-0">
+            <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+              Top players this month
+            </h2>
+            <Card padding="p-4">
+              {hasTopPlayers ? (
+                <TopPlayersList players={group.top_players!} />
+              ) : (
+                <EmptyState
+                  title="No tracked loot yet this month"
+                  hint="Member rankings appear once loot starts coming in."
+                />
+              )}
+            </Card>
+          </section>
+          <section className="rise-in">
+            <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+              Most active bosses
+            </h2>
+            <Card padding="p-4">
+              {hasBosses ? (
+                <BossActivityList bosses={group.top_bosses!} />
+              ) : (
+                <EmptyState
+                  title="No boss activity yet this month"
+                  hint="The clan's most-farmed bosses will show up here."
+                />
+              )}
+            </Card>
+          </section>
+        </div>
+      )}
+
+      <section className="rise-in">
         <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Recent submissions</h2>
         <SubmissionList
           submissions={group.recent_submissions}

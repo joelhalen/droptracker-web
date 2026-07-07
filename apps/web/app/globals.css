@@ -239,3 +239,79 @@ h2 {
     transform: translateX(-50%);
   }
 }
+
+/*
+ * Profile-page stat animations (group/player pages). Entrance reveal for
+ * stat sections, growing meter bars, and a soft gold glow for fresh records.
+ * All guarded by prefers-reduced-motion below.
+ */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise-in {
+  animation: rise-in 0.45s ease-out backwards;
+}
+
+/* Staggered entrance for lists/grids: each direct child arrives 60ms apart. */
+.stagger-children > * {
+  animation: rise-in 0.45s ease-out backwards;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.11s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.17s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.23s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.29s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.35s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.41s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.47s; }
+.stagger-children > *:nth-child(n + 9) { animation-delay: 0.53s; }
+
+@keyframes bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.bar-grow {
+  transform-origin: left;
+  animation: bar-grow 0.8s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* Record card set within the last 7 days: a soft, settling gold glow. */
+@keyframes record-glow {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dt-gold) 45%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 22px 2px color-mix(in srgb, var(--dt-gold) 22%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 10px 0 color-mix(in srgb, var(--dt-gold) 14%, transparent);
+  }
+}
+
+.record-glow {
+  animation: record-glow 1.6s ease-out forwards;
+  border-color: color-mix(in srgb, var(--dt-gold) 45%, transparent) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise-in,
+  .stagger-children > *,
+  .bar-grow,
+  .record-glow {
+    animation: none;
+  }
+}
+
