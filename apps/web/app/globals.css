@@ -315,3 +315,25 @@ h2 {
   }
 }
 
+/*
+ * Mobile viewport guard: no element may widen the page past the viewport
+ * (wide tables/intrinsic min-content used to stretch the homepage on phones,
+ * letting users pinch-zoom way out). `clip` blocks the overflow without
+ * creating a scroll container, so position: sticky keeps working. It must be
+ * on html: mobile Chrome still expands the layout viewport ("zooms out") for
+ * overflowing content when only body clips — verified empirically in
+ * headless mobile emulation.
+ * Individual wide widgets stay usable via their own overflow-x-auto wrappers.
+ */
+html,
+body {
+  overflow-x: clip;
+}
+
+/* Markdown (docs CMS) tables: scroll within the article instead of pushing
+ * the page wide — authors can and do paste wide tables. */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}

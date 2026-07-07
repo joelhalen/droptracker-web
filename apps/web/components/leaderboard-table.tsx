@@ -100,7 +100,10 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
           <thead>
             <tr className="text-osrs-gold/80 text-left">
               <th className="w-12 px-3 py-2">#</th>
-              <th className="px-3 py-2">Name</th>
+              {/* w-full + max-w-0 on the cells below pins the table to its
+                  container and lets long names truncate instead of widening
+                  the layout on narrow screens. */}
+              <th className="w-full px-3 py-2">Name</th>
               <th className="px-3 py-2 text-right">Loot</th>
             </tr>
           </thead>
@@ -115,7 +118,7 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                 <td className="px-3 py-2">
                   <RankMedal rank={r.rank} />
                 </td>
-                <td className="px-3 py-2">
+                <td className="w-full max-w-0 px-3 py-2">
                   <EntityChip
                     href={`${hrefBase}/${r.id}` as Route}
                     name={r.name}
@@ -127,7 +130,7 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                 </td>
                 {/* Relative loot bar behind the value: instant read of the
                     gap between ranks without scanning the numbers. */}
-                <td className="relative px-3 py-2 text-right tabular-nums">
+                <td className="relative px-3 py-2 text-right whitespace-nowrap tabular-nums">
                   {maxLoot > 0 && r.loot.value > 0 && (
                     <span
                       aria-hidden
