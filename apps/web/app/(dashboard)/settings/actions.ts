@@ -1,7 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { AccountSettingsPatchSchema, type AccountSettingsPatch } from "@droptracker/api-types";
+import {
+  AccountSettingsPatchSchema,
+  type AccountSettings,
+  type AccountSettingsPatch,
+} from "@droptracker/api-types";
 import { api } from "@/lib/api";
 
 /** Server Action: validate and persist account-settings changes. */
@@ -10,4 +14,14 @@ export async function saveSettings(patch: AccountSettingsPatch) {
   await api.updateSettings(parsed);
   revalidatePath("/settings");
   return { ok: true as const };
+}
+
+/** Server Action: toggle one linked account's public visibility. */
+export async function setPlayerHidden(
+  playerId: number,
+  hidden: boolean,
+): Promise<AccountSettings> {
+  const settings = await api.setMyPlayerHidden(playerId, hidden);
+  revalidatePath("/settings");
+  return settings;
 }

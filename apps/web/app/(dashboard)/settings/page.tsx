@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   // requireUser guarantees a non-null session even though the layout also gates.
-  const user = await requireUser("/settings");
+  await requireUser("/settings");
   const settings = await api.settings();
 
   return (
@@ -23,9 +23,9 @@ export default async function SettingsPage() {
         <ThemePicker />
       </section>
 
-      {/* SettingsForm renders its own "Notifications & privacy" heading. */}
+      {/* SettingsForm renders its own "Privacy" / "Discord notifications" headings. */}
       <section className="max-w-xl">
-        <SettingsForm initial={settings} groups={user.groups} />
+        <SettingsForm initial={settings} />
       </section>
     </div>
   );
