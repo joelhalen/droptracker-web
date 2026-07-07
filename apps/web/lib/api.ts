@@ -8,6 +8,7 @@
  * backend exists.
  */
 import { cookies } from "next/headers";
+import { z } from "zod";
 import {
   AccountSettingsSchema,
   AdminBadgeSchema,
@@ -42,6 +43,10 @@ import {
   ServiceLogsSchema,
   ServiceStatusSchema,
   SubscriptionTierSchema,
+  AdminTicketPageSchema,
+  TicketDetailSchema,
+  TicketPageSchema,
+  TicketSummarySchema,
   WomGroupPreviewSchema,
   WomSyncResultSchema,
   type AccountSettings,
@@ -100,6 +105,10 @@ import {
   type SubscriptionTierInput,
   type WomGroupPreview,
   type WomSyncResult,
+  type AdminTicketPage,
+  type TicketDetail,
+  type TicketPage,
+  type TicketSummary,
 } from "@droptracker/api-types";
 import { env, SESSION_COOKIE } from "./env";
 import {
@@ -120,8 +129,11 @@ import {
   mockEventDiscordGuilds,
   mockEvents,
   mockEventTaskLibrary,
+  mockAdminTickets,
   mockLookup,
   mockLootboard,
+  mockMyTickets,
+  mockTicket,
   mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
@@ -139,6 +151,17 @@ type FetchOpts = {
   /** Next.js cache revalidation window in seconds (ISR for public reads). */
   revalidate?: number;
 };
+
+/**
+ * One entry of `/feed/recent` (Redis history behind the live ticker). Unlike
+ * live SSE frames (`RealtimeEventSchema`) the history entries carry `ts`
+ * inside `data` and no top-level timestamp, so they get their own shape here.
+ */
+const FeedEventSchema = z.object({
+  type: z.string(),
+  data: z.record(z.string(), z.unknown()),
+});
+export type FeedEvent = z.infer<typeof FeedEventSchema>;
 
 export class ApiError extends Error {
   constructor(
@@ -884,12 +907,39 @@ export const api = {
     );
   },
 
+  /** Toggle one linked account's public visibility (players.hidden). */
+  async setMyPlayerHidden(playerId: number, hidden: boolean): Promise<AccountSettings> {
+    return withFallback(
+      async () =>
+        AccountSettingsSchema.parse(await apiSend("PATCH", `/me/players/${playerId}`, { hidden })),
+      () => {
+        const mock = mockAccountSettings();
+        return {
+          ...mock,
+          players: mock.players.map((p) => (p.id === playerId ? { ...p, hidden } : p)),
+        };
+      },
+    );
+  },
+
   async search(q: string): Promise<SearchResults> {
     if (!q.trim()) return { players: [], groups: [] };
     return withFallback(
       async () =>
         SearchResultsSchema.parse(await apiGet(`/search?q=${encodeURIComponent(q)}`, { revalidate: 10 })),
       () => mockSearch(q),
+    );
+  },
+
+  /**
+   * Recent drop-feed history — the same Redis-backed list the live ticker
+   * hydrates from via `/api/feed/recent`. Used server-side for decorative
+   * surfaces (homepage hero collage); callers should treat it as best-effort.
+   */
+  async recentFeed(): Promise<FeedEvent[]> {
+    return withFallback(
+      async () => FeedEventSchema.array().parse(await apiGet(`/feed/recent`, { revalidate: 60 })),
+      () => [],
     );
   },
 
@@ -1446,6 +1496,56 @@ export const api = {
         last_submission_ts: null,
         warnings: ["API unavailable (mock mode)."],
       }),
+    );
+  },
+
+  // --- Support tickets (web21a) -------------------------------------------
+  async myTickets(params: { page?: number; limit?: number } = {}): Promise<TicketPage> {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", String(params.page));
+    if (params.limit) qs.set("limit", String(params.limit));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return withFallback(
+      async () => TicketPageSchema.parse(await apiGet(`/me/tickets${suffix}`, { authed: true })),
+      () => mockMyTickets(params.page ?? 1),
+    );
+  },
+
+  async ticket(ticketId: number): Promise<TicketDetail> {
+    return withFallback(
+      async () =>
+        TicketDetailSchema.parse(await apiGet(`/tickets/${ticketId}`, { authed: true })),
+      () => mockTicket(ticketId),
+    );
+  },
+
+  async adminTickets(
+    params: { status?: string; type?: string; q?: string; page?: number; limit?: number } = {},
+  ): Promise<AdminTicketPage> {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set("status", params.status);
+    if (params.type) qs.set("type", params.type);
+    if (params.q) qs.set("q", params.q);
+    if (params.page) qs.set("page", String(params.page));
+    if (params.limit) qs.set("limit", String(params.limit));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return withFallback(
+      async () =>
+        AdminTicketPageSchema.parse(await apiGet(`/admin/tickets${suffix}`, { authed: true })),
+      () => mockAdminTickets(params.page ?? 1),
+    );
+  },
+
+  async adminTicketAction(
+    ticketId: number,
+    action: "claim" | "unclaim" | "close",
+  ): Promise<TicketSummary> {
+    return withFallback(
+      async () =>
+        TicketSummarySchema.parse(
+          await apiSend("PATCH", `/admin/tickets/${ticketId}`, { action }),
+        ),
+      () => mockMyTickets(1).items[0]!,
     );
   },
 

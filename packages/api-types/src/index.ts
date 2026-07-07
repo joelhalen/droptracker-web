@@ -158,9 +158,53 @@ export const GroupMembershipSchema = z.object({
 });
 export type GroupMembership = z.infer<typeof GroupMembershipSchema>;
 
+/** Most-farmed NPC this month (loot + drop count) for a player or group. */
+export const TopBossSchema = z.object({
+  npc_id: z.number().int(),
+  name: z.string(),
+  loot: MoneySchema,
+  drops: z.number().int(),
+});
+export type TopBoss = z.infer<typeof TopBossSchema>;
+
+export const GroupTopPlayerSchema = z.object({
+  rank: z.number().int(),
+  id: z.number().int(),
+  name: z.string(),
+  loot: MoneySchema,
+});
+export type GroupTopPlayer = z.infer<typeof GroupTopPlayerSchema>;
+
+/** Fastest kill time per boss held by a group member. */
+export const GroupRecordSchema = z.object({
+  npc_id: z.number().int(),
+  boss: z.string(),
+  time_ms: z.number().int(),
+  time_display: z.string(),
+  team_size: z.string(),
+  holder: z.object({ id: z.number().int(), name: z.string() }),
+  date_ts: z.number().int(),
+});
+export type GroupRecord = z.infer<typeof GroupRecordSchema>;
+
+export const PersonalBestSummarySchema = z.object({
+  npc_id: z.number().int(),
+  boss: z.string(),
+  time_ms: z.number().int(),
+  time_display: z.string(),
+  team_size: z.string(),
+  date_ts: z.number().int(),
+});
+export type PersonalBestSummary = z.infer<typeof PersonalBestSummarySchema>;
+
 export const PlayerProfileSchema = PlayerSummarySchema.extend({
   points: z.number().int().optional(),
   top_npc: z.string().optional(),
+  previous_month_loot: MoneySchema.optional(),
+  /** Total players on the global board, for "Top X%" percentile context. */
+  ranked_players: z.number().int().optional(),
+  top_bosses: z.array(TopBossSchema).optional(),
+  personal_bests: z.array(PersonalBestSummarySchema).optional(),
   groups: z.array(GroupMembershipSchema).default([]),
   recent_submissions: z.array(SubmissionSchema).default([]),
   badges: z.array(PlayerBadgeSchema).optional(),
@@ -176,6 +220,9 @@ export const GroupProfileSchema = z.object({
   monthly_loot: MoneySchema.optional(),
   discord_url: z.string().optional(),
   top_player: PlayerSummarySchema.optional(),
+  top_players: z.array(GroupTopPlayerSchema).optional(),
+  top_bosses: z.array(TopBossSchema).optional(),
+  records: z.array(GroupRecordSchema).optional(),
   recent_submissions: z.array(SubmissionSchema).default([]),
 });
 export type GroupProfile = z.infer<typeof GroupProfileSchema>;
@@ -230,24 +277,32 @@ export const RealtimeEventSchema = z.object({
 export type RealtimeEvent = z.infer<typeof RealtimeEventSchema>;
 
 /**
- * Account settings (FRONTEND_PLAN.md §9 "Notification & privacy prefs",
- * PATCH /api/v1/me). Mirrors the PHP `/account/droptracker` form.
+ * Account settings (GET /api/v1/me/settings, PATCH /api/v1/me).
+ * Every field here is enforced by the backend: `hidden` removes the user's
+ * accounts from public leaderboards/search/profiles/feed, the ping trio gates
+ * Discord @-mentions, and `dm_account_changes` gates the RSN-change DM
+ * (stored in user_configurations, shared with the bot's /dm-settings).
+ * `players` lists linked accounts with their per-account visibility
+ * (PATCH /api/v1/me/players/{id}).
  */
+export const SettingsPlayerSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  hidden: z.boolean(),
+});
+export type SettingsPlayer = z.infer<typeof SettingsPlayerSchema>;
+
 export const AccountSettingsSchema = z.object({
-  public: z.boolean(),
   hidden: z.boolean(),
   global_ping: z.boolean(),
   group_ping: z.boolean(),
   never_ping: z.boolean(),
-  dm_on_rank_change: z.boolean(),
-  dm_on_points: z.boolean(),
-  update_logs_opt_in: z.boolean(),
-  patreon_group: z.number().int().nullable(),
-  premium_group: z.number().int().nullable(),
+  dm_account_changes: z.boolean(),
+  players: z.array(SettingsPlayerSchema).default([]),
 });
 export type AccountSettings = z.infer<typeof AccountSettingsSchema>;
-/** PATCH body: any subset of the settings. */
-export const AccountSettingsPatchSchema = AccountSettingsSchema.partial();
+/** PATCH body: any subset of the toggle settings (players are patched per-id). */
+export const AccountSettingsPatchSchema = AccountSettingsSchema.omit({ players: true }).partial();
 export type AccountSettingsPatch = z.infer<typeof AccountSettingsPatchSchema>;
 
 /** Combined player+group search results (FRONTEND_PLAN.md §9 "Search"). */
@@ -1090,6 +1145,91 @@ export type EventJoinInput = z.infer<typeof EventJoinInputSchema>;
 /** POST /events/{id}/leave and admin roster add (Task 16). */
 export const EventMemberInputSchema = z.object({ player_id: z.number().int() });
 export type EventMemberInput = z.infer<typeof EventMemberInputSchema>;
+
+// --------------------------------------------------------------------------
+// Support tickets (web21a) — created and answered in Discord, archived here.
+// Transcript messages are mirrored from the ticket's Discord channel; the
+// channel itself is deleted at close time, so this is the permanent record.
+// --------------------------------------------------------------------------
+
+/** "closing" = close requested from the web, bot archive pass pending. */
+export const TicketStatusSchema = z.enum(["open", "closing", "closed"]);
+export type TicketStatus = z.infer<typeof TicketStatusSchema>;
+
+export const TicketTypeSchema = z.enum(["players", "clans", "support", "other"]);
+export type TicketType = z.infer<typeof TicketTypeSchema>;
+
+export const TicketSummarySchema = z.object({
+  ticket_id: z.number().int(),
+  type: TicketTypeSchema,
+  status: TicketStatusSchema,
+  subject: z.string().nullable(),
+  created_by: z.number().int(),
+  created_by_name: z.string().nullable(),
+  claimed_by: z.number().int().nullable(),
+  claimed_by_name: z.string().nullable(),
+  closed_by: z.number().int().nullable(),
+  closed_by_name: z.string().nullable(),
+  message_count: z.number().int(),
+  date_added: z.number().int().nullable(),
+  date_updated: z.number().int().nullable(),
+  date_closed: z.number().int().nullable(),
+});
+export type TicketSummary = z.infer<typeof TicketSummarySchema>;
+
+export const TicketPageSchema = z.object({
+  items: z.array(TicketSummarySchema),
+  meta: PageMetaSchema,
+});
+export type TicketPage = z.infer<typeof TicketPageSchema>;
+
+export const TicketAttachmentSchema = z.object({
+  filename: z.string(),
+  /** /img/tickets/... when mirrored locally; a Discord CDN URL otherwise. */
+  url: z.string().nullable(),
+  content_type: z.string().nullable().optional(),
+  size: z.number().int().nullable().optional(),
+});
+export type TicketAttachment = z.infer<typeof TicketAttachmentSchema>;
+
+export const TicketMessageSchema = z.object({
+  id: z.number().int(),
+  author_name: z.string(),
+  author_user_id: z.number().int().nullable(),
+  is_staff: z.boolean(),
+  is_bot: z.boolean(),
+  kind: z.enum(["message", "system"]),
+  content: z.string(),
+  attachments: z.array(TicketAttachmentSchema),
+  date_sent: z.number().int().nullable(),
+  date_edited: z.number().int().nullable(),
+});
+export type TicketMessage = z.infer<typeof TicketMessageSchema>;
+
+export const TicketDetailSchema = TicketSummarySchema.extend({
+  messages: z.array(TicketMessageSchema),
+});
+export type TicketDetail = z.infer<typeof TicketDetailSchema>;
+
+export const TicketStatsSchema = z.object({
+  open: z.number().int(),
+  unclaimed: z.number().int(),
+  closed: z.number().int(),
+  total: z.number().int(),
+  open_by_type: z.record(z.string(), z.number().int()),
+});
+export type TicketStats = z.infer<typeof TicketStatsSchema>;
+
+export const AdminTicketPageSchema = TicketPageSchema.extend({
+  stats: TicketStatsSchema,
+});
+export type AdminTicketPage = z.infer<typeof AdminTicketPageSchema>;
+
+/** PATCH /admin/tickets/{id} body. */
+export const TicketActionInputSchema = z.object({
+  action: z.enum(["claim", "unclaim", "close"]),
+});
+export type TicketActionInput = z.infer<typeof TicketActionInputSchema>;
 
 export * from "./group-config";
 export * from "./entitlements";

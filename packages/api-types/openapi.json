@@ -11,8 +11,7 @@
     { "name": "players" },
     { "name": "groups" },
     { "name": "announcements" },
-    { "name": "me" },
-    { "name": "admin" }
+    { "name": "me" }
   ],
   "paths": {
     "/leaderboards/players": {
@@ -158,237 +157,6 @@
             }
           },
           "401": { "$ref": "#/components/responses/Error" }
-        }
-      }
-    },
-    "/admin/overview": {
-      "get": {
-        "tags": ["admin"],
-        "operationId": "getAdminOverview",
-        "summary": "Superadmin site overview KPIs",
-        "security": [{ "session": [] }],
-        "responses": {
-          "200": {
-            "description": "Dashboard KPI tiles.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AdminOverview" }
-              }
-            }
-          },
-          "403": { "$ref": "#/components/responses/Error" }
-        }
-      }
-    },
-    "/admin/groups/{groupId}/subscription/grant": {
-      "post": {
-        "tags": ["admin"],
-        "operationId": "adminGrantSubscription",
-        "summary": "Grant a comped (manual) subscription to a group",
-        "security": [{ "session": [] }],
-        "parameters": [{ "$ref": "#/components/parameters/GroupId" }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/AdminSubscriptionGrantInput" }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The upserted subscription.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/GroupSubscription" }
-              }
-            }
-          },
-          "403": { "$ref": "#/components/responses/Error" },
-          "404": { "$ref": "#/components/responses/Error" }
-        }
-      }
-    },
-    "/admin/groups/{groupId}/subscription/revoke": {
-      "post": {
-        "tags": ["admin"],
-        "operationId": "adminRevokeSubscription",
-        "summary": "Revoke a group's subscription (set canceled)",
-        "security": [{ "session": [] }],
-        "parameters": [{ "$ref": "#/components/parameters/GroupId" }],
-        "responses": {
-          "200": {
-            "description": "The updated subscription.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/GroupSubscription" }
-              }
-            }
-          },
-          "403": { "$ref": "#/components/responses/Error" },
-          "404": { "$ref": "#/components/responses/Error" }
-        }
-      }
-    },
-    "/admin/data/{entity}": {
-      "get": {
-        "tags": ["admin"],
-        "operationId": "adminDataList",
-        "summary": "List rows for a whitelisted entity",
-        "security": [{ "session": [] }],
-        "parameters": [
-          {
-            "name": "entity",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          },
-          { "$ref": "#/components/parameters/Page" },
-          { "$ref": "#/components/parameters/Limit" },
-          {
-            "name": "q",
-            "in": "query",
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A page of rows.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AdminDataListResponse" }
-              }
-            }
-          },
-          "403": { "$ref": "#/components/responses/Error" },
-          "404": { "$ref": "#/components/responses/Error" }
-        }
-      }
-    },
-    "/admin/data/{entity}/{id}": {
-      "get": {
-        "tags": ["admin"],
-        "operationId": "adminDataGet",
-        "summary": "Get a single record",
-        "security": [{ "session": [] }],
-        "parameters": [
-          {
-            "name": "entity",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The record.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AdminDataRecordResponse" }
-              }
-            }
-          },
-          "403": { "$ref": "#/components/responses/Error" },
-          "404": { "$ref": "#/components/responses/Error" }
-        }
-      },
-      "patch": {
-        "tags": ["admin"],
-        "operationId": "adminDataPatch",
-        "summary": "Update allowlisted editable columns on a record",
-        "security": [{ "session": [] }],
-        "parameters": [
-          {
-            "name": "entity",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/AdminDataPatchInput" }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The updated record.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AdminDataRecordResponse" }
-              }
-            }
-          },
-          "403": { "$ref": "#/components/responses/Error" },
-          "404": { "$ref": "#/components/responses/Error" },
-          "422": { "$ref": "#/components/responses/Error" }
-        }
-      }
-    },
-    "/admin/logs": {
-      "get": {
-        "tags": ["admin"],
-        "operationId": "adminLogs",
-        "summary": "Tail the application logs table",
-        "security": [{ "session": [] }],
-        "parameters": [
-          {
-            "name": "source",
-            "in": "query",
-            "schema": { "type": "string" }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 200 }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Recent log entries and known sources.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AdminLogsResponse" }
-              }
-            }
-          },
-          "403": { "$ref": "#/components/responses/Error" }
-        }
-      }
-    },
-    "/admin/groups/{groupId}/overview": {
-      "get": {
-        "tags": ["admin"],
-        "operationId": "adminGroupOverview",
-        "summary": "Superadmin per-group staff overview",
-        "security": [{ "session": [] }],
-        "parameters": [{ "$ref": "#/components/parameters/GroupId" }],
-        "responses": {
-          "200": {
-            "description": "Group staff overview.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/AdminGroupOverview" }
-              }
-            }
-          },
-          "403": { "$ref": "#/components/responses/Error" },
-          "404": { "$ref": "#/components/responses/Error" }
         }
       }
     }
@@ -545,6 +313,58 @@
           "name": { "type": "string" }
         }
       },
+      "TopBoss": {
+        "type": "object",
+        "required": ["npc_id", "name", "loot", "drops"],
+        "properties": {
+          "npc_id": { "type": "integer" },
+          "name": { "type": "string" },
+          "loot": { "$ref": "#/components/schemas/Money" },
+          "drops": { "type": "integer" }
+        }
+      },
+      "GroupTopPlayer": {
+        "type": "object",
+        "required": ["rank", "id", "name", "loot"],
+        "properties": {
+          "rank": { "type": "integer" },
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "loot": { "$ref": "#/components/schemas/Money" }
+        }
+      },
+      "GroupRecord": {
+        "type": "object",
+        "required": ["npc_id", "boss", "time_ms", "time_display", "team_size", "holder", "date_ts"],
+        "properties": {
+          "npc_id": { "type": "integer" },
+          "boss": { "type": "string" },
+          "time_ms": { "type": "integer" },
+          "time_display": { "type": "string" },
+          "team_size": { "type": "string" },
+          "holder": {
+            "type": "object",
+            "required": ["id", "name"],
+            "properties": {
+              "id": { "type": "integer" },
+              "name": { "type": "string" }
+            }
+          },
+          "date_ts": { "type": "integer", "description": "Unix seconds the record was set." }
+        }
+      },
+      "PersonalBestSummary": {
+        "type": "object",
+        "required": ["npc_id", "boss", "time_ms", "time_display", "team_size", "date_ts"],
+        "properties": {
+          "npc_id": { "type": "integer" },
+          "boss": { "type": "string" },
+          "time_ms": { "type": "integer" },
+          "time_display": { "type": "string" },
+          "team_size": { "type": "string" },
+          "date_ts": { "type": "integer" }
+        }
+      },
       "PlayerProfile": {
         "allOf": [
           { "$ref": "#/components/schemas/PlayerSummary" },
@@ -553,6 +373,19 @@
             "properties": {
               "points": { "type": "integer" },
               "top_npc": { "type": "string" },
+              "previous_month_loot": { "$ref": "#/components/schemas/Money" },
+              "ranked_players": {
+                "type": "integer",
+                "description": "Total players on the global board, for percentile context."
+              },
+              "top_bosses": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/TopBoss" }
+              },
+              "personal_bests": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/PersonalBestSummary" }
+              },
               "groups": {
                 "type": "array",
                 "items": { "$ref": "#/components/schemas/GroupMembership" }
@@ -577,6 +410,18 @@
           "monthly_loot": { "$ref": "#/components/schemas/Money" },
           "discord_url": { "type": "string" },
           "top_player": { "$ref": "#/components/schemas/PlayerSummary" },
+          "top_players": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/GroupTopPlayer" }
+          },
+          "top_bosses": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/TopBoss" }
+          },
+          "records": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/GroupRecord" }
+          },
           "recent_submissions": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/Submission" }
@@ -636,152 +481,6 @@
               }
             }
           }
-        }
-      },
-      "GroupSubscription": {
-        "type": "object",
-        "required": ["group_id", "tier_key", "status", "provider", "current_period_end", "cancel_at_period_end"],
-        "properties": {
-          "group_id": { "type": "integer" },
-          "tier_key": { "type": "string", "nullable": true },
-          "status": {
-            "type": "string",
-            "enum": ["none", "active", "trialing", "past_due", "canceled", "expired"]
-          },
-          "provider": {
-            "type": "string",
-            "enum": ["patreon", "stripe", "manual"],
-            "nullable": true
-          },
-          "current_period_end": { "type": "integer", "nullable": true, "description": "Unix seconds." },
-          "cancel_at_period_end": { "type": "boolean" }
-        }
-      },
-      "AdminOverviewStat": {
-        "type": "object",
-        "required": ["key", "label", "value"],
-        "properties": {
-          "key": { "type": "string" },
-          "label": { "type": "string" },
-          "value": { "type": "integer" },
-          "hint": { "type": "string" }
-        }
-      },
-      "AdminOverview": {
-        "type": "object",
-        "required": ["stats", "generated_at"],
-        "properties": {
-          "stats": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/AdminOverviewStat" }
-          },
-          "generated_at": { "type": "integer", "description": "Unix seconds." }
-        }
-      },
-      "AdminSubscriptionGrantInput": {
-        "type": "object",
-        "required": ["tier_key", "days"],
-        "properties": {
-          "tier_key": { "type": "string" },
-          "days": { "type": "integer", "minimum": 1, "maximum": 3650 }
-        }
-      },
-      "AdminDataRow": {
-        "type": "object",
-        "additionalProperties": {
-          "nullable": true,
-          "oneOf": [
-            { "type": "string" },
-            { "type": "number" },
-            { "type": "boolean" }
-          ]
-        }
-      },
-      "AdminDataListResponse": {
-        "type": "object",
-        "required": ["entity", "columns", "rows", "editable", "meta"],
-        "properties": {
-          "entity": { "type": "string" },
-          "columns": { "type": "array", "items": { "type": "string" } },
-          "rows": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/AdminDataRow" }
-          },
-          "editable": { "type": "array", "items": { "type": "string" } },
-          "meta": { "$ref": "#/components/schemas/PageMeta" }
-        }
-      },
-      "AdminDataRecordResponse": {
-        "type": "object",
-        "required": ["entity", "id", "record", "editable"],
-        "properties": {
-          "entity": { "type": "string" },
-          "id": { "oneOf": [{ "type": "string" }, { "type": "integer" }] },
-          "record": { "$ref": "#/components/schemas/AdminDataRow" },
-          "editable": { "type": "array", "items": { "type": "string" } }
-        }
-      },
-      "AdminDataPatchInput": {
-        "type": "object",
-        "required": ["fields"],
-        "properties": {
-          "fields": { "$ref": "#/components/schemas/AdminDataRow" }
-        }
-      },
-      "AdminLogEntry": {
-        "type": "object",
-        "required": ["ts", "level", "source", "message"],
-        "properties": {
-          "ts": { "type": "integer", "description": "Unix seconds." },
-          "level": { "type": "string" },
-          "source": { "type": "string" },
-          "message": { "type": "string" }
-        }
-      },
-      "AdminLogsResponse": {
-        "type": "object",
-        "required": ["entries", "sources"],
-        "properties": {
-          "entries": {
-            "type": "array",
-            "items": { "$ref": "#/components/schemas/AdminLogEntry" }
-          },
-          "sources": { "type": "array", "items": { "type": "string" } }
-        }
-      },
-      "AdminGroupOverview": {
-        "type": "object",
-        "required": ["group", "subscription", "config_summary", "activity_7d", "last_submission_ts", "warnings"],
-        "properties": {
-          "group": {
-            "type": "object",
-            "required": ["id", "name", "member_count", "guild_id", "wom_id"],
-            "properties": {
-              "id": { "type": "integer" },
-              "name": { "type": "string" },
-              "member_count": { "type": "integer" },
-              "guild_id": { "type": "string", "nullable": true },
-              "wom_id": { "type": "integer", "nullable": true }
-            }
-          },
-          "subscription": { "$ref": "#/components/schemas/GroupSubscription" },
-          "config_summary": {
-            "type": "object",
-            "additionalProperties": { "type": "string", "nullable": true }
-          },
-          "activity_7d": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "required": ["date", "submissions"],
-              "properties": {
-                "date": { "type": "string" },
-                "submissions": { "type": "integer" }
-              }
-            }
-          },
-          "last_submission_ts": { "type": "integer", "nullable": true },
-          "warnings": { "type": "array", "items": { "type": "string" } }
         }
       }
     }

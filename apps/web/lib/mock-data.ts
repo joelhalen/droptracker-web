@@ -26,6 +26,10 @@ import type {
   ServiceLogs,
   ServiceStatus,
   SubscriptionTier,
+  AdminTicketPage,
+  TicketDetail,
+  TicketPage,
+  TicketSummary,
   WomGroupPreview,
   WomSyncResult,
 } from "@droptracker/api-types";
@@ -95,6 +99,17 @@ export function mockPlayerProfile(id: number): PlayerProfile {
     total_loot: money(1_234_567_890),
     points: 4200,
     top_npc: "Vorkath",
+    previous_month_loot: money(890_000_000),
+    ranked_players: 25_000,
+    top_bosses: [
+      { npc_id: 8061, name: "Vorkath", loot: money(410_000_000), drops: 512 },
+      { npc_id: 2042, name: "Zulrah", loot: money(260_000_000), drops: 388 },
+      { npc_id: 12214, name: "Araxxor", loot: money(120_000_000), drops: 145 },
+    ],
+    personal_bests: [
+      { npc_id: 12214, boss: "Araxxor", time_ms: 58800, time_display: "0:58.8", team_size: "Solo", date_ts: Math.floor(Date.now() / 1000) - 86400 },
+      { npc_id: 8061, boss: "Vorkath", time_ms: 72400, time_display: "1:12.4", team_size: "Solo", date_ts: Math.floor(Date.now() / 1000) - 604800 },
+    ],
     groups: [{ id: 2, name: "Global" }],
     recent_submissions: [
       {
@@ -127,8 +142,27 @@ export function mockGroupProfile(id: number): GroupProfile {
     member_count: 128,
     global_rank: (id % 100) + 1,
     monthly_loot: money(9_870_000_000),
-    discord_url: "https://discord.gg/droptracker",
+    discord_url: "https://www.droptracker.io/discord",
     top_player: { id: 1337, name: "Zezima", total_loot: money(2_000_000_000) },
+    top_players: [
+      { rank: 1, id: 1337, name: "Zezima", loot: money(2_000_000_000) },
+      { rank: 2, id: 1338, name: "Woox", loot: money(1_400_000_000) },
+      { rank: 3, id: 1339, name: "B0aty", loot: money(950_000_000) },
+      { rank: 4, id: 1340, name: "Framed", loot: money(610_000_000) },
+      { rank: 5, id: 1341, name: "Torvesta", loot: money(420_000_000) },
+    ],
+    top_bosses: [
+      { npc_id: 10814, name: "Theatre of Blood", loot: money(3_100_000_000), drops: 812 },
+      { npc_id: 8061, name: "Vorkath", loot: money(1_900_000_000), drops: 2140 },
+      { npc_id: 2042, name: "Zulrah", loot: money(1_100_000_000), drops: 1660 },
+      { npc_id: 12214, name: "Araxxor", loot: money(760_000_000), drops: 540 },
+      { npc_id: 7554, name: "Corporeal Beast", loot: money(410_000_000), drops: 205 },
+    ],
+    records: [
+      { npc_id: 12214, boss: "Araxxor", time_ms: 58800, time_display: "0:58.8", team_size: "Solo", holder: { id: 1337, name: "Zezima" }, date_ts: Math.floor(Date.now() / 1000) - 7200 },
+      { npc_id: 10814, boss: "Theatre of Blood", time_ms: 872000, time_display: "14:32.0", team_size: "4", holder: { id: 1338, name: "Woox" }, date_ts: Math.floor(Date.now() / 1000) - 86400 },
+      { npc_id: 8061, boss: "Vorkath", time_ms: 65100, time_display: "1:05.1", team_size: "Solo", holder: { id: 1339, name: "B0aty" }, date_ts: Math.floor(Date.now() / 1000) - 259200 },
+    ],
     recent_submissions: [
       {
         id: 10,
@@ -166,16 +200,15 @@ export function mockMe(): Me {
 
 export function mockAccountSettings(): AccountSettings {
   return {
-    public: true,
     hidden: false,
     global_ping: true,
     group_ping: true,
     never_ping: false,
-    dm_on_rank_change: false,
-    dm_on_points: true,
-    update_logs_opt_in: true,
-    patreon_group: 101,
-    premium_group: 101,
+    dm_account_changes: true,
+    players: [
+      { id: 1, name: "Mock Player", hidden: false },
+      { id: 2, name: "Mock Alt", hidden: true },
+    ],
   };
 }
 
@@ -674,5 +707,106 @@ export function mockLookup(q: string): AdminLookupResponse {
       { category: "npc", id: "8061", label: "Vorkath", detail: "npc #8061" },
       { category: "drop", id: "55012", label: "Tumeken's shadow", detail: "by Zezima · 1.1B" },
     ],
+  };
+}
+
+// --- Support tickets (web21a) ----------------------------------------------
+
+const MOCK_NOW = 1_751_900_000; // stable seed so contract tests are deterministic
+
+function mockTicketSummary(id: number, status: "open" | "closed" = "open"): TicketSummary {
+  return {
+    ticket_id: id,
+    type: id % 2 ? "players" : "support",
+    status,
+    subject: `My drops stopped tracking after a name change (#${id})`,
+    created_by: 42,
+    created_by_name: "zezima",
+    claimed_by: status === "open" ? null : 1,
+    claimed_by_name: status === "open" ? null : "joelhalen",
+    closed_by: status === "closed" ? 1 : null,
+    closed_by_name: status === "closed" ? "joelhalen" : null,
+    message_count: 6,
+    date_added: MOCK_NOW - 86_400 * id,
+    date_updated: MOCK_NOW - 3_600 * id,
+    date_closed: status === "closed" ? MOCK_NOW - 1_800 * id : null,
+  };
+}
+
+export function mockMyTickets(page = 1): TicketPage {
+  return {
+    items: [mockTicketSummary(3, "open"), mockTicketSummary(2, "closed")],
+    meta: { page, limit: 25, total: 2 },
+  };
+}
+
+export function mockTicket(ticketId: number): TicketDetail {
+  return {
+    ...mockTicketSummary(ticketId, "closed"),
+    messages: [
+      {
+        id: 1,
+        author_name: "DropTracker",
+        author_user_id: null,
+        is_staff: true,
+        is_bot: true,
+        kind: "message",
+        content: "Hey! The support team will be with you shortly.",
+        attachments: [],
+        date_sent: MOCK_NOW - 90_000,
+        date_edited: null,
+      },
+      {
+        id: 2,
+        author_name: "zezima",
+        author_user_id: 42,
+        is_staff: false,
+        is_bot: false,
+        kind: "message",
+        content: "I changed my RSN yesterday and my drops stopped tracking.",
+        attachments: [
+          { filename: "screenshot.png", url: "/img/tickets/1/screenshot.png", content_type: "image/png", size: 12345 },
+        ],
+        date_sent: MOCK_NOW - 89_000,
+        date_edited: null,
+      },
+      {
+        id: 3,
+        author_name: "joelhalen",
+        author_user_id: 1,
+        is_staff: true,
+        is_bot: false,
+        kind: "message",
+        content: "Fixed — your accounts are linked again. Give it a minute!",
+        attachments: [],
+        date_sent: MOCK_NOW - 80_000,
+        date_edited: null,
+      },
+      {
+        id: 4,
+        author_name: "DropTracker",
+        author_user_id: null,
+        is_staff: true,
+        is_bot: true,
+        kind: "system",
+        content: "Ticket closed by joelhalen",
+        attachments: [],
+        date_sent: MOCK_NOW - 79_000,
+        date_edited: null,
+      },
+    ],
+  };
+}
+
+export function mockAdminTickets(page = 1): AdminTicketPage {
+  return {
+    ...mockMyTickets(page),
+    stats: {
+      open: 3,
+      unclaimed: 2,
+      closed: 311,
+      total: 314,
+      open_by_type: { players: 2, support: 1 },
+    },
   };
 }

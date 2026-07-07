@@ -59,6 +59,13 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     help: "Customize the Discord embeds the bot posts for drops, collection logs, personal bests, combat achievements, pets and the lootboard.",
     default: false,
   },
+  {
+    key: "video_submissions",
+    label: "Video submissions",
+    category: "features",
+    help: "Members can capture and upload short video clips of drops, personal bests and other achievements instead of screenshots.",
+    default: false,
+  },
 ];
 
 export type EntitlementKey = (typeof ENTITLEMENT_FIELDS)[number]["key"];

@@ -3,8 +3,11 @@ import { test } from "node:test";
 import {
   AdminLookupResponseSchema,
   AnnouncementPageSchema,
+  AdminTicketPageSchema,
   EventDetailSchema,
   EventSummarySchema,
+  TicketDetailSchema,
+  TicketPageSchema,
   GroupConfigPatchSchema,
   LeaderboardPageSchema,
   LootboardSchema,
@@ -19,8 +22,11 @@ import {
   mockAnnouncements,
   mockEvent,
   mockEvents,
+  mockAdminTickets,
   mockLookup,
   mockLootboard,
+  mockMyTickets,
+  mockTicket,
   mockMe,
   mockPlayerLeaderboard,
   mockPlayerProfile,
@@ -55,6 +61,9 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => LootboardSchema.parse(mockLootboard(42, "all")));
   assert.doesNotThrow(() => EventSummarySchema.array().parse(mockEvents()));
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(1)));
+  assert.doesNotThrow(() => TicketPageSchema.parse(mockMyTickets()));
+  assert.doesNotThrow(() => TicketDetailSchema.parse(mockTicket(2)));
+  assert.doesNotThrow(() => AdminTicketPageSchema.parse(mockAdminTickets()));
 });
 
 // Every config key (incl. seasonal mirrors) must resolve to a field — guards the
