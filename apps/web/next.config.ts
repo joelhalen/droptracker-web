@@ -60,6 +60,21 @@ const nextConfig: NextConfig = {
       // Account
       { source: "/account/droptracker", destination: "/settings", permanent: true },
       { source: "/account/premium", destination: "/settings", permanent: true },
+
+      // External shortlinks used by the Discord bot, RuneLite plugin, and old docs.
+      // /discord is intentionally NOT permanent: invite links can be rotated, and a
+      // 308 would let browsers cache a dead invite forever.
+      { source: "/discord", destination: "https://discord.gg/dvb7yP7JJH", permanent: false },
+      {
+        source: "/invite",
+        destination: "https://discord.com/oauth2/authorize?client_id=1172933457010245762",
+        permanent: true,
+      },
+      {
+        source: "/runelite",
+        destination: "https://runelite.net/plugin-hub/show/droptracker",
+        permanent: true,
+      },
     ];
   },
 };
