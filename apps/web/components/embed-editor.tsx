@@ -415,9 +415,13 @@ export function EmbedEditor({
     }
     startTransition(async () => {
       try {
-        const saved = await saveGroupEmbedAction(groupId, selected, toInput(draft));
-        setCustomByType((m) => ({ ...m, [selected]: saved }));
-        setDraft(draftFrom(saved));
+        const res = await saveGroupEmbedAction(groupId, selected, toInput(draft));
+        if (!res.ok) {
+          setMessage({ tone: "error", text: res.error });
+          return;
+        }
+        setCustomByType((m) => ({ ...m, [selected]: res.data }));
+        setDraft(draftFrom(res.data));
         setDirty(false);
         setMessage({ tone: "success", text: "Embed saved — new notifications will use it." });
       } catch (err) {
@@ -430,7 +434,11 @@ export function EmbedEditor({
     if (!window.confirm("Remove your custom embed and revert to the DropTracker default?")) return;
     startTransition(async () => {
       try {
-        await resetGroupEmbedAction(groupId, selected);
+        const res = await resetGroupEmbedAction(groupId, selected);
+        if (!res.ok) {
+          setMessage({ tone: "error", text: res.error });
+          return;
+        }
         setCustomByType((m) => ({ ...m, [selected]: null }));
         setDraft(draftFrom(entry?.default));
         setDirty(false);

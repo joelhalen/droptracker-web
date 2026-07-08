@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { ZodError } from "zod";
 import {
   EMBED_TYPES,
   GroupEmbedInputSchema,
@@ -11,6 +12,24 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
+
+/**
+ * Next.js redacts messages of errors thrown from Server Actions in
+ * production, so these actions return a discriminated result instead of
+ * throwing — the editor needs the real backend detail (validation problems,
+ * entitlement failures) to show the user.
+ */
+export type EmbedActionResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
+function errorText(err: unknown): string {
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof ZodError) {
+    const first = err.issues[0];
+    return first ? `${first.path.join(".") || "input"}: ${first.message}` : "Invalid input.";
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return "Something went wrong. Please try again.";
+}
 
 function assertEmbedType(embedType: string): asserts embedType is EmbedType {
   if (!EMBED_TYPES.includes(embedType as EmbedType)) {
@@ -23,27 +42,25 @@ export async function saveGroupEmbedAction(
   groupId: number,
   embedType: string,
   input: GroupEmbedInput,
-): Promise<GroupEmbed> {
-  assertEmbedType(embedType);
-  const user = await getUser();
-  if (!user || !canAdminGroup(user, groupId)) {
-    throw new Error("Forbidden: you do not administer this group.");
-  }
-  if (!user.is_superadmin) {
-    const sub = await api.groupSubscription(groupId);
-    if (!hasEntitlement(sub, "custom_embeds")) {
-      throw new Error("Custom embeds require a higher subscription tier.");
-    }
-  }
-  const parsed = GroupEmbedInputSchema.parse(input);
-
+): Promise<EmbedActionResult<GroupEmbed>> {
   try {
+    assertEmbedType(embedType);
+    const user = await getUser();
+    if (!user || !canAdminGroup(user, groupId)) {
+      return { ok: false, error: "Forbidden: you do not administer this group." };
+    }
+    if (!user.is_superadmin) {
+      const sub = await api.groupSubscription(groupId);
+      if (!hasEntitlement(sub, "custom_embeds")) {
+        return { ok: false, error: "Custom embeds require a higher subscription tier." };
+      }
+    }
+    const parsed = GroupEmbedInputSchema.parse(input);
     const saved = await api.saveGroupEmbed(groupId, embedType, parsed);
     revalidatePath(`/groups/${groupId}/embeds`);
-    return saved;
+    return { ok: true, data: saved };
   } catch (err) {
-    if (err instanceof ApiError) throw new Error(err.message);
-    throw err;
+    return { ok: false, error: errorText(err) };
   }
 }
 
@@ -51,18 +68,17 @@ export async function saveGroupEmbedAction(
 export async function resetGroupEmbedAction(
   groupId: number,
   embedType: string,
-): Promise<{ ok: true }> {
-  assertEmbedType(embedType);
-  const user = await getUser();
-  if (!user || !canAdminGroup(user, groupId)) {
-    throw new Error("Forbidden: you do not administer this group.");
-  }
+): Promise<EmbedActionResult<null>> {
   try {
+    assertEmbedType(embedType);
+    const user = await getUser();
+    if (!user || !canAdminGroup(user, groupId)) {
+      return { ok: false, error: "Forbidden: you do not administer this group." };
+    }
     await api.deleteGroupEmbed(groupId, embedType);
+    revalidatePath(`/groups/${groupId}/embeds`);
+    return { ok: true, data: null };
   } catch (err) {
-    if (err instanceof ApiError) throw new Error(err.message);
-    throw err;
+    return { ok: false, error: errorText(err) };
   }
-  revalidatePath(`/groups/${groupId}/embeds`);
-  return { ok: true };
 }
