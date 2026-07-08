@@ -292,6 +292,7 @@ export function EntityChip({
   badges,
   size = "md",
   className = "",
+  tileClassName = "",
 }: {
   href: Route | string;
   name: string;
@@ -301,10 +302,12 @@ export function EntityChip({
   badges?: ReactNode;
   size?: keyof typeof TILE_SIZES;
   className?: string;
+  /** Extra classes for the identicon tile (e.g. "max-sm:hidden" in dense rows). */
+  tileClassName?: string;
 }) {
   return (
     <Link href={href as Route} className={`group flex min-w-0 items-center gap-2.5 ${className}`}>
-      <NameTile name={name} size={size} />
+      <NameTile name={name} size={size} className={tileClassName} />
       <span className="min-w-0">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className="group-hover:text-osrs-gold-bright truncate font-medium transition-colors">

@@ -59,32 +59,47 @@ function ChipIcon({ badge }: { badge: { icon_url?: string | null; emoji?: string
 }
 
 /** Compact icon-only badge chips for listings (leaderboards, member lists).
- * Deliberately minimal — icon + ×count, "+N" overflow — so rows stay narrow
- * on mobile; the full labels/details live in the player hover card and on
- * the profile page. */
+ * Deliberately minimal so the player NAME always wins the space fight:
+ *  - below `sm`: ONE tiny summary chip (first badge's icon + total award
+ *    count) — a tap target for the hover card, never wide enough to squeeze
+ *    the name;
+ *  - `sm` and up: icon-only chips (+×count, "+N" overflow).
+ * Full labels/details live in the player hover card and on the profile. */
 export function PlayerBadgeIcons({ badges, max = 4 }: { badges: CompactBadge[]; max?: number }) {
-  if (!badges.length) return null;
+  const first = badges[0];
+  if (!first) return null;
   const shown = badges.slice(0, max);
   const overflow = badges.length - shown.length;
+  const totalAwards = badges.reduce((n, b) => n + (b.count && b.count > 1 ? b.count : 1), 0);
   return (
-    <span className="inline-flex shrink-0 items-center gap-1">
-      {shown.map((b, i) => {
-        const detail = badgeDetail(b.key, b.context);
-        const count = b.count && b.count > 1 ? b.count : null;
-        const title = `${b.label}${detail ? ` (${detail})` : ""}${count ? ` ×${count}` : ""}`;
-        return (
-          <Badge key={`${b.key}-${i}`} tone={b.tone} title={title} className="px-1.5">
-            <ChipIcon badge={b} />
-            {count && <span>×{count}</span>}
+    <>
+      <Badge
+        tone={first.tone}
+        title={`${totalAwards} badge${totalAwards === 1 ? "" : "s"} — tap for details`}
+        className="shrink-0 px-1.5 sm:hidden"
+      >
+        <ChipIcon badge={first} />
+        {totalAwards > 1 && <span>×{totalAwards}</span>}
+      </Badge>
+      <span className="hidden shrink-0 items-center gap-1 sm:inline-flex">
+        {shown.map((b, i) => {
+          const detail = badgeDetail(b.key, b.context);
+          const count = b.count && b.count > 1 ? b.count : null;
+          const title = `${b.label}${detail ? ` (${detail})` : ""}${count ? ` ×${count}` : ""}`;
+          return (
+            <Badge key={`${b.key}-${i}`} tone={b.tone} title={title} className="px-1.5">
+              <ChipIcon badge={b} />
+              {count && <span>×{count}</span>}
+            </Badge>
+          );
+        })}
+        {overflow > 0 && (
+          <Badge tone="neutral" title={`${overflow} more badge${overflow === 1 ? "" : "s"}`} className="px-1.5">
+            +{overflow}
           </Badge>
-        );
-      })}
-      {overflow > 0 && (
-        <Badge tone="neutral" title={`${overflow} more badge${overflow === 1 ? "" : "s"}`} className="px-1.5">
-          +{overflow}
-        </Badge>
-      )}
-    </span>
+        )}
+      </span>
+    </>
   );
 }
 

@@ -153,12 +153,21 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                   {kind === "players" ? (
                     // Badges sit OUTSIDE the profile link so a tap on them
                     // toggles the hover card instead of navigating (the name
-                    // itself still navigates on tap).
+                    // itself still navigates on tap). The name link is
+                    // shrink-0 — RSNs cap at 12 chars and must NEVER truncate;
+                    // badges and the identicon tile are the second-priority
+                    // elements that give way on narrow screens.
                     <HoverCard
                       className="flex min-w-0 items-center gap-1.5"
                       content={<PlayerCardContent row={r} href={`${hrefBase}/${r.id}`} />}
                     >
-                      <EntityChip href={`${hrefBase}/${r.id}` as Route} name={r.name} size="sm" />
+                      <EntityChip
+                        href={`${hrefBase}/${r.id}` as Route}
+                        name={r.name}
+                        size="sm"
+                        className="shrink-0"
+                        tileClassName="max-sm:hidden"
+                      />
                       {r.badges?.length ? <PlayerBadgeIcons badges={r.badges} /> : null}
                     </HoverCard>
                   ) : (
