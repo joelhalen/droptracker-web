@@ -57,6 +57,10 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
   const paidTiers = tiers.filter((t) => t.price_cents > 0);
   if (paidTiers.length === 0) return null;
   const isActive = sub != null && (sub.status === "active" || sub.status === "trialing");
+  // Perks without a live subscription = a complimentary grant (e.g. the Bug
+  // Tester badge). Subscribing still works — it stacks as direct support.
+  const complimentary =
+    sub != null && !isActive && Boolean(sub.entitlements?.dm_submissions);
 
   const redirectOrNotice = (url: string | null) => {
     if (url) {
@@ -197,6 +201,12 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
                 </div>
               ) : (
                 <div className="mt-5 space-y-3">
+                  {complimentary && (
+                    <p className="border-osrs-gold/40 bg-osrs-gold/10 text-osrs-parchment rounded border px-3 py-2 text-xs">
+                      You already have supporter perks as a <strong>Bug Tester</strong> — thank
+                      you! Subscribing is optional and goes directly to hosting and development.
+                    </p>
+                  )}
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">Your monthly amount</span>
                     <div className="flex items-center gap-1">
