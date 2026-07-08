@@ -151,18 +151,15 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                 </td>
                 <td className="w-full max-w-0 px-3 py-2">
                   {kind === "players" ? (
+                    // Badges sit OUTSIDE the profile link so a tap on them
+                    // toggles the hover card instead of navigating (the name
+                    // itself still navigates on tap).
                     <HoverCard
-                      className="flex min-w-0 items-center"
+                      className="flex min-w-0 items-center gap-1.5"
                       content={<PlayerCardContent row={r} href={`${hrefBase}/${r.id}`} />}
                     >
-                      <EntityChip
-                        href={`${hrefBase}/${r.id}` as Route}
-                        name={r.name}
-                        size="sm"
-                        badges={
-                          r.badges?.length ? <PlayerBadgeIcons badges={r.badges} /> : undefined
-                        }
-                      />
+                      <EntityChip href={`${hrefBase}/${r.id}` as Route} name={r.name} size="sm" />
+                      {r.badges?.length ? <PlayerBadgeIcons badges={r.badges} /> : null}
                     </HoverCard>
                   ) : (
                     <EntityChip href={`${hrefBase}/${r.id}` as Route} name={r.name} size="sm" />
