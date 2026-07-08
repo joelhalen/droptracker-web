@@ -58,35 +58,59 @@ function ChipIcon({ badge }: { badge: { icon_url?: string | null; emoji?: string
   return <span aria-hidden>{badge.emoji ?? "★"}</span>;
 }
 
-/** Labelled badge chips for a leaderboard row, matching the /admin/badges
- * pill style: icon + name + award specifics, with a "+N" overflow chip. */
-export function PlayerBadgeIcons({ badges, max = 3 }: { badges: CompactBadge[]; max?: number }) {
+/** Compact icon-only badge chips for listings (leaderboards, member lists).
+ * Deliberately minimal — icon + ×count, "+N" overflow — so rows stay narrow
+ * on mobile; the full labels/details live in the player hover card and on
+ * the profile page. */
+export function PlayerBadgeIcons({ badges, max = 4 }: { badges: CompactBadge[]; max?: number }) {
   if (!badges.length) return null;
   const shown = badges.slice(0, max);
   const overflow = badges.length - shown.length;
   return (
-    <span className="inline-flex flex-wrap items-center gap-1">
+    <span className="inline-flex shrink-0 items-center gap-1">
       {shown.map((b, i) => {
         const detail = badgeDetail(b.key, b.context);
         const count = b.count && b.count > 1 ? b.count : null;
-        const title =
-          `${b.label}${detail ? ` (${detail})` : ""}` +
-          (count ? ` — earned ${count} times, latest shown` : "");
+        const title = `${b.label}${detail ? ` (${detail})` : ""}${count ? ` ×${count}` : ""}`;
         return (
-          <Badge key={`${b.key}-${i}`} tone={b.tone} title={title}>
+          <Badge key={`${b.key}-${i}`} tone={b.tone} title={title} className="px-1.5">
             <ChipIcon badge={b} />
-            {b.label}
-            {detail && <span className="font-normal opacity-80">({detail})</span>}
             {count && <span>×{count}</span>}
           </Badge>
         );
       })}
       {overflow > 0 && (
-        <Badge tone="neutral" title={`${overflow} more badge${overflow === 1 ? "" : "s"}`}>
+        <Badge tone="neutral" title={`${overflow} more badge${overflow === 1 ? "" : "s"}`} className="px-1.5">
           +{overflow}
         </Badge>
       )}
     </span>
+  );
+}
+
+/** Full badge rows (icon + label + award specifics + count) for the player
+ * hover card — the detail that used to crowd listing rows inline. */
+export function CompactBadgeDetails({ badges }: { badges: CompactBadge[] }) {
+  if (!badges.length) return null;
+  return (
+    <ul className="space-y-1.5">
+      {badges.map((b, i) => {
+        const detail = badgeDetail(b.key, b.context);
+        const count = b.count && b.count > 1 ? b.count : null;
+        return (
+          <li key={`${b.key}-${i}`} className="flex items-center gap-2 text-sm">
+            <Badge tone={b.tone} className="shrink-0 px-1.5">
+              <ChipIcon badge={b} />
+            </Badge>
+            <span className="min-w-0 truncate">
+              <span className="font-medium">{b.label}</span>
+              {detail && <span className="text-osrs-parchment-dark/70"> ({detail})</span>}
+              {count && <span className="text-osrs-parchment-dark/70"> ×{count}</span>}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

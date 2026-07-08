@@ -89,7 +89,8 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
     }, "Couldn't resume the subscription. Please try again.");
 
   return (
-    <section className="mx-auto max-w-4xl space-y-4">
+    // scroll-mt clears the sticky header when arriving via /premium#supporter.
+    <section id="supporter" className="mx-auto max-w-4xl scroll-mt-24 space-y-4">
       <header className="text-center">
         <h2 className="text-osrs-gold text-2xl font-bold">Support DropTracker personally</h2>
         <p className="text-osrs-parchment-dark/80 mx-auto mt-1 max-w-xl text-sm">

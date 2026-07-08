@@ -8,13 +8,44 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import type { Route } from "next";
+import Link from "next/link";
 import type { LeaderboardEntry } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp } from "@/lib/format";
-import { EmptyState, EntityChip, RankMedal } from "@/components/ui";
-import { PlayerBadgeIcons } from "@/components/player-badges";
+import { EmptyState, EntityChip, NameTile, RankMedal } from "@/components/ui";
+import { CompactBadgeDetails, PlayerBadgeIcons } from "@/components/player-badges";
+import { HoverCard } from "@/components/hover-card";
 
 const BADGE_DURATION_MS = 2500;
+
+/** Hover-card body for a player row: identity, period standing, and the full
+ * badge details that the compact inline chips deliberately omit. */
+function PlayerCardContent({ row, href }: { row: LeaderboardEntry; href: string }) {
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2.5">
+        <NameTile name={row.name} size="md" />
+        <div className="min-w-0">
+          <div className="truncate font-semibold">{row.name}</div>
+          <div className="text-osrs-parchment-dark/60 text-xs">
+            Rank #{row.rank} · {row.loot.value_formatted} this period
+          </div>
+        </div>
+      </div>
+      {row.badges && row.badges.length > 0 && (
+        <div className="border-osrs-bronze/25 mt-2.5 border-t pt-2.5">
+          <CompactBadgeDetails badges={row.badges} />
+        </div>
+      )}
+      <Link
+        href={href as Route}
+        className="text-osrs-gold-bright mt-2.5 block text-xs font-medium hover:underline"
+      >
+        View full profile →
+      </Link>
+    </div>
+  );
+}
 
 type Props = {
   entries: LeaderboardEntry[];
@@ -119,14 +150,23 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                   <RankMedal rank={r.rank} />
                 </td>
                 <td className="w-full max-w-0 px-3 py-2">
-                  <EntityChip
-                    href={`${hrefBase}/${r.id}` as Route}
-                    name={r.name}
-                    size="sm"
-                    badges={
-                      r.badges?.length ? <PlayerBadgeIcons badges={r.badges} /> : undefined
-                    }
-                  />
+                  {kind === "players" ? (
+                    <HoverCard
+                      className="flex min-w-0 items-center"
+                      content={<PlayerCardContent row={r} href={`${hrefBase}/${r.id}`} />}
+                    >
+                      <EntityChip
+                        href={`${hrefBase}/${r.id}` as Route}
+                        name={r.name}
+                        size="sm"
+                        badges={
+                          r.badges?.length ? <PlayerBadgeIcons badges={r.badges} /> : undefined
+                        }
+                      />
+                    </HoverCard>
+                  ) : (
+                    <EntityChip href={`${hrefBase}/${r.id}` as Route} name={r.name} size="sm" />
+                  )}
                 </td>
                 {/* Relative loot bar behind the value: instant read of the
                     gap between ranks without scanning the numbers. */}

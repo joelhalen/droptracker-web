@@ -259,14 +259,24 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
             {tabs.map((t) => {
               const active = pathname === t.href || (t.matchPrefix && pathname.startsWith(`${t.href}/`));
               return (
-                <Link
-                  key={t.href}
-                  href={t.href as Route}
-                  aria-current={active ? "page" : undefined}
-                  className={`${MENU_ITEM_CLASS} ${active ? "bg-osrs-bronze/25 text-osrs-gold-bright" : ""}`}
-                >
-                  {t.label}
-                </Link>
+                <div key={t.href}>
+                  <Link
+                    href={t.href as Route}
+                    aria-current={active ? "page" : undefined}
+                    className={`${MENU_ITEM_CLASS} ${active ? "bg-osrs-bronze/25 text-osrs-gold-bright" : ""}`}
+                  >
+                    {t.label}
+                  </Link>
+                  {t.children?.map((c) => (
+                    <Link
+                      key={c.href}
+                      href={c.href as Route}
+                      className={`${MENU_ITEM_CLASS} text-osrs-parchment-dark/80 pl-7 text-[13px]`}
+                    >
+                      {c.label}
+                    </Link>
+                  ))}
+                </div>
               );
             })}
           </nav>

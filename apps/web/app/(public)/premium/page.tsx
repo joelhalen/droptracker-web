@@ -10,7 +10,8 @@ export const revalidate = 300;
 
 export const metadata: Metadata = {
   title: "Premium",
-  description: "Upgrade your clan with a DropTracker recurring subscription.",
+  description:
+    "Upgrade your clan with a DropTracker group subscription, or support the project personally as a supporter.",
 };
 
 export default async function PremiumPage() {
@@ -24,8 +25,9 @@ export default async function PremiumPage() {
       <header className="text-center">
         <h1 className="text-osrs-gold text-3xl font-bold">Premium for clans</h1>
         <p className="text-osrs-parchment-dark/80 mx-auto mt-2 max-w-xl">
-          A recurring subscription that unlocks seasonal boards, deeper history, and priority
-          processing for your whole group. Manage it from your group&apos;s admin page.
+          A recurring subscription that unlocks extras for your whole group — custom Discord
+          embeds, the Hall of Fame, events like bingo, and video submissions. Manage it from your
+          group&apos;s admin page.
         </p>
       </header>
 

@@ -379,7 +379,7 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
     {
       key: "premium",
       name: "Premium",
-      description: "More history, seasonal boards, and priority processing.",
+      description: "Custom embeds, the Hall of Fame, and more for your clan.",
       scope: "group",
       price_cents: 500,
       currency: "USD",
@@ -389,7 +389,6 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
         "Seasonal lootboards",
         "Extended submission history",
         "Custom board themes",
-        "Priority processing",
       ],
       entitlements: { events: true, hall_of_fame: true },
       recommended: true,

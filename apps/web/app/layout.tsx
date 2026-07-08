@@ -38,10 +38,42 @@ const runescape = localFont({
 
 // "Events" owns a nested /events/[id] detail route — stay highlighted there too.
 const HEADER_TABS: NavTab[] = [
-  { href: "/leaderboards", label: "Leaderboards" },
+  {
+    href: "/leaderboards",
+    label: "Leaderboards",
+    children: [
+      {
+        href: "/leaderboards?tab=players",
+        label: "Players",
+        description: "Top individual looters by period",
+      },
+      {
+        href: "/leaderboards?tab=groups",
+        label: "Groups",
+        description: "Clans ranked by monthly loot",
+      },
+    ],
+  },
   { href: "/events", label: "Events", matchPrefix: true },
-  { href: "/search", label: "Search" },
   { href: "/announcements", label: "News", matchPrefix: true },
+  { href: "/docs", label: "Docs", matchPrefix: true },
+  {
+    href: "/premium",
+    label: "Premium",
+    children: [
+      {
+        href: "/premium",
+        label: "Group upgrades",
+        description: "Unlock features for your whole clan",
+      },
+      {
+        href: "/premium#supporter",
+        label: "Become a supporter",
+        description: "Personal perks + submission DMs",
+      },
+    ],
+  },
+  { href: "/search", label: "Search" },
 ];
 
 export const metadata: Metadata = {
