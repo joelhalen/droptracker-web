@@ -21,12 +21,23 @@ import {
  * state is fetched client-side via a server action after mount; signed-out
  * visitors just see the subscribe button (checkout prompts sign-in).
  */
+/** Minor units → "$7.50" / "$5" style display. */
+function formatAmount(cents: number, currency = "USD"): string {
+  return (cents / 100).toLocaleString(undefined, {
+    style: "currency",
+    currency,
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  });
+}
+
 export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
   const [sub, setSub] = useState<UserSubscription | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Pay-what-you-want amount per tier, in whole dollars (input granularity).
+  const [amounts, setAmounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -66,9 +77,9 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
       }
     });
 
-  const onCheckout = (tierKey: string) =>
+  const onCheckout = (tierKey: string, amountCents: number) =>
     run(async () => {
-      const { url } = await startSupporterCheckout(tierKey);
+      const { url } = await startSupporterCheckout(tierKey, amountCents);
       redirectOrNotice(url);
     }, "Couldn't start checkout. Sign in first, then try again.");
 
@@ -94,14 +105,22 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
       <header className="text-center">
         <h2 className="text-osrs-gold text-2xl font-bold">Support DropTracker personally</h2>
         <p className="text-osrs-parchment-dark/80 mx-auto mt-1 max-w-xl text-sm">
-          A personal subscription that supports the project and unlocks perks for you — separate
-          from (or in addition to) your group&apos;s plan.
+          A personal subscription that supports the project and unlocks perks for you — including
+          video capture for your own submissions, even if your group&apos;s plan doesn&apos;t have
+          it. Pay any amount you like, separate from (or in addition to) your group&apos;s plan.
         </p>
       </header>
 
       <div className="mx-auto grid max-w-2xl gap-4 sm:grid-cols-1">
         {paidTiers.map((t) => {
           const current = isActive && sub?.tier_key === t.key;
+          const minDollars = Math.max(1, Math.ceil(t.price_cents / 100));
+          // Raw input value — validated (not clamped) so typing isn't fought.
+          const chosenDollars = amounts[t.key] ?? minDollars;
+          const amountValid = Number.isFinite(chosenDollars) && chosenDollars >= minDollars;
+          const quickPicks = Array.from(new Set([minDollars, 10, 25])).filter(
+            (v) => v >= minDollars,
+          );
           return (
             <div
               key={t.key}
@@ -112,7 +131,10 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
                   {t.name}
                   {current && <Badge tone="green">Active</Badge>}
                 </span>
-                <span className="text-osrs-parchment text-2xl font-bold">{formatPrice(t)}</span>
+                <span className="text-osrs-parchment text-2xl font-bold">
+                  <span className="text-osrs-parchment-dark/60 text-sm font-normal">from </span>
+                  {formatPrice(t)}
+                </span>
               </div>
               {t.description && (
                 <p className="text-osrs-parchment-dark/70 mt-1 text-sm">{t.description}</p>
@@ -134,6 +156,7 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
                       <span className="text-osrs-parchment-dark/60">
                         {sub.cancel_at_period_end ? "ends" : "renews"}{" "}
                         {formatDate(sub.current_period_end)}
+                        {sub.amount_cents ? ` at ${formatAmount(sub.amount_cents)}/mo` : ""}
                       </span>
                     )}
                   </div>
@@ -168,17 +191,65 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
                     <a href="/settings" className="text-osrs-gold-bright hover:underline">
                       Settings
                     </a>
-                    .
+                    . To change your monthly amount, cancel and re-subscribe once the current
+                    period ends.
                   </p>
                 </div>
               ) : (
-                <button
-                  onClick={() => onCheckout(t.key)}
-                  disabled={pending || !loaded}
-                  className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-5 rounded px-3 py-2 text-sm font-medium disabled:cursor-default disabled:opacity-50"
-                >
-                  {isActive ? "Switch to this plan" : "Become a supporter"}
-                </button>
+                <div className="mt-5 space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium">Your monthly amount</span>
+                    <div className="flex items-center gap-1">
+                      {quickPicks.map((v) => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => setAmounts((a) => ({ ...a, [t.key]: v }))}
+                          className={`rounded border px-2 py-1 text-xs transition-colors ${
+                            chosenDollars === v
+                              ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
+                              : "border-osrs-bronze/40 hover:border-osrs-gold"
+                          }`}
+                        >
+                          ${v}
+                        </button>
+                      ))}
+                      <label className="flex items-center gap-1 text-sm">
+                        <span className="text-osrs-parchment-dark/60">$</span>
+                        <input
+                          type="number"
+                          min={minDollars}
+                          step={1}
+                          value={Number.isFinite(chosenDollars) ? chosenDollars : ""}
+                          onChange={(e) =>
+                            setAmounts((a) => ({
+                              ...a,
+                              [t.key]: Math.floor(Number(e.target.value)),
+                            }))
+                          }
+                          className="border-osrs-bronze/40 bg-osrs-surface-2 w-20 rounded border px-2 py-1 text-sm"
+                          aria-label="Monthly amount in dollars"
+                        />
+                        <span className="text-osrs-parchment-dark/60 text-xs">/month</span>
+                      </label>
+                    </div>
+                  </div>
+                  <p className="text-osrs-parchment-dark/60 text-xs">
+                    Choose any amount from ${minDollars}/month — every bit funds hosting and
+                    development.
+                  </p>
+                  <button
+                    onClick={() => onCheckout(t.key, chosenDollars * 100)}
+                    disabled={pending || !loaded || !amountValid}
+                    className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark w-full rounded px-3 py-2 text-sm font-medium disabled:cursor-default disabled:opacity-50"
+                  >
+                    {isActive
+                      ? "Switch to this plan"
+                      : amountValid
+                        ? `Become a supporter — ${formatAmount(chosenDollars * 100)}/month`
+                        : `Become a supporter (min $${minDollars}/month)`}
+                  </button>
+                </div>
               )}
             </div>
           );

@@ -251,7 +251,7 @@ export function mockAccountSettings(): AccountSettings {
     dm_diaries: false,
     dm_levels: false,
     dm_min_value: 1_000_000,
-    supporter_entitlements: { dm_submissions: true, supporter_flair: true },
+    supporter_entitlements: { dm_submissions: true, supporter_flair: true, video_submissions: true },
     players: [
       { id: 1, name: "Mock Player", hidden: false },
       { id: 2, name: "Mock Alt", hidden: true },
@@ -431,9 +431,10 @@ export function mockUserSubscription(): UserSubscription {
     tier_key: "supporter",
     status: "active",
     provider: "stripe",
+    amount_cents: 750,
     current_period_end: Math.floor(Date.now() / 1000) + 18 * 86400,
     cancel_at_period_end: false,
-    entitlements: { dm_submissions: true, supporter_flair: true },
+    entitlements: { dm_submissions: true, supporter_flair: true, video_submissions: true },
   };
 }
 

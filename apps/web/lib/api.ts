@@ -1250,12 +1250,17 @@ export const api = {
     );
   },
 
-  /** Begin (or switch to) a supporter tier; returns a provider redirect URL. */
-  async mySubscriptionCheckout(tierKey: string): Promise<CheckoutSession> {
+  /** Begin (or switch to) a supporter tier; returns a provider redirect URL.
+   * Pay-what-you-want: `amountCents` (>= tier minimum) picks the recurring
+   * amount; omitted = the tier minimum. */
+  async mySubscriptionCheckout(tierKey: string, amountCents?: number): Promise<CheckoutSession> {
     return withFallback(
       async () =>
         CheckoutSessionSchema.parse(
-          await apiSend("POST", `/users/me/subscription/checkout`, { tier_key: tierKey }),
+          await apiSend("POST", `/users/me/subscription/checkout`, {
+            tier_key: tierKey,
+            ...(amountCents != null ? { amount_cents: amountCents } : {}),
+          }),
         ),
       () => ({ url: null }),
     );

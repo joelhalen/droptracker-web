@@ -96,6 +96,13 @@ export const USER_ENTITLEMENT_FIELDS: EntitlementField[] = [
     help: "A distinct supporter display style on your public profile and site listings.",
     default: false,
   },
+  {
+    key: "video_submissions",
+    label: "Personal video submissions",
+    category: "supporter",
+    help: "Capture and upload short video clips of your own submissions, independent of whether any of your groups has video submissions enabled.",
+    default: false,
+  },
 ];
 
 export type UserEntitlementKey = (typeof USER_ENTITLEMENT_FIELDS)[number]["key"];

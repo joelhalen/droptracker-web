@@ -547,6 +547,9 @@ export const UserSubscriptionSchema = z.object({
   tier_key: z.string().nullable(),
   status: z.enum(SubscriptionStatus),
   provider: z.enum(["patreon", "stripe", "paypal", "manual"]).nullable(),
+  /** Pay-what-you-want: the chosen recurring amount in minor units
+   * (the tier's price_cents is the minimum). Null on legacy rows. */
+  amount_cents: z.number().int().nullable().optional(),
   current_period_end: z.number().int().nullable(),
   cancel_at_period_end: z.boolean().default(false),
   /** Resolved supporter entitlements (present on Web API reads). */

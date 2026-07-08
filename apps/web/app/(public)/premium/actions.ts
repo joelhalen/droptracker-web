@@ -11,11 +11,16 @@ export async function getSupporterStatus(): Promise<UserSubscription | null> {
   return api.mySubscription();
 }
 
-/** Begin (or switch to) a supporter tier; returns a provider checkout URL. */
-export async function startSupporterCheckout(tierKey: string) {
+/** Begin (or switch to) a supporter tier; returns a provider checkout URL.
+ * `amountCents` is the pay-what-you-want recurring amount (server enforces
+ * the tier minimum). */
+export async function startSupporterCheckout(tierKey: string, amountCents?: number) {
   const user = await getUser();
   if (!user) throw new Error("Sign in to become a supporter.");
-  return api.mySubscriptionCheckout(tierKey);
+  if (amountCents != null && (!Number.isInteger(amountCents) || amountCents <= 0)) {
+    throw new Error("Choose a valid amount.");
+  }
+  return api.mySubscriptionCheckout(tierKey, amountCents);
 }
 
 export async function cancelSupporter() {
