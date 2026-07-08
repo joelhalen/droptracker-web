@@ -9,7 +9,11 @@
  * and for React Hook Form on the client (FRONTEND_PLAN.md §4 "Forms/validation").
  */
 import { z } from "zod";
-import { GroupEntitlementsSchema, TierEntitlementsSchema } from "./entitlements";
+import {
+  GroupEntitlementsSchema,
+  TierEntitlementsSchema,
+  UserEntitlementsSchema,
+} from "./entitlements";
 
 /** Time partitions supported by the leaderboard API (FRONTEND_PLAN.md §6.5). */
 export const PeriodSchema = z
@@ -197,6 +201,36 @@ export const PersonalBestSummarySchema = z.object({
 });
 export type PersonalBestSummary = z.infer<typeof PersonalBestSummarySchema>;
 
+/** One stacked item inside a loot-tracker NPC box. */
+export const LootTrackerItemSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  quantity: z.number().int(),
+  loot: MoneySchema,
+});
+export type LootTrackerItem = z.infer<typeof LootTrackerItemSchema>;
+
+/** RuneLite-style loot box: one NPC's month of drops, items stacked. */
+export const LootTrackerNpcSchema = z.object({
+  npc_id: z.number().int(),
+  name: z.string(),
+  /** Distinct drop events (multi-item kills counted once). */
+  kills: z.number().int(),
+  loot: MoneySchema,
+  items: z.array(LootTrackerItemSchema),
+});
+export type LootTrackerNpc = z.infer<typeof LootTrackerNpcSchema>;
+
+export const PlayerLootTrackerSchema = z.object({
+  player_id: z.number().int(),
+  /** YYYYMM month shown. */
+  partition: z.number().int(),
+  /** First YYYYMM with tracked drops (month-picker lower bound). */
+  earliest_partition: z.number().int(),
+  npcs: z.array(LootTrackerNpcSchema),
+});
+export type PlayerLootTracker = z.infer<typeof PlayerLootTrackerSchema>;
+
 export const PlayerProfileSchema = PlayerSummarySchema.extend({
   points: z.number().int().optional(),
   top_npc: z.string().optional(),
@@ -208,6 +242,8 @@ export const PlayerProfileSchema = PlayerSummarySchema.extend({
   groups: z.array(GroupMembershipSchema).default([]),
   recent_submissions: z.array(SubmissionSchema).default([]),
   badges: z.array(PlayerBadgeSchema).optional(),
+  /** Owner has an active supporter subscription (display flair). */
+  is_supporter: z.boolean().optional(),
 });
 export type PlayerProfile = z.infer<typeof PlayerProfileSchema>;
 
@@ -253,6 +289,8 @@ export const MeSchema = z.object({
   avatar_url: z.string().nullable().optional(),
   /** Site staff: unlocks the superadmin surfaces (FRONTEND_PLAN.md §9). */
   is_superadmin: z.boolean().default(false),
+  /** Active supporter subscription (user-level premium flair/perks). */
+  is_supporter: z.boolean().default(false),
   players: z.array(PlayerSummarySchema).default([]),
   groups: z
     .array(
@@ -298,11 +336,31 @@ export const AccountSettingsSchema = z.object({
   group_ping: z.boolean(),
   never_ping: z.boolean(),
   dm_account_changes: z.boolean(),
+  /**
+   * Supporter submission-DM opt-ins (per type) + minimum drop value in GP.
+   * Saved for everyone; only take effect with the `dm_submissions` supporter
+   * entitlement (see `supporter_entitlements`).
+   */
+  dm_drops: z.boolean().default(false),
+  dm_pbs: z.boolean().default(false),
+  dm_cas: z.boolean().default(false),
+  dm_clogs: z.boolean().default(false),
+  dm_pets: z.boolean().default(false),
+  dm_quests: z.boolean().default(false),
+  dm_deaths: z.boolean().default(false),
+  dm_diaries: z.boolean().default(false),
+  dm_levels: z.boolean().default(false),
+  dm_min_value: z.number().int().nonnegative().default(0),
+  /** Resolved user-level entitlements (read-only; drives the DM section gate). */
+  supporter_entitlements: UserEntitlementsSchema.optional(),
   players: z.array(SettingsPlayerSchema).default([]),
 });
 export type AccountSettings = z.infer<typeof AccountSettingsSchema>;
 /** PATCH body: any subset of the toggle settings (players are patched per-id). */
-export const AccountSettingsPatchSchema = AccountSettingsSchema.omit({ players: true }).partial();
+export const AccountSettingsPatchSchema = AccountSettingsSchema.omit({
+  players: true,
+  supporter_entitlements: true,
+}).partial();
 export type AccountSettingsPatch = z.infer<typeof AccountSettingsPatchSchema>;
 
 /** Combined player+group search results (FRONTEND_PLAN.md §9 "Search"). */
@@ -442,6 +500,8 @@ export const SubscriptionTierSchema = z.object({
   key: z.string(),
   name: z.string(),
   description: z.string().optional(),
+  /** Who this tier applies to: group upgrade vs personal supporter. */
+  scope: z.enum(["group", "user"]).default("group"),
   /** Price in minor currency units (e.g. cents) per interval. */
   price_cents: z.number().int().nonnegative(),
   currency: z.string().default("USD"),
@@ -477,6 +537,22 @@ export const GroupSubscriptionSchema = z.object({
   entitlements: GroupEntitlementsSchema.optional(),
 });
 export type GroupSubscription = z.infer<typeof GroupSubscriptionSchema>;
+
+/**
+ * User-level supporter subscription (GET /api/v1/users/me/subscription).
+ * Same lifecycle as GroupSubscription, scoped to the signed-in user.
+ */
+export const UserSubscriptionSchema = z.object({
+  user_id: z.number().int(),
+  tier_key: z.string().nullable(),
+  status: z.enum(SubscriptionStatus),
+  provider: z.enum(["patreon", "stripe", "paypal", "manual"]).nullable(),
+  current_period_end: z.number().int().nullable(),
+  cancel_at_period_end: z.boolean().default(false),
+  /** Resolved supporter entitlements (present on Web API reads). */
+  entitlements: UserEntitlementsSchema.optional(),
+});
+export type UserSubscription = z.infer<typeof UserSubscriptionSchema>;
 
 /** Provider-hosted checkout/billing redirect. `url` is null when unavailable. */
 export const CheckoutSessionSchema = z.object({ url: z.string().nullable() });

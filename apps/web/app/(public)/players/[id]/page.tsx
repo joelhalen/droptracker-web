@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
 import { CountUp } from "@/components/count-up";
+import { LootTracker } from "@/components/loot-tracker";
 import { PlayerBadgeList } from "@/components/player-badges";
 import { BossActivityList, PersonalBestsShowcase } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
@@ -48,6 +49,8 @@ export default async function PlayerPage({ params }: { params: Params }) {
   const playerId = Number(id);
   if (!Number.isFinite(playerId)) notFound();
   const player = await orNotFound(api.player(playerId));
+  // Loot tracker is non-critical: render the profile even if it fails.
+  const loot = await api.playerLoot(playerId).catch(() => null);
 
   // JSON-LD for richer search results (FRONTEND_PLAN.md §15 SEO).
   const jsonLd = {
@@ -70,7 +73,20 @@ export default async function PlayerPage({ params }: { params: Params }) {
         <div className="flex items-center gap-4">
           <NameTile name={player.name} size="lg" />
           <div>
-            <h1 className="text-osrs-gold text-3xl font-bold">{player.name}</h1>
+            <h1
+              className={`flex flex-wrap items-center gap-2 text-3xl font-bold ${
+                player.is_supporter
+                  ? "bg-gradient-to-r from-osrs-gold via-osrs-gold-bright to-osrs-gold bg-clip-text text-transparent"
+                  : "text-osrs-gold"
+              }`}
+            >
+              {player.name}
+              {player.is_supporter && (
+                <Badge tone="gold" title="This player supports DropTracker">
+                  ★ Supporter
+                </Badge>
+              )}
+            </h1>
             <p className="text-osrs-parchment-dark/80 text-sm">Old School RuneScape player</p>
           </div>
         </div>
@@ -117,6 +133,15 @@ export default async function PlayerPage({ params }: { params: Params }) {
             <Badge tone="sky">{player.personal_bests!.length} bosses</Badge>
           </div>
           <PersonalBestsShowcase pbs={player.personal_bests!} />
+        </section>
+      )}
+
+      {loot && (
+        <section className="rise-in">
+          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+            Loot tracker
+          </h2>
+          <LootTracker playerId={playerId} initial={loot} />
         </section>
       )}
 

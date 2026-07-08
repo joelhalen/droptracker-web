@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
 import { Badge, EmptyState } from "@/components/ui";
 import { InlineMarkdown } from "@/components/markdown";
+import { SupporterManager } from "@/components/supporter-manager";
 
 export const revalidate = 300;
 
@@ -13,7 +14,10 @@ export const metadata: Metadata = {
 };
 
 export default async function PremiumPage() {
-  const tiers = await api.subscriptionTiers();
+  const [tiers, supporterTiers] = await Promise.all([
+    api.subscriptionTiers(),
+    api.supporterTiers(),
+  ]);
 
   return (
     <div className="space-y-8">
@@ -66,6 +70,10 @@ export default async function PremiumPage() {
           Manage your group&apos;s subscription →
         </Link>
       </p>
+
+      <hr className="border-osrs-bronze/30 mx-auto max-w-4xl" />
+
+      <SupporterManager tiers={supporterTiers} />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { SubscriptionTier } from "@droptracker/api-types";
-import { ENTITLEMENT_FIELDS } from "@droptracker/api-types";
+import { ENTITLEMENT_FIELDS, entitlementFieldsForScope } from "@droptracker/api-types";
 import { formatPrice } from "@/lib/format";
 import { InlineMarkdown } from "@/components/markdown";
 import { deleteTier, saveTier } from "@/app/(admin)/admin/tiers/actions";
@@ -11,6 +11,7 @@ const blankTier = (): SubscriptionTier => ({
   key: "",
   name: "",
   description: "",
+  scope: "group",
   price_cents: 0,
   currency: "USD",
   interval: "month",
@@ -40,6 +41,11 @@ export function TierManager({ tiers }: { tiers: SubscriptionTier[] }) {
             <div>
               <span className="font-medium">{t.name}</span>
               <span className="text-osrs-parchment-dark/50 ml-2 text-xs">{t.key}</span>
+              {t.scope === "user" && (
+                <span className="bg-osrs-bronze/30 text-osrs-parchment-dark ml-2 rounded px-1.5 py-0.5 text-xs">
+                  Personal
+                </span>
+              )}
               {t.recommended && (
                 <span className="bg-osrs-gold/20 text-osrs-gold ml-2 rounded px-1.5 py-0.5 text-xs">
                   Popular
@@ -91,6 +97,18 @@ function TierForm({
     setForm((f) => ({
       ...f,
       entitlements: { ...f.entitlements, [key]: value },
+    }));
+
+  const entitlementFields = entitlementFieldsForScope(form.scope);
+
+  // Scope decides which capability registry applies — reset on change.
+  const setScope = (scope: SubscriptionTier["scope"]) =>
+    setForm((f) => ({
+      ...f,
+      scope,
+      entitlements: Object.fromEntries(
+        entitlementFieldsForScope(scope).map((ent) => [ent.key, ent.default]),
+      ),
     }));
 
   const field =
@@ -156,6 +174,18 @@ function TierForm({
             <option value="year">Yearly</option>
           </select>
         </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Applies to</span>
+          <select
+            value={form.scope}
+            onChange={(e) => setScope(e.target.value as SubscriptionTier["scope"])}
+            disabled={!isNew}
+            className={`${field} disabled:opacity-60`}
+          >
+            <option value="group">Groups (clan upgrade)</option>
+            <option value="user">Users (personal supporter)</option>
+          </select>
+        </label>
       </div>
 
       <label className="block">
@@ -183,9 +213,10 @@ function TierForm({
       <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-4">
         <legend className="text-osrs-gold px-1 text-sm font-semibold">Capabilities</legend>
         <p className="text-osrs-parchment-dark/60 text-xs">
-          Runtime access control — which features groups on this tier can use.
+          Runtime access control — which features{" "}
+          {form.scope === "user" ? "supporters" : "groups"} on this tier can use.
         </p>
-        {ENTITLEMENT_FIELDS.map((ent) =>
+        {entitlementFields.map((ent) =>
           ent.kind === "int" ? (
             <label key={ent.key} className="flex items-start gap-3">
               <input

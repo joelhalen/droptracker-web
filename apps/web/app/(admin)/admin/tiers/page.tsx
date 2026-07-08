@@ -5,7 +5,7 @@ import { TierManager } from "@/components/tier-manager";
 export const metadata: Metadata = { title: "Subscription tiers" };
 
 export default async function AdminTiersPage() {
-  const tiers = await api.subscriptionTiers();
+  const tiers = await api.subscriptionTiers("all");
 
   return (
     <div className="max-w-2xl">

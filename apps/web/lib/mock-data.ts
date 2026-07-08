@@ -17,10 +17,12 @@ import type {
   GroupMembersPage,
   GroupProfile,
   GroupSubscription,
+  UserSubscription,
   GuildStatus,
   LeaderboardPage,
   Lootboard,
   Me,
+  PlayerLootTracker,
   PlayerProfile,
   SearchResults,
   ServiceLogs,
@@ -134,6 +136,39 @@ export function mockPlayerProfile(id: number): PlayerProfile {
   };
 }
 
+export function mockPlayerLoot(id: number, partition?: number): PlayerLootTracker {
+  const now = new Date();
+  const current = now.getFullYear() * 100 + now.getMonth() + 1;
+  return {
+    player_id: id,
+    partition: partition ?? current,
+    earliest_partition: 202601,
+    npcs: [
+      {
+        npc_id: 8061,
+        name: "Vorkath",
+        kills: 214,
+        loot: money(410_000_000),
+        items: [
+          { item_id: 22006, name: "Vorkath's head", quantity: 4, loot: money(120_000_000) },
+          { item_id: 11286, name: "Draconic visage", quantity: 2, loot: money(9_800_000) },
+          { item_id: 1613, name: "Dragon bones", quantity: 428, loot: money(1_100_000) },
+        ],
+      },
+      {
+        npc_id: 2042,
+        name: "Zulrah",
+        kills: 156,
+        loot: money(260_000_000),
+        items: [
+          { item_id: 12934, name: "Zulrah's scales", quantity: 31_200, loot: money(4_600_000) },
+          { item_id: 12922, name: "Tanzanite fang", quantity: 1, loot: money(2_400_000) },
+        ],
+      },
+    ],
+  };
+}
+
 export function mockGroupProfile(id: number): GroupProfile {
   return {
     id,
@@ -186,6 +221,7 @@ export function mockMe(): Me {
     display_name: "MockUser",
     avatar_url: null,
     is_superadmin: true,
+    is_supporter: true,
     players: [
       { id: 1337, name: "Zezima", global_rank: 1, total_loot: money(2_000_000_000) },
       { id: 1338, name: "Zezima Alt", global_rank: 482, total_loot: money(86_000_000) },
@@ -205,6 +241,17 @@ export function mockAccountSettings(): AccountSettings {
     group_ping: true,
     never_ping: false,
     dm_account_changes: true,
+    dm_drops: true,
+    dm_pbs: true,
+    dm_cas: false,
+    dm_clogs: true,
+    dm_pets: true,
+    dm_quests: false,
+    dm_deaths: false,
+    dm_diaries: false,
+    dm_levels: false,
+    dm_min_value: 1_000_000,
+    supporter_entitlements: { dm_submissions: true, supporter_flair: true },
     players: [
       { id: 1, name: "Mock Player", hidden: false },
       { id: 2, name: "Mock Alt", hidden: true },
@@ -321,6 +368,7 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
       key: "free",
       name: "Free",
       description: "Core drop tracking for every clan.",
+      scope: "group",
       price_cents: 0,
       currency: "USD",
       interval: "month",
@@ -332,6 +380,7 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
       key: "premium",
       name: "Premium",
       description: "More history, seasonal boards, and priority processing.",
+      scope: "group",
       price_cents: 500,
       currency: "USD",
       interval: "month",
@@ -349,6 +398,7 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
       key: "premium_plus",
       name: "Premium+",
       description: "For large, competitive clans.",
+      scope: "group",
       price_cents: 1500,
       currency: "USD",
       interval: "month",
@@ -373,6 +423,18 @@ export function mockGroupSubscription(groupId: number): GroupSubscription {
     current_period_end: Math.floor(Date.now() / 1000) + 18 * 86400,
     cancel_at_period_end: false,
     entitlements: { events: true, hall_of_fame: true, custom_embeds: true },
+  };
+}
+
+export function mockUserSubscription(): UserSubscription {
+  return {
+    user_id: 1,
+    tier_key: "supporter",
+    status: "active",
+    provider: "stripe",
+    current_period_end: Math.floor(Date.now() / 1000) + 18 * 86400,
+    cancel_at_period_end: false,
+    entitlements: { dm_submissions: true, supporter_flair: true },
   };
 }
 

@@ -6,7 +6,10 @@ import { saveSettings, setPlayerHidden } from "@/app/(dashboard)/settings/action
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 
-type ToggleKey = Exclude<keyof AccountSettings, "players">;
+type ToggleKey = Exclude<
+  keyof AccountSettings,
+  "players" | "dm_min_value" | "supporter_entitlements"
+>;
 
 const PRIVACY_TOGGLES: { key: ToggleKey; label: string; help: string }[] = [
   {
@@ -39,15 +42,34 @@ const NOTIFICATION_TOGGLES: { key: ToggleKey; label: string; help: string }[] = 
   },
 ];
 
+/** Supporter perk: per-type DMs for the user's own submissions. */
+const SUBMISSION_DM_TOGGLES: { key: ToggleKey; label: string }[] = [
+  { key: "dm_drops", label: "Drops" },
+  { key: "dm_pbs", label: "Personal bests" },
+  { key: "dm_clogs", label: "Collection log slots" },
+  { key: "dm_cas", label: "Combat achievements" },
+  { key: "dm_pets", label: "Pets" },
+  { key: "dm_quests", label: "Quest completions" },
+  { key: "dm_diaries", label: "Achievement diaries" },
+  { key: "dm_deaths", label: "Deaths" },
+  { key: "dm_levels", label: "Level ups" },
+];
+
 export function SettingsForm({ initial }: { initial: AccountSettings }) {
   const [settings, setSettings] = useState(initial);
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { players: _initialPlayers, ...initialToggles } = initial;
-  const { players, ...toggles } = settings;
+  // supporter_entitlements is read-only server state — never part of the patch.
+  const {
+    players: _initialPlayers,
+    supporter_entitlements: _initialEnts,
+    ...initialToggles
+  } = initial;
+  const { players, supporter_entitlements: supporterEnts, ...toggles } = settings;
   const dirty = JSON.stringify(toggles) !== JSON.stringify(initialToggles);
+  const canDm = Boolean(supporterEnts?.dm_submissions);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +100,22 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
     </label>
   );
 
+  const renderDmToggle = (t: { key: ToggleKey; label: string }) => (
+    <label
+      key={t.key}
+      className={`flex items-center gap-2 ${canDm ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}
+    >
+      <input
+        type="checkbox"
+        disabled={!canDm}
+        checked={settings[t.key]}
+        onChange={(e) => setSettings((s) => ({ ...s, [t.key]: e.target.checked }))}
+        className="size-4"
+      />
+      <span className="text-sm">{t.label}</span>
+    </label>
+  );
+
   return (
     <div className="space-y-8">
       <form onSubmit={onSubmit} className="space-y-8">
@@ -93,6 +131,53 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
             Discord notifications
           </legend>
           {NOTIFICATION_TOGGLES.map(renderToggle)}
+        </fieldset>
+
+        <fieldset className="space-y-3">
+          <legend className="heading-rule text-osrs-gold mb-3 w-full pb-1 text-lg font-semibold">
+            Submission DMs{" "}
+            <span className="text-osrs-gold-bright align-middle text-xs font-normal">
+              (supporter perk)
+            </span>
+          </legend>
+          {canDm ? (
+            <p className="text-osrs-parchment-dark/60 text-xs">
+              DM me on Discord when one of my own submissions is processed. Pick the types you
+              care about — these are personal messages, independent of any group&apos;s channels.
+            </p>
+          ) : (
+            <p className="text-osrs-parchment-dark/60 text-xs">
+              Get a personal Discord DM for your own drops, personal bests and other achievements.{" "}
+              <a href="/premium" className="text-osrs-gold-bright hover:underline">
+                Become a supporter →
+              </a>
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
+            {SUBMISSION_DM_TOGGLES.map(renderDmToggle)}
+          </div>
+          <label
+            className={`flex flex-wrap items-center gap-2 ${canDm ? "" : "cursor-not-allowed opacity-50"}`}
+          >
+            <span className="text-sm font-medium">Minimum drop value</span>
+            <input
+              type="number"
+              min={0}
+              step={1000}
+              disabled={!canDm}
+              value={settings.dm_min_value}
+              onChange={(e) =>
+                setSettings((s) => ({
+                  ...s,
+                  dm_min_value: Math.max(0, Math.floor(Number(e.target.value) || 0)),
+                }))
+              }
+              className="border-osrs-bronze/40 bg-osrs-surface-1 w-36 rounded border px-2 py-1 text-sm"
+            />
+            <span className="text-osrs-parchment-dark/60 text-xs">
+              gp — drops below this value are not DMed (0 = everything).
+            </span>
+          </label>
         </fieldset>
 
         <div className="flex items-center gap-3">

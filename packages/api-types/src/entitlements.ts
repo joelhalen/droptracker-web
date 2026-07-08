@@ -11,7 +11,7 @@
  */
 import { z } from "zod";
 
-export type EntitlementCategory = "features";
+export type EntitlementCategory = "features" | "supporter";
 
 export interface EntitlementField {
   key: string;
@@ -26,7 +26,11 @@ export interface EntitlementField {
 
 export const ENTITLEMENT_CATEGORIES: { id: EntitlementCategory; label: string }[] = [
   { id: "features", label: "Features" },
+  { id: "supporter", label: "Supporter perks" },
 ];
+
+/** Who a subscription tier applies to (subscription_tiers.scope). */
+export type TierScope = "group" | "user";
 
 /** Stable machine ids — referenced by UI gates and backend enforcement. */
 export const ENTITLEMENT_FIELDS: EntitlementField[] = [
@@ -72,6 +76,38 @@ export type EntitlementKey = (typeof ENTITLEMENT_FIELDS)[number]["key"];
 
 export const ENTITLEMENT_KEYS = ENTITLEMENT_FIELDS.map((f) => f.key) as EntitlementKey[];
 
+/**
+ * User-scoped ("supporter") entitlements — granted by a user_subscriptions
+ * row to a tier with scope="user". Personal perks, independent of any group
+ * tier. Python parity: `USER_ENTITLEMENT_FIELDS` in `disc/db/entitlements.py`.
+ */
+export const USER_ENTITLEMENT_FIELDS: EntitlementField[] = [
+  {
+    key: "dm_submissions",
+    label: "Submission DMs",
+    category: "supporter",
+    help: "Receive Discord DMs for your own drops, personal bests, collection log slots and other achievements, filtered by your own settings.",
+    default: false,
+  },
+  {
+    key: "supporter_flair",
+    label: "Supporter flair",
+    category: "supporter",
+    help: "A distinct supporter display style on your public profile and site listings.",
+    default: false,
+  },
+];
+
+export type UserEntitlementKey = (typeof USER_ENTITLEMENT_FIELDS)[number]["key"];
+
+export const USER_ENTITLEMENT_KEYS = USER_ENTITLEMENT_FIELDS.map(
+  (f) => f.key,
+) as UserEntitlementKey[];
+
+export function entitlementFieldsForScope(scope: TierScope): EntitlementField[] {
+  return scope === "user" ? USER_ENTITLEMENT_FIELDS : ENTITLEMENT_FIELDS;
+}
+
 /** Group-config keys that require the Hall of Fame entitlement. */
 export const HALL_OF_FAME_CONFIG_KEYS = [
   "personal_best_embed_boss_list",
@@ -85,9 +121,18 @@ export function getEntitlementField(key: string): EntitlementField | undefined {
 const fieldValueSchema = (f: EntitlementField) =>
   f.kind === "int" ? z.number().int().nonnegative() : z.boolean();
 
-/** Per-tier entitlement map stored on `subscription_tiers.entitlements`. */
+/**
+ * Per-tier entitlement map stored on `subscription_tiers.entitlements`.
+ * Accepts keys from BOTH scopes so user-tier payloads survive the shared tier
+ * CRUD path; the backend validates strictly against the tier's actual scope.
+ */
 export const TierEntitlementsSchema = z.object(
-  Object.fromEntries(ENTITLEMENT_FIELDS.map((f) => [f.key, fieldValueSchema(f).optional()])),
+  Object.fromEntries(
+    [...ENTITLEMENT_FIELDS, ...USER_ENTITLEMENT_FIELDS].map((f) => [
+      f.key,
+      fieldValueSchema(f).optional(),
+    ]),
+  ),
 );
 export type TierEntitlements = z.infer<typeof TierEntitlementsSchema>;
 
@@ -96,6 +141,12 @@ export const GroupEntitlementsSchema = z.object(
   Object.fromEntries(ENTITLEMENT_FIELDS.map((f) => [f.key, fieldValueSchema(f)])),
 );
 export type GroupEntitlements = z.infer<typeof GroupEntitlementsSchema>;
+
+/** Resolved supporter entitlements for a user (every registry key present). */
+export const UserEntitlementsSchema = z.object(
+  Object.fromEntries(USER_ENTITLEMENT_FIELDS.map((f) => [f.key, fieldValueSchema(f)])),
+);
+export type UserEntitlements = z.infer<typeof UserEntitlementsSchema>;
 
 /** Input for tier CRUD — partial map is fine; resolver fills gaps. */
 export const TierEntitlementsInputSchema = TierEntitlementsSchema;

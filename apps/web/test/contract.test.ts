@@ -12,6 +12,7 @@ import {
   LeaderboardPageSchema,
   LootboardSchema,
   MeSchema,
+  PlayerLootTrackerSchema,
   PlayerProfileSchema,
   ServiceStatusSchema,
   allConfigKeys,
@@ -29,6 +30,7 @@ import {
   mockTicket,
   mockMe,
   mockPlayerLeaderboard,
+  mockPlayerLoot,
   mockPlayerProfile,
   mockServices,
 } from "../lib/mock-data";
@@ -54,6 +56,7 @@ test("OpenAPI spec declares the public-read surface the BFF consumes", () => {
 test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => LeaderboardPageSchema.parse(mockPlayerLeaderboard(1, 10)));
   assert.doesNotThrow(() => PlayerProfileSchema.parse(mockPlayerProfile(42)));
+  assert.doesNotThrow(() => PlayerLootTrackerSchema.parse(mockPlayerLoot(42)));
   assert.doesNotThrow(() => AnnouncementPageSchema.parse(mockAnnouncements()));
   assert.doesNotThrow(() => MeSchema.parse(mockMe()));
   assert.doesNotThrow(() => ServiceStatusSchema.array().parse(mockServices()));

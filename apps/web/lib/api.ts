@@ -38,6 +38,7 @@ import {
   GuildStatusSchema,
   LeaderboardPageSchema,
   MeSchema,
+  PlayerLootTrackerSchema,
   PlayerProfileSchema,
   SearchResultsSchema,
   ServiceLogsSchema,
@@ -96,6 +97,7 @@ import {
   type LootboardImage,
   type ManualSubmission,
   type Me,
+  type PlayerLootTracker,
   type PlayerProfile,
   type SearchResults,
   type ServiceAction,
@@ -103,6 +105,8 @@ import {
   type ServiceStatus,
   type SubscriptionTier,
   type SubscriptionTierInput,
+  type UserSubscription,
+  UserSubscriptionSchema,
   type WomGroupPreview,
   type WomSyncResult,
   type AdminTicketPage,
@@ -122,6 +126,7 @@ import {
   mockGroupEmbeds,
   mockGroupSubscription,
   mockGuildStatus,
+  mockUserSubscription,
   mockEvent,
   mockEventCompletions,
   mockEventDiscord,
@@ -136,6 +141,7 @@ import {
   mockTicket,
   mockMe,
   mockPlayerLeaderboard,
+  mockPlayerLoot,
   mockPlayerProfile,
   mockSearch,
   mockServiceLogs,
@@ -445,6 +451,16 @@ export const api = {
     return withFallback(
       async () => PlayerProfileSchema.parse(await apiGet(`/players/${id}`, { revalidate: 30 })),
       () => mockPlayerProfile(id),
+    );
+  },
+
+  /** RuneLite-style loot tracker: one month of drops grouped by NPC. */
+  async playerLoot(id: number, partition?: number): Promise<PlayerLootTracker> {
+    const qs = partition ? `?partition=${partition}` : "";
+    return withFallback(
+      async () =>
+        PlayerLootTrackerSchema.parse(await apiGet(`/players/${id}/loot${qs}`, { revalidate: 60 })),
+      () => mockPlayerLoot(id, partition),
     );
   },
 
@@ -1117,11 +1133,12 @@ export const api = {
   },
 
   // --- Group subscriptions / upgrades -----------------------------------
-  async subscriptionTiers(): Promise<SubscriptionTier[]> {
+  /** Group tiers by default; pass "user" or "all" to widen (e.g. admin). */
+  async subscriptionTiers(scope: "group" | "user" | "all" = "group"): Promise<SubscriptionTier[]> {
     return withFallback(
       async () =>
         SubscriptionTierSchema.array().parse(
-          await apiGet(`/subscriptions/tiers`, { revalidate: 300 }),
+          await apiGet(`/subscriptions/tiers?scope=${scope}`, { revalidate: 300 }),
         ),
       () => mockSubscriptionTiers(),
     );
@@ -1209,6 +1226,62 @@ export const api = {
     return withFallback(
       async () =>
         CheckoutSessionSchema.parse(await apiSend("POST", `/groups/${groupId}/subscription/portal`, {})),
+      () => ({ url: null }),
+    );
+  },
+
+  // --- User supporter subscription ---------------------------------------
+  /** User-scoped supporter tiers for the pricing page. */
+  async supporterTiers(): Promise<SubscriptionTier[]> {
+    return withFallback(
+      async () =>
+        SubscriptionTierSchema.array().parse(
+          await apiGet(`/subscriptions/tiers?scope=user`, { revalidate: 300 }),
+        ),
+      () => [],
+    );
+  },
+
+  async mySubscription(): Promise<UserSubscription> {
+    return withFallback(
+      async () =>
+        UserSubscriptionSchema.parse(await apiGet(`/users/me/subscription`, { authed: true })),
+      () => mockUserSubscription(),
+    );
+  },
+
+  /** Begin (or switch to) a supporter tier; returns a provider redirect URL. */
+  async mySubscriptionCheckout(tierKey: string): Promise<CheckoutSession> {
+    return withFallback(
+      async () =>
+        CheckoutSessionSchema.parse(
+          await apiSend("POST", `/users/me/subscription/checkout`, { tier_key: tierKey }),
+        ),
+      () => ({ url: null }),
+    );
+  },
+
+  async cancelMySubscription(): Promise<UserSubscription> {
+    return withFallback(
+      async () =>
+        UserSubscriptionSchema.parse(await apiSend("POST", `/users/me/subscription/cancel`, {})),
+      () => ({ ...mockUserSubscription(), cancel_at_period_end: true }),
+    );
+  },
+
+  async resumeMySubscription(): Promise<UserSubscription> {
+    return withFallback(
+      async () =>
+        UserSubscriptionSchema.parse(await apiSend("POST", `/users/me/subscription/resume`, {})),
+      () => ({ ...mockUserSubscription(), cancel_at_period_end: false }),
+    );
+  },
+
+  /** Open the provider's billing portal for the supporter subscription. */
+  async myBillingPortal(): Promise<CheckoutSession> {
+    return withFallback(
+      async () =>
+        CheckoutSessionSchema.parse(await apiSend("POST", `/users/me/subscription/portal`, {})),
       () => ({ url: null }),
     );
   },
