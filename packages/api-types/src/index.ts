@@ -468,7 +468,7 @@ export const GroupSubscriptionSchema = z.object({
   /** Active tier key, or null when on the free plan. */
   tier_key: z.string().nullable(),
   status: z.enum(SubscriptionStatus),
-  provider: z.enum(["patreon", "stripe", "manual"]).nullable(),
+  provider: z.enum(["patreon", "stripe", "paypal", "manual"]).nullable(),
   /** Unix seconds when the current paid period ends / renews. */
   current_period_end: z.number().int().nullable(),
   /** When true, the subscription ends at `current_period_end` (not renewing). */
