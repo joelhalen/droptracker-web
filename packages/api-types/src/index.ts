@@ -1105,6 +1105,8 @@ export const EventTeamActivitySchema = z.object({
   player_name: z.string().nullable().optional(),
   quantity: z.number().int().default(1),
   source_type: z.string().nullable().optional(),
+  /** Item name this row credited (item tasks), e.g. "Bones" on a collect-all. */
+  matched_target: z.string().nullable().optional(),
   created_at: z.number().int().nullable(),
 });
 export type EventTeamActivity = z.infer<typeof EventTeamActivitySchema>;

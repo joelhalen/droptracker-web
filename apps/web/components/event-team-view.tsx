@@ -215,6 +215,9 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                           {a.source_type === "completion" ? "completed" : "advanced"}{" "}
                         </span>
                         <span className="text-osrs-parchment">{a.task_label ?? `task ${a.task_id}`}</span>
+                        {a.matched_target && (
+                          <span className="text-osrs-parchment-dark/60"> ({a.matched_target})</span>
+                        )}
                         {a.quantity > 1 && task && (
                           <span className="text-osrs-gold/80">
                             {" "}
