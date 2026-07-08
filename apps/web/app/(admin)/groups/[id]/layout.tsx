@@ -51,6 +51,11 @@ export default async function GroupAdminLayout({
       matchPrefix: true,
       locked: !hasEntitlement(subscription, "events", { isSuperadmin: user.is_superadmin }),
     },
+    {
+      href: `/groups/${groupId}/points`,
+      label: "Points",
+      locked: !hasEntitlement(subscription, "custom_points", { isSuperadmin: user.is_superadmin }),
+    },
     { href: `/groups/${groupId}/subscription`, label: "Subscription" },
     { href: `/groups/${groupId}/diagnostics`, label: "Diagnostics" },
   ];

@@ -10,6 +10,7 @@ import type {
   EventChannelConfig,
   EventCompletion,
   EventDetail,
+  EventTeamDetail,
   EventSummary,
   EventTaskLibraryItem,
   GroupDiagnostics,
@@ -671,12 +672,53 @@ export function mockEvent(id: number): EventDetail {
       },
       { id: 23, name: "Team Green", score: 60, member_count: 0, members: [] },
     ],
+    progress: [
+      { task_id: 11, team_id: 21, progress: 35, completed: false, completed_at: null },
+      { task_id: 11, team_id: 22, progress: 50, completed: true, completed_at: now - 5400 },
+      { task_id: 12, team_id: 21, progress: 1, completed: true, completed_at: now - 3600 },
+      { task_id: 14, team_id: 22, progress: 4_250_000, completed: false, completed_at: null },
+    ],
     bingo: summary.has_bingo ? { size: 5, cells } : null,
     viewer: { player_ids_on_event: [1337], team_id: 21 },
     join_requires_code: false,
     join_code: null,
     starts_at: summary.starts_at ?? now,
     ends_at: summary.ends_at ?? now + 7 * DAY,
+  };
+}
+
+/** Public team page payload (standings context + roster + progress + feed). */
+export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail {
+  const now = Math.floor(Date.now() / 1000);
+  const event = mockEvent(eventId);
+  const team = event.teams.find((t) => t.id === teamId) ?? event.teams[0]!;
+  const rank = [...event.teams].sort((a, b) => b.score - a.score).findIndex((t) => t.id === team.id) + 1;
+  return {
+    event: mockEvents().find((e) => e.id === eventId) ?? mockEvents()[0]!,
+    team: {
+      id: team.id,
+      name: team.name,
+      score: team.score,
+      rank,
+      team_count: event.teams.length,
+      member_count: team.member_count,
+    },
+    members: (team.members ?? []).map((m, i) => ({
+      ...m,
+      completions: 3 - (i % 3),
+      quantity: 40 - i * 12,
+    })),
+    tasks: event.tasks.map((t, i) => ({
+      ...t,
+      progress: [35, 1, 0, 4_250_000][i] ?? 0,
+      completed: i === 1,
+      completed_at: i === 1 ? now - 3600 : null,
+    })),
+    activity: [
+      { id: 901, task_id: 11, task_label: "Vorkath 50 KC", player_id: 1337, player_name: "Zezima", quantity: 1, source_type: "kc", created_at: now - 900 },
+      { id: 900, task_id: 12, task_label: "Obtain a Twisted bow", player_id: 2001, player_name: "Woox", quantity: 1, source_type: "drop", created_at: now - 3600 },
+      { id: 899, task_id: 11, task_label: "Vorkath 50 KC", player_id: 2002, player_name: "B0aty", quantity: 1, source_type: "kc", created_at: now - 5400 },
+    ],
   };
 }
 

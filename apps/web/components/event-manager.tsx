@@ -24,6 +24,7 @@ import {
   updateGroupEvent,
 } from "@/app/(admin)/groups/[id]/events/actions";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
+import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
 import { EventDiscord } from "@/components/event-discord";
 import { EventTaskForm } from "@/components/event-task-form";
 import { EventReview } from "@/components/event-review";
@@ -535,6 +536,63 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
           <EmptyState title="No tasks yet" />
         )}
       </section>
+
+      {/* Progress matrix — the admin transparency view: every task × team
+          rollup at a glance (same numbers the public pages render live). */}
+      {tasks.length > 0 && teams.length > 0 && (
+        <section>
+          <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Progress</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[28rem] text-sm">
+              <thead>
+                <tr className="text-osrs-parchment-dark/60 text-left text-xs">
+                  <th className="py-1.5 pr-3 font-normal">Task</th>
+                  {teams.map((tm) => (
+                    <th key={tm.id} className="px-3 py-1.5 text-right font-normal">
+                      {tm.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-osrs-bronze/15 divide-y">
+                {tasks.map((t) => {
+                  const target = taskThreshold(t);
+                  return (
+                    <tr key={t.id}>
+                      <td className="text-osrs-parchment max-w-0 truncate py-1.5 pr-3" title={t.label}>
+                        {t.label}
+                      </td>
+                      {teams.map((tm) => {
+                        const p = (event.progress ?? []).find(
+                          (row) => row.task_id === t.id && row.team_id === tm.id,
+                        );
+                        return (
+                          <td key={tm.id} className="px-3 py-1.5 text-right tabular-nums">
+                            {p?.completed ? (
+                              <span className="text-osrs-green">✓</span>
+                            ) : (
+                              <span
+                                className={
+                                  p?.progress
+                                    ? "text-osrs-parchment-dark/80"
+                                    : "text-osrs-parchment-dark/30"
+                                }
+                              >
+                                {formatProgressValue(t, p?.progress ?? 0)} /{" "}
+                                {formatProgressValue(t, target)}
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Teams */}
       <section>

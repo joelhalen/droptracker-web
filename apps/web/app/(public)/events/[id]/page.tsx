@@ -5,9 +5,9 @@ import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
 import { formatDate } from "@/lib/format";
-import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventJoinPanel } from "@/components/event-join-panel";
+import { EventTaskBoard } from "@/components/event-task-progress";
 import { EmptyState } from "@/components/ui";
 
 export const revalidate = 30;
@@ -87,24 +87,16 @@ export default async function EventDetailPage({ params }: { params: Params }) {
           <div>
             <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Tasks</h2>
             {event.tasks.length ? (
-              <ul className="divide-osrs-bronze/20 divide-y">
-                {event.tasks.map((t) => (
-                  <li key={t.id} className="flex items-center justify-between py-2.5 text-sm">
-                    <span>
-                      <span className="text-osrs-parchment-dark/50 mr-2 text-xs uppercase">
-                        {TASK_TYPE_LABELS[t.type]}
-                      </span>
-                      {t.label}
-                      {taskGoal(t) && (
-                        <span className="text-osrs-parchment-dark/60"> — {taskGoal(t)}</span>
-                      )}
-                    </span>
-                    {t.points > 0 && (
-                      <span className="text-osrs-gold-bright tabular-nums">{t.points} pts</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <EventTaskBoard
+                tasks={event.tasks}
+                // Original (unsorted) team order — keeps per-team colors in
+                // sync with the bingo board's index-based palette.
+                teams={event.teams.map((t) => ({ id: t.id, name: t.name }))}
+                progress={event.progress}
+                eventId={event.id}
+                live={event.status === "active"}
+                viewerTeamId={event.viewer?.team_id}
+              />
             ) : (
               <EmptyState title="No tasks yet" />
             )}
@@ -126,16 +118,27 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                 {teams.map((team, i) => (
                   <li
                     key={team.id}
-                    className="border-osrs-bronze/20 rounded border px-3 py-2 text-sm"
+                    className="border-osrs-bronze/20 hover:border-osrs-bronze/50 rounded border px-3 py-2 text-sm transition-colors"
                   >
                     <div className="flex items-center justify-between">
                       <span>
                         <span className="text-osrs-parchment-dark/50 mr-2 tabular-nums">
                           {i + 1}
                         </span>
-                        {team.name}
+                        <Link
+                          href={`/events/${event.id}/teams/${team.id}`}
+                          className="hover:text-osrs-gold-bright font-medium"
+                        >
+                          {team.name}
+                        </Link>
                         <span className="text-osrs-parchment-dark/50 ml-2 text-xs">
                           {team.member_count} players
+                          {(() => {
+                            const done = (event.progress ?? []).filter(
+                              (p) => p.team_id === team.id && p.completed,
+                            ).length;
+                            return done > 0 ? ` · ${done}/${event.tasks.length} tasks` : "";
+                          })()}
                         </span>
                       </span>
                       <span className="text-osrs-gold-bright tabular-nums">{team.score}</span>

@@ -20,8 +20,9 @@ import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 
 type TeamRef = { id: number; name: string };
 
-/** Stable per-team accent colors for the all-teams dot overlay. */
-const TEAM_COLORS = [
+/** Stable per-team accent colors, shared with the task progress board and
+ * team pages so a team keeps one color across every event surface. */
+export const TEAM_COLORS = [
   "#e05c4c", // red
   "#4c8fe0", // blue
   "#4cb96b", // green

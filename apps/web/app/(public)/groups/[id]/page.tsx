@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
@@ -53,6 +53,12 @@ export default async function GroupPage({ params }: { params: Params }) {
             className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
           >
             Lootboard
+          </Link>
+          <Link
+            href={`/groups/${group.id}/points/leaderboard` as Route}
+            className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
+          >
+            Points
           </Link>
           {group.discord_url && (
             <a

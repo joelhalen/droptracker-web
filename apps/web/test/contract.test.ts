@@ -5,6 +5,7 @@ import {
   AnnouncementPageSchema,
   AdminTicketPageSchema,
   EventDetailSchema,
+  EventTeamDetailSchema,
   EventSummarySchema,
   TicketDetailSchema,
   TicketPageSchema,
@@ -22,6 +23,7 @@ import openapi from "@droptracker/api-types/openapi" with { type: "json" };
 import {
   mockAnnouncements,
   mockEvent,
+  mockEventTeam,
   mockEvents,
   mockAdminTickets,
   mockLookup,
@@ -64,6 +66,7 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => LootboardSchema.parse(mockLootboard(42, "all")));
   assert.doesNotThrow(() => EventSummarySchema.array().parse(mockEvents()));
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(1)));
+  assert.doesNotThrow(() => EventTeamDetailSchema.parse(mockEventTeam(1, 21)));
   assert.doesNotThrow(() => TicketPageSchema.parse(mockMyTickets()));
   assert.doesNotThrow(() => TicketDetailSchema.parse(mockTicket(2)));
   assert.doesNotThrow(() => AdminTicketPageSchema.parse(mockAdminTickets()));

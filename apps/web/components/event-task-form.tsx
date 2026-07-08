@@ -51,7 +51,7 @@ const ITEM_MODE_LABELS: Record<ItemMode, string> = {
 };
 
 /** Debounced name autocomplete against the item/NPC databases. */
-function NameSearch({
+export function NameSearch({
   placeholder,
   search,
   iconBase,
@@ -247,8 +247,14 @@ export function EventTaskForm({
           if (quantity < 1) return "Quantity must be at least 1.";
         } else {
           if (editing) break;
-          if (listItems.length < 2) return "Add at least two items to the list.";
-          if (itemMode === "point_collection" && pointsGoal < 1) return "Set a points goal.";
+          // point_collection is a points race — a single weighted item is a
+          // valid config (e.g. 500 points of Zulrah's scales at 1pt each).
+          if (itemMode === "point_collection") {
+            if (listItems.length < 1) return "Add at least one item to the list.";
+            if (pointsGoal < 1) return "Set a points goal.";
+          } else if (listItems.length < 2) {
+            return "Add at least two items to the list.";
+          }
         }
         break;
       case "kc_target":
@@ -664,7 +670,10 @@ export function EventTaskForm({
           />
           Completions require admin review
         </label>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex items-center gap-2">
+          {validate() !== null && (
+            <span className="text-osrs-parchment-dark/50 text-xs">{validate()}</span>
+          )}
           {onCancel && (
             <button
               type="button"

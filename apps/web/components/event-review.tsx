@@ -90,7 +90,16 @@ export function EventReview({
   };
 
   // Manual award form (the escape hatch for pre-join credit and custom tasks).
-  const [award, setAward] = useState({ taskId: 0, teamId: 0, quantity: 1, note: "" });
+  // Two modes: "complete" (server fills whatever progress remains — the
+  // default; awarding quantity 1 against a 50-KC task completes nothing) and
+  // "progress" (add an explicit quantity toward the goal).
+  const [award, setAward] = useState({
+    taskId: 0,
+    teamId: 0,
+    mode: "complete" as "complete" | "progress",
+    quantity: 1,
+    note: "",
+  });
   const onAward = (e: React.FormEvent) => {
     e.preventDefault();
     if (!award.taskId || !award.teamId) return;
@@ -98,7 +107,8 @@ export function EventReview({
       awardEventCompletion(groupId, eventId, {
         task_id: award.taskId,
         team_id: award.teamId,
-        quantity: award.quantity || 1,
+        complete: award.mode === "complete" || undefined,
+        quantity: award.mode === "progress" ? award.quantity || 1 : undefined,
         note: award.note.trim() || undefined,
       }),
     );
@@ -216,7 +226,7 @@ export function EventReview({
         />
       )}
 
-      <form onSubmit={onAward} className="mt-5 grid gap-2 sm:grid-cols-[1fr_10rem_5rem_1fr_auto]">
+      <form onSubmit={onAward} className="mt-5 grid gap-2 sm:grid-cols-[1fr_9rem_9rem_5rem_1fr_auto]">
         <select
           value={award.taskId}
           onChange={(e) => setAward((a) => ({ ...a, taskId: Number(e.target.value) }))}
@@ -241,13 +251,25 @@ export function EventReview({
             </option>
           ))}
         </select>
+        <select
+          value={award.mode}
+          onChange={(e) =>
+            setAward((a) => ({ ...a, mode: e.target.value as "complete" | "progress" }))
+          }
+          title="Complete the task outright, or add a quantity toward its goal"
+          className={field}
+        >
+          <option value="complete">Mark complete</option>
+          <option value="progress">Add progress</option>
+        </select>
         <input
           type="number"
           min={1}
           value={award.quantity}
           onChange={(e) => setAward((a) => ({ ...a, quantity: Math.max(1, Number(e.target.value)) }))}
-          title="Quantity"
-          className={field}
+          title="Quantity added toward the goal"
+          disabled={award.mode === "complete"}
+          className={`${field} disabled:opacity-40`}
         />
         <input
           value={award.note}

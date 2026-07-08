@@ -1053,9 +1053,22 @@ export const EventViewerSchema = z.object({
 });
 export type EventViewer = z.infer<typeof EventViewerSchema>;
 
+/** Per-(task, team) rollup driven by the completion engine. */
+export const EventProgressSchema = z.object({
+  task_id: z.number().int(),
+  team_id: z.number().int(),
+  progress: z.number().int().default(0),
+  completed: z.boolean().default(false),
+  completed_at: z.number().int().nullable().optional(),
+});
+export type EventProgress = z.infer<typeof EventProgressSchema>;
+
 export const EventDetailSchema = EventSummarySchema.extend({
   tasks: z.array(EventTaskSchema).default([]),
   teams: z.array(EventTeamSchema).default([]),
+  /** Per-team per-task rollups — powers 35/50-style public progress bars.
+   * Absent on payloads from before the participant-UI pass. */
+  progress: z.array(EventProgressSchema).optional(),
   bingo: BingoBoardSchema.nullable().optional(),
   /** Present (possibly null) for signed-in requesters; null when signed out. */
   viewer: EventViewerSchema.nullable().optional(),
@@ -1067,6 +1080,50 @@ export const EventDetailSchema = EventSummarySchema.extend({
   discord_guild_id: z.string().nullable().optional(),
 });
 export type EventDetail = z.infer<typeof EventDetailSchema>;
+
+/** GET /events/{id}/teams/{teamId} — public team page payload. */
+export const EventTeamTaskSchema = EventTaskSchema.extend({
+  progress: z.number().int().default(0),
+  completed: z.boolean().default(false),
+  completed_at: z.number().int().nullable().optional(),
+});
+export type EventTeamTask = z.infer<typeof EventTeamTaskSchema>;
+
+/** Roster entry + contribution rollup from the applied ledger. */
+export const EventTeamMemberStatsSchema = EventMemberSchema.extend({
+  completions: z.number().int().default(0),
+  quantity: z.number().int().default(0),
+});
+export type EventTeamMemberStats = z.infer<typeof EventTeamMemberStatsSchema>;
+
+/** One applied ledger row, public-safe (no notes / proof URLs). */
+export const EventTeamActivitySchema = z.object({
+  id: z.number().int(),
+  task_id: z.number().int(),
+  task_label: z.string().nullable().optional(),
+  player_id: z.number().int().nullable(),
+  player_name: z.string().nullable().optional(),
+  quantity: z.number().int().default(1),
+  source_type: z.string().nullable().optional(),
+  created_at: z.number().int().nullable(),
+});
+export type EventTeamActivity = z.infer<typeof EventTeamActivitySchema>;
+
+export const EventTeamDetailSchema = z.object({
+  event: EventSummarySchema,
+  team: z.object({
+    id: z.number().int(),
+    name: z.string(),
+    score: z.number().int().default(0),
+    rank: z.number().int(),
+    team_count: z.number().int(),
+    member_count: z.number().int().default(0),
+  }),
+  members: z.array(EventTeamMemberStatsSchema).default([]),
+  tasks: z.array(EventTeamTaskSchema).default([]),
+  activity: z.array(EventTeamActivitySchema).default([]),
+});
+export type EventTeamDetail = z.infer<typeof EventTeamDetailSchema>;
 
 export const EventInputSchema = z.object({
   /** null ⇒ global event (superadmin only). */
@@ -1112,6 +1169,9 @@ export const EventAwardInputSchema = z.object({
   task_id: z.number().int(),
   team_id: z.number().int(),
   quantity: z.number().int().positive().optional(),
+  /** True ⇒ server sizes the award to whatever progress remains, so this one
+   * row completes the task (instead of adding `quantity` toward it). */
+  complete: z.boolean().optional(),
   note: z.string().max(255).optional(),
 });
 export type EventAwardInput = z.infer<typeof EventAwardInputSchema>;
@@ -1143,16 +1203,6 @@ export const EventCompletionSchema = z.object({
   created_at: z.number().int(),
 });
 export type EventCompletion = z.infer<typeof EventCompletionSchema>;
-
-/** Per-(task, team) rollup driven by the completion engine. */
-export const EventProgressSchema = z.object({
-  task_id: z.number().int(),
-  team_id: z.number().int(),
-  progress: z.number().int().default(0),
-  completed: z.boolean().default(false),
-  completed_at: z.number().int().nullable().optional(),
-});
-export type EventProgress = z.infer<typeof EventProgressSchema>;
 
 /** Per-event Discord destinations (events-prd.md D8). */
 export const EventChannelConfigSchema = z.object({
@@ -1352,6 +1402,136 @@ export const TicketActionInputSchema = z.object({
   action: z.enum(["claim", "unclaim", "close"]),
 });
 export type TicketActionInput = z.infer<typeof TicketActionInputSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Custom group points system (/groups/{id}/points/*)                          */
+/* -------------------------------------------------------------------------- */
+
+export const PointRuleSchema = z.object({
+  reason: z.string(),
+  award: z.number().int(),
+  divisor: z.number().int(),
+  uses_divisor: z.boolean(),
+  description: z.string(),
+});
+export type PointRule = z.infer<typeof PointRuleSchema>;
+
+export const PointSharingMethodSchema = z.enum(["equal_split", "award_all"]);
+export type PointSharingMethod = z.infer<typeof PointSharingMethodSchema>;
+
+export const PointsBehaviorSchema = z.object({
+  stacks_award_points: z.boolean(),
+  point_sharing: z.boolean(),
+  point_sharing_method: PointSharingMethodSchema,
+  points_require_group_only: z.boolean(),
+  points_leaderboard_public: z.boolean(),
+  min_submission_pts: z.number().int(),
+  max_submission_pts: z.number().int(),
+});
+export type PointsBehavior = z.infer<typeof PointsBehaviorSchema>;
+
+export const PointSeasonSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  start_at: z.string().nullable(),
+  end_at: z.string().nullable(),
+  active: z.boolean(),
+});
+export type PointSeason = z.infer<typeof PointSeasonSchema>;
+
+export const PointsSettingsSchema = z.object({
+  enabled: z.boolean(),
+  rules: z.array(PointRuleSchema),
+  behavior: PointsBehaviorSchema,
+  seasons: z.array(PointSeasonSchema),
+});
+export type PointsSettings = z.infer<typeof PointsSettingsSchema>;
+
+export const PointModSchema = z.object({
+  id: z.number().int(),
+  item_id: z.number().int().nullable(),
+  item_name: z.string().nullable(),
+  npc_id: z.number().int().nullable(),
+  npc_name: z.string().nullable(),
+  event_type: z.string(),
+  award: z.number().int(),
+  divisor: z.number().int(),
+  description: z.string(),
+  can_modify: z.boolean(),
+});
+export type PointMod = z.infer<typeof PointModSchema>;
+
+export const PointListTypeSchema = z.enum(["blacklist", "whitelist", "no_split"]);
+export type PointListType = z.infer<typeof PointListTypeSchema>;
+
+export const PointListEntrySchema = z.object({
+  id: z.number().int(),
+  list_type: PointListTypeSchema,
+  item_id: z.number().int().nullable(),
+  item_name: z.string().nullable(),
+  npc_id: z.number().int().nullable(),
+  npc_name: z.string().nullable(),
+});
+export type PointListEntry = z.infer<typeof PointListEntrySchema>;
+
+export const PointBoostSchema = z.object({
+  id: z.number().int(),
+  start_at: z.string(),
+  end_at: z.string(),
+  event_type: z.string(),
+  target_type: z.enum(["any", "item", "npc"]),
+  target_id: z.number().int().nullable(),
+  target_name: z.string().nullable(),
+  operation: z.enum(["multiply", "add", "set"]),
+  operation_value: z.number().int(),
+  description: z.string(),
+  active: z.boolean(),
+});
+export type PointBoost = z.infer<typeof PointBoostSchema>;
+
+export const PointsHistoryEntrySchema = z.object({
+  id: z.number().int(),
+  player_id: z.number().int(),
+  player_name: z.string(),
+  amount: z.number().int(),
+  reason: z.string(),
+  manual: z.boolean(),
+  date: z.string().nullable(),
+});
+export type PointsHistoryEntry = z.infer<typeof PointsHistoryEntrySchema>;
+
+export const PointsHistoryPageSchema = z.object({
+  entries: z.array(PointsHistoryEntrySchema),
+  meta: PageMetaSchema,
+});
+export type PointsHistoryPage = z.infer<typeof PointsHistoryPageSchema>;
+
+export const PointsLeaderboardEntrySchema = z.object({
+  rank: z.number().int(),
+  id: z.number().int(),
+  name: z.string(),
+  points: z.number().int(),
+});
+export type PointsLeaderboardEntry = z.infer<typeof PointsLeaderboardEntrySchema>;
+
+export const PointsLeaderboardSchema = z.object({
+  period: z.string(),
+  group_id: z.number().int(),
+  group_name: z.string(),
+  entries: z.array(PointsLeaderboardEntrySchema),
+  seasons: z.array(PointSeasonSchema),
+  meta: PageMetaSchema,
+});
+export type PointsLeaderboard = z.infer<typeof PointsLeaderboardSchema>;
+
+export const PointsAdjustResultSchema = z.object({
+  entry_id: z.number().int(),
+  player_id: z.number().int(),
+  player_name: z.string(),
+  amount: z.number().int(),
+  new_total: z.number().int(),
+});
+export type PointsAdjustResult = z.infer<typeof PointsAdjustResultSchema>;
 
 export * from "./group-config";
 export * from "./entitlements";

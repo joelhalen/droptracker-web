@@ -52,7 +52,8 @@ const nextConfig: NextConfig = {
       { source: "/groups/:id(\\d+)/dashboard", destination: "/groups/:id/admin", permanent: true },
       { source: "/groups/:id(\\d+)/manual-submission", destination: "/submit", permanent: true },
       { source: "/groups/:id(\\d+)/board-generator", destination: "/groups/:id/lootboard", permanent: true },
-      { source: "/groups/:id(\\d+)/points", destination: "/groups/:id", permanent: true },
+      // NOTE: no /groups/:id/points redirect — that XF-era URL is live again
+      // as the group points admin page (app/(admin)/groups/[id]/points).
 
       // Subscriptions (was feature store, now per-group subscription)
       { source: "/feature-store/:id(\\d+)", destination: "/groups/:id/subscription", permanent: true },
