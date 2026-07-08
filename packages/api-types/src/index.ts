@@ -351,6 +351,9 @@ export const AccountSettingsSchema = z.object({
   dm_diaries: z.boolean().default(false),
   dm_levels: z.boolean().default(false),
   dm_min_value: z.number().int().nonnegative().default(0),
+  /** Set by the bot when a DM bounced off the user's Discord privacy
+   * settings; PATCH `false` to dismiss (bot re-sets it if it happens again). */
+  dm_delivery_issue: z.boolean().default(false),
   /** Resolved user-level entitlements (read-only; drives the DM section gate). */
   supporter_entitlements: UserEntitlementsSchema.optional(),
   players: z.array(SettingsPlayerSchema).default([]),

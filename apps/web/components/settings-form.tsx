@@ -8,7 +8,7 @@ import { Alert } from "@/components/ui";
 
 type ToggleKey = Exclude<
   keyof AccountSettings,
-  "players" | "dm_min_value" | "supporter_entitlements"
+  "players" | "dm_min_value" | "supporter_entitlements" | "dm_delivery_issue"
 >;
 
 const PRIVACY_TOGGLES: { key: ToggleKey; label: string; help: string }[] = [
@@ -61,13 +61,20 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // supporter_entitlements is read-only server state — never part of the patch.
+  // supporter_entitlements is read-only server state, and dm_delivery_issue
+  // is dismiss-only (patched separately) — neither belongs in the form patch.
   const {
     players: _initialPlayers,
     supporter_entitlements: _initialEnts,
+    dm_delivery_issue: _initialDmIssue,
     ...initialToggles
   } = initial;
-  const { players, supporter_entitlements: supporterEnts, ...toggles } = settings;
+  const {
+    players,
+    supporter_entitlements: supporterEnts,
+    dm_delivery_issue: _dmIssue,
+    ...toggles
+  } = settings;
   const dirty = JSON.stringify(toggles) !== JSON.stringify(initialToggles);
   const canDm = Boolean(supporterEnts?.dm_submissions);
 
@@ -140,6 +147,33 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
               (supporter perk)
             </span>
           </legend>
+          {settings.dm_delivery_issue && (
+            <Alert variant="error">
+              <span className="block font-medium">We couldn&apos;t DM you last time.</span>
+              <span className="mt-1 block text-xs">
+                Your Discord privacy settings are blocking messages from the bot. In Discord, open
+                the DropTracker server → click the server name → <strong>Privacy Settings</strong>{" "}
+                → enable <strong>Direct Messages</strong> (you must also share a server with the
+                bot). This notice clears automatically once a DM goes through.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSettings((s) => ({ ...s, dm_delivery_issue: false }));
+                  startTransition(async () => {
+                    try {
+                      await saveSettings({ dm_delivery_issue: false });
+                    } catch {
+                      /* dismiss is best-effort */
+                    }
+                  });
+                }}
+                className="border-osrs-bronze/40 hover:border-osrs-gold mt-2 rounded border px-2 py-1 text-xs"
+              >
+                Dismiss
+              </button>
+            </Alert>
+          )}
           {canDm ? (
             <p className="text-osrs-parchment-dark/60 text-xs">
               DM me on Discord when one of my own submissions is processed. Pick the types you

@@ -252,6 +252,7 @@ export function mockAccountSettings(): AccountSettings {
     dm_diaries: false,
     dm_levels: false,
     dm_min_value: 1_000_000,
+    dm_delivery_issue: false,
     supporter_entitlements: { dm_submissions: true, supporter_flair: true, video_submissions: true },
     players: [
       { id: 1, name: "Mock Player", hidden: false },
