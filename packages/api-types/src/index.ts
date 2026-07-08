@@ -456,6 +456,26 @@ export const WomSyncResultSchema = z.object({
 });
 export type WomSyncResult = z.infer<typeof WomSyncResultSchema>;
 
+/**
+ * Authorized users — who can administer a group besides its creator
+ * (GET/POST/DELETE /api/v1/groups/{id}/authorized-users). Backed by two
+ * synced stores: web role grants + the bot's authed_users Discord-ID list.
+ */
+export const AuthorizedUserSchema = z.object({
+  user_id: z.number().int().nullable(),
+  discord_id: z.string().nullable(),
+  username: z.string().nullable(),
+  role: z.enum(["owner", "admin"]),
+  /** Where the authorization lives: "web" grant and/or bot "discord" list. */
+  sources: z.array(z.enum(["web", "discord"])),
+});
+export type AuthorizedUser = z.infer<typeof AuthorizedUserSchema>;
+
+export const AuthorizedUsersResponseSchema = z.object({
+  users: z.array(AuthorizedUserSchema),
+});
+export type AuthorizedUsersResponse = z.infer<typeof AuthorizedUsersResponseSchema>;
+
 /** Pipeline heartbeat for the admin diagnostics panel (FRONTEND_PLAN.md §9). */
 export const GroupDiagnosticsSchema = z.object({
   intake_healthy: z.boolean(),

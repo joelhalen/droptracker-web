@@ -16,6 +16,7 @@ import type {
   GroupEmbedsResponse,
   GroupMembersPage,
   GroupProfile,
+  AuthorizedUsersResponse,
   GroupSubscription,
   UserSubscription,
   GuildStatus,
@@ -411,6 +412,27 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
       recommended: false,
     },
   ];
+}
+
+export function mockAuthorizedUsers(): AuthorizedUsersResponse {
+  return {
+    users: [
+      {
+        user_id: 1,
+        discord_id: "207526562331885568",
+        username: "mockowner",
+        role: "owner",
+        sources: ["web", "discord"],
+      },
+      {
+        user_id: 2,
+        discord_id: "528746710042804247",
+        username: "mockadmin",
+        role: "admin",
+        sources: ["discord"],
+      },
+    ],
+  };
 }
 
 export function mockGroupSubscription(groupId: number): GroupSubscription {

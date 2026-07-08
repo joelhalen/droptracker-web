@@ -105,6 +105,8 @@ import {
   type ServiceStatus,
   type SubscriptionTier,
   type SubscriptionTierInput,
+  type AuthorizedUsersResponse,
+  AuthorizedUsersResponseSchema,
   type UserSubscription,
   UserSubscriptionSchema,
   type WomGroupPreview,
@@ -126,6 +128,7 @@ import {
   mockGroupEmbeds,
   mockGroupSubscription,
   mockGuildStatus,
+  mockAuthorizedUsers,
   mockUserSubscription,
   mockEvent,
   mockEventCompletions,
@@ -1072,6 +1075,41 @@ export const api = {
           await apiGet(`/groups/${groupId}/members?${params}`, { authed: true }),
         ),
       () => mockGroupMembers(groupId, page),
+    );
+  },
+
+  // --- Authorized users (post-creation admin management) -----------------
+  async groupAuthorizedUsers(groupId: number): Promise<AuthorizedUsersResponse> {
+    return withFallback(
+      async () =>
+        AuthorizedUsersResponseSchema.parse(
+          await apiGet(`/groups/${groupId}/authorized-users`, { authed: true }),
+        ),
+      () => mockAuthorizedUsers(),
+    );
+  },
+
+  /** Add by Discord ID (snowflake) or DropTracker username. */
+  async addGroupAuthorizedUser(groupId: number, identifier: string): Promise<AuthorizedUsersResponse> {
+    return withFallback(
+      async () =>
+        AuthorizedUsersResponseSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/authorized-users`, { identifier }),
+        ),
+      () => mockAuthorizedUsers(),
+    );
+  },
+
+  async removeGroupAuthorizedUser(
+    groupId: number,
+    target: { user_id?: number | null; discord_id?: string | null },
+  ): Promise<AuthorizedUsersResponse> {
+    return withFallback(
+      async () =>
+        AuthorizedUsersResponseSchema.parse(
+          await apiSend("DELETE", `/groups/${groupId}/authorized-users`, target),
+        ),
+      () => mockAuthorizedUsers(),
     );
   },
 

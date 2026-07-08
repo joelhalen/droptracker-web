@@ -44,6 +44,7 @@ export default async function GroupAdminLayout({
     },
     { href: `/groups/${groupId}/announcements`, label: "Announcements" },
     { href: `/groups/${groupId}/members`, label: "Members" },
+    { href: `/groups/${groupId}/authorized`, label: "Authorized users" },
     {
       href: `/groups/${groupId}/events`,
       label: "Events",
