@@ -52,7 +52,11 @@ export default async function GroupAdminLayout({
       locked: !hasEntitlement(subscription, "events", { isSuperadmin: user.is_superadmin }),
     },
     {
-      href: `/groups/${groupId}/points`,
+      // /points/manage, not /points: the XF-era /groups/:id/points URL was
+      // permanently redirected (308) to the profile until 2026-07-08, and
+      // browsers cache permanent redirects — a tab pointing at /points would
+      // silently bounce those visitors back to the profile forever.
+      href: `/groups/${groupId}/points/manage`,
       label: "Points",
       locked: !hasEntitlement(subscription, "custom_points", { isSuperadmin: user.is_superadmin }),
     },

@@ -52,8 +52,10 @@ const nextConfig: NextConfig = {
       { source: "/groups/:id(\\d+)/dashboard", destination: "/groups/:id/admin", permanent: true },
       { source: "/groups/:id(\\d+)/manual-submission", destination: "/submit", permanent: true },
       { source: "/groups/:id(\\d+)/board-generator", destination: "/groups/:id/lootboard", permanent: true },
-      // NOTE: no /groups/:id/points redirect — that XF-era URL is live again
-      // as the group points admin page (app/(admin)/groups/[id]/points).
+      // XF-era points URL. Temporary (307) on purpose: the pre-2026-07-08
+      // permanent 308 → /groups/:id got cached by browsers and is exactly why
+      // the admin page lives at /points/manage instead of /points.
+      { source: "/groups/:id(\\d+)/points", destination: "/groups/:id/points/manage", permanent: false },
 
       // Subscriptions (was feature store, now per-group subscription)
       { source: "/feature-store/:id(\\d+)", destination: "/groups/:id/subscription", permanent: true },

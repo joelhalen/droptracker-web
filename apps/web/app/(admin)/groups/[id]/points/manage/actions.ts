@@ -16,7 +16,7 @@ async function assertAdmin(groupId: number) {
 }
 
 function revalidate(groupId: number) {
-  revalidatePath(`/groups/${groupId}/points`);
+  revalidatePath(`/groups/${groupId}/points/manage`);
 }
 
 // --- Settings ---------------------------------------------------------------

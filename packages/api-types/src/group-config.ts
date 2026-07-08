@@ -18,7 +18,6 @@ export type ConfigCategory =
   | "pbs"
   | "cas"
   | "board"
-  | "points"
   | "integration";
 
 export type ConfigFieldType =
@@ -56,7 +55,6 @@ export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "pbs", label: "Personal best" },
   { id: "cas", label: "Combat achievements" },
   { id: "board", label: "Lootboard" },
-  { id: "points", label: "Points" },
   { id: "integration", label: "Integration & info" },
 ];
 
@@ -139,8 +137,10 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "repost_lootboard", label: "Repost lootboard", category: "board", type: "boolean", help: "Repost (vs. edit) the board on each update.", default: false },
   { key: "seasonal_boards", label: "Seasonal boards", category: "board", type: "boolean", help: "When enabled, automatically use themed boards for holidays/seasons when made available globally.", default: false },
 
-  // --- Points -------------------------------------------------------------
-  { key: "split_gp_tracking", label: "Track split GP", category: "points", type: "boolean", help: "Account for loot splits when crediting GP/points.", default: false },
+  // --- Split tracking -------------------------------------------------------
+  // GP splits only. Point splitting is a separate setting managed on the
+  // Points page (`point_sharing` / `point_sharing_method`, points routes).
+  { key: "split_gp_tracking", label: "Split GP tracking", category: "drops", type: "boolean", help: "Track raid loot splits: members receive their share of a split drop's GP value instead of the receiver keeping the full amount. Point splitting is configured separately on the Points tab.", default: false },
 
   // --- Misc / integration -------------------------------------------------
   { key: "group_name", label: "Group name", category: "integration", type: "string", help: "Display name of the group.", default: "" },
