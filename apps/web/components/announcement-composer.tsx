@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import type { AnnouncementInput } from "@droptracker/api-types";
-import { publishAnnouncement } from "@/app/(admin)/groups/[id]/announcements/actions";
+import { useEffect, useState, useTransition } from "react";
+import type { AnnouncementInput, DiscordRole } from "@droptracker/api-types";
+import {
+  fetchDiscordRoles,
+  publishAnnouncement,
+} from "@/app/(admin)/groups/[id]/announcements/actions";
 import { publishGlobalAnnouncement } from "@/app/(admin)/admin/announcements/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
@@ -23,7 +26,43 @@ export function AnnouncementComposer({ groupId }: { groupId?: number }) {
     body_md: "",
     pinned: false,
     post_to_discord: true,
+    ping_role_ids: [],
+    ping_user_ids: [],
+    ping_everyone: false,
   });
+
+  // Guild roles for the ping picker (group scope only). The bot warms a cold
+  // cache within ~15s, so retry once while `stale`.
+  const [roles, setRoles] = useState<DiscordRole[] | null>(null);
+  useEffect(() => {
+    if (!groupId) return;
+    let cancelled = false;
+    let retried = false;
+    const load = () => {
+      fetchDiscordRoles(groupId)
+        .then((r) => {
+          if (cancelled) return;
+          setRoles(r.roles);
+          if (r.stale && !retried) {
+            retried = true;
+            setTimeout(load, 16_000);
+          }
+        })
+        .catch(() => !cancelled && setRoles([]));
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId]);
+
+  const toggleRole = (id: string) =>
+    setForm((f) => ({
+      ...f,
+      ping_role_ids: f.ping_role_ids.includes(id)
+        ? f.ping_role_ids.filter((r) => r !== id)
+        : [...f.ping_role_ids, id],
+    }));
 
   const set = <K extends keyof AnnouncementInput>(k: K, v: AnnouncementInput[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -38,7 +77,16 @@ export function AnnouncementComposer({ groupId }: { groupId?: number }) {
       try {
         if (groupId) await publishAnnouncement(groupId, form);
         else await publishGlobalAnnouncement(form);
-        setForm((f) => ({ ...f, title: "", body_md: "", pinned: false }));
+        // Clear pings too — a follow-up post must not silently re-ping.
+        setForm((f) => ({
+          ...f,
+          title: "",
+          body_md: "",
+          pinned: false,
+          ping_role_ids: [],
+          ping_user_ids: [],
+          ping_everyone: false,
+        }));
         setDone(true);
         setTimeout(() => setDone(false), 2500);
       } catch (err) {
@@ -104,6 +152,56 @@ export function AnnouncementComposer({ groupId }: { groupId?: number }) {
           Also post to Discord
         </label>
       </div>
+
+      {groupId != null && form.post_to_discord && (
+        <fieldset className="border-osrs-bronze/20 space-y-2 rounded border p-3">
+          <legend className="text-osrs-gold px-1 text-sm font-semibold">Ping on Discord</legend>
+          <p className="text-osrs-parchment-dark/60 text-xs">
+            Selected pings are sent as real mentions above the announcement embed (mentions typed
+            inside the announcement text can&apos;t ping — Discord ignores them in embeds).
+          </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => set("ping_everyone", !form.ping_everyone)}
+              className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                form.ping_everyone
+                  ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
+                  : "border-osrs-bronze/40 hover:border-osrs-gold"
+              }`}
+              aria-pressed={form.ping_everyone}
+            >
+              @everyone
+            </button>
+            {(roles ?? []).map((r) => {
+              const on = form.ping_role_ids.includes(r.id);
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => toggleRole(r.id)}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                    on
+                      ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
+                      : "border-osrs-bronze/40 hover:border-osrs-gold"
+                  }`}
+                  aria-pressed={on}
+                >
+                  @{r.name}
+                </button>
+              );
+            })}
+            {roles === null && (
+              <span className="text-osrs-parchment-dark/50 text-xs">Loading roles…</span>
+            )}
+            {roles !== null && roles.length === 0 && (
+              <span className="text-osrs-parchment-dark/50 text-xs">
+                No roles found — the bot may still be syncing this server (retries shortly).
+              </span>
+            )}
+          </div>
+        </fieldset>
+      )}
 
       <div className="flex items-center gap-3">
         <button

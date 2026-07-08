@@ -59,6 +59,8 @@ import {
   type PlayerBadge as PlayerBadgeAward,
   type Announcement,
   type AnnouncementInput,
+  type GroupDiscordRoles,
+  GroupDiscordRolesSchema,
   type AnnouncementPage,
   type BingoBoard,
   type BingoBoardInput,
@@ -1034,6 +1036,23 @@ export const api = {
   },
 
   // --- Announcements (write) --------------------------------------------
+  /** Roles of the group's linked guild (bot-cached; stale=true while warming). */
+  async groupDiscordRoles(groupId: number): Promise<GroupDiscordRoles> {
+    return withFallback(
+      async () =>
+        GroupDiscordRolesSchema.parse(
+          await apiGet(`/groups/${groupId}/discord/roles`, { authed: true }),
+        ),
+      () => ({
+        roles: [
+          { id: "111111111111111111", name: "Clanmate", position: 2 },
+          { id: "222222222222222222", name: "Events", position: 1 },
+        ],
+        stale: false,
+      }),
+    );
+  },
+
   async createAnnouncement(input: AnnouncementInput): Promise<{ id: number }> {
     const path =
       input.scope_type === "group" && input.group_id

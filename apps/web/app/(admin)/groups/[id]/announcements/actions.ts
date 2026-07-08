@@ -12,6 +12,12 @@ async function assertGroupAdmin(groupId: number) {
   }
 }
 
+/** Server Action: roles of the group's linked guild for the ping picker. */
+export async function fetchDiscordRoles(groupId: number) {
+  await assertGroupAdmin(groupId);
+  return api.groupDiscordRoles(groupId);
+}
+
 /** Server Action: publish a group announcement (FRONTEND_PLAN.md §10). */
 export async function publishAnnouncement(groupId: number, input: AnnouncementInput) {
   await assertGroupAdmin(groupId);

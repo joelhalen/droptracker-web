@@ -406,8 +406,28 @@ export const AnnouncementInputSchema = z.object({
   cover_image_url: z.string().url().nullable().optional(),
   /** Also syndicate to the group's announcements Discord channel (§10.1). */
   post_to_discord: z.boolean().default(true),
+  /** Real pings on the Discord post — sent as message content (mentions
+   * inside embeds never ping). Snowflake id strings; max 10 each. */
+  ping_role_ids: z.array(z.string()).default([]),
+  ping_user_ids: z.array(z.string()).default([]),
+  ping_everyone: z.boolean().default(false),
 });
 export type AnnouncementInput = z.infer<typeof AnnouncementInputSchema>;
+
+/** A guild role, for the announcement ping picker (bot-cached via Redis). */
+export const DiscordRoleSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  position: z.number().int().default(0),
+});
+export type DiscordRole = z.infer<typeof DiscordRoleSchema>;
+
+export const GroupDiscordRolesSchema = z.object({
+  roles: z.array(DiscordRoleSchema).default([]),
+  /** True while the bot is still warming this guild's role cache — retry shortly. */
+  stale: z.boolean().default(false),
+});
+export type GroupDiscordRoles = z.infer<typeof GroupDiscordRolesSchema>;
 
 /** Docs CMS (superadmin-editable, replaces the old static .mdx files). */
 export const DocSummarySchema = z.object({
