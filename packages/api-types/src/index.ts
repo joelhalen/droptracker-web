@@ -584,20 +584,68 @@ export const SubscriptionStatus = [
   "expired",
 ] as const;
 
+/**
+ * One contribution "leg" of a group's subscription pool. Multiple members may
+ * each hold their own recurring payment; the group's effective tier is the
+ * most expensive tier covered by the sum of live legs (backend
+ * `db/entitlements.py effective_group_subscription`).
+ */
+export const GroupSubscriptionLegSchema = z.object({
+  id: z.number().int(),
+  /** Payer; null on legacy PayPal agreements and comped/manual grants. */
+  user_id: z.number().int().nullable(),
+  user_name: z.string().nullable().optional(),
+  /** Tier the leg was purchased toward (informational). */
+  tier_key: z.string().nullable(),
+  /** Recurring charge in minor units; null on legacy rows (tier price applies). */
+  amount_cents: z.number().int().nullable(),
+  provider: z.enum(["patreon", "stripe", "paypal", "manual"]).nullable(),
+  status: z.enum(SubscriptionStatus),
+  current_period_end: z.number().int().nullable(),
+  cancel_at_period_end: z.boolean().default(false),
+  /** True when the leg belongs to the requesting user. */
+  mine: z.boolean().default(false),
+});
+export type GroupSubscriptionLeg = z.infer<typeof GroupSubscriptionLegSchema>;
+
 export const GroupSubscriptionSchema = z.object({
   group_id: z.number().int(),
-  /** Active tier key, or null when on the free plan. */
+  /** EFFECTIVE tier key — what the live pool covers; null on the free plan. */
   tier_key: z.string().nullable(),
   status: z.enum(SubscriptionStatus),
+  /** Single distinct live-leg provider, or null when mixed/none. */
   provider: z.enum(["patreon", "stripe", "paypal", "manual"]).nullable(),
-  /** Unix seconds when the current paid period ends / renews. */
+  /** Unix seconds when the soonest live leg ends (pool could shrink). */
   current_period_end: z.number().int().nullable(),
-  /** When true, the subscription ends at `current_period_end` (not renewing). */
+  /** True only when EVERY live leg is winding down. */
   cancel_at_period_end: z.boolean().default(false),
-  /** Resolved capabilities for this group's active tier (present on Web API reads). */
+  /** Sum of live legs' monthly-normalized contributions. */
+  total_monthly_cents: z.number().int().optional(),
+  /** Per-leg breakdown (present on Web API reads). */
+  legs: z.array(GroupSubscriptionLegSchema).optional(),
+  /** Resolved capabilities for this group's effective tier (present on Web API reads). */
   entitlements: GroupEntitlementsSchema.optional(),
 });
 export type GroupSubscription = z.infer<typeof GroupSubscriptionSchema>;
+
+/** Public pool summary (GET /groups/{id}/subscription/summary) — feeds the
+ * member-facing "Support this clan" card; carries no personal data. */
+export const GroupSubscriptionSummarySchema = z.object({
+  group_id: z.number().int(),
+  tier_key: z.string().nullable(),
+  tier_name: z.string().nullable(),
+  total_monthly_cents: z.number().int(),
+  next_tier: z
+    .object({
+      key: z.string(),
+      name: z.string(),
+      price_cents: z.number().int(),
+      delta_cents: z.number().int(),
+    })
+    .nullable()
+    .optional(),
+});
+export type GroupSubscriptionSummary = z.infer<typeof GroupSubscriptionSummarySchema>;
 
 /**
  * User-level supporter subscription (GET /api/v1/users/me/subscription).
@@ -774,7 +822,8 @@ export type AdminLookupResponse = z.infer<typeof AdminLookupResponseSchema>;
 export const AdminOverviewStatSchema = z.object({
   key: z.string(),
   label: z.string(),
-  value: z.number().int(),
+  /** Counts are numbers; preformatted stats (e.g. MRR "$123.45") are strings. */
+  value: z.union([z.number(), z.string()]),
   hint: z.string().optional(),
 });
 export type AdminOverviewStat = z.infer<typeof AdminOverviewStatSchema>;
@@ -784,6 +833,68 @@ export const AdminOverviewSchema = z.object({
   generated_at: z.number().int(),
 });
 export type AdminOverview = z.infer<typeof AdminOverviewSchema>;
+
+/** Monetization dashboard payload (GET /admin/subscriptions/overview). */
+export const AdminSubscriptionRowSchema = z.object({
+  scope: z.enum(["group", "user"]),
+  id: z.number().int(),
+  group_id: z.number().int().nullable(),
+  group_name: z.string().nullable(),
+  user_id: z.number().int().nullable(),
+  user_name: z.string().nullable(),
+  tier_key: z.string().nullable(),
+  amount_cents: z.number().int().nullable(),
+  provider: z.string().nullable(),
+  status: z.enum(SubscriptionStatus),
+  /** Currently conferring benefits (status + period-end grace). */
+  live: z.boolean(),
+  current_period_end: z.number().int().nullable(),
+  cancel_at_period_end: z.boolean(),
+});
+export type AdminSubscriptionRow = z.infer<typeof AdminSubscriptionRowSchema>;
+
+export const AdminPaymentRowSchema = z.object({
+  id: z.number().int(),
+  scope: z.enum(["group", "user"]),
+  group_id: z.number().int().nullable(),
+  group_name: z.string().nullable(),
+  user_id: z.number().int().nullable(),
+  user_name: z.string().nullable(),
+  tier_key: z.string().nullable(),
+  provider: z.string(),
+  amount_cents: z.number().int(),
+  currency: z.string(),
+  kind: z.enum(["payment", "refund", "reversal"]),
+  paid_at: z.number().int().nullable(),
+});
+export type AdminPaymentRow = z.infer<typeof AdminPaymentRowSchema>;
+
+export const AdminSubscriptionsOverviewSchema = z.object({
+  kpis: z.object({
+    mrr_cents: z.number().int(),
+    group_mrr_cents: z.number().int(),
+    user_mrr_cents: z.number().int(),
+    paying_groups: z.number().int(),
+    active_user_subscriptions: z.number().int(),
+    past_due: z.number().int(),
+    lifetime_cents: z.number().int(),
+  }),
+  tier_distribution: z.array(
+    z.object({
+      tier_key: z.string(),
+      tier_name: z.string(),
+      groups: z.number().int(),
+    }),
+  ),
+  /** Last 12 months of ledger income (payments − refunds), oldest first. */
+  income_by_month: z.array(
+    z.object({ month: z.string(), amount_cents: z.number().int() }),
+  ),
+  subscriptions: z.array(AdminSubscriptionRowSchema),
+  recent_payments: z.array(AdminPaymentRowSchema),
+  generated_at: z.number().int(),
+});
+export type AdminSubscriptionsOverview = z.infer<typeof AdminSubscriptionsOverviewSchema>;
 
 /** Comped (manual) subscription grant input (§12). */
 export const AdminSubscriptionGrantInputSchema = z.object({
@@ -1447,6 +1558,42 @@ export const TicketActionInputSchema = z.object({
   action: z.enum(["claim", "unclaim", "close"]),
 });
 export type TicketActionInput = z.infer<typeof TicketActionInputSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Suggestions & bug reports (POST /suggestions, GET /me/suggestions)          */
+/* -------------------------------------------------------------------------- */
+
+export const SuggestionTypeSchema = z.enum(["suggestion", "bug"]);
+export type SuggestionType = z.infer<typeof SuggestionTypeSchema>;
+
+/** "pending" = queued for the Discord bot; "posted" = live forum thread. */
+export const SuggestionStatusSchema = z.enum(["pending", "posted", "failed"]);
+export type SuggestionStatus = z.infer<typeof SuggestionStatusSchema>;
+
+export const SuggestionSchema = z.object({
+  id: z.number().int(),
+  type: SuggestionTypeSchema,
+  title: z.string(),
+  body_md: z.string(),
+  status: SuggestionStatusSchema,
+  discord_thread_url: z.string().nullable(),
+  created_at: z.number().int().nullable(),
+});
+export type Suggestion = z.infer<typeof SuggestionSchema>;
+
+export const SuggestionPageSchema = z.object({
+  items: z.array(SuggestionSchema),
+  meta: PageMetaSchema,
+});
+export type SuggestionPage = z.infer<typeof SuggestionPageSchema>;
+
+/** POST /suggestions body. The title doubles as the Discord thread name. */
+export const SuggestionCreateSchema = z.object({
+  type: SuggestionTypeSchema,
+  title: z.string().trim().min(5).max(100),
+  body_md: z.string().trim().min(20).max(4000),
+});
+export type SuggestionCreate = z.infer<typeof SuggestionCreateSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Custom group points system (/groups/{id}/points/*)                          */

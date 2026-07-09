@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   AdminLookupResponseSchema,
+  AdminSubscriptionsOverviewSchema,
   AnnouncementPageSchema,
   AdminTicketPageSchema,
+  GroupSubscriptionSchema,
+  GroupSubscriptionSummarySchema,
   EventDetailSchema,
   EventTeamDetailSchema,
   EventSummarySchema,
@@ -25,7 +28,10 @@ import {
   mockEvent,
   mockEventTeam,
   mockEvents,
+  mockAdminSubscriptionsOverview,
   mockAdminTickets,
+  mockGroupSubscription,
+  mockGroupSubscriptionSummary,
   mockLookup,
   mockLootboard,
   mockMyTickets,
@@ -67,6 +73,9 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => EventSummarySchema.array().parse(mockEvents()));
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(1)));
   assert.doesNotThrow(() => EventTeamDetailSchema.parse(mockEventTeam(1, 21)));
+  assert.doesNotThrow(() => GroupSubscriptionSchema.parse(mockGroupSubscription(101)));
+  assert.doesNotThrow(() => GroupSubscriptionSummarySchema.parse(mockGroupSubscriptionSummary(101)));
+  assert.doesNotThrow(() => AdminSubscriptionsOverviewSchema.parse(mockAdminSubscriptionsOverview()));
   assert.doesNotThrow(() => TicketPageSchema.parse(mockMyTickets()));
   assert.doesNotThrow(() => TicketDetailSchema.parse(mockTicket(2)));
   assert.doesNotThrow(() => AdminTicketPageSchema.parse(mockAdminTickets()));

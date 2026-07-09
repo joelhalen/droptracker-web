@@ -21,6 +21,7 @@ const CARDS: { href: string; title: string; desc: string }[] = [
   { href: "/admin/services", title: "Services", desc: "Start/stop/restart backend services; view logs." },
   { href: "/admin/lookup", title: "Lookup", desc: "Cross-content search across players, groups, drops…" },
   { href: "/admin/tiers", title: "Subscription tiers", desc: "Create and edit premium tiers." },
+  { href: "/admin/subscriptions", title: "Subscriptions & revenue", desc: "MRR, income history, and every active/lapsed subscription." },
 ];
 
 function formatGeneratedAt(value: number | string): string {

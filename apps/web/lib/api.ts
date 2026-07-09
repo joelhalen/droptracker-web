@@ -37,6 +37,8 @@ import {
   GroupEmbedSchema,
   GroupEmbedsResponseSchema,
   GroupSubscriptionSchema,
+  GroupSubscriptionSummarySchema,
+  AdminSubscriptionsOverviewSchema,
   GuildStatusSchema,
   LeaderboardPageSchema,
   MeSchema,
@@ -47,6 +49,8 @@ import {
   ServiceStatusSchema,
   SubscriptionTierSchema,
   AdminTicketPageSchema,
+  SuggestionPageSchema,
+  SuggestionSchema,
   TicketDetailSchema,
   TicketPageSchema,
   TicketSummarySchema,
@@ -95,6 +99,8 @@ import {
   type GroupMembersPage,
   type GroupProfile,
   type GroupSubscription,
+  type GroupSubscriptionSummary,
+  type AdminSubscriptionsOverview,
   type GuildStatus,
   type LeaderboardPage,
   type Lootboard,
@@ -116,6 +122,9 @@ import {
   type WomGroupPreview,
   type WomSyncResult,
   type AdminTicketPage,
+  type Suggestion,
+  type SuggestionCreate,
+  type SuggestionPage,
   type TicketDetail,
   type TicketPage,
   type TicketSummary,
@@ -151,6 +160,8 @@ import {
   mockGroupProfile,
   mockGroupEmbeds,
   mockGroupSubscription,
+  mockGroupSubscriptionSummary,
+  mockAdminSubscriptionsOverview,
   mockGuildStatus,
   mockAuthorizedUsers,
   mockUserSubscription,
@@ -165,7 +176,9 @@ import {
   mockAdminTickets,
   mockLookup,
   mockLootboard,
+  mockMySuggestions,
   mockMyTickets,
+  mockSuggestion,
   mockTicket,
   mockMe,
   mockPlayerLeaderboard,
@@ -1407,7 +1420,19 @@ export const api = {
     );
   },
 
-  /** Begin (or switch to) a paid tier; returns a provider-hosted redirect URL. */
+  /** Public pool summary for the group page "Support this clan" card. */
+  async groupSubscriptionSummary(groupId: number): Promise<GroupSubscriptionSummary> {
+    return withFallback(
+      async () =>
+        GroupSubscriptionSummarySchema.parse(
+          await apiGet(`/groups/${groupId}/subscription/summary`, { revalidate: 60 }),
+        ),
+      () => mockGroupSubscriptionSummary(groupId),
+    );
+  },
+
+  /** Add a contribution leg toward `tierKey` (pool model: any group member
+   * pays the difference between the tier price and the current pool). */
   async subscriptionCheckout(groupId: number, tierKey: string): Promise<CheckoutSession> {
     return withFallback(
       async () =>
@@ -1418,21 +1443,22 @@ export const api = {
     );
   },
 
-  async cancelSubscription(groupId: number): Promise<GroupSubscription> {
+  /** Wind down ONE contribution leg (payer or group admin). */
+  async cancelSubscriptionLeg(groupId: number, legId: number): Promise<GroupSubscription> {
     return withFallback(
       async () =>
         GroupSubscriptionSchema.parse(
-          await apiSend("POST", `/groups/${groupId}/subscription/cancel`, {}),
+          await apiSend("POST", `/groups/${groupId}/subscription/legs/${legId}/cancel`, {}),
         ),
       () => ({ ...mockGroupSubscription(groupId), cancel_at_period_end: true }),
     );
   },
 
-  async resumeSubscription(groupId: number): Promise<GroupSubscription> {
+  async resumeSubscriptionLeg(groupId: number, legId: number): Promise<GroupSubscription> {
     return withFallback(
       async () =>
         GroupSubscriptionSchema.parse(
-          await apiSend("POST", `/groups/${groupId}/subscription/resume`, {}),
+          await apiSend("POST", `/groups/${groupId}/subscription/legs/${legId}/resume`, {}),
         ),
       () => ({ ...mockGroupSubscription(groupId), cancel_at_period_end: false }),
     );
@@ -1709,6 +1735,18 @@ export const api = {
     );
   },
 
+  /** Monetization dashboard: MRR/lifetime KPIs, income by month, every
+   * subscription (group legs + supporters), recent ledger payments. */
+  async adminSubscriptionsOverview(): Promise<AdminSubscriptionsOverview> {
+    return withFallback(
+      async () =>
+        AdminSubscriptionsOverviewSchema.parse(
+          await apiGet(`/admin/subscriptions/overview`, { authed: true }),
+        ),
+      () => mockAdminSubscriptionsOverview(),
+    );
+  },
+
   // --- Superadmin dashboard: comped subscriptions -----------------------
   async adminGrantSubscription(
     groupId: number,
@@ -1879,6 +1917,27 @@ export const api = {
           await apiSend("PATCH", `/admin/tickets/${ticketId}`, { action }),
         ),
       () => mockMyTickets(1).items[0]!,
+    );
+  },
+
+  // --- Suggestions & bug reports (web /suggestions) -----------------------
+  async createSuggestion(input: SuggestionCreate): Promise<Suggestion> {
+    return withFallback(
+      async () =>
+        SuggestionSchema.parse(await apiSend("POST", `/suggestions`, input)),
+      () => ({ ...mockSuggestion(99, "pending"), ...input }),
+    );
+  },
+
+  async mySuggestions(params: { page?: number; limit?: number } = {}): Promise<SuggestionPage> {
+    const qs = new URLSearchParams();
+    if (params.page) qs.set("page", String(params.page));
+    if (params.limit) qs.set("limit", String(params.limit));
+    const suffix = qs.toString() ? `?${qs}` : "";
+    return withFallback(
+      async () =>
+        SuggestionPageSchema.parse(await apiGet(`/me/suggestions${suffix}`, { authed: true })),
+      () => mockMySuggestions(params.page ?? 1),
     );
   },
 

@@ -2,8 +2,10 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
 import { CountUp } from "@/components/count-up";
+import { GroupSupportCard } from "@/components/group-support-card";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { BossActivityList, RecordsShowcase, TopPlayersList } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
@@ -31,6 +33,11 @@ export default async function GroupPage({ params }: { params: Params }) {
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
   const group = await orNotFound(api.group(groupId));
+  // Subscription-pool summary for the support card; both are best-effort.
+  const [subSummary, viewer] = await Promise.all([
+    api.groupSubscriptionSummary(groupId).catch(() => null),
+    getUser().catch(() => null),
+  ]);
 
   const hasTopPlayers = (group.top_players?.length ?? 0) > 0;
   const hasBosses = (group.top_bosses?.length ?? 0) > 0;
@@ -76,6 +83,10 @@ export default async function GroupPage({ params }: { params: Params }) {
           )}
         </div>
       </header>
+
+      {subSummary && (
+        <GroupSupportCard groupId={groupId} summary={subSummary} signedIn={viewer != null} />
+      )}
 
       <div className="stagger-children grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile

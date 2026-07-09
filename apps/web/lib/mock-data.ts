@@ -19,6 +19,8 @@ import type {
   GroupProfile,
   AuthorizedUsersResponse,
   GroupSubscription,
+  GroupSubscriptionSummary,
+  AdminSubscriptionsOverview,
   UserSubscription,
   GuildStatus,
   LeaderboardPage,
@@ -30,6 +32,8 @@ import type {
   ServiceLogs,
   ServiceStatus,
   SubscriptionTier,
+  Suggestion,
+  SuggestionPage,
   AdminTicketPage,
   TicketDetail,
   TicketPage,
@@ -466,14 +470,196 @@ export function mockAuthorizedUsers(): AuthorizedUsersResponse {
 }
 
 export function mockGroupSubscription(groupId: number): GroupSubscription {
+  const renews = Math.floor(Date.now() / 1000) + 18 * 86400;
+  // Pool model: a legacy PayPal base leg + a member's Stripe difference leg
+  // together cover Premium+ ($15/mo).
+  return {
+    group_id: groupId,
+    tier_key: "premium_plus",
+    status: "active",
+    provider: null,
+    current_period_end: renews,
+    cancel_at_period_end: false,
+    total_monthly_cents: 1500,
+    legs: [
+      {
+        id: 1,
+        user_id: null,
+        user_name: null,
+        tier_key: "premium",
+        amount_cents: 500,
+        provider: "paypal",
+        status: "active",
+        current_period_end: renews,
+        cancel_at_period_end: false,
+        mine: false,
+      },
+      {
+        id: 2,
+        user_id: 1,
+        user_name: "MockUser",
+        tier_key: "premium_plus",
+        amount_cents: 1000,
+        provider: "stripe",
+        status: "active",
+        current_period_end: renews + 5 * 86400,
+        cancel_at_period_end: false,
+        mine: true,
+      },
+    ],
+    entitlements: {
+      events: true,
+      events_max_active: 3,
+      hall_of_fame: true,
+      custom_embeds: true,
+      video_submissions: true,
+      custom_points: true,
+    },
+  };
+}
+
+export function mockGroupSubscriptionSummary(groupId: number): GroupSubscriptionSummary {
   return {
     group_id: groupId,
     tier_key: "premium",
-    status: "active",
-    provider: "stripe",
-    current_period_end: Math.floor(Date.now() / 1000) + 18 * 86400,
-    cancel_at_period_end: false,
-    entitlements: { events: true, hall_of_fame: true, custom_embeds: true },
+    tier_name: "Premium",
+    total_monthly_cents: 500,
+    next_tier: { key: "premium_plus", name: "Premium+", price_cents: 1500, delta_cents: 1000 },
+  };
+}
+
+export function mockAdminSubscriptionsOverview(): AdminSubscriptionsOverview {
+  const now = Math.floor(Date.now() / 1000);
+  const month = (offset: number) => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+  return {
+    kpis: {
+      mrr_cents: 6500,
+      group_mrr_cents: 5500,
+      user_mrr_cents: 1000,
+      paying_groups: 4,
+      active_user_subscriptions: 2,
+      past_due: 1,
+      lifetime_cents: 84500,
+    },
+    tier_distribution: [
+      { tier_key: "premium", tier_name: "Premium", groups: 3 },
+      { tier_key: "premium_plus", tier_name: "Premium+", groups: 1 },
+    ],
+    income_by_month: Array.from({ length: 12 }, (_, i) => ({
+      month: month(11 - i),
+      amount_cents: 4500 + ((i * 733) % 3000),
+    })),
+    subscriptions: [
+      {
+        scope: "group",
+        id: 1,
+        group_id: 101,
+        group_name: "Clan 1",
+        user_id: null,
+        user_name: null,
+        tier_key: "premium",
+        amount_cents: 500,
+        provider: "paypal",
+        status: "active",
+        live: true,
+        current_period_end: now + 12 * 86400,
+        cancel_at_period_end: false,
+      },
+      {
+        scope: "group",
+        id: 2,
+        group_id: 101,
+        group_name: "Clan 1",
+        user_id: 1,
+        user_name: "MockUser",
+        tier_key: "premium_plus",
+        amount_cents: 1000,
+        provider: "stripe",
+        status: "active",
+        live: true,
+        current_period_end: now + 20 * 86400,
+        cancel_at_period_end: false,
+      },
+      {
+        scope: "user",
+        id: 5,
+        group_id: null,
+        group_name: null,
+        user_id: 1098,
+        user_name: "wimi.",
+        tier_key: "supporter",
+        amount_cents: 1000,
+        provider: "stripe",
+        status: "active",
+        live: true,
+        current_period_end: now + 28 * 86400,
+        cancel_at_period_end: false,
+      },
+      {
+        scope: "group",
+        id: 3,
+        group_id: 102,
+        group_name: "Clan 2",
+        user_id: null,
+        user_name: null,
+        tier_key: "premium",
+        amount_cents: 500,
+        provider: "paypal",
+        status: "expired",
+        live: false,
+        current_period_end: now - 40 * 86400,
+        cancel_at_period_end: true,
+      },
+    ],
+    recent_payments: [
+      {
+        id: 3,
+        scope: "user",
+        group_id: null,
+        group_name: null,
+        user_id: 1098,
+        user_name: "wimi.",
+        tier_key: "supporter",
+        provider: "stripe",
+        amount_cents: 1000,
+        currency: "USD",
+        kind: "payment",
+        paid_at: now - 3600,
+      },
+      {
+        id: 2,
+        scope: "group",
+        group_id: 101,
+        group_name: "Clan 1",
+        user_id: 1,
+        user_name: "MockUser",
+        tier_key: "premium_plus",
+        provider: "stripe",
+        amount_cents: 1000,
+        currency: "USD",
+        kind: "payment",
+        paid_at: now - 86400,
+      },
+      {
+        id: 1,
+        scope: "group",
+        group_id: 101,
+        group_name: "Clan 1",
+        user_id: null,
+        user_name: null,
+        tier_key: "premium",
+        provider: "paypal",
+        amount_cents: 500,
+        currency: "USD",
+        kind: "payment",
+        paid_at: now - 3 * 86400,
+      },
+    ],
+    generated_at: now,
   };
 }
 
@@ -982,6 +1168,27 @@ export function mockTicket(ticketId: number): TicketDetail {
         date_edited: null,
       },
     ],
+  };
+}
+
+export function mockSuggestion(id: number, status: Suggestion["status"] = "posted"): Suggestion {
+  return {
+    id,
+    type: id % 2 === 0 ? "bug" : "suggestion",
+    title: id % 2 === 0 ? "Lootboard skips seasonal drops" : "Add a dark theme for lootboards",
+    body_md:
+      "**What happened**\n\nMy seasonal drops stopped showing on the lootboard.\n\n- Step 1\n- Step 2",
+    status,
+    discord_thread_url:
+      status === "posted" ? `https://discord.com/channels/1/${1000 + id}` : null,
+    created_at: MOCK_NOW - 86_400 * id,
+  };
+}
+
+export function mockMySuggestions(page = 1): SuggestionPage {
+  return {
+    items: [mockSuggestion(3, "pending"), mockSuggestion(2), mockSuggestion(1)],
+    meta: { page, limit: 25, total: 3 },
   };
 }
 
