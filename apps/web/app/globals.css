@@ -306,11 +306,36 @@ h2 {
   border-color: color-mix(in srgb, var(--dt-gold) 45%, transparent) !important;
 }
 
+/*
+ * Top-tier ("dragon") subscription flair: an ember gradient that sweeps across
+ * the group name. Fixed colors (theme-independent), matching the flair palette
+ * in lib/tier-flair.ts. Under reduced motion the sweep is disabled but the
+ * static ember gradient remains (see the guard below).
+ */
+@keyframes flair-shimmer {
+  0% {
+    background-position: -140% 0;
+  }
+  100% {
+    background-position: 240% 0;
+  }
+}
+
+.flair-shimmer {
+  background: linear-gradient(100deg, #ff8a5c 20%, #ffe08a 45%, #ff8a5c 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: flair-shimmer 2.6s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .rise-in,
   .stagger-children > *,
   .bar-grow,
-  .record-glow {
+  .record-glow,
+  .flair-shimmer {
     animation: none;
   }
 }

@@ -7,6 +7,8 @@
 import type { ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
+import type { TierFlairStyle } from "@droptracker/api-types";
+import { resolveFlair } from "@/lib/tier-flair";
 
 /**
  * Standard resting-state panel (design system refresh). Wraps the `.card`
@@ -259,13 +261,17 @@ export function NameTile({
   name,
   size = "md",
   className = "",
+  flair,
 }: {
   name: string;
   size?: keyof typeof TILE_SIZES;
   className?: string;
+  /** Subscription tier flair — adds a colored border + glow to the tile. */
+  flair?: TierFlairStyle;
 }) {
   const hue = nameHue(name);
   const initial = (name.trim()[0] ?? "?").toUpperCase();
+  const f = resolveFlair(flair);
   return (
     <span
       aria-hidden
@@ -273,6 +279,8 @@ export function NameTile({
       style={{
         background: `linear-gradient(135deg, hsl(${hue} 45% 42%), hsl(${(hue + 40) % 360} 50% 30%))`,
         border: `1px solid hsl(${hue} 45% 55% / 0.5)`,
+        // Flair (when present) overrides the border and adds the glow.
+        ...f?.tileStyle,
       }}
     >
       {initial}
@@ -293,6 +301,8 @@ export function EntityChip({
   size = "md",
   className = "",
   tileClassName = "",
+  flair,
+  flairTitle,
 }: {
   href: Route | string;
   name: string;
@@ -304,13 +314,29 @@ export function EntityChip({
   className?: string;
   /** Extra classes for the identicon tile (e.g. "max-sm:hidden" in dense rows). */
   tileClassName?: string;
+  /** Subscription tier flair — colors/glows the name + tile (groups only). */
+  flair?: TierFlairStyle;
+  /** Tooltip for the flaired name, e.g. the tier's display name. */
+  flairTitle?: string;
 }) {
+  const f = resolveFlair(flair);
   return (
     <Link href={href as Route} className={`group flex min-w-0 items-center gap-2.5 ${className}`}>
-      <NameTile name={name} size={size} className={tileClassName} />
+      <NameTile name={name} size={size} className={tileClassName} flair={flair} />
       <span className="min-w-0">
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="group-hover:text-osrs-gold-bright truncate font-medium transition-colors">
+          {f && (
+            <span aria-hidden className="shrink-0 text-xs" style={f.markerStyle} title={flairTitle}>
+              {f.marker}
+            </span>
+          )}
+          <span
+            className={`truncate font-medium transition-colors ${
+              f ? f.nameClassName : "group-hover:text-osrs-gold-bright"
+            }`}
+            style={f?.nameStyle}
+            title={flairTitle}
+          >
             {name}
           </span>
           {badges}

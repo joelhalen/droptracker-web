@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { SubscriptionTier } from "@droptracker/api-types";
-import { ENTITLEMENT_FIELDS, entitlementFieldsForScope } from "@droptracker/api-types";
+import type { SubscriptionTier, TierFlairStyle } from "@droptracker/api-types";
+import {
+  ENTITLEMENT_FIELDS,
+  entitlementFieldsForScope,
+  TIER_FLAIR_STYLES,
+} from "@droptracker/api-types";
 import { formatPrice } from "@/lib/format";
+import { resolveFlair } from "@/lib/tier-flair";
 import { InlineMarkdown } from "@/components/markdown";
 import { deleteTier, saveTier } from "@/app/(admin)/admin/tiers/actions";
 
@@ -17,8 +22,30 @@ const blankTier = (): SubscriptionTier => ({
   interval: "month",
   features: [],
   entitlements: Object.fromEntries(ENTITLEMENT_FIELDS.map((f) => [f.key, f.default])),
+  flair: "none",
   recommended: false,
 });
+
+/** Live sample of a flair style for the tier editor. */
+function FlairSwatch({ style }: { style: TierFlairStyle }) {
+  const f = resolveFlair(style);
+  return (
+    <span className="border-osrs-bronze/30 bg-osrs-brown-dark/40 inline-flex items-center gap-1.5 rounded border px-2.5 py-1 text-sm">
+      {f ? (
+        <>
+          <span aria-hidden style={f.markerStyle}>
+            {f.marker}
+          </span>
+          <span className={f.nameClassName} style={f.nameStyle}>
+            Sample Clan
+          </span>
+        </>
+      ) : (
+        <span className="text-osrs-parchment font-medium">Sample Clan</span>
+      )}
+    </span>
+  );
+}
 
 export function TierManager({ tiers }: { tiers: SubscriptionTier[] }) {
   // `editing` holds the tier being edited (existing) or a blank (new); null = closed.
@@ -196,6 +223,29 @@ function TierForm({
           className={field}
         />
       </label>
+
+      {form.scope === "group" && (
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium">Leaderboard flair</span>
+          <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">
+            Cosmetic name styling for subscribed groups on leaderboards, profiles and search.
+          </span>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={form.flair}
+              onChange={(e) => set("flair", e.target.value as SubscriptionTier["flair"])}
+              className={`${field} max-w-xs`}
+            >
+              {TIER_FLAIR_STYLES.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+            <FlairSwatch style={form.flair} />
+          </div>
+        </label>
+      )}
 
       <label className="block">
         <span className="mb-1 block text-sm font-medium">Features (one per line)</span>

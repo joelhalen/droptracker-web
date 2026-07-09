@@ -14,6 +14,7 @@ import {
   TierEntitlementsSchema,
   UserEntitlementsSchema,
 } from "./entitlements";
+import { GroupFlairSchema, TierFlairSchema } from "./tier-flair";
 
 /** Time partitions supported by the leaderboard API (FRONTEND_PLAN.md §6.5). */
 export const PeriodSchema = z
@@ -121,6 +122,8 @@ export const LeaderboardEntrySchema = z.object({
   loot: MoneySchema,
   delta: z.number().int().optional(),
   badges: z.array(CompactBadgeSchema).optional(),
+  /** Group tier flair (groups board only; present for subscribed groups). */
+  flair: GroupFlairSchema.optional(),
 });
 export type LeaderboardEntry = z.infer<typeof LeaderboardEntrySchema>;
 
@@ -159,6 +162,8 @@ export type Submission = z.infer<typeof SubmissionSchema>;
 export const GroupMembershipSchema = z.object({
   id: z.number().int(),
   name: z.string(),
+  /** Group tier flair, present for subscribed groups. */
+  flair: GroupFlairSchema.optional(),
 });
 export type GroupMembership = z.infer<typeof GroupMembershipSchema>;
 
@@ -260,6 +265,8 @@ export const GroupProfileSchema = z.object({
   top_bosses: z.array(TopBossSchema).optional(),
   records: z.array(GroupRecordSchema).optional(),
   recent_submissions: z.array(SubmissionSchema).default([]),
+  /** Group tier flair, present for subscribed groups. */
+  flair: GroupFlairSchema.optional(),
 });
 export type GroupProfile = z.infer<typeof GroupProfileSchema>;
 
@@ -298,6 +305,8 @@ export const MeSchema = z.object({
         id: z.number().int(),
         name: z.string(),
         role: z.enum(["owner", "admin", "member"]),
+        /** Group tier flair, present for subscribed groups. */
+        flair: GroupFlairSchema.optional(),
       }),
     )
     .default([]),
@@ -374,6 +383,8 @@ export const SearchResultsSchema = z.object({
       id: z.number().int(),
       name: z.string(),
       member_count: z.number().int().optional(),
+      /** Group tier flair, present for subscribed groups. */
+      flair: GroupFlairSchema.optional(),
     }),
   ),
 });
@@ -553,6 +564,8 @@ export const SubscriptionTierSchema = z.object({
   features: z.array(z.string()).default([]),
   /** Machine-readable capabilities (runtime access control). */
   entitlements: TierEntitlementsSchema.default({}),
+  /** Cosmetic display style granted to subscribed groups (see ./tier-flair). */
+  flair: TierFlairSchema,
   recommended: z.boolean().default(false),
 });
 export type SubscriptionTier = z.infer<typeof SubscriptionTierSchema>;
@@ -1546,3 +1559,4 @@ export type PointsAdjustResult = z.infer<typeof PointsAdjustResultSchema>;
 
 export * from "./group-config";
 export * from "./entitlements";
+export * from "./tier-flair";

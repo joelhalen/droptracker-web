@@ -81,6 +81,15 @@ export function mockPlayerLeaderboard(page = 1, limit = 25): LeaderboardPage {
   };
 }
 
+// A few mock clans carry subscription flair so the leaderboard renders the tier
+// treatment in mock mode (USE_MOCK_API=true). Keyed by rank on page 1.
+const MOCK_GROUP_FLAIR: Record<number, LeaderboardPage["entries"][number]["flair"]> = {
+  1: { tier_key: "premium_plus", tier_name: "Premium+", style: "dragon" },
+  2: { tier_key: "premium", tier_name: "Premium", style: "amethyst" },
+  3: { tier_key: "premium", tier_name: "Premium", style: "gold" },
+  5: { tier_key: "premium", tier_name: "Premium", style: "bronze" },
+};
+
 export function mockGroupLeaderboard(page = 1, limit = 25): LeaderboardPage {
   const entries = Array.from({ length: limit }, (_, i) => {
     const rank = (page - 1) * limit + i + 1;
@@ -90,6 +99,7 @@ export function mockGroupLeaderboard(page = 1, limit = 25): LeaderboardPage {
       id: 100 + rank,
       name: `Clan ${rank}`,
       loot: money(loot),
+      flair: page === 1 ? MOCK_GROUP_FLAIR[rank] : undefined,
     };
   });
   return { period: "all", scope: "global", entries, meta: { page, limit, total: 800 } };
@@ -141,6 +151,8 @@ export function mockPlayerProfile(id: number): PlayerProfile {
 export function mockPlayerLoot(id: number, partition?: number): PlayerLootTracker {
   const now = new Date();
   const current = now.getFullYear() * 100 + now.getMonth() + 1;
+  const ts = Math.floor(Date.now() / 1000);
+  const daysAgo = (d: number) => ts - d * 86400;
   return {
     player_id: id,
     partition: partition ?? current,
@@ -180,6 +192,7 @@ export function mockGroupProfile(id: number): GroupProfile {
     global_rank: (id % 100) + 1,
     monthly_loot: money(9_870_000_000),
     discord_url: "https://www.droptracker.io/discord",
+    flair: { tier_key: "premium", tier_name: "Premium", style: "gold" },
     top_player: { id: 1337, name: "Zezima", total_loot: money(2_000_000_000) },
     top_players: [
       { rank: 1, id: 1337, name: "Zezima", loot: money(2_000_000_000) },
@@ -230,7 +243,12 @@ export function mockMe(): Me {
     ],
     groups: [
       { id: 2, name: "Global", role: "member" },
-      { id: 101, name: "Clan 1", role: "owner" },
+      {
+        id: 101,
+        name: "Clan 1",
+        role: "owner",
+        flair: { tier_key: "premium", tier_name: "Premium", style: "gold" },
+      },
       { id: 102, name: "Clan 2", role: "admin" },
     ],
   };
@@ -273,7 +291,14 @@ export function mockSearch(q: string): SearchResults {
         global_rank: i + 1,
         total_loot: money(500_000_000 / (i + 1)),
       })),
-    groups: [{ id: 101, name: `Clan matching "${q}"`, member_count: 128 }],
+    groups: [
+      {
+        id: 101,
+        name: `Clan matching "${q}"`,
+        member_count: 128,
+        flair: { tier_key: "premium", tier_name: "Premium", style: "gold" },
+      },
+    ],
   };
 }
 
@@ -377,6 +402,7 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
       interval: "month",
       features: ["Live leaderboards", "Drop notifications", "Public group page"],
       entitlements: { events: false, hall_of_fame: false },
+      flair: "none",
       recommended: false,
     },
     {
@@ -394,6 +420,7 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
         "Custom board themes",
       ],
       entitlements: { events: true, hall_of_fame: true },
+      flair: "gold",
       recommended: true,
     },
     {
@@ -411,6 +438,7 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
         "Early access to new features",
       ],
       entitlements: { events: true, hall_of_fame: true },
+      flair: "dragon",
       recommended: false,
     },
   ];
