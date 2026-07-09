@@ -179,7 +179,12 @@ function UserMenu({ me }: { me: Me }) {
       </button>
 
       {open && (
-        <div role="menu" className="card-pop menu-in absolute right-0 top-full z-50 w-64 p-1.5">
+        // max-h + overflow: users administrating many groups get a long menu;
+        // it scrolls internally instead of running off the bottom of the screen.
+        <div
+          role="menu"
+          className="card-pop menu-in absolute right-0 top-full z-50 max-h-[min(75vh,34rem)] w-64 overflow-y-auto overscroll-contain p-1.5"
+        >
           <div className="flex items-center gap-2.5 px-2.5 pb-2 pt-1.5">
             <Avatar me={me} size="size-9" />
             <div className="min-w-0">
@@ -249,11 +254,16 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
         </div>
       </div>
 
-      {/* Mobile slide-down panel */}
+      {/* Mobile slide-down panel. Capped to the space under the header and
+          internally scrollable: with enough nav tabs + admin groups the panel
+          outgrows small screens, and without its own scroll container the
+          page scrolled behind it instead — the bottom items (Admin CP, Sign
+          out) were unreachable. `overscroll-contain` stops the scroll from
+          chaining to the page when the panel hits its ends. */}
       {mobileOpen && (
         <div
           id="mobile-menu"
-          className="card-pop menu-in absolute inset-x-3 top-full z-50 mt-1 p-2 md:hidden"
+          className="card-pop menu-in absolute inset-x-3 top-full z-50 mt-1 max-h-[calc(100dvh-7rem)] touch-pan-y overflow-y-auto overscroll-contain p-2 md:hidden"
         >
           <nav className="space-y-0.5">
             {tabs.map((t) => {
