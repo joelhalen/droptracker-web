@@ -4,9 +4,10 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
 import { CountUp } from "@/components/count-up";
+import { EntityHoverCard } from "@/components/entity-hover-card";
 import { BossActivityList, RecordsShowcase, TopPlayersList } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
-import { Card, EmptyState, EntityChip, NameTile, StatTile } from "@/components/ui";
+import { Card, EmptyState, EntityChip, NameTile, StatTile, TierBadge } from "@/components/ui";
 
 export const revalidate = 30;
 
@@ -39,9 +40,14 @@ export default async function GroupPage({ params }: { params: Params }) {
     <div className="space-y-8">
       <header className="rise-in flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-center gap-4">
-          <NameTile name={group.name} size="lg" />
+          <NameTile name={group.name} size="lg" flair={group.flair?.style} />
           <div>
-            <h1 className="text-osrs-gold text-3xl font-bold">{group.name}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-osrs-gold text-3xl font-bold">{group.name}</h1>
+              {group.flair && (
+                <TierBadge tierKey={group.flair.tier_key} name={group.flair.tier_name} />
+              )}
+            </div>
             {group.description && (
               <p className="text-osrs-parchment-dark/80 max-w-2xl">{group.description}</p>
             )}
@@ -92,13 +98,20 @@ export default async function GroupPage({ params }: { params: Params }) {
             Top player
           </div>
           {group.top_player ? (
-            <EntityChip
-              href={`/players/${group.top_player.id}`}
+            <EntityHoverCard
+              kind="player"
+              id={group.top_player.id}
               name={group.top_player.name}
-              size="sm"
-              className="mt-1.5"
-              subtitle={group.top_player.total_loot?.value_formatted}
-            />
+              className="flex min-w-0"
+            >
+              <EntityChip
+                href={`/players/${group.top_player.id}`}
+                name={group.top_player.name}
+                size="sm"
+                className="mt-1.5"
+                subtitle={group.top_player.total_loot?.value_formatted}
+              />
+            </EntityHoverCard>
           ) : (
             <div className="text-osrs-gold-bright mt-0.5 text-2xl font-bold">—</div>
           )}

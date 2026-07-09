@@ -9,6 +9,7 @@ import Link from "next/link";
 import type { Route } from "next";
 import type { GroupRecord, GroupTopPlayer, PersonalBestSummary, TopBoss } from "@droptracker/api-types";
 
+import { EntityHoverCard } from "@/components/entity-hover-card";
 import { Badge, Card, EntityChip, RankMedal } from "@/components/ui";
 import { formatRelativeTime } from "@/lib/format";
 
@@ -24,7 +25,15 @@ export function TopPlayersList({ players }: { players: GroupTopPlayer[] }) {
         <li key={p.id} className="flex items-center gap-3 py-2.5">
           <RankMedal rank={p.rank} />
           <div className="min-w-0 flex-1">
-            <EntityChip href={`/players/${p.id}`} name={p.name} size="sm" />
+            <EntityHoverCard
+              kind="player"
+              id={p.id}
+              name={p.name}
+              seed={{ rank: p.rank, loot: p.loot.value_formatted, periodLabel: "this month" }}
+              className="flex min-w-0"
+            >
+              <EntityChip href={`/players/${p.id}`} name={p.name} size="sm" />
+            </EntityHoverCard>
             <div className="bg-osrs-surface-3/60 mt-1.5 h-1 overflow-hidden rounded-full">
               <div
                 className="bar-grow bg-osrs-gold/70 h-full rounded-full"
@@ -113,12 +122,19 @@ export function RecordsShowcase({ records }: { records: GroupRecord[] }) {
               {r.time_display}
             </div>
             <div className="text-osrs-parchment-dark/70 mt-1 flex items-center justify-between gap-2 text-xs">
-              <Link
-                href={`/players/${r.holder.id}` as Route}
-                className="hover:text-osrs-gold-bright truncate font-medium transition-colors"
+              <EntityHoverCard
+                kind="player"
+                id={r.holder.id}
+                name={r.holder.name}
+                className="min-w-0 truncate"
               >
-                {r.holder.name}
-              </Link>
+                <Link
+                  href={`/players/${r.holder.id}` as Route}
+                  className="hover:text-osrs-gold-bright truncate font-medium transition-colors"
+                >
+                  {r.holder.name}
+                </Link>
+              </EntityHoverCard>
               <span className="shrink-0">{r.team_size}</span>
             </div>
             {r.date_ts > 0 && (

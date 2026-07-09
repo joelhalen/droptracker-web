@@ -1,6 +1,7 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
+import { EntityHoverCard } from "@/components/entity-hover-card";
 import { EmptyState, EntityChip, RoleBadge } from "@/components/ui";
 
 export const metadata: Metadata = { title: "My accounts" };
@@ -19,11 +20,13 @@ export default async function DashboardPage() {
           <ul className="divide-osrs-bronze/20 divide-y">
             {user.players.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-3 py-3">
-                <EntityChip
-                  href={`/players/${p.id}`}
-                  name={p.name}
-                  subtitle={`Global rank #${p.global_rank ?? "—"}`}
-                />
+                <EntityHoverCard kind="player" id={p.id} name={p.name} className="min-w-0">
+                  <EntityChip
+                    href={`/players/${p.id}`}
+                    name={p.name}
+                    subtitle={`Global rank #${p.global_rank ?? "—"}`}
+                  />
+                </EntityHoverCard>
                 <span className="text-osrs-gold-bright text-sm tabular-nums">
                   {p.total_loot?.value_formatted ?? "—"}
                 </span>
@@ -58,11 +61,15 @@ export default async function DashboardPage() {
               const canAdmin = g.role === "owner" || g.role === "admin";
               return (
                 <li key={g.id} className="flex items-center justify-between gap-3 py-3">
-                  <EntityChip
-                    href={`/groups/${g.id}`}
-                    name={g.name}
-                    badges={<RoleBadge role={g.role} />}
-                  />
+                  <EntityHoverCard kind="group" id={g.id} name={g.name} className="min-w-0">
+                    <EntityChip
+                      href={`/groups/${g.id}`}
+                      name={g.name}
+                      flair={g.flair?.style}
+                      flairTitle={g.flair?.tier_name}
+                      badges={<RoleBadge role={g.role} />}
+                    />
+                  </EntityHoverCard>
                   {canAdmin && (
                     <Link
                       href={`/groups/${g.id}/admin` as Route}

@@ -18,6 +18,19 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+/** Divider + spacing used between sections inside hover-card bodies. */
+export const CARD_SECTION_CLASS = "border-osrs-bronze/25 mt-2.5 border-t pt-2.5";
+
+/** One label/value stat row inside a hover-card body. */
+export function CardStatLine({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2 text-xs">
+      <span className="text-osrs-parchment-dark/60">{label}</span>
+      <span className="text-osrs-parchment/90 truncate font-medium">{value}</span>
+    </div>
+  );
+}
+
 const OPEN_DELAY_MS = 150;
 const CLOSE_DELAY_MS = 200;
 const CARD_WIDTH = 288; // w-72

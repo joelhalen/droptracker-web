@@ -2,6 +2,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import type { Submission } from "@droptracker/api-types";
 import { formatRelativeTime } from "@/lib/format";
+import { EntityHoverCard } from "@/components/entity-hover-card";
 import { Badge, EmptyState, type BadgeTone } from "@/components/ui";
 
 const TYPE_META: Record<string, { label: string; tone: BadgeTone }> = {
@@ -59,12 +60,18 @@ export function SubmissionList({
               {s.npc_name && <span aria-hidden>·</span>}
               {showPlayer && s.player_name && (
                 <>
-                  <Link
-                    href={s.player_id ? (`/players/${s.player_id}` as Route) : "#"}
-                    className="hover:text-osrs-gold-bright"
-                  >
-                    {s.player_name}
-                  </Link>
+                  {s.player_id ? (
+                    <EntityHoverCard kind="player" id={s.player_id} name={s.player_name}>
+                      <Link
+                        href={`/players/${s.player_id}` as Route}
+                        className="hover:text-osrs-gold-bright"
+                      >
+                        {s.player_name}
+                      </Link>
+                    </EntityHoverCard>
+                  ) : (
+                    <span>{s.player_name}</span>
+                  )}
                   <span aria-hidden>·</span>
                 </>
               )}

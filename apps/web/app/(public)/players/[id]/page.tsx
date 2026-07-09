@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
 import { CountUp } from "@/components/count-up";
+import { EntityHoverCard } from "@/components/entity-hover-card";
 import { LootTracker } from "@/components/loot-tracker";
 import { PlayerBadgeList } from "@/components/player-badges";
 import { BossActivityList, PersonalBestsShowcase } from "@/components/profile-stats";
@@ -168,7 +169,15 @@ export default async function PlayerPage({ params }: { params: Params }) {
               <ul className="space-y-2.5 text-sm">
                 {player.groups.map((g) => (
                   <li key={g.id}>
-                    <EntityChip href={`/groups/${g.id}`} name={g.name} size="sm" />
+                    <EntityHoverCard kind="group" id={g.id} name={g.name} className="flex min-w-0">
+                      <EntityChip
+                        href={`/groups/${g.id}`}
+                        name={g.name}
+                        size="sm"
+                        flair={g.flair?.style}
+                        flairTitle={g.flair?.tier_name}
+                      />
+                    </EntityHoverCard>
                   </li>
                 ))}
               </ul>

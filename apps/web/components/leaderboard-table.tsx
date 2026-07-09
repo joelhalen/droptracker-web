@@ -8,44 +8,14 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import type { Route } from "next";
-import Link from "next/link";
 import type { LeaderboardEntry } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp } from "@/lib/format";
-import { EmptyState, EntityChip, NameTile, RankMedal } from "@/components/ui";
-import { CompactBadgeDetails, PlayerBadgeIcons } from "@/components/player-badges";
-import { HoverCard } from "@/components/hover-card";
+import { EmptyState, EntityChip, RankMedal } from "@/components/ui";
+import { PlayerBadgeIcons } from "@/components/player-badges";
+import { EntityHoverCard } from "@/components/entity-hover-card";
 
 const BADGE_DURATION_MS = 2500;
-
-/** Hover-card body for a player row: identity, period standing, and the full
- * badge details that the compact inline chips deliberately omit. */
-function PlayerCardContent({ row, href }: { row: LeaderboardEntry; href: string }) {
-  return (
-    <div className="p-3">
-      <div className="flex items-center gap-2.5">
-        <NameTile name={row.name} size="md" />
-        <div className="min-w-0">
-          <div className="truncate font-semibold">{row.name}</div>
-          <div className="text-osrs-parchment-dark/60 text-xs">
-            Rank #{row.rank} · {row.loot.value_formatted} this period
-          </div>
-        </div>
-      </div>
-      {row.badges && row.badges.length > 0 && (
-        <div className="border-osrs-bronze/25 mt-2.5 border-t pt-2.5">
-          <CompactBadgeDetails badges={row.badges} />
-        </div>
-      )}
-      <Link
-        href={href as Route}
-        className="text-osrs-gold-bright mt-2.5 block text-xs font-medium hover:underline"
-      >
-        View full profile →
-      </Link>
-    </div>
-  );
-}
 
 type Props = {
   entries: LeaderboardEntry[];
@@ -157,9 +127,12 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                     // shrink-0 — RSNs cap at 12 chars and must NEVER truncate;
                     // badges and the identicon tile are the second-priority
                     // elements that give way on narrow screens.
-                    <HoverCard
+                    <EntityHoverCard
+                      kind="player"
+                      id={r.id}
+                      name={r.name}
+                      seed={{ rank: r.rank, loot: r.loot.value_formatted, badges: r.badges }}
                       className="flex min-w-0 items-center gap-1.5"
-                      content={<PlayerCardContent row={r} href={`${hrefBase}/${r.id}`} />}
                     >
                       <EntityChip
                         href={`${hrefBase}/${r.id}` as Route}
@@ -169,9 +142,23 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                         tileClassName="max-sm:hidden"
                       />
                       {r.badges?.length ? <PlayerBadgeIcons badges={r.badges} /> : null}
-                    </HoverCard>
+                    </EntityHoverCard>
                   ) : (
-                    <EntityChip href={`${hrefBase}/${r.id}` as Route} name={r.name} size="sm" />
+                    <EntityHoverCard
+                      kind="group"
+                      id={r.id}
+                      name={r.name}
+                      seed={{ rank: r.rank, loot: r.loot.value_formatted }}
+                      className="flex min-w-0 items-center"
+                    >
+                      <EntityChip
+                        href={`${hrefBase}/${r.id}` as Route}
+                        name={r.name}
+                        size="sm"
+                        flair={r.flair?.style}
+                        flairTitle={r.flair?.tier_name}
+                      />
+                    </EntityHoverCard>
                   )}
                 </td>
                 {/* Relative loot bar behind the value: instant read of the

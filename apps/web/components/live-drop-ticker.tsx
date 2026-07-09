@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp } from "@/lib/format";
+import { EntityHoverCard } from "@/components/entity-hover-card";
 
 const MAX_ITEMS = 15;
 
@@ -46,9 +47,13 @@ function TickerEntry({ d }: { d: FeedDrop }) {
   return (
     <span className="flex shrink-0 items-center gap-2 px-6 text-sm whitespace-nowrap">
       {d.playerId ? (
-        <Link href={`/players/${d.playerId}` as Route} className="hover:text-osrs-gold-bright font-medium">
-          {d.playerName}
-        </Link>
+        // The marquee pauses while the pointer is over the ticker (see the
+        // animation wrapper), so the hover card has a stable anchor.
+        <EntityHoverCard kind="player" id={d.playerId} name={d.playerName}>
+          <Link href={`/players/${d.playerId}` as Route} className="hover:text-osrs-gold-bright font-medium">
+            {d.playerName}
+          </Link>
+        </EntityHoverCard>
       ) : (
         <span className="font-medium">{d.playerName}</span>
       )}
@@ -114,14 +119,15 @@ export function LiveDropTicker() {
   }
 
   // Roughly constant px/sec regardless of item count so the pace feels steady.
-  const durationSec = Math.max(12, drops.length * 4);
+  const durationSec = Math.max(12, drops.length * 8);
 
   return (
     <div className="border-osrs-bronze/40 bg-osrs-surface-1/95 overflow-hidden border-b py-1.5">
-      {/* Content is duplicated so the marquee loops seamlessly at -50%. */}
+      {/* Content is duplicated so the marquee loops seamlessly at -50%.
+          Pausing on hover keeps entries still so their hover cards are usable. */}
       <div
         key={drops[0]?.key}
-        className="flex w-max"
+        className="flex w-max hover:[animation-play-state:paused]"
         style={{ animation: `marquee ${durationSec}s linear infinite` }}
       >
         <div className="flex">

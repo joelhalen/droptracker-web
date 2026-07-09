@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
+import { EntityHoverCard } from "@/components/entity-hover-card";
 import { SearchBox } from "@/components/search-box";
 import { EmptyState, EntityChip } from "@/components/ui";
 
@@ -37,11 +38,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               <ul className="divide-osrs-bronze/20 divide-y">
                 {results.players.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                    <EntityChip
-                      href={`/players/${p.id}`}
-                      name={p.name}
-                      subtitle={p.global_rank != null ? `Global rank #${p.global_rank}` : "Player"}
-                    />
+                    <EntityHoverCard kind="player" id={p.id} name={p.name} className="min-w-0">
+                      <EntityChip
+                        href={`/players/${p.id}`}
+                        name={p.name}
+                        subtitle={p.global_rank != null ? `Global rank #${p.global_rank}` : "Player"}
+                      />
+                    </EntityHoverCard>
                     {p.total_loot && (
                       <span className="text-osrs-gold-bright shrink-0 tabular-nums">
                         {p.total_loot.value_formatted}
@@ -61,15 +64,19 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
               <ul className="divide-osrs-bronze/20 divide-y">
                 {results.groups.map((g) => (
                   <li key={g.id} className="py-2.5 text-sm">
-                    <EntityChip
-                      href={`/groups/${g.id}`}
-                      name={g.name}
-                      subtitle={
-                        g.member_count != null
-                          ? `${g.member_count} member${g.member_count === 1 ? "" : "s"}`
-                          : "Clan"
-                      }
-                    />
+                    <EntityHoverCard kind="group" id={g.id} name={g.name} className="flex min-w-0">
+                      <EntityChip
+                        href={`/groups/${g.id}`}
+                        name={g.name}
+                        flair={g.flair?.style}
+                        flairTitle={g.flair?.tier_name}
+                        subtitle={
+                          g.member_count != null
+                            ? `${g.member_count} member${g.member_count === 1 ? "" : "s"}`
+                            : "Clan"
+                        }
+                      />
+                    </EntityHoverCard>
                   </li>
                 ))}
               </ul>
