@@ -9,9 +9,10 @@
  */
 
 import { useRef, useState } from "react";
-import type { LootTrackerNpc, PlayerLootTracker } from "@droptracker/api-types";
+import type { LootTrackerItem, LootTrackerNpc, PlayerLootTracker } from "@droptracker/api-types";
+import { CARD_SECTION_CLASS, CardStatLine, HoverCard } from "@/components/hover-card";
 import { Card, EmptyState } from "@/components/ui";
-import { formatGp } from "@/lib/format";
+import { formatGp, formatRelativeTime } from "@/lib/format";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 const INITIAL_BOXES = 12;
@@ -34,6 +35,61 @@ function partitionLabel(partition: number): string {
   return date.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 }
 
+/** Rich item tooltip: share of the NPC's month, avg per drop, first/last seen —
+ * replaces the browser-default `title` attribute the grid used to rely on. */
+function ItemCardContent({ item, npc }: { item: LootTrackerItem; npc: LootTrackerNpc }) {
+  const unit = item.quantity > 1 ? Math.floor(item.loot.value / item.quantity) : null;
+  const share = npc.loot.value > 0 ? (item.loot.value / npc.loot.value) * 100 : null;
+  return (
+    <div className="p-3">
+      <div className="flex items-center gap-2.5">
+        <span className="bg-osrs-surface-3/60 flex size-9 shrink-0 items-center justify-center rounded">
+          <img
+            src={`${IMG_BASE}/itemdb/${item.item_id}.png`}
+            alt=""
+            className="max-h-7 max-w-7 object-contain [image-rendering:pixelated]"
+          />
+        </span>
+        <div className="min-w-0">
+          <div className="truncate font-semibold">{item.name}</div>
+          <div className="text-osrs-parchment-dark/60 text-xs">from {npc.name}</div>
+        </div>
+      </div>
+      <div className={`${CARD_SECTION_CLASS} space-y-1`}>
+        <CardStatLine label="Quantity" value={`× ${item.quantity.toLocaleString()}`} />
+        <CardStatLine
+          label="Total value"
+          value={
+            <span className="text-osrs-gold-bright">{item.loot.value_formatted} gp</span>
+          }
+        />
+        {unit != null && unit > 0 && (
+          <CardStatLine label="Avg. per item" value={`${formatGp(unit)} gp`} />
+        )}
+        {item.drops != null && item.drops > 0 && (
+          <CardStatLine
+            label="Received in"
+            value={`${item.drops.toLocaleString()} drop${item.drops === 1 ? "" : "s"}`}
+          />
+        )}
+        {share != null && share >= 1 && (
+          <CardStatLine label={`Share of ${npc.name}`} value={`${Math.round(share)}%`} />
+        )}
+      </div>
+      {(item.first_ts != null || item.last_ts != null) && (
+        <div className={`${CARD_SECTION_CLASS} space-y-1`}>
+          {item.first_ts != null && (
+            <CardStatLine label="First received" value={formatRelativeTime(item.first_ts)} />
+          )}
+          {item.last_ts != null && (
+            <CardStatLine label="Last received" value={formatRelativeTime(item.last_ts)} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NpcBox({ npc }: { npc: LootTrackerNpc }) {
   return (
     <Card padding="p-0" className="overflow-hidden">
@@ -50,10 +106,10 @@ function NpcBox({ npc }: { npc: LootTrackerNpc }) {
       </div>
       <div className="grid grid-cols-5">
         {npc.items.map((item) => (
-          <div
+          <HoverCard
             key={item.item_id}
-            className="border-osrs-bronze/15 relative flex aspect-square items-center justify-center border-r border-b p-1"
-            title={`${item.name}${item.quantity > 1 ? ` × ${item.quantity.toLocaleString()}` : ""} (${item.loot.value_formatted} gp)`}
+            content={<ItemCardContent item={item} npc={npc} />}
+            className="border-osrs-bronze/15 hover:bg-osrs-bronze/10 relative flex aspect-square cursor-help items-center justify-center border-r border-b p-1 transition-colors"
           >
             {item.quantity > 1 && (
               <span className="absolute top-0.5 left-0.5 z-10 rounded-sm bg-black/70 px-0.5 text-[10px] leading-tight font-bold text-yellow-300">
@@ -66,7 +122,7 @@ function NpcBox({ npc }: { npc: LootTrackerNpc }) {
               loading="lazy"
               className="max-h-full max-w-full object-contain [image-rendering:pixelated]"
             />
-          </div>
+          </HoverCard>
         ))}
       </div>
     </Card>

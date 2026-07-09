@@ -164,9 +164,9 @@ export function mockPlayerLoot(id: number, partition?: number): PlayerLootTracke
         kills: 214,
         loot: money(410_000_000),
         items: [
-          { item_id: 22006, name: "Vorkath's head", quantity: 4, loot: money(120_000_000) },
-          { item_id: 11286, name: "Draconic visage", quantity: 2, loot: money(9_800_000) },
-          { item_id: 1613, name: "Dragon bones", quantity: 428, loot: money(1_100_000) },
+          { item_id: 22006, name: "Vorkath's head", quantity: 4, loot: money(120_000_000), drops: 4, first_ts: daysAgo(24), last_ts: daysAgo(2) },
+          { item_id: 11286, name: "Draconic visage", quantity: 2, loot: money(9_800_000), drops: 2, first_ts: daysAgo(18), last_ts: daysAgo(6) },
+          { item_id: 1613, name: "Dragon bones", quantity: 428, loot: money(1_100_000), drops: 214, first_ts: daysAgo(27), last_ts: daysAgo(0) },
         ],
       },
       {
@@ -175,8 +175,8 @@ export function mockPlayerLoot(id: number, partition?: number): PlayerLootTracke
         kills: 156,
         loot: money(260_000_000),
         items: [
-          { item_id: 12934, name: "Zulrah's scales", quantity: 31_200, loot: money(4_600_000) },
-          { item_id: 12922, name: "Tanzanite fang", quantity: 1, loot: money(2_400_000) },
+          { item_id: 12934, name: "Zulrah's scales", quantity: 31_200, loot: money(4_600_000), drops: 156, first_ts: daysAgo(25), last_ts: daysAgo(1) },
+          { item_id: 12922, name: "Tanzanite fang", quantity: 1, loot: money(2_400_000), drops: 1, first_ts: daysAgo(9), last_ts: daysAgo(9) },
         ],
       },
     ],

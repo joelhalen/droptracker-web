@@ -212,6 +212,11 @@ export const LootTrackerItemSchema = z.object({
   name: z.string(),
   quantity: z.number().int(),
   loot: MoneySchema,
+  /** Distinct drop rows this item came from this month. */
+  drops: z.number().int().optional(),
+  /** Unix seconds of the first/most recent time it was received this month. */
+  first_ts: z.number().int().optional(),
+  last_ts: z.number().int().optional(),
 });
 export type LootTrackerItem = z.infer<typeof LootTrackerItemSchema>;
 
