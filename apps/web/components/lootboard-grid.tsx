@@ -10,6 +10,7 @@ import { useState, useTransition } from "react";
 import type { Lootboard } from "@droptracker/api-types";
 import { lootValueClass } from "@/lib/format";
 import { generateLootboardImage } from "@/app/(public)/groups/[id]/lootboard/actions";
+import { ItemContributors } from "@/components/lootboard-item-tooltip";
 import { EmptyState } from "@/components/ui";
 
 export function LootboardGrid({ board }: { board: Lootboard }) {
@@ -72,11 +73,12 @@ export function LootboardGrid({ board }: { board: Lootboard }) {
               </span>
 
               {/* Hover tooltip */}
-              <div className="bg-osrs-brown-dark border-osrs-bronze/50 pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden w-max max-w-[12rem] -translate-x-1/2 rounded border px-2 py-1 text-left text-xs shadow-lg group-hover:block">
+              <div className="bg-osrs-brown-dark border-osrs-bronze/50 pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden w-max max-w-[18rem] -translate-x-1/2 rounded border px-2 py-1.5 text-left text-xs shadow-lg group-hover:block">
                 <div className="text-osrs-gold-bright font-medium">{it.name}</div>
                 <div className="text-osrs-parchment-dark/80">
                   {it.quantity}× · {it.value.value_formatted}
                 </div>
+                <ItemContributors item={it} />
               </div>
             </li>
           ))}

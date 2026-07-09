@@ -558,17 +558,49 @@ export function mockLootboard(groupId: number, period: string): Lootboard {
     [19481, "Hydra leather", 18_000],
   ];
   const icon = (id: number) => `https://www.droptracker.io/img/itemdb/${id}.png`;
-  const items = ITEMS.map(([item_id, name, unit], i) => {
-    const quantity = 1 + ((i * 7) % 11);
-    const total = unit * quantity;
-    return { item_id, name, quantity, value: money(total), icon_url: icon(item_id), is_coin: false };
-  });
-  const total = items.reduce((s, it) => s + it.value.value, 0);
 
   const PLAYERS = [
     "Zezima", "B0aty", "Woox", "Framed", "SkillSpecs", "Odablock",
     "Torvesta", "Faux", "Settled", "Mr Mammal", "A Friend", "Solomission",
   ];
+
+  const nowMs = Date.now();
+  const stamp = (minsAgo: number) =>
+    new Date(nowMs - minsAgo * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+
+  const items = ITEMS.map(([item_id, name, unit], i) => {
+    const quantity = 1 + ((i * 7) % 11);
+    const total = unit * quantity;
+    // Per-player tooltip breakdown: split the stack across a few recipients.
+    const recipients = 1 + ((i * 3) % 3);
+    let remainingQty = quantity;
+    let remainingVal = total;
+    const contributors = Array.from({ length: recipients }, (_, j) => {
+      const last = j === recipients - 1;
+      const q = last ? remainingQty : Math.max(1, Math.floor(quantity / recipients));
+      const v = last ? remainingVal : Math.floor(total / recipients);
+      remainingQty -= q;
+      remainingVal -= v;
+      return {
+        player_id: 1000 + ((i + j) % PLAYERS.length),
+        player_name: PLAYERS[(i + j) % PLAYERS.length] ?? "Unknown",
+        quantity: q,
+        value: money(v),
+        last_at: stamp(30 + i * 90 + j * 45),
+      };
+    });
+    return {
+      item_id,
+      name,
+      quantity,
+      value: money(total),
+      icon_url: icon(item_id),
+      is_coin: false,
+      contributors,
+      contributor_count: recipients,
+    };
+  });
+  const total = items.reduce((s, it) => s + it.value.value, 0);
   const leaderboard = PLAYERS.map((player_name, i) => ({
     rank: i + 1,
     player_id: 1000 + i,
@@ -576,7 +608,6 @@ export function mockLootboard(groupId: number, period: string): Lootboard {
     total: money(Math.round(total / (i + 2))),
   }));
 
-  const now = Date.now();
   const recent_drops = items.slice(0, 12).map((it, i) => ({
     item_id: it.item_id,
     name: it.name,
@@ -585,7 +616,7 @@ export function mockLootboard(groupId: number, period: string): Lootboard {
     player_name: PLAYERS[i % PLAYERS.length] ?? "Unknown",
     quantity: 1,
     value: money(it.value.value),
-    date_added: new Date(now - i * 47 * 60 * 1000).toISOString().slice(0, 19).replace("T", " "),
+    date_added: stamp(i * 47),
   }));
 
   return {

@@ -880,6 +880,18 @@ export type AdminGroupOverview = z.infer<typeof AdminGroupOverviewSchema>;
  * instead of a generated PNG. The image generator stays available as a
  * "share" affordance via `generated_image_url` / the generate endpoint.
  */
+/** One player's share of a lootboard item stack (tooltip breakdown). */
+export const LootItemContributorSchema = z.object({
+  player_id: z.number().int(),
+  player_name: z.string(),
+  quantity: z.number().int(),
+  /** Value contributed by this player (their qty × unit value). */
+  value: MoneySchema,
+  /** When this player last received the item ("YYYY-MM-DD HH:MM:SS"). */
+  last_at: z.string().nullable().optional(),
+});
+export type LootItemContributor = z.infer<typeof LootItemContributorSchema>;
+
 export const LootItemSchema = z.object({
   item_id: z.number().int(),
   name: z.string(),
@@ -889,6 +901,10 @@ export const LootItemSchema = z.object({
   icon_url: z.string().optional(),
   /** True for the coin pile (item 995) — value only, no quantity label. */
   is_coin: z.boolean().optional(),
+  /** Top recipients by contributed value (tooltip per-player breakdown). */
+  contributors: z.array(LootItemContributorSchema).optional(),
+  /** Total distinct recipients (contributors is capped server-side). */
+  contributor_count: z.number().int().optional(),
 });
 export type LootItem = z.infer<typeof LootItemSchema>;
 

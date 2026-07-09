@@ -19,6 +19,7 @@ import type { Lootboard, LootItem, LootboardRecentDrop } from "@droptracker/api-
 import { formatGp } from "@/lib/format";
 import { generateLootboardImage } from "@/app/(public)/groups/[id]/lootboard/actions";
 import { LootboardGrid } from "@/components/lootboard-grid";
+import { ItemContributors } from "@/components/lootboard-item-tooltip";
 import {
   CANVAS,
   FONT,
@@ -275,6 +276,7 @@ export function LootboardCanvas({ board }: { board: Lootboard }) {
                   {hover.item.is_coin ? "Coins" : `${hover.item.quantity.toLocaleString()}×`} ·{" "}
                   {hover.item.value.value_formatted} gp
                 </div>
+                <ItemContributors item={hover.item} />
               </>
             ) : (
               <>
@@ -349,7 +351,7 @@ function Tooltip({
   const top = (slot.y + ICON_BOX.dy) * scale;
   return (
     <div
-      className="bg-osrs-brown-dark border-osrs-bronze/50 pointer-events-none absolute z-10 w-max max-w-[14rem] -translate-x-1/2 -translate-y-full rounded border px-2 py-1 text-left text-xs shadow-lg"
+      className="bg-osrs-brown-dark border-osrs-bronze/50 pointer-events-none absolute z-10 w-max max-w-[18rem] -translate-x-1/2 -translate-y-full rounded border px-2 py-1.5 text-left text-xs shadow-lg"
       style={{ left: px(left), top: px(top - 4) }}
     >
       {children}
