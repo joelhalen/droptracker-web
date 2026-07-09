@@ -942,6 +942,10 @@ export const EVENT_TASK_TYPES = [
 /** How players get onto teams (events-prd.md D4). */
 export const EVENT_FORMATION_MODES = ["self_join", "auto_assign", "admin_assign"] as const;
 
+/** Which submissions the event engine accepts: everything, non-plugin ones
+ * queued for admin confirmation, or plugin-API ones only. */
+export const EVENT_SUBMISSION_POLICIES = ["all", "confirm_non_api", "api_only"] as const;
+
 /** Ledger row lifecycle for event completions (events-prd.md D3). */
 export const EVENT_COMPLETION_STATUSES = [
   "auto",
@@ -1028,7 +1032,10 @@ export const EventSummarySchema = z.object({
   id: z.number().int(),
   group_id: z.number().int().nullable(),
   name: z.string(),
-  description: z.string().optional(),
+  // Backend serializes an empty description as null (not omitted), so accept
+  // both null and undefined here — a plain .optional() rejects null and made
+  // the whole list parse throw once any event lacked a description.
+  description: z.string().nullable().optional(),
   status: z.enum(EVENT_STATUS),
   starts_at: z.number().int().nullable(),
   ends_at: z.number().int().nullable(),
@@ -1036,6 +1043,7 @@ export const EventSummarySchema = z.object({
   formation_mode: z.enum(EVENT_FORMATION_MODES).default("admin_assign"),
   /** Event-level force: all completions queue for admin review. */
   requires_confirmation: z.boolean().default(false),
+  submission_policy: z.enum(EVENT_SUBMISSION_POLICIES).default("all"),
   board_size: z.number().int().default(5),
   bonus_line_points: z.number().int().default(0),
   bonus_blackout_points: z.number().int().default(0),
@@ -1136,6 +1144,7 @@ export const EventInputSchema = z.object({
   ends_at: z.number().int().nullable().optional(),
   formation_mode: z.enum(EVENT_FORMATION_MODES).optional(),
   requires_confirmation: z.boolean().optional(),
+  submission_policy: z.enum(EVENT_SUBMISSION_POLICIES).optional(),
   join_code: z.string().max(32).nullable().optional(),
   board_size: z.number().int().min(3).max(7).optional(),
   bonus_line_points: z.number().int().nonnegative().optional(),

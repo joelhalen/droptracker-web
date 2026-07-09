@@ -582,6 +582,7 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
   const eventDefaults = {
     formation_mode: "self_join" as const,
     requires_confirmation: false,
+    submission_policy: "all" as const,
     board_size: 5,
     bonus_line_points: 10,
     bonus_blackout_points: 100,

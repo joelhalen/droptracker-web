@@ -15,7 +15,7 @@ import type {
   EventTask,
 } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
-import { formatDate } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 
 type TeamRef = { id: number; name: string };
@@ -265,7 +265,9 @@ export function BingoBoard({
                     )}
                   </span>
                   {c.completed_at != null && (
-                    <span className="text-osrs-parchment-dark/40">{formatDate(c.completed_at)}</span>
+                    <span className="text-osrs-parchment-dark/40">
+                      <LocalTime unix={c.completed_at} mode="date" />
+                    </span>
                   )}
                 </li>
               ))}

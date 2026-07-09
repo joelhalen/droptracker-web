@@ -117,9 +117,12 @@ One event platform, built on the existing `web_events` foundation:
   seeded from the legacy `default.json` (~200 tasks) via a picker.
 - **A4. Verification modes (D3).** Default: automatic pipeline completion. A
   `requires_confirmation` flag settable **per task** and **per event** (event-level flag
-  forces it for all tasks). Confirmation queue UI for event admins: pending completions
-  with the triggering submission (and its proof/screenshot where available) → approve /
-  reject. Manual award/revoke is always available to event admins regardless of mode —
+  forces it for all tasks). A per-event `submission_policy` additionally gates credit by
+  intake path: `all` (default — every submission counts), `confirm_non_api` (non-plugin
+  submissions always land as pending completions needing admin confirmation), `api_only`
+  (submissions without the plugin API flag are ignored). Confirmation queue UI for event
+  admins: pending completions with the triggering submission (and its proof/screenshot
+  where available) → approve / reject. Manual award/revoke is always available to event admins regardless of mode —
   this is also the escape hatch for pre-join credit (D10) — and every manual action is
   audit-logged.
 - **A5. Event lifecycle hardening.** Explicit start/end actions in addition to scheduled
@@ -218,7 +221,8 @@ One event platform, built on the existing `web_events` foundation:
 - Build on `disc/db/models/events.py` + `disc/web_api/routes/events.py` + existing Next.js
   pages; **extend, don't rewrite**. Keep the `web_` table prefix; new schema via alembic.
 - Expected schema additions (indicative, not prescriptive): event columns for
-  `formation_mode`, `requires_confirmation`, `discord_guild_id`, tier/limit metadata;
+  `formation_mode`, `requires_confirmation`, `submission_policy`, `discord_guild_id`,
+  tier/limit metadata;
   per-notification-type channel table (or JSON config); `joined_at` on
   `web_event_team_members`; a completions/progress table keyed by (event, task, team)
   with source-submission reference, status (`auto` / `pending_confirmation` / `confirmed`

@@ -572,6 +572,7 @@ export const api = {
         | "formation_mode"
         | "join_code"
         | "requires_confirmation"
+        | "submission_policy"
         | "bonus_line_points"
         | "bonus_blackout_points"
       >

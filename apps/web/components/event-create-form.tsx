@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { createGroupEvent } from "@/app/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
+import { TimezoneNote } from "@/components/local-time";
 
 /** Convert a datetime-local value to unix seconds (or null). */
 const toUnix = (v: string): number | null => (v ? Math.floor(new Date(v).getTime() / 1000) : null);
@@ -83,6 +84,7 @@ export function EventCreateForm({ groupId }: { groupId: number | null }) {
           />
         </label>
       </div>
+      <TimezoneNote className="text-osrs-parchment-dark/60 block text-xs" />
       <button
         type="submit"
         disabled={pending || !name.trim()}

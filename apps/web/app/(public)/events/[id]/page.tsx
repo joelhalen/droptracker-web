@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
-import { formatDate } from "@/lib/format";
+import { EventWindow, LocalTime } from "@/components/local-time";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventTaskBoard } from "@/components/event-task-progress";
@@ -60,7 +60,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
           </span>
         </div>
         <p className="text-osrs-parchment-dark/60 mt-1 text-sm">
-          {formatDate(event.starts_at)} – {formatDate(event.ends_at)}
+          <EventWindow startsAt={event.starts_at} endsAt={event.ends_at} status={event.status} />
         </p>
         {event.description && (
           <p className="text-osrs-parchment-dark/80 mt-3 max-w-2xl">{event.description}</p>
@@ -155,7 +155,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                             </Link>
                             {m.joined_at && (
                               <span className="text-osrs-parchment-dark/40">
-                                joined {formatDate(m.joined_at)}
+                                joined <LocalTime unix={m.joined_at} mode="date" />
                               </span>
                             )}
                           </li>

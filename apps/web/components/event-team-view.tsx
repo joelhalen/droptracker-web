@@ -12,7 +12,8 @@ import Link from "next/link";
 import type { EventTeamActivity, EventTeamDetail } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
 import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
-import { formatDate, formatRelativeTime } from "@/lib/format";
+import { formatRelativeTime } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 import { EmptyState } from "@/components/ui";
 import {
   TaskProgressBar,
@@ -166,7 +167,7 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                         <span className="flex shrink-0 items-center gap-3 text-xs">
                           {cell?.completed && cell.completed_at ? (
                             <span className="text-osrs-parchment-dark/50">
-                              completed {formatDate(cell.completed_at)}
+                              completed <LocalTime unix={cell.completed_at} mode="date" />
                             </span>
                           ) : null}
                           {t.points > 0 && (
@@ -272,7 +273,7 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                   </div>
                   {m.joined_at && (
                     <div className="text-osrs-parchment-dark/50 mt-0.5 text-xs">
-                      joined {formatDate(m.joined_at)}
+                      joined <LocalTime unix={m.joined_at} mode="date" />
                     </div>
                   )}
                 </li>

@@ -70,7 +70,10 @@ For each envelope × each active event the player participates in
 
 On a match:
 1. Insert `web_event_completions` ledger row — `status = 'pending'` if the task
-   or event has `requires_confirmation`, else `'auto'`. Idempotent via
+   or event has `requires_confirmation`, else `'auto'`. **Added post-spec:** the
+   event's `submission_policy` is applied first (envelope `used_api` flag) —
+   `api_only` skips non-plugin submissions entirely; `confirm_non_api` forces
+   `'pending'` for them (Task 18). Idempotent via
    `uq_web_evt_completion_src (task_id, team_id, submission_guid)` — insert
    ignore on duplicate.
 2. If not pending: fold into `web_event_progress` (upsert, add quantity, set

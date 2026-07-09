@@ -38,6 +38,12 @@ Semantics:
 - Toggles: `requires_confirmation` editable per event (PATCH /events/{id}) and
   per task (new `PATCH /api/v1/events/{id}/tasks/{taskId}` accepting
   `requires_confirmation`, `points`, `label`, `target`, `target_value`).
+- Per-event `submission_policy` (added post-spec, migration `web26a`) gates
+  credit by intake path: `all` (default — everything counts), `confirm_non_api`
+  (non-plugin submissions always land as `pending` completions), `api_only`
+  (submissions without the plugin API flag are ignored). Returned on event
+  summary/detail; accepted by POST /events and PATCH /events/{id} (422 on any
+  other value).
 
 ## Frontend
 
@@ -47,7 +53,7 @@ Semantics:
   - Full ledger view with status filter; revoke on confirmed/auto/manual rows.
   - Manual award form: task picker (event tasks), team picker, quantity, note.
 - Event settings: event-level `requires_confirmation` switch; per-task switch in
-  the task list.
+  the task list; three-option `submission_policy` select with per-mode help text.
 - Pending count badge on the manager nav (from `GET ...?status=pending`).
 
 ## Acceptance criteria

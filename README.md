@@ -103,6 +103,7 @@ Built so far (FRONTEND_PLAN.md §17):
   formation modes, and full group-admin management — event creation, typed
   task editor with item/NPC autocomplete, **bingo board designer**, lifecycle
   controls (draft → active → past), verification queue (approve/reject/award),
+  per-event submission policy (all / confirm non-plugin / plugin-only),
   and per-event Discord guild/channel configuration. Backend engine lives in
   the backend repo (`services/event_engine.py` + `droptracker-events` worker).
 - **Badges:** player-profile badge display plus superadmin badge CRUD and

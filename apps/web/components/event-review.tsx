@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import type { EventCompletion, EventTask, EventTeam } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, EmptyState } from "@/components/ui";
+import { LocalTime } from "@/components/local-time";
 import {
   awardEventCompletion,
   confirmEventCompletion,
@@ -18,8 +19,6 @@ const field =
 const STATUS_FILTERS = ["pending", "all", "auto", "confirmed", "manual", "rejected", "revoked"] as const;
 /** Ledger rows an admin can still unwind. */
 const REVOCABLE = new Set(["auto", "confirmed", "manual"]);
-
-const when = (ts: number) => new Date(ts * 1000).toLocaleString();
 
 /** Verification queue + completion ledger + manual award (Task 18, PRD D3/D10). */
 export function EventReview({
@@ -181,7 +180,7 @@ export function EventReview({
                 </span>
                 <span className="text-osrs-parchment-dark/60 block truncate text-xs">
                   {c.team_name ?? "—"}
-                  {c.player_name ? ` · ${c.player_name}` : ""} · {when(c.created_at)}
+                  {c.player_name ? ` · ${c.player_name}` : ""} · <LocalTime unix={c.created_at} />
                   {c.note ? ` · “${c.note}”` : ""}
                 </span>
               </span>

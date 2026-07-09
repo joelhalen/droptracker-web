@@ -7,6 +7,21 @@ export const FORMATION_MODE_LABELS: Record<EventDetail["formation_mode"], string
   admin_assign: "Admin assign — admins place players",
 };
 
+/** Submission policies as shown in the admin settings form. */
+export const SUBMISSION_POLICY_LABELS: Record<EventDetail["submission_policy"], string> = {
+  all: "All submissions count",
+  confirm_non_api: "Non-plugin submissions need review",
+  api_only: "Plugin submissions only",
+};
+
+/** What each submission policy does to incoming submissions (settings help). */
+export const SUBMISSION_POLICY_HELP: Record<EventDetail["submission_policy"], string> = {
+  all: "Every submission counts toward tasks, no matter how it was sent.",
+  confirm_non_api:
+    "Submissions from the RuneLite plugin count immediately; anything else queues in Review as a pending completion until an admin confirms it.",
+  api_only: "Only submissions sent by the RuneLite plugin count. Everything else is ignored.",
+};
+
 export const TASK_TYPE_LABELS: Record<EventTask["type"], string> = {
   item_collection: "Item collection",
   kc_target: "Kill count",

@@ -72,6 +72,38 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => AdminTicketPageSchema.parse(mockAdminTickets()));
 });
 
+// The backend serializes an empty event description as JSON null (not omitted).
+// A plain `.optional()` on the Zod schema rejected null, so a single
+// description-less event made the whole /events list parse throw and blanked
+// the group-admin events page. Lock in that null (and undefined) are accepted.
+test("EventSummary accepts null/absent description", () => {
+  const base = {
+    id: 1,
+    group_id: 267,
+    name: "Koeppy Test",
+    status: "draft" as const,
+    starts_at: null,
+    ends_at: null,
+    has_bingo: false,
+    formation_mode: "admin_assign" as const,
+    requires_confirmation: false,
+    submission_policy: "all" as const,
+    board_size: 5,
+    bonus_line_points: 0,
+    bonus_blackout_points: 0,
+  };
+  assert.doesNotThrow(() => EventSummarySchema.parse({ ...base, description: null }));
+  assert.doesNotThrow(() => EventSummarySchema.parse(base));
+  assert.doesNotThrow(() => EventSummarySchema.parse({ ...base, description: "hi" }));
+  // A mixed list (one with, one without a description) must fully parse.
+  assert.doesNotThrow(() =>
+    EventSummarySchema.array().parse([
+      { ...base, id: 2, name: "Bingo Test!", status: "active", description: "Let's go" },
+      { ...base, id: 3, description: null },
+    ]),
+  );
+});
+
 // Every config key (incl. seasonal mirrors) must resolve to a field — guards the
 // `seasonal_boards` prefix collision (a base key that starts with `seasonal_`).
 test("group-config registry resolves all keys", () => {

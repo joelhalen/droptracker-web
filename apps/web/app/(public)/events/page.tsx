@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { EventSummary } from "@droptracker/api-types";
 import { api } from "@/lib/api";
-import { formatDate } from "@/lib/format";
+import { EventWindow } from "@/components/local-time";
 
 export const revalidate = 30;
 
@@ -60,7 +60,7 @@ function EventSection({
                   </p>
                 )}
                 <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
-                  {formatDate(e.starts_at)} – {formatDate(e.ends_at)}
+                  <EventWindow startsAt={e.starts_at} endsAt={e.ends_at} status={e.status} />
                 </p>
               </Link>
             </li>

@@ -31,6 +31,11 @@ ended_at              DATETIME     NULL
 activate/end actions or the scheduler sweep — Task 21), no longer derived from
 dates at read time.
 
+> **Added post-spec** (migration `web26a_event_submission_policy`):
+> `submission_policy VARCHAR(16) NOT NULL DEFAULT 'all'` on `web_events` —
+> `all` | `confirm_non_api` | `api_only`; gates credit by intake path
+> (see Task 18 and events-prd.md A4).
+
 ### Alter `web_event_tasks` (add columns)
 
 ```

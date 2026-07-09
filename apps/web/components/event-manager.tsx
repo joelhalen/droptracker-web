@@ -5,11 +5,18 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import {
   EVENT_FORMATION_MODES,
+  EVENT_SUBMISSION_POLICIES,
   type EventDetail,
   type EventTask,
   type EventTeam,
 } from "@droptracker/api-types";
-import { FORMATION_MODE_LABELS, TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
+import {
+  FORMATION_MODE_LABELS,
+  SUBMISSION_POLICY_HELP,
+  SUBMISSION_POLICY_LABELS,
+  TASK_TYPE_LABELS,
+  taskGoal,
+} from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, EmptyState } from "@/components/ui";
 import {
@@ -28,6 +35,7 @@ import { formatProgressValue, taskThreshold } from "@/components/event-task-prog
 import { EventDiscord } from "@/components/event-discord";
 import { EventTaskForm } from "@/components/event-task-form";
 import { EventReview } from "@/components/event-review";
+import { LocalTime, TimezoneNote } from "@/components/local-time";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
@@ -55,8 +63,6 @@ function StatusChip({ status }: { status: EventDetail["status"] }) {
     </span>
   );
 }
-
-const fmtWhen = (unix: number) => new Date(unix * 1000).toLocaleString();
 
 /** `groupId` is null for global events (superadmin-managed from /admin/events). */
 export function EventManager({ groupId, event: initialEvent }: { groupId: number | null; event: EventDetail }) {
@@ -107,6 +113,7 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
     formationMode: event.formation_mode,
     joinCode: event.join_code ?? "",
     requiresConfirmation: event.requires_confirmation,
+    submissionPolicy: event.submission_policy,
   });
 
   const startEditEvent = () => {
@@ -119,6 +126,7 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
       formationMode: event.formation_mode,
       joinCode: event.join_code ?? "",
       requiresConfirmation: event.requires_confirmation,
+      submissionPolicy: event.submission_policy,
     });
     setEditingEvent(true);
   };
@@ -136,6 +144,7 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
           formation_mode: eventDraft.formationMode,
           join_code: eventDraft.joinCode.trim() || null,
           requires_confirmation: eventDraft.requiresConfirmation,
+          submission_policy: eventDraft.submissionPolicy,
         });
         setEvent(updated);
         setTasks(updated.tasks);
@@ -275,6 +284,7 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
               />
             </label>
           </div>
+          <TimezoneNote className="text-osrs-parchment-dark/60 block text-xs" />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Team formation</span>
@@ -308,6 +318,30 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
               />
             </label>
           </div>
+          <label className="block text-sm">
+            <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+              Submission policy
+            </span>
+            <select
+              value={eventDraft.submissionPolicy}
+              onChange={(e) =>
+                setEventDraft((d) => ({
+                  ...d,
+                  submissionPolicy: e.target.value as EventDetail["submission_policy"],
+                }))
+              }
+              className={`${field} w-full`}
+            >
+              {EVENT_SUBMISSION_POLICIES.map((p) => (
+                <option key={p} value={p}>
+                  {SUBMISSION_POLICY_LABELS[p]}
+                </option>
+              ))}
+            </select>
+            <span className="text-osrs-parchment-dark/60 mt-1 block text-xs">
+              {SUBMISSION_POLICY_HELP[eventDraft.submissionPolicy]}
+            </span>
+          </label>
           <label className="flex cursor-pointer items-start gap-2 text-sm">
             <input
               type="checkbox"
@@ -364,6 +398,8 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
               <span className="text-osrs-parchment-dark/60 text-sm">
                 {event.formation_mode.replace(/_/g, " ")}
                 {event.join_requires_code ? " · join code set" : ""}
+                {" · "}
+                {SUBMISSION_POLICY_LABELS[event.submission_policy].toLowerCase()}
               </span>
             </div>
             <div className="flex items-center gap-4">
@@ -386,15 +422,44 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
           <div className="border-osrs-bronze/20 flex flex-wrap items-center gap-x-4 gap-y-2 rounded border p-3 text-sm">
             <span className="text-osrs-parchment-dark/70">
               {event.status === "draft" &&
-                (event.starts_at
-                  ? `Scheduled to start ${fmtWhen(event.starts_at)} (auto-activates if it passes the checks)`
-                  : "Draft — not scheduled; activate it manually when it's ready")}
-              {event.status === "active" &&
-                (event.ends_at
-                  ? `Live${event.activated_at ? ` since ${fmtWhen(event.activated_at)}` : ""} · ends ${fmtWhen(event.ends_at)}`
-                  : `Live${event.activated_at ? ` since ${fmtWhen(event.activated_at)}` : ""} · no scheduled end`)}
-              {event.status === "past" &&
-                `Ended${event.ended_at ? ` ${fmtWhen(event.ended_at)}` : ""}`}
+                (event.starts_at ? (
+                  <>
+                    Scheduled to start <LocalTime unix={event.starts_at} /> (auto-activates if it
+                    passes the checks)
+                  </>
+                ) : (
+                  "Draft — not scheduled; activate it manually when it's ready"
+                ))}
+              {event.status === "active" && (
+                <>
+                  Live
+                  {event.activated_at && (
+                    <>
+                      {" since "}
+                      <LocalTime unix={event.activated_at} />
+                    </>
+                  )}
+                  {event.ends_at ? (
+                    <>
+                      {" · ends "}
+                      <LocalTime unix={event.ends_at} />
+                    </>
+                  ) : (
+                    " · no scheduled end"
+                  )}
+                </>
+              )}
+              {event.status === "past" && (
+                <>
+                  Ended
+                  {event.ended_at && (
+                    <>
+                      {" "}
+                      <LocalTime unix={event.ended_at} />
+                    </>
+                  )}
+                </>
+              )}
             </span>
             <span className="ml-auto flex items-center gap-2">
               {event.status === "draft" && (
