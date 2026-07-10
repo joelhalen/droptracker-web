@@ -19,6 +19,7 @@ import {
   PlayerLootTrackerSchema,
   PlayerProfileSchema,
   ServiceStatusSchema,
+  SupportersSchema,
   allConfigKeys,
   getConfigField,
 } from "@droptracker/api-types";
@@ -41,6 +42,7 @@ import {
   mockPlayerLoot,
   mockPlayerProfile,
   mockServices,
+  mockSupporters,
 } from "../lib/mock-data";
 
 // Contract test: every path the BFF client calls must exist in the published
@@ -79,6 +81,7 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => TicketPageSchema.parse(mockMyTickets()));
   assert.doesNotThrow(() => TicketDetailSchema.parse(mockTicket(2)));
   assert.doesNotThrow(() => AdminTicketPageSchema.parse(mockAdminTickets()));
+  assert.doesNotThrow(() => SupportersSchema.parse(mockSupporters()));
 });
 
 // The backend serializes an empty event description as JSON null (not omitted).

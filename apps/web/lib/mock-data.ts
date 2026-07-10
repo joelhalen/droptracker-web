@@ -32,8 +32,10 @@ import type {
   ServiceLogs,
   ServiceStatus,
   SubscriptionTier,
-  Suggestion,
+  SuggestionDetail,
   SuggestionPage,
+  SuggestionSummary,
+  Supporters,
   AdminTicketPage,
   TicketDetail,
   TicketPage,
@@ -446,6 +448,33 @@ export function mockSubscriptionTiers(): SubscriptionTier[] {
       recommended: false,
     },
   ];
+}
+
+export function mockSupporters(): Supporters {
+  return {
+    groups: [
+      {
+        id: 267,
+        name: "DropTracker Test",
+        tier_name: "Patron",
+        member_count: 7,
+        since: 1783434457,
+        flair: { tier_key: "t3", tier_name: "Patron", style: "amethyst" },
+      },
+      {
+        id: 190,
+        name: "Frontier",
+        tier_name: "Sponsor",
+        member_count: 456,
+        since: 1783169211,
+        flair: { tier_key: "t2", tier_name: "Sponsor", style: "gold" },
+      },
+    ],
+    players: [
+      { user_id: 645, player_id: 4782, name: "Nycolas Cage", since: 1783516018 },
+      { user_id: 746, player_id: 5126, name: "Dizzied", since: 1783516018 },
+    ],
+  };
 }
 
 export function mockAuthorizedUsers(): AuthorizedUsersResponse {
@@ -1171,24 +1200,67 @@ export function mockTicket(ticketId: number): TicketDetail {
   };
 }
 
-export function mockSuggestion(id: number, status: Suggestion["status"] = "posted"): Suggestion {
+export function mockSuggestionSummary(
+  id: number,
+  status: SuggestionSummary["status"] = "posted",
+): SuggestionSummary {
+  const bug = id % 2 === 0;
   return {
     id,
-    type: id % 2 === 0 ? "bug" : "suggestion",
-    title: id % 2 === 0 ? "Lootboard skips seasonal drops" : "Add a dark theme for lootboards",
-    body_md:
-      "**What happened**\n\nMy seasonal drops stopped showing on the lootboard.\n\n- Step 1\n- Step 2",
+    type: bug ? "bug" : "suggestion",
+    title: bug ? "Lootboard skips seasonal drops" : "Add a dark theme for lootboards",
     status,
+    origin: id % 3 === 0 ? "discord" : "web",
+    is_open: true,
+    author_name: id % 3 === 0 ? "zezima" : "joelhalen",
+    author_user_id: id % 3 === 0 ? null : 1,
+    excerpt: bug
+      ? "My seasonal drops stopped showing on the lootboard. Step 1 Step 2"
+      : "A darker board theme would fit the site better at night.",
+    message_count: id % 3,
     discord_thread_url:
       status === "posted" ? `https://discord.com/channels/1/${1000 + id}` : null,
     created_at: MOCK_NOW - 86_400 * id,
+    last_activity_at: MOCK_NOW - 3_600 * id,
   };
 }
 
-export function mockMySuggestions(page = 1): SuggestionPage {
+export function mockSuggestions(page = 1): SuggestionPage {
   return {
-    items: [mockSuggestion(3, "pending"), mockSuggestion(2), mockSuggestion(1)],
+    items: [
+      mockSuggestionSummary(3, "pending"),
+      mockSuggestionSummary(2),
+      mockSuggestionSummary(1),
+    ],
     meta: { page, limit: 25, total: 3 },
+  };
+}
+
+export function mockSuggestionDetail(id: number): SuggestionDetail {
+  return {
+    ...mockSuggestionSummary(id),
+    body_md:
+      "**What happened**\n\nMy seasonal drops stopped showing on the lootboard.\n\n- Step 1\n- Step 2",
+    messages: [
+      {
+        id: 1,
+        author_name: "zezima",
+        author_user_id: null,
+        source: "discord",
+        content: "Seeing the same thing since Tuesday.",
+        created_at: MOCK_NOW - 7_200,
+        edited_at: null,
+      },
+      {
+        id: 2,
+        author_name: "joelhalen",
+        author_user_id: 1,
+        source: "web",
+        content: "Thanks — reproduced, fix incoming.",
+        created_at: MOCK_NOW - 3_600,
+        edited_at: null,
+      },
+    ],
   };
 }
 

@@ -135,6 +135,35 @@ export const LeaderboardPageSchema = z.object({
 });
 export type LeaderboardPage = z.infer<typeof LeaderboardPageSchema>;
 
+// --- Homepage supporters wall (/supporters) -------------------------------
+/** A clan whose live subscription pool covers a paid tier. `since` is the unix
+ *  timestamp of its most recent contribution; `flair` present for flaired tiers. */
+export const SupporterGroupSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  tier_name: z.string(),
+  member_count: z.number().int(),
+  since: z.number().int().nullable(),
+  flair: GroupFlairSchema.optional(),
+});
+export type SupporterGroup = z.infer<typeof SupporterGroupSchema>;
+
+/** An individual with a live paid supporter subscription, represented by a
+ *  public (non-hidden) linked player so the card can link to a profile. */
+export const SupporterPlayerSchema = z.object({
+  user_id: z.number().int(),
+  player_id: z.number().int(),
+  name: z.string(),
+  since: z.number().int().nullable(),
+});
+export type SupporterPlayer = z.infer<typeof SupporterPlayerSchema>;
+
+export const SupportersSchema = z.object({
+  groups: z.array(SupporterGroupSchema),
+  players: z.array(SupporterPlayerSchema),
+});
+export type Supporters = z.infer<typeof SupportersSchema>;
+
 export const PlayerSummarySchema = z.object({
   id: z.number().int(),
   name: z.string(),
@@ -261,6 +290,8 @@ export const GroupProfileSchema = z.object({
   id: z.number().int(),
   name: z.string(),
   description: z.string().optional(),
+  /** Admin-uploaded group icon; also used for social-card previews. */
+  icon_url: z.string().optional(),
   member_count: z.number().int(),
   global_rank: z.number().int().optional(),
   monthly_loot: MoneySchema.optional(),
@@ -1560,7 +1591,7 @@ export const TicketActionInputSchema = z.object({
 export type TicketActionInput = z.infer<typeof TicketActionInputSchema>;
 
 /* -------------------------------------------------------------------------- */
-/* Suggestions & bug reports (POST /suggestions, GET /me/suggestions)          */
+/* Suggestion forum (/suggestions) — threads mirrored two-way with Discord     */
 /* -------------------------------------------------------------------------- */
 
 export const SuggestionTypeSchema = z.enum(["suggestion", "bug"]);
@@ -1570,22 +1601,49 @@ export type SuggestionType = z.infer<typeof SuggestionTypeSchema>;
 export const SuggestionStatusSchema = z.enum(["pending", "posted", "failed"]);
 export type SuggestionStatus = z.infer<typeof SuggestionStatusSchema>;
 
-export const SuggestionSchema = z.object({
+/** Which side the thread was started on. */
+export const SuggestionOriginSchema = z.enum(["web", "discord"]);
+export type SuggestionOrigin = z.infer<typeof SuggestionOriginSchema>;
+
+export const SuggestionSummarySchema = z.object({
   id: z.number().int(),
   type: SuggestionTypeSchema,
   title: z.string(),
-  body_md: z.string(),
   status: SuggestionStatusSchema,
+  origin: SuggestionOriginSchema,
+  is_open: z.boolean(),
+  author_name: z.string(),
+  author_user_id: z.number().int().nullable(),
+  excerpt: z.string(),
+  message_count: z.number().int(),
   discord_thread_url: z.string().nullable(),
   created_at: z.number().int().nullable(),
+  last_activity_at: z.number().int().nullable(),
 });
-export type Suggestion = z.infer<typeof SuggestionSchema>;
+export type SuggestionSummary = z.infer<typeof SuggestionSummarySchema>;
 
 export const SuggestionPageSchema = z.object({
-  items: z.array(SuggestionSchema),
+  items: z.array(SuggestionSummarySchema),
   meta: PageMetaSchema,
 });
 export type SuggestionPage = z.infer<typeof SuggestionPageSchema>;
+
+export const SuggestionMessageSchema = z.object({
+  id: z.number().int(),
+  author_name: z.string(),
+  author_user_id: z.number().int().nullable(),
+  source: SuggestionOriginSchema,
+  content: z.string(),
+  created_at: z.number().int().nullable(),
+  edited_at: z.number().int().nullable(),
+});
+export type SuggestionMessage = z.infer<typeof SuggestionMessageSchema>;
+
+export const SuggestionDetailSchema = SuggestionSummarySchema.extend({
+  body_md: z.string(),
+  messages: z.array(SuggestionMessageSchema),
+});
+export type SuggestionDetail = z.infer<typeof SuggestionDetailSchema>;
 
 /** POST /suggestions body. The title doubles as the Discord thread name. */
 export const SuggestionCreateSchema = z.object({
@@ -1594,6 +1652,12 @@ export const SuggestionCreateSchema = z.object({
   body_md: z.string().trim().min(20).max(4000),
 });
 export type SuggestionCreate = z.infer<typeof SuggestionCreateSchema>;
+
+/** POST /suggestions/{id}/messages body. */
+export const SuggestionReplyCreateSchema = z.object({
+  content: z.string().trim().min(2).max(1800),
+});
+export type SuggestionReplyCreate = z.infer<typeof SuggestionReplyCreateSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Custom group points system (/groups/{id}/points/*)                          */

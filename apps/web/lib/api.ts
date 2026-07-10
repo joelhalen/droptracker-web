@@ -48,9 +48,12 @@ import {
   ServiceLogsSchema,
   ServiceStatusSchema,
   SubscriptionTierSchema,
+  SupportersSchema,
+  type Supporters,
   AdminTicketPageSchema,
+  SuggestionDetailSchema,
+  SuggestionMessageSchema,
   SuggestionPageSchema,
-  SuggestionSchema,
   TicketDetailSchema,
   TicketPageSchema,
   TicketSummarySchema,
@@ -122,9 +125,11 @@ import {
   type WomGroupPreview,
   type WomSyncResult,
   type AdminTicketPage,
-  type Suggestion,
   type SuggestionCreate,
+  type SuggestionDetail,
+  type SuggestionMessage,
   type SuggestionPage,
+  type SuggestionReplyCreate,
   type TicketDetail,
   type TicketPage,
   type TicketSummary,
@@ -176,9 +181,9 @@ import {
   mockAdminTickets,
   mockLookup,
   mockLootboard,
-  mockMySuggestions,
   mockMyTickets,
-  mockSuggestion,
+  mockSuggestionDetail,
+  mockSuggestions,
   mockTicket,
   mockMe,
   mockPlayerLeaderboard,
@@ -188,6 +193,7 @@ import {
   mockServiceLogs,
   mockServices,
   mockSubscriptionTiers,
+  mockSupporters,
   mockWomLookup,
   mockWomSync,
 } from "./mock-data";
@@ -252,6 +258,26 @@ async function apiSend(
       ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
     },
     body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError(res.status, await problemDetail(res, `${method} ${path}`));
+  return res.status === 204 ? null : res.json();
+}
+
+/** Multipart variant of apiSend — lets fetch set the multipart boundary header. */
+async function apiSendForm(
+  method: "POST" | "PUT",
+  path: string,
+  form: FormData,
+): Promise<unknown> {
+  const url = `${env.webApiInternalUrl}/api/v1${path}`;
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  const res = await fetch(url, {
+    method,
+    headers: {
+      accept: "application/json",
+      ...(token ? { cookie: `${SESSION_COOKIE}=${token}` } : {}),
+    },
+    body: form,
   });
   if (!res.ok) throw new ApiError(res.status, await problemDetail(res, `${method} ${path}`));
   return res.status === 204 ? null : res.json();
@@ -510,6 +536,17 @@ export const api = {
       async () => GroupProfileSchema.parse(await apiGet(`/groups/${id}`, { revalidate: 30 })),
       () => mockGroupProfile(id),
     );
+  },
+
+  /** Upload a group icon (multipart 'file'); returns the stored public URL. */
+  async uploadGroupIcon(groupId: number, form: FormData): Promise<{ icon_url: string }> {
+    return z
+      .object({ icon_url: z.string() })
+      .parse(await apiSendForm("POST", `/groups/${groupId}/icon`, form));
+  },
+
+  async deleteGroupIcon(groupId: number): Promise<void> {
+    await apiSend("DELETE", `/groups/${groupId}/icon`, {});
   },
 
   // --- Events ------------------------------------------------------------
@@ -1010,6 +1047,18 @@ export const api = {
     return withFallback(
       async () => FeedEventSchema.array().parse(await apiGet(`/feed/recent`, { revalidate: 60 })),
       () => [],
+    );
+  },
+
+  /**
+   * Paid subscriber groups + individual supporters for the homepage
+   * appreciation wall. Public, cached; decorative — callers treat it as
+   * best-effort (an empty result just hides the section).
+   */
+  async supporters(): Promise<Supporters> {
+    return withFallback(
+      async () => SupportersSchema.parse(await apiGet(`/supporters`, { revalidate: 300 })),
+      () => mockSupporters(),
     );
   },
 
@@ -1920,24 +1969,50 @@ export const api = {
     );
   },
 
-  // --- Suggestions & bug reports (web /suggestions) -----------------------
-  async createSuggestion(input: SuggestionCreate): Promise<Suggestion> {
-    return withFallback(
-      async () =>
-        SuggestionSchema.parse(await apiSend("POST", `/suggestions`, input)),
-      () => ({ ...mockSuggestion(99, "pending"), ...input }),
-    );
-  },
-
-  async mySuggestions(params: { page?: number; limit?: number } = {}): Promise<SuggestionPage> {
+  // --- Suggestion forum (web /suggestions, mirrored with Discord) ---------
+  async suggestions(
+    params: { type?: string; mine?: boolean; open?: boolean; page?: number; limit?: number } = {},
+  ): Promise<SuggestionPage> {
     const qs = new URLSearchParams();
+    if (params.type) qs.set("type", params.type);
+    if (params.mine) qs.set("mine", "1");
+    if (params.open) qs.set("open", "1");
     if (params.page) qs.set("page", String(params.page));
     if (params.limit) qs.set("limit", String(params.limit));
     const suffix = qs.toString() ? `?${qs}` : "";
     return withFallback(
       async () =>
-        SuggestionPageSchema.parse(await apiGet(`/me/suggestions${suffix}`, { authed: true })),
-      () => mockMySuggestions(params.page ?? 1),
+        SuggestionPageSchema.parse(await apiGet(`/suggestions${suffix}`, { authed: true })),
+      () => mockSuggestions(params.page ?? 1),
+    );
+  },
+
+  async suggestion(id: number): Promise<SuggestionDetail> {
+    return withFallback(
+      async () =>
+        SuggestionDetailSchema.parse(await apiGet(`/suggestions/${id}`, { authed: true })),
+      () => mockSuggestionDetail(id),
+    );
+  },
+
+  async createSuggestion(input: SuggestionCreate): Promise<SuggestionDetail> {
+    return withFallback(
+      async () =>
+        SuggestionDetailSchema.parse(await apiSend("POST", `/suggestions`, input)),
+      () => ({ ...mockSuggestionDetail(99), ...input, status: "pending" as const }),
+    );
+  },
+
+  async createSuggestionReply(
+    suggestionId: number,
+    input: SuggestionReplyCreate,
+  ): Promise<SuggestionMessage> {
+    return withFallback(
+      async () =>
+        SuggestionMessageSchema.parse(
+          await apiSend("POST", `/suggestions/${suggestionId}/messages`, input),
+        ),
+      () => mockSuggestionDetail(suggestionId).messages[0]!,
     );
   },
 

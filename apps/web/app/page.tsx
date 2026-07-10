@@ -4,6 +4,7 @@ import { api, type FeedEvent } from "@/lib/api";
 import { groupDocsByCategory } from "@/lib/docs";
 import { HeroSearch } from "@/components/hero-search";
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { SupportersSection } from "@/components/supporters-section";
 import { Card, EmptyState } from "@/components/ui";
 import { DEFAULT_PERIOD, resolvePeriod } from "@/lib/period";
 
@@ -69,13 +70,15 @@ const GETTING_STARTED_STEPS = [
 export default async function HomePage() {
   // Default to the current month — the tracking system works month-to-month.
   const period = resolvePeriod(DEFAULT_PERIOD);
-  const [players, groups, news, docs, feed] = await Promise.all([
+  const [players, groups, news, docs, feed, supporters] = await Promise.all([
     api.playerLeaderboard({ scope: "global", limit: 10, period }),
     api.groupLeaderboard({ limit: 5, period }),
     api.announcements("global"),
-    // Docs and the drop feed only decorate the page — never let them break it.
+    // Docs, the drop feed and the supporters wall only decorate the page —
+    // never let them break it.
     api.docs().catch(() => []),
     api.recentFeed().catch(() => []),
+    api.supporters().catch(() => ({ groups: [], players: [] })),
   ]);
   const icons = collageIcons(feed);
   const docCategories = groupDocsByCategory(docs);
@@ -201,6 +204,8 @@ export default async function HomePage() {
           <LeaderboardTable entries={groups.entries} scope="global" kind="groups" />
         </section>
       </div>
+
+      <SupportersSection supporters={supporters} />
 
       {docCategories.length > 0 && (
         <section aria-labelledby="docs-heading">
