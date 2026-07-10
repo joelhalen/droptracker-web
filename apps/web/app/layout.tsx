@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { env } from "@/lib/env";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -57,6 +58,7 @@ const HEADER_TABS: NavTab[] = [
   { href: "/events", label: "Events", matchPrefix: true },
   { href: "/announcements", label: "News", matchPrefix: true },
   { href: "/docs", label: "Docs", matchPrefix: true },
+  { href: "/suggestions", label: "Suggestions" },
   {
     href: "/premium",
     label: "Premium",
@@ -76,16 +78,40 @@ const HEADER_TABS: NavTab[] = [
   { href: "/search", label: "Search" },
 ];
 
+// metadataBase lets every page use relative OG/twitter image paths; dynamic
+// pages (groups, players, events) override `images` in their generateMetadata.
 export const metadata: Metadata = {
+  metadataBase: new URL(env.siteUrl),
   title: {
-    default: "DropTracker",
+    default: "DropTracker — OSRS Loot Tracking & Leaderboards",
     template: "%s · DropTracker",
   },
   description:
     "Live Old School RuneScape loot leaderboards, player and clan profiles, and drop feeds.",
+  applicationName: "DropTracker",
+  keywords: [
+    "OSRS",
+    "Old School RuneScape",
+    "loot tracker",
+    "drop tracker",
+    "clan leaderboards",
+    "RuneLite plugin",
+  ],
   openGraph: {
     siteName: "DropTracker",
     type: "website",
+    locale: "en_US",
+    images: [
+      {
+        url: "/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "DropTracker — Old School RuneScape loot tracking",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
   },
 };
 
@@ -121,6 +147,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </Link>
                 <Link href="/announcements" className="hover:text-osrs-gold-bright">
                   News
+                </Link>
+                <Link href="/suggestions" className="hover:text-osrs-gold-bright">
+                  Suggestions
                 </Link>
               </nav>
             </div>

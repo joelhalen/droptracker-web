@@ -3,12 +3,15 @@
 /**
  * Per-event Discord destination config (Task 19, events-prd.md D8).
  *
- * Guild select from `bot:guilds` (every guild the bot is a member of — events
- * can target dedicated event servers, not just the group's home guild), then
- * one channel picker per notification kind. Both lists come from bot-
- * maintained Redis caches via the Web API; when a cache is stale the UI falls
- * back to manual-id entry (the established group-config picker pattern) and
- * the backend asks the bot to warm the cache for the next attempt.
+ * Guild select is scoped to servers the signed-in user may target — ones they
+ * manage on Discord (owner / Manage Server) or whose DropTracker group they
+ * administer — intersected with the guilds the bot is in (`bot:guilds`). This
+ * still allows a dedicated event server, not just the group's home guild, but
+ * not a server the user has no authority over. One channel picker per
+ * notification kind. Both lists come from bot-maintained Redis caches via the
+ * Web API; when a cache is stale the UI falls back to manual-id entry and the
+ * backend asks the bot to warm the cache for the next attempt. The dropdown is
+ * only cosmetic — the Web API re-checks guild authority on save.
  */
 import { useCallback, useEffect, useState, useTransition } from "react";
 import {
@@ -159,9 +162,9 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
     <section>
       <h3 className="heading-rule text-osrs-gold mb-1 pb-1 text-lg font-semibold">Discord</h3>
       <p className="text-osrs-parchment-dark/60 mb-4 text-sm">
-        Post this event&apos;s happenings to any server the bot is in — including a dedicated
-        event server. Kinds without a channel fall back to Announcements; with nothing set,
-        nothing is posted.
+        Post this event&apos;s happenings to a Discord server you manage — including a dedicated
+        event server you&apos;ve added the bot to. Kinds without a channel fall back to
+        Announcements; with nothing set, nothing is posted.
       </p>
 
       {loading ? (
@@ -184,12 +187,12 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
                   placeholder="Discord server (guild) id"
                   className={`${field} w-full`}
                 />
-                {guildsStale && (
-                  <p className="text-osrs-parchment-dark/50 text-xs">
-                    The bot&apos;s server list isn&apos;t cached yet — enter the server id manually
-                    or try again in a minute.
-                  </p>
-                )}
+                <p className="text-osrs-parchment-dark/50 text-xs">
+                  {guildsStale
+                    ? "The bot's server list isn't cached yet — enter the server id manually or try again in a minute."
+                    : "Enter a server id you manage (owner / Manage Server). You must have added the bot to it."}{" "}
+                  Recently added the bot to a new server? Sign out and back in to refresh your list.
+                </p>
                 {guilds.length > 0 && (
                   <button
                     type="button"

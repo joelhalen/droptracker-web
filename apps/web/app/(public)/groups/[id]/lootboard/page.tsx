@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
 import { PERIOD_OPTIONS, DEFAULT_PERIOD, resolvePeriod } from "@/lib/period";
+import { groupSocialMetadata } from "@/lib/seo";
 import { LootboardCanvas } from "@/components/lootboard-canvas";
 
 export const revalidate = 30;
@@ -15,7 +16,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { id } = await params;
   try {
     const group = await api.group(Number(id));
-    return { title: `${group.name} — Lootboard` };
+    return groupSocialMetadata(group, {
+      title: `${group.name} — Lootboard`,
+      description: `Live loot leaderboard for ${group.name} on DropTracker.`,
+    });
   } catch {
     return { title: "Lootboard" };
   }

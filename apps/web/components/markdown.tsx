@@ -1,5 +1,12 @@
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { remarkDiscordTokens, type MentionMap } from "@/lib/discord-tokens";
+
+/** remark plugin set, optionally including Discord-token → chip rendering when
+ * a `mentions` map is supplied (ticket transcripts, suggestion/bug threads). */
+function plugins(mentions?: MentionMap): Options["remarkPlugins"] {
+  return mentions ? [remarkGfm, [remarkDiscordTokens, { mentions }]] : [remarkGfm];
+}
 
 /**
  * Shared safe Markdown renderer for user-submitted content (docs pages,
@@ -12,12 +19,26 @@ import remarkGfm from "remark-gfm";
  * elements (no `dangerouslySetInnerHTML`), so raw HTML embedded in the input
  * is also not executed by default.
  */
-export function Markdown({ children, className = "" }: { children: string; className?: string }) {
+export function Markdown({
+  children,
+  className = "",
+  tone = "default",
+  mentions,
+}: {
+  children: string;
+  className?: string;
+  /** "ink" = dark-on-parchment palette for content inside a ScrollPanel. */
+  tone?: "default" | "ink";
+  /** When set, `<@id>` etc. Discord tokens render as resolved mention chips. */
+  mentions?: MentionMap;
+}) {
+  const palette =
+    tone === "ink"
+      ? "prose prose-scroll-ink"
+      : "prose prose-invert prose-headings:text-osrs-gold prose-a:text-osrs-gold-bright prose-strong:text-osrs-parchment";
   return (
-    <div
-      className={`prose prose-invert prose-headings:text-osrs-gold prose-a:text-osrs-gold-bright prose-strong:text-osrs-parchment max-w-none ${className}`}
-    >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{children}</ReactMarkdown>
+    <div className={`${palette} max-w-none ${className}`}>
+      <ReactMarkdown remarkPlugins={plugins(mentions)}>{children}</ReactMarkdown>
     </div>
   );
 }
@@ -28,10 +49,19 @@ export function Markdown({ children, className = "" }: { children: string; class
  * block-level model, which `Markdown` above keeps) would be invalid inside an
  * inline context and adds unwanted paragraph spacing.
  */
-export function InlineMarkdown({ children, className = "" }: { children: string; className?: string }) {
+export function InlineMarkdown({
+  children,
+  className = "",
+  mentions,
+}: {
+  children: string;
+  className?: string;
+  /** When set, `<@id>` etc. Discord tokens render as resolved mention chips. */
+  mentions?: MentionMap;
+}) {
   return (
     <span className={`prose-invert prose-a:text-osrs-gold-bright prose-strong:text-osrs-parchment ${className}`}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ p: ({ children }) => <>{children}</> }}>
+      <ReactMarkdown remarkPlugins={plugins(mentions)} components={{ p: ({ children }) => <>{children}</> }}>
         {children}
       </ReactMarkdown>
     </span>

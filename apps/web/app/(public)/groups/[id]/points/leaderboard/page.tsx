@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
+import { groupSocialMetadata } from "@/lib/seo";
 import { Card, EmptyState, NameTile, RankMedal } from "@/components/ui";
 
 // Rendered dynamically: the fetch forwards the viewer's session so group
@@ -22,7 +23,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { id } = await params;
   try {
     const group = await api.group(Number(id));
-    return { title: `${group.name} — Points leaderboard` };
+    return groupSocialMetadata(group, {
+      title: `${group.name} — Points leaderboard`,
+      description: `Points standings for ${group.name} on DropTracker.`,
+    });
   } catch {
     return { title: "Points leaderboard" };
   }

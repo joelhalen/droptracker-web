@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { Markdown } from "@/components/markdown";
+import { ScrollPanel } from "@/components/scroll-panel";
 
 export const revalidate = 30;
 
@@ -29,16 +30,18 @@ export default async function AnnouncementPage({ params }: { params: Params }) {
   };
 
   return (
-    <article className="mx-auto max-w-2xl space-y-6">
+    <article>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <header>
-        <h1 className="text-osrs-gold text-3xl font-bold">{item.title}</h1>
-        <p className="text-osrs-parchment-dark/60 mt-2 text-sm">
-          {new Date(item.published_at * 1000).toLocaleDateString()}
-          {item.author_name ? ` · ${item.author_name}` : ""}
-        </p>
-      </header>
-      <Markdown>{item.body_md}</Markdown>
+      <ScrollPanel>
+        <header className="mb-6 text-center">
+          <h1 className="ink-heading text-2xl font-bold sm:text-3xl">{item.title}</h1>
+          <p className="ink-muted mt-2 text-sm">
+            {new Date(item.published_at * 1000).toLocaleDateString()}
+            {item.author_name ? ` · ${item.author_name}` : ""}
+          </p>
+        </header>
+        <Markdown tone="ink">{item.body_md}</Markdown>
+      </ScrollPanel>
     </article>
   );
 }

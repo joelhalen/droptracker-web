@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
+import { groupSocialMetadata } from "@/lib/seo";
 import { CountUp } from "@/components/count-up";
 import { GroupSupportCard } from "@/components/group-support-card";
 import { EntityHoverCard } from "@/components/entity-hover-card";
@@ -19,10 +20,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { id } = await params;
   try {
     const group = await api.group(Number(id));
-    return {
-      title: group.name,
-      description: group.description ?? `${group.name} — ${group.member_count} members.`,
-    };
+    return groupSocialMetadata(group, { title: group.name });
   } catch {
     return { title: "Group" };
   }
@@ -47,7 +45,18 @@ export default async function GroupPage({ params }: { params: Params }) {
     <div className="space-y-8">
       <header className="rise-in flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-center gap-4">
-          <NameTile name={group.name} size="lg" flair={group.flair?.style} />
+          {group.icon_url ? (
+            // Plain <img>: admin-uploaded GIF icons stay animated.
+            <img
+              src={group.icon_url}
+              alt=""
+              width={56}
+              height={56}
+              className="border-osrs-bronze/40 size-14 shrink-0 rounded-xl border object-cover"
+            />
+          ) : (
+            <NameTile name={group.name} size="lg" flair={group.flair?.style} />
+          )}
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-osrs-gold text-3xl font-bold">{group.name}</h1>

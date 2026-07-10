@@ -20,6 +20,7 @@ const TABS: NavTab[] = [
   { href: "/admin/services", label: "Services" },
   { href: "/admin/lookup", label: "Lookup" },
   { href: "/admin/tiers", label: "Tiers" },
+  { href: "/admin/subscriptions", label: "Revenue" },
   { href: "/admin/badges", label: "Badges" },
 ];
 

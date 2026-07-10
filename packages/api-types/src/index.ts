@@ -1551,6 +1551,13 @@ export const TicketAttachmentSchema = z.object({
 });
 export type TicketAttachment = z.infer<typeof TicketAttachmentSchema>;
 
+/** Discord user-id → display name, for resolving `<@id>` mentions embedded in
+ * mirrored message content. Keyed by Discord id (string); only ids the backend
+ * could resolve to a known user are present. Defaults to `{}` for backward
+ * compatibility with responses/mocks that predate the field. */
+export const MentionMapSchema = z.record(z.string(), z.string()).default({});
+export type MentionMap = z.infer<typeof MentionMapSchema>;
+
 export const TicketMessageSchema = z.object({
   id: z.number().int(),
   author_name: z.string(),
@@ -1567,6 +1574,7 @@ export type TicketMessage = z.infer<typeof TicketMessageSchema>;
 
 export const TicketDetailSchema = TicketSummarySchema.extend({
   messages: z.array(TicketMessageSchema),
+  mentions: MentionMapSchema,
 });
 export type TicketDetail = z.infer<typeof TicketDetailSchema>;
 
@@ -1642,6 +1650,7 @@ export type SuggestionMessage = z.infer<typeof SuggestionMessageSchema>;
 export const SuggestionDetailSchema = SuggestionSummarySchema.extend({
   body_md: z.string(),
   messages: z.array(SuggestionMessageSchema),
+  mentions: MentionMapSchema,
 });
 export type SuggestionDetail = z.infer<typeof SuggestionDetailSchema>;
 

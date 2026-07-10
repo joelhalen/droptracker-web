@@ -1,4 +1,4 @@
-import type { TicketDetail, TicketMessage, TicketStatus } from "@droptracker/api-types";
+import type { MentionMap, TicketDetail, TicketMessage, TicketStatus } from "@droptracker/api-types";
 import { Badge, Card, EmptyState } from "@/components/ui";
 import { InlineMarkdown } from "@/components/markdown";
 import { formatDate, formatRelativeTime } from "@/lib/format";
@@ -62,7 +62,7 @@ function AttachmentList({ message }: { message: TicketMessage }) {
   );
 }
 
-function MessageRow({ message }: { message: TicketMessage }) {
+function MessageRow({ message, mentions }: { message: TicketMessage; mentions?: MentionMap }) {
   if (message.kind === "system") {
     return (
       <div className="text-osrs-parchment-dark/60 flex items-center gap-3 py-1 text-xs">
@@ -104,7 +104,7 @@ function MessageRow({ message }: { message: TicketMessage }) {
         </div>
         {message.content && (
           <div className="text-osrs-parchment-dark/90 mt-0.5 text-sm break-words whitespace-pre-wrap">
-            <InlineMarkdown>{message.content}</InlineMarkdown>
+            <InlineMarkdown mentions={mentions}>{message.content}</InlineMarkdown>
           </div>
         )}
         <AttachmentList message={message} />
@@ -127,7 +127,7 @@ export function TicketTranscript({ ticket }: { ticket: TicketDetail }) {
       <ol className="space-y-4">
         {ticket.messages.map((m) => (
           <li key={m.id}>
-            <MessageRow message={m} />
+            <MessageRow message={m} mentions={ticket.mentions} />
           </li>
         ))}
       </ol>

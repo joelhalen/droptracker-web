@@ -362,3 +362,154 @@ body {
   overflow-x: auto;
   white-space: nowrap;
 }
+
+/*
+ * OSRS news-style parchment "scroll" backdrop (suggestion threads,
+ * announcements, docs). Art is vendored into /public/scroll — never
+ * hotlinked from runescape.com. The art is fixed-width (745px body tile,
+ * 765px top/bottom caps), so instead of the original's pixel layout —
+ * which clips the rolled ends off-screen on phones — everything here is
+ * proportional to the container width: at the 765px max it is pixel-
+ * identical to the RS original (padding 50px/75px, caps 50px tall
+ * overhanging 11px), and below that the whole scroll scales down as one
+ * piece. The percentage paddings and the caps' translateY both resolve
+ * against width, which is what keeps the geometry locked to the art.
+ * The parchment is fixed light art, so the ink tokens force dark text
+ * regardless of the active site theme.
+ */
+.scroll-backdrop {
+  --scroll-ink: #3e2b1f;
+  --scroll-ink-muted: rgba(62, 43, 31, 0.68);
+  --scroll-ink-heading: #5f1f00;
+  --scroll-ink-link: #8a2f0c;
+  --scroll-ink-rule: rgba(62, 43, 31, 0.28);
+
+  background: url("/scroll/backdrop_745.gif") repeat-y top center;
+  /* Body tile stays 745/765 of the caps' width, as in the original art. */
+  background-size: calc(100% * 745 / 765) auto;
+  /* 50px / 75px at full width (765px), scaling down proportionally. */
+  padding: calc(100% * 50 / 765) calc(100% * 75 / 765);
+  position: relative;
+  max-width: 765px;
+  margin: 12px auto;
+  color: var(--scroll-ink);
+  overflow-wrap: break-word; /* long URLs/tokens must not escape the parchment */
+}
+
+.scroll-backdrop::before,
+.scroll-backdrop::after {
+  aspect-ratio: 765 / 50; /* native cap art size; height follows width */
+  background: url("/scroll/backdrop_765_top.gif") no-repeat center top;
+  background-size: 100% 100%;
+  content: "";
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transform: translateY(-22%); /* 11px of the 50px cap at full width */
+  width: 100%;
+}
+
+.scroll-backdrop::after {
+  background: url("/scroll/backdrop_765_bottom.gif") no-repeat center bottom;
+  bottom: 0;
+  top: auto;
+  transform: translateY(22%);
+}
+
+/* Tighter type on phones — the parchment column gets narrow. */
+@media (max-width: 640px) {
+  .scroll-backdrop .prose {
+    font-size: 0.875rem;
+  }
+}
+
+/* Page chrome inside a scroll: meta lines, headings, links, dividers. */
+.scroll-backdrop .ink-heading {
+  color: var(--scroll-ink-heading);
+}
+.scroll-backdrop .ink-muted {
+  color: var(--scroll-ink-muted);
+}
+.scroll-backdrop .ink-link {
+  color: var(--scroll-ink-link);
+  text-decoration: underline;
+}
+.scroll-backdrop .ink-link:hover {
+  color: #b0421a;
+}
+.scroll-backdrop .ink-rule {
+  border-color: var(--scroll-ink-rule);
+}
+
+/* Re-inks @tailwindcss/typography on parchment: `prose` reads its palette
+ * from these variables, so overriding them here beats fighting the utility
+ * specificity of the default (invert) Markdown styling. */
+.prose-scroll-ink {
+  --tw-prose-body: #3e2b1f;
+  --tw-prose-headings: #5f1f00;
+  --tw-prose-lead: #4a3526;
+  --tw-prose-links: #8a2f0c;
+  --tw-prose-bold: #33231a;
+  --tw-prose-counters: #6b4e35;
+  --tw-prose-bullets: #6b4e35;
+  --tw-prose-hr: rgba(62, 43, 31, 0.28);
+  --tw-prose-quotes: #4a3526;
+  --tw-prose-quote-borders: rgba(95, 31, 0, 0.35);
+  --tw-prose-captions: #6b4e35;
+  --tw-prose-code: #4a1d05;
+  --tw-prose-pre-code: #efe6d2;
+  --tw-prose-pre-bg: rgba(40, 28, 18, 0.92);
+  --tw-prose-th-borders: rgba(62, 43, 31, 0.35);
+  --tw-prose-td-borders: rgba(62, 43, 31, 0.2);
+}
+
+/*
+ * Discord mention chips (lib/discord-tokens.ts): raw `<@id>` / `<#id>` /
+ * `<:emoji:>` markup mirrored from Discord is rewritten to readable, styled
+ * pills in the ticket transcript and suggestion/bug forum. Default palette is
+ * for the dark surfaces (tickets); the `.scroll-backdrop` override re-inks
+ * them for the parchment forum threads.
+ */
+.dt-mention {
+  border-radius: 0.3em;
+  padding: 0 0.35em;
+  font-weight: 600;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--dt-gold) 20%, transparent);
+  color: var(--dt-gold-bright);
+}
+/* Resolved user mention — the accent case. Roles/channels/unknown users read
+ * a touch quieter since their name couldn't be recovered. */
+.dt-mention-role,
+.dt-mention-channel,
+.dt-mention-user-unknown {
+  background: color-mix(in srgb, var(--dt-bronze) 28%, transparent);
+  color: var(--dt-parchment, var(--dt-text));
+  font-weight: 500;
+}
+/* Emoji and timestamps aren't "pills" — keep them inline and subdued. */
+.dt-mention-emoji,
+.dt-mention-time {
+  background: transparent;
+  padding: 0;
+  font-weight: 500;
+  color: var(--dt-text-muted);
+}
+
+/* Parchment forum threads: ink-on-parchment so chips stay legible on the scroll. */
+.scroll-backdrop .dt-mention {
+  background: rgba(95, 31, 0, 0.12);
+  color: #5f1f00;
+}
+.scroll-backdrop .dt-mention-role,
+.scroll-backdrop .dt-mention-channel,
+.scroll-backdrop .dt-mention-user-unknown {
+  background: rgba(62, 43, 31, 0.12);
+  color: #4a3526;
+}
+.scroll-backdrop .dt-mention-emoji,
+.scroll-backdrop .dt-mention-time {
+  background: transparent;
+  color: var(--scroll-ink-muted);
+}

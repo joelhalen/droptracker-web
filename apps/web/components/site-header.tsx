@@ -213,7 +213,14 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
   return (
     <header className="bg-osrs-surface-2/95 border-osrs-bronze/30 relative border-b shadow-lg backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-        <Link href="/" className="text-osrs-gold font-display text-xl font-bold tracking-tight">
+        <Link
+          href="/"
+          className="text-osrs-gold font-display flex items-center gap-2 text-xl font-bold tracking-tight"
+        >
+          {/* Animated brand mark (56px source, rendered 28px — /public/logo.gif is a
+              downscaled cut of /img/droptracker-small.gif). Plain <img>: next/image
+              would re-encode away the animation. */}
+          <img src="/logo.gif" alt="" width={28} height={28} className="rounded" />
           Drop<span className="text-osrs-gold-bright">Tracker</span>
         </Link>
 

@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   // The api-types package is consumed as TS source from the workspace.
   transpilePackages: ["@droptracker/api-types"],
   typedRoutes: true,
+  experimental: {
+    // Group-icon uploads travel through a Server Action as multipart FormData;
+    // the backend caps icons at 2 MB, so allow headroom over the 1 MB default.
+    serverActions: { bodySizeLimit: "3mb" },
+  },
   async rewrites() {
     // Legacy PayPal IPN endpoint. Pre-cutover group subscriptions are PayPal
     // agreements whose notification URL was baked in by XenForo as

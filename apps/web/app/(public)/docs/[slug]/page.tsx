@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { Markdown } from "@/components/markdown";
+import { ScrollPanel } from "@/components/scroll-panel";
 
 export const revalidate = 60;
 
@@ -19,5 +20,9 @@ export default async function DocPage({ params }: { params: Params }) {
   const doc = await api.doc(slug);
   if (!doc) notFound();
 
-  return <Markdown>{doc.content}</Markdown>;
+  return (
+    <ScrollPanel>
+      <Markdown tone="ink">{doc.content}</Markdown>
+    </ScrollPanel>
+  );
 }

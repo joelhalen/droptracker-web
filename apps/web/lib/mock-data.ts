@@ -1165,7 +1165,8 @@ export function mockTicket(ticketId: number): TicketDetail {
         is_staff: false,
         is_bot: false,
         kind: "message",
-        content: "I changed my RSN yesterday and my drops stopped tracking.",
+        content:
+          "I changed my RSN yesterday and my drops stopped tracking. <@100000000000000001> can you help?",
         attachments: [
           { filename: "screenshot.png", url: "/img/tickets/1/screenshot.png", content_type: "image/png", size: 12345 },
         ],
@@ -1179,7 +1180,7 @@ export function mockTicket(ticketId: number): TicketDetail {
         is_staff: true,
         is_bot: false,
         kind: "message",
-        content: "Fixed — your accounts are linked again. Give it a minute!",
+        content: "On it <@100000000000000002> — your accounts are linked again. Give it a minute!",
         attachments: [],
         date_sent: MOCK_NOW - 80_000,
         date_edited: null,
@@ -1197,6 +1198,7 @@ export function mockTicket(ticketId: number): TicketDetail {
         date_edited: null,
       },
     ],
+    mentions: { "100000000000000001": "joelhalen", "100000000000000002": "zezima" },
   };
 }
 
@@ -1256,11 +1258,12 @@ export function mockSuggestionDetail(id: number): SuggestionDetail {
         author_name: "joelhalen",
         author_user_id: 1,
         source: "web",
-        content: "Thanks — reproduced, fix incoming.",
+        content: "Thanks <@100000000000000002> — reproduced, fix incoming.",
         created_at: MOCK_NOW - 3_600,
         edited_at: null,
       },
     ],
+    mentions: { "100000000000000002": "zezima" },
   };
 }
 

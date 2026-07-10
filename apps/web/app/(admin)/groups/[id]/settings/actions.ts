@@ -34,6 +34,40 @@ export async function saveGroupConfig(groupId: number, patch: GroupConfigPatch) 
   return { ok: true as const };
 }
 
+/** Server Action: upload a new group icon (multipart 'file' entry). */
+export async function uploadGroupIcon(groupId: number, form: FormData) {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  try {
+    const { icon_url } = await api.uploadGroupIcon(groupId, form);
+    revalidatePath(`/groups/${groupId}`);
+    revalidatePath(`/groups/${groupId}/settings`);
+    return { ok: true as const, icon_url };
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
+}
+
+/** Server Action: remove the group's icon. */
+export async function removeGroupIcon(groupId: number) {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  try {
+    await api.deleteGroupIcon(groupId);
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
+  revalidatePath(`/groups/${groupId}`);
+  revalidatePath(`/groups/${groupId}/settings`);
+  return { ok: true as const };
+}
+
 /** Server Action: list the group's Discord text channels for the channel picker. */
 export async function fetchGroupDiscordChannels(groupId: number): Promise<DiscordChannelList> {
   const user = await getUser();
