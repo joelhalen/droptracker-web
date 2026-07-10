@@ -17,7 +17,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
-import { DiscordChannelPicker } from "@/components/discord-channel-picker";
+import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { BossListPicker } from "@/components/boss-list-picker";
 import type { DiscordChannel } from "@/lib/api";
 
@@ -223,6 +223,7 @@ export function ConfigEditor({
           return (
             <Card key={cat.id} id={sectionId(cat.id)} padding="p-6" className="scroll-mt-24">
               <h2 className="text-osrs-gold mb-4 text-lg font-semibold">{cat.label}</h2>
+              {fields.some((f) => f.type === "channel") && <ChannelListDelayHint className="-mt-3 mb-4" />}
 
               {compact.length > 0 && (
                 <div className="grid gap-4 sm:grid-cols-2">

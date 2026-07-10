@@ -1172,9 +1172,17 @@ export function mockEventDiscordGuilds() {
 export function mockEventDiscordChannels(_guildId: string) {
   return {
     channels: [
-      { id: "111111111111111111", name: "drops", position: 0 },
-      { id: "222222222222222222", name: "leaderboard", position: 1 },
-      { id: "333333333333333333", name: "announcements", position: 2 },
+      { id: "111111111111111111", name: "drops", position: 0, type: "text" as const },
+      { id: "222222222222222222", name: "leaderboard", position: 1, type: "text" as const },
+      { id: "333333333333333333", name: "announcements", position: 2, type: "text" as const },
+      { id: "666666666666666666", name: "event-hub", position: 3, type: "forum" as const },
+      {
+        id: "777777777777777777",
+        name: "completions",
+        position: 3,
+        type: "thread" as const,
+        parent_id: "666666666666666666",
+      },
     ],
     stale: false,
   };

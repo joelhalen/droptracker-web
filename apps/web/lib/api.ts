@@ -451,6 +451,12 @@ export interface DiscordChannel {
   id: string;
   name: string;
   position: number;
+  /** "text" (also the implied default for pre-migration cache entries),
+   * "forum" (not directly messageable — only its threads are), or "thread"
+   * (a forum post / channel thread; sendable exactly like a channel). */
+  type?: "text" | "forum" | "thread";
+  /** Threads only: id of the parent forum/text channel. */
+  parent_id?: string;
 }
 export interface DiscordChannelList {
   channels: DiscordChannel[];
@@ -1109,9 +1115,24 @@ export const api = {
         (await apiGet(`/groups/${groupId}/discord-channels`, { authed: true })) as DiscordChannelList,
       () => ({
         channels: [
-          { id: "111111111111111111", name: "drops", position: 0 },
-          { id: "222222222222222222", name: "lootboard", position: 1 },
-          { id: "333333333333333333", name: "announcements", position: 2 },
+          { id: "111111111111111111", name: "drops", position: 0, type: "text" as const },
+          { id: "222222222222222222", name: "lootboard", position: 1, type: "text" as const },
+          { id: "333333333333333333", name: "announcements", position: 2, type: "text" as const },
+          { id: "666666666666666666", name: "achievements", position: 3, type: "forum" as const },
+          {
+            id: "777777777777777777",
+            name: "drops",
+            position: 3,
+            type: "thread" as const,
+            parent_id: "666666666666666666",
+          },
+          {
+            id: "888888888888888888",
+            name: "personal-bests",
+            position: 3,
+            type: "thread" as const,
+            parent_id: "666666666666666666",
+          },
         ],
         cached: true,
       }),

@@ -21,7 +21,7 @@ import {
 import type { DiscordChannel, EventDiscordGuild } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
-import { DiscordChannelPicker } from "@/components/discord-channel-picker";
+import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import {
   getEventDiscord,
   listEventDiscordChannels,
@@ -257,6 +257,7 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
                   paste channel ids manually or re-open this page shortly.
                 </p>
               )}
+              <ChannelListDelayHint className="sm:col-span-2" />
             </div>
           )}
 

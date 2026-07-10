@@ -7,10 +7,25 @@
  * to Discord directly. Always falls back to manual numeric-id entry: the cache
  * can be empty (bot never ran there yet, guild not linked) or stale (bot down),
  * and a group admin must never be blocked from setting a channel because of it.
+ *
+ * Thread-aware (suggestion #3): the cache also carries forum channels and
+ * their active threads, so a group can route each notification type into a
+ * thread of e.g. one "achievements" forum instead of separate channels.
+ * Threads render as "#forum › thread" and are selectable like any channel
+ * (the bot's send path is identical); bare forum channels are shown only as
+ * thread prefixes — nothing can post to a forum itself.
  */
 import { useMemo, useState } from "react";
 import type { DiscordChannel } from "@/lib/api";
 import { fieldInputClass as input } from "@/components/ui";
+
+function channelLabel(c: DiscordChannel, byId: Map<string, DiscordChannel>): string {
+  if (c.type === "thread") {
+    const parent = c.parent_id ? byId.get(c.parent_id) : undefined;
+    return parent ? `#${parent.name} › ${c.name}` : `#${c.name}`;
+  }
+  return `#${c.name}`;
+}
 
 export function DiscordChannelPicker({
   channels,
@@ -33,17 +48,24 @@ export function DiscordChannelPicker({
   // never revisit it once the real list arrives, since useState's initializer
   // only runs on mount — permanently stuck on manual entry for every group.
   const [manualOverride, setManualOverride] = useState<boolean | null>(null);
-  const manual = manualOverride ?? channels.length === 0;
 
-  const selected = useMemo(() => channels.find((c) => c.id === value), [channels, value]);
+  const byId = useMemo(() => new Map(channels.map((c) => [c.id, c])), [channels]);
+  // Forums are not messageable — they exist in the list only to prefix their
+  // threads' labels, so they never appear as options.
+  const selectable = useMemo(() => channels.filter((c) => c.type !== "forum"), [channels]);
+  const manual = manualOverride ?? selectable.length === 0;
+
+  const selected = useMemo(() => selectable.find((c) => c.id === value), [selectable, value]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const pool = q ? channels.filter((c) => c.name.toLowerCase().includes(q)) : channels;
+    const pool = q
+      ? selectable.filter((c) => channelLabel(c, byId).toLowerCase().includes(q))
+      : selectable;
     return pool.slice(0, 20);
-  }, [channels, query]);
+  }, [selectable, byId, query]);
 
-  if (manual || channels.length === 0) {
+  if (manual || selectable.length === 0) {
     return (
       <div className="space-y-1">
         <input
@@ -54,7 +76,7 @@ export function DiscordChannelPicker({
           disabled={disabled}
           className={`${input} w-full disabled:cursor-not-allowed disabled:opacity-60`}
         />
-        {channels.length > 0 && !disabled && (
+        {selectable.length > 0 && !disabled && (
           <button
             type="button"
             onClick={() => setManualOverride(false)}
@@ -70,7 +92,7 @@ export function DiscordChannelPicker({
   const displayValue = open
     ? query
     : selected
-      ? `#${selected.name}`
+      ? channelLabel(selected, byId)
       : value
         ? `Unknown channel (${value})`
         : "";
@@ -108,10 +130,15 @@ export function DiscordChannelPicker({
                     onChange(c.id);
                     setOpen(false);
                   }}
-                  className="hover:bg-osrs-bronze/20 flex w-full items-center justify-between px-3 py-2 text-left"
+                  className="hover:bg-osrs-bronze/20 flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
                 >
-                  <span>#{c.name}</span>
-                  {c.id === value && <span className="text-osrs-gold-bright text-xs">selected</span>}
+                  <span className="truncate">{channelLabel(c, byId)}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    {c.type === "thread" && (
+                      <span className="text-osrs-parchment-dark/50 text-xs">thread</span>
+                    )}
+                    {c.id === value && <span className="text-osrs-gold-bright text-xs">selected</span>}
+                  </span>
                 </button>
               </li>
             ))
@@ -127,5 +154,23 @@ export function DiscordChannelPicker({
         Enter a channel ID manually instead
       </button>
     </div>
+  );
+}
+
+/**
+ * Page-level note for anywhere a DiscordChannelPicker appears: the dropdown is
+ * fed by a bot-maintained cache, so brand-new channels/threads lag behind —
+ * but a pasted id always works immediately (the backend stores it as-is and
+ * the bot resolves it at send time, threads included).
+ */
+export function ChannelListDelayHint({ className = "" }: { className?: string }) {
+  return (
+    <p className={`text-osrs-parchment-dark/60 text-xs ${className}`}>
+      Just created a channel or thread on Discord? Due to Discord rate limits it can take up to ~5
+      minutes to appear in these lists (usually much less — reload the page after a moment). You can
+      skip the wait by pasting its ID directly: enable Developer Mode in Discord (Settings →
+      Advanced), then right-click the channel or thread → Copy ID. Threads inside forum channels
+      work too.
+    </p>
   );
 }
