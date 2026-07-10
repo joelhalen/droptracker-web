@@ -45,6 +45,10 @@ import {
   PlayerLootTrackerSchema,
   PlayerProfileSchema,
   SearchResultsSchema,
+  PbBossBoardSchema,
+  type PbBossBoard,
+  PbBossIndexSchema,
+  type PbBossIndex,
   ServiceLogsSchema,
   ServiceStatusSchema,
   SubscriptionTierSchema,
@@ -190,6 +194,8 @@ import {
   mockPlayerLoot,
   mockPlayerProfile,
   mockSearch,
+  mockPbBoard,
+  mockPbBosses,
   mockServiceLogs,
   mockServices,
   mockSubscriptionTiers,
@@ -1060,6 +1066,29 @@ export const api = {
       async () => SupportersSchema.parse(await apiGet(`/supporters`, { revalidate: 300 })),
       () => mockSupporters(),
     );
+  },
+
+  // --- Personal-best leaderboards -----------------------------------------
+  /** Boss index for the PB leaderboards (optionally scoped to one group). */
+  async pbBosses(groupId?: number): Promise<PbBossIndex> {
+    const q = groupId != null ? `?group_id=${groupId}` : "";
+    return withFallback(
+      async () =>
+        PbBossIndexSchema.parse(await apiGet(`/personal-bests/bosses${q}`, { revalidate: 120 })),
+      () => mockPbBosses(groupId),
+    );
+  },
+
+  /** Every team-size board for one boss (optionally scoped to one group). */
+  async pbBoard(npcId: number, groupId?: number): Promise<PbBossBoard | null> {
+    const q = groupId != null ? `&group_id=${groupId}` : "";
+    return withFallback(
+      async () =>
+        PbBossBoardSchema.parse(
+          await apiGet(`/personal-bests/board?npc_id=${npcId}${q}`, { revalidate: 120 }),
+        ),
+      () => mockPbBoard(npcId, groupId),
+    ).catch(() => null); // 404 = no ranked times for this boss
   },
 
   async groupConfig(groupId: number): Promise<Record<string, string | number | boolean | null>> {

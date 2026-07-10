@@ -6,7 +6,15 @@ import { api } from "@/lib/api";
 // the Web API can enumerate them.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = env.siteUrl;
-  const staticPaths = ["/", "/leaderboards", "/events", "/announcements", "/premium", "/docs"];
+  const staticPaths = [
+    "/",
+    "/leaderboards",
+    "/personal-bests",
+    "/events",
+    "/announcements",
+    "/premium",
+    "/docs",
+  ];
   const docs = await api.docs();
 
   return [

@@ -270,6 +270,71 @@ export const PlayerLootTrackerSchema = z.object({
 });
 export type PlayerLootTracker = z.infer<typeof PlayerLootTrackerSchema>;
 
+// --- Personal-best leaderboards (/personal-bests/*) -----------------------
+/** One ranked time on a (boss, team size) board. */
+export const PbBoardEntrySchema = z.object({
+  rank: z.number().int(),
+  player_id: z.number().int(),
+  player_name: z.string(),
+  time_ms: z.number().int(),
+  time_display: z.string(),
+  date_ts: z.number().int().nullable(),
+  /** Proof screenshot (droptracker-hosted only; absent otherwise). */
+  image_url: z.string().optional(),
+  /** Present on group-scoped boards: the entry's global standing. */
+  global_rank: z.number().int().optional(),
+});
+export type PbBoardEntry = z.infer<typeof PbBoardEntrySchema>;
+
+export const PbTeamBoardSchema = z.object({
+  team_size: z.string(),
+  size_label: z.string(),
+  /** Ranked players on the full board (entries may be truncated). */
+  total_players: z.number().int(),
+  entries: z.array(PbBoardEntrySchema),
+});
+export type PbTeamBoard = z.infer<typeof PbTeamBoardSchema>;
+
+/** All team-size boards for one boss (optionally group-scoped). */
+export const PbBossBoardSchema = z.object({
+  npc_id: z.number().int(),
+  name: z.string(),
+  icon_url: z.string(),
+  entry_count: z.number().int(),
+  player_count: z.number().int(),
+  group_id: z.number().int().nullable(),
+  group_name: z.string().nullable().optional(),
+  boards: z.array(PbTeamBoardSchema),
+});
+export type PbBossBoard = z.infer<typeof PbBossBoardSchema>;
+
+export const PbBossSummarySchema = z.object({
+  npc_id: z.number().int(),
+  name: z.string(),
+  entry_count: z.number().int(),
+  player_count: z.number().int(),
+  /** Raid encounters pinned to the top of the index. */
+  featured: z.boolean(),
+  team_sizes: z.array(z.string()),
+  best: z
+    .object({
+      time_ms: z.number().int(),
+      time_display: z.string(),
+      team_size: z.string(),
+      player_id: z.number().int(),
+      player_name: z.string(),
+    })
+    .nullable(),
+});
+export type PbBossSummary = z.infer<typeof PbBossSummarySchema>;
+
+export const PbBossIndexSchema = z.object({
+  group_id: z.number().int().nullable(),
+  group_name: z.string().nullable().optional(),
+  bosses: z.array(PbBossSummarySchema),
+});
+export type PbBossIndex = z.infer<typeof PbBossIndexSchema>;
+
 export const PlayerProfileSchema = PlayerSummarySchema.extend({
   points: z.number().int().optional(),
   top_npc: z.string().optional(),

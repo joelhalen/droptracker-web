@@ -16,6 +16,8 @@ import {
   LeaderboardPageSchema,
   LootboardSchema,
   MeSchema,
+  PbBossBoardSchema,
+  PbBossIndexSchema,
   PlayerLootTrackerSchema,
   PlayerProfileSchema,
   ServiceStatusSchema,
@@ -38,6 +40,8 @@ import {
   mockMyTickets,
   mockTicket,
   mockMe,
+  mockPbBoard,
+  mockPbBosses,
   mockPlayerLeaderboard,
   mockPlayerLoot,
   mockPlayerProfile,
@@ -82,6 +86,10 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => TicketDetailSchema.parse(mockTicket(2)));
   assert.doesNotThrow(() => AdminTicketPageSchema.parse(mockAdminTickets()));
   assert.doesNotThrow(() => SupportersSchema.parse(mockSupporters()));
+  assert.doesNotThrow(() => PbBossIndexSchema.parse(mockPbBosses()));
+  assert.doesNotThrow(() => PbBossIndexSchema.parse(mockPbBosses(101)));
+  assert.doesNotThrow(() => PbBossBoardSchema.parse(mockPbBoard(13696)));
+  assert.doesNotThrow(() => PbBossBoardSchema.parse(mockPbBoard(13696, 101)));
 });
 
 // The backend serializes an empty event description as JSON null (not omitted).

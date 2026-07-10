@@ -33,6 +33,8 @@ import type {
   ServiceStatus,
   SubscriptionTier,
   SuggestionDetail,
+  PbBossBoard,
+  PbBossIndex,
   SuggestionPage,
   SuggestionSummary,
   Supporters,
@@ -473,6 +475,84 @@ export function mockSupporters(): Supporters {
     players: [
       { user_id: 645, player_id: 4782, name: "Nycolas Cage", since: 1783516018 },
       { user_id: 746, player_id: 5126, name: "Dizzied", since: 1783516018 },
+    ],
+  };
+}
+
+export function mockPbBosses(groupId?: number): PbBossIndex {
+  return {
+    group_id: groupId ?? null,
+    ...(groupId != null ? { group_name: "Mock Clan" } : {}),
+    bosses: [
+      {
+        npc_id: 13696,
+        name: "Chambers of Xeric",
+        entry_count: 7130,
+        player_count: 1744,
+        featured: true,
+        team_sizes: ["Solo", "2", "3", "4", "5"],
+        best: {
+          time_ms: 232000,
+          time_display: "3:52.0",
+          team_size: "5",
+          player_id: 42,
+          player_name: "Zezima",
+        },
+      },
+      {
+        npc_id: 2042,
+        name: "Zulrah",
+        entry_count: 1970,
+        player_count: 1954,
+        featured: false,
+        team_sizes: ["Solo"],
+        best: {
+          time_ms: 44400,
+          time_display: "0:44.4",
+          team_size: "Solo",
+          player_id: 43,
+          player_name: "Woox",
+        },
+      },
+    ],
+  };
+}
+
+export function mockPbBoard(npcId: number, groupId?: number): PbBossBoard {
+  const entry = (rank: number, pid: number, name: string, ms: number, display: string) => ({
+    rank,
+    player_id: pid,
+    player_name: name,
+    time_ms: ms,
+    time_display: display,
+    date_ts: 1783434457,
+    ...(groupId != null ? { global_rank: rank + 3 } : {}),
+  });
+  return {
+    npc_id: npcId,
+    name: "Chambers of Xeric",
+    icon_url: `https://www.droptracker.io/img/npcdb/${npcId}.png`,
+    entry_count: 7130,
+    player_count: 1744,
+    group_id: groupId ?? null,
+    ...(groupId != null ? { group_name: "Mock Clan" } : {}),
+    boards: [
+      {
+        team_size: "Solo",
+        size_label: "Solo",
+        total_players: 919,
+        entries: [
+          entry(1, 42, "Zezima", 557000, "9:17.0"),
+          entry(2, 43, "Woox", 561000, "9:21.0"),
+          entry(3, 44, "Lynx Titan", 570000, "9:30.0"),
+        ],
+      },
+      {
+        team_size: "2",
+        size_label: "2 players",
+        total_players: 512,
+        entries: [entry(1, 45, "B0aty", 495000, "8:15.0")],
+      },
     ],
   };
 }

@@ -53,6 +53,11 @@ const HEADER_TABS: NavTab[] = [
         label: "Groups",
         description: "Clans ranked by monthly loot",
       },
+      {
+        href: "/personal-bests",
+        label: "Personal bests",
+        description: "Fastest kill times per boss and team size",
+      },
     ],
   },
   { href: "/events", label: "Events", matchPrefix: true },

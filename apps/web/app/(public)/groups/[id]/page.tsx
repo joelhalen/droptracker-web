@@ -77,6 +77,12 @@ export default async function GroupPage({ params }: { params: Params }) {
             Lootboard
           </Link>
           <Link
+            href={`/groups/${group.id}/personal-bests` as Route}
+            className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
+          >
+            Personal bests
+          </Link>
+          <Link
             href={`/groups/${group.id}/points/leaderboard` as Route}
             className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
           >
@@ -140,9 +146,17 @@ export default async function GroupPage({ params }: { params: Params }) {
 
       {hasRecords && (
         <section className="rise-in">
-          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-            Clan records
-          </h2>
+          <div className="mb-3 flex items-baseline justify-between gap-2">
+            <h2 className="heading-rule text-osrs-gold flex-1 pb-1 text-lg font-semibold">
+              Clan records
+            </h2>
+            <Link
+              href={`/groups/${group.id}/personal-bests` as Route}
+              className="text-osrs-parchment-dark/70 shrink-0 text-sm hover:text-osrs-gold-bright"
+            >
+              All personal bests →
+            </Link>
+          </div>
           <p className="text-osrs-parchment-dark/60 mb-3 -mt-2 text-sm">
             Fastest kill times held by members of this clan.
           </p>
