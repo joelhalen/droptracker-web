@@ -59,10 +59,10 @@ export function DiscordChannelPicker({
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const pool = q
-      ? selectable.filter((c) => channelLabel(c, byId).toLowerCase().includes(q))
-      : selectable;
-    return pool.slice(0, 20);
+    // No arbitrary cap: the list is scrollable, and capping it hid every
+    // channel past the first N in big guilds — including all forum threads,
+    // which sort with their parent forum's position.
+    return q ? selectable.filter((c) => channelLabel(c, byId).toLowerCase().includes(q)) : selectable;
   }, [selectable, byId, query]);
 
   if (manual || selectable.length === 0) {
@@ -120,28 +120,44 @@ export function DiscordChannelPicker({
           {matches.length === 0 ? (
             <li className="text-osrs-parchment-dark/60 px-3 py-2">No matching channels.</li>
           ) : (
-            matches.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  // Fire before the input's onBlur closes the list.
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    onChange(c.id);
-                    setOpen(false);
-                  }}
-                  className="hover:bg-osrs-bronze/20 flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
-                >
-                  <span className="truncate">{channelLabel(c, byId)}</span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    {c.type === "thread" && (
-                      <span className="text-osrs-parchment-dark/50 text-xs">thread</span>
-                    )}
-                    {c.id === value && <span className="text-osrs-gold-bright text-xs">selected</span>}
-                  </span>
-                </button>
-              </li>
-            ))
+            matches.map((c, i) => {
+              // Group headers: when a run of threads starts, name the forum
+              // (or text channel) they live in so forums are visibly present
+              // in the list even though they aren't selectable themselves.
+              const prev = matches[i - 1];
+              const startsThreadRun =
+                c.type === "thread" && (!prev || prev.type !== "thread" || prev.parent_id !== c.parent_id);
+              const parent = c.parent_id ? byId.get(c.parent_id) : undefined;
+              return (
+                <li key={c.id}>
+                  {startsThreadRun && parent && (
+                    <div className="text-osrs-gold-bright/80 border-osrs-bronze/20 border-t px-3 pt-2 pb-1 text-xs font-semibold">
+                      {parent.type === "forum" ? "Forum" : "Threads in"} #{parent.name}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    // Fire before the input's onBlur closes the list.
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      onChange(c.id);
+                      setOpen(false);
+                    }}
+                    className={`hover:bg-osrs-bronze/20 flex w-full items-center justify-between gap-2 px-3 py-2 text-left ${
+                      c.type === "thread" ? "pl-6" : ""
+                    }`}
+                  >
+                    <span className="truncate">{c.type === "thread" ? c.name : channelLabel(c, byId)}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {c.type === "thread" && (
+                        <span className="text-osrs-parchment-dark/50 text-xs">thread</span>
+                      )}
+                      {c.id === value && <span className="text-osrs-gold-bright text-xs">selected</span>}
+                    </span>
+                  </button>
+                </li>
+              );
+            })
           )}
         </ul>
       )}
