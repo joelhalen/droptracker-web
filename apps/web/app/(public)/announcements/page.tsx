@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { EmptyState } from "@/components/ui";
+import { Markdown } from "@/components/markdown";
 import { ScrollPanel } from "@/components/scroll-panel";
+import { truncateMarkdown } from "@/lib/markdown-utils";
 
 export const revalidate = 30;
 
@@ -29,18 +31,23 @@ export default async function AnnouncementsPage() {
           <ul>
             {news.items.map((a) => (
               <li key={a.id} className="ink-rule border-b py-4 first:border-t">
-                <div className="flex items-center gap-2">
-                  {a.pinned && (
-                    <span className="ink-heading ink-rule rounded border px-1.5 py-0.5 text-xs font-semibold">
-                      Pinned
-                    </span>
-                  )}
-                  <Link href={`/announcements/${a.id}`} className="ink-link text-lg font-semibold">
-                    {a.title}
-                  </Link>
-                </div>
-                <p className="mt-2 line-clamp-2 text-sm">{a.body_md}</p>
-                {a.author_name && <p className="ink-muted mt-2 text-xs">— {a.author_name}</p>}
+                <Link
+                  href={`/announcements/${a.id}`}
+                  className="block no-underline hover:opacity-90 transition-opacity"
+                >
+                  <div className="flex items-center gap-2">
+                    {a.pinned && (
+                      <span className="ink-heading ink-rule rounded border px-1.5 py-0.5 text-xs font-semibold">
+                        Pinned
+                      </span>
+                    )}
+                    <h2 className="ink-link text-lg font-semibold">{a.title}</h2>
+                  </div>
+                  <div className="mt-2 text-sm prose prose-scroll-ink prose-sm max-w-none">
+                    <Markdown tone="ink">{truncateMarkdown(a.body_md, 75)}</Markdown>
+                  </div>
+                  {a.author_name && <p className="ink-muted mt-2 text-xs">— {a.author_name}</p>}
+                </Link>
               </li>
             ))}
           </ul>
