@@ -15,6 +15,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { Route } from "next";
+import { entityPath } from "@/lib/slug";
 import type { CompactBadge } from "@droptracker/api-types";
 import type { EntityCard, GroupCard, PlayerCard } from "@/lib/entity-card";
 import { CARD_SECTION_CLASS as DIVIDER, CardStatLine as StatLine, HoverCard } from "@/components/hover-card";
@@ -138,7 +139,7 @@ function PlayerCardBody({ id, name, seed }: { id: number; name: string; seed?: E
   const pct = percentile(player?.global_rank, player?.ranked_players);
 
   return (
-    <CardShell href={`/players/${id}`} linkLabel="View full profile">
+    <CardShell href={entityPath("players", id, name)} linkLabel="View full profile">
       <div className="flex items-center gap-2.5">
         <NameTile name={name} size="md" />
         <div className="min-w-0">
@@ -214,7 +215,7 @@ function PlayerCardBody({ id, name, seed }: { id: number; name: string; seed?: E
             {player.groups.map((g) => (
               <Link
                 key={g.id}
-                href={`/groups/${g.id}` as Route}
+                href={entityPath("groups", g.id, g.name)}
                 className="hover:text-osrs-gold-bright flex min-w-0 items-center gap-1.5 text-xs font-medium transition-colors"
                 title={g.flair?.tier_name}
               >
@@ -252,7 +253,7 @@ function GroupCardBody({ id, name, seed }: { id: number; name: string; seed?: En
     ) : null;
 
   return (
-    <CardShell href={`/groups/${id}`} linkLabel="View clan profile">
+    <CardShell href={entityPath("groups", id, name)} linkLabel="View clan profile">
       <div className="flex items-center gap-2.5">
         <NameTile name={name} size="md" flair={group?.flair?.style} />
         <div className="min-w-0">
@@ -298,7 +299,7 @@ function GroupCardBody({ id, name, seed }: { id: number; name: string; seed?: En
                   <li key={p.id} className="flex items-center gap-2 text-xs">
                     <RankMedal rank={p.rank} className="scale-90" />
                     <Link
-                      href={`/players/${p.id}` as Route}
+                      href={entityPath("players", p.id, p.name)}
                       className="hover:text-osrs-gold-bright min-w-0 flex-1 truncate font-medium transition-colors"
                     >
                       {p.name}
