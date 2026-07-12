@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { EventSummary } from "@droptracker/api-types";
 import { api } from "@/lib/api";
+import { getUser } from "@/lib/auth";
+import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
 import { EventWindow } from "@/components/local-time";
 
 export const revalidate = 30;
@@ -12,14 +14,17 @@ export const metadata: Metadata = {
 };
 
 export default async function EventsPage() {
-  const [active, past] = await Promise.all([
+  const user = await getUser().catch(() => null);
+  const [active, past, recruiting] = await Promise.all([
     api.events({ status: "active" }),
     api.events({ status: "past" }),
+    user ? api.eventRecruiting().catch(() => []) : Promise.resolve([]),
   ]);
 
   return (
     <div className="space-y-10">
       <h1 className="text-osrs-gold text-3xl font-bold">Events</h1>
+      {recruiting.length > 0 && <EventRecruitingBanner items={recruiting} />}
       <EventSection title="Active" events={active} empty="No active events right now." />
       <EventSection title="Past" events={past} empty="No past events yet." />
     </div>

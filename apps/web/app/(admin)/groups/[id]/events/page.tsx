@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { EventCreateForm } from "@/components/event-create-form";
+import { EventInvitationsInbox } from "@/components/event-invitations-inbox";
+import { EventTemplatesManager } from "@/components/event-templates-manager";
 import { FeatureGate } from "@/components/feature-gate";
 import { EmptyState } from "@/components/ui";
 
@@ -23,11 +25,14 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
   if (!Number.isFinite(groupId)) notFound();
 
   // Authed list so the backend includes this admin's drafts (Task 21).
-  const [events, subscription, tiers, user] = await Promise.all([
+  const [events, subscription, tiers, user, invitations, templates] = await Promise.all([
     api.eventsForAdmin({ groupId }),
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
     getUser(),
+    api.eventInvitations().catch(() => []),
+    // The group's own saved templates (management card below the grid).
+    api.eventTemplates({ groupId }).catch(() => []),
   ]);
 
   // Tier concurrency (PRD D9): shown as "active X / Y"; the limit binds at
@@ -38,50 +43,54 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
   const limitLabel = rawLimit >= 1_000_000 ? "∞" : String(rawLimit);
 
   const content = (
-    <div className="grid gap-10 lg:grid-cols-2">
-      <section>
-        <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">New event</h2>
-        <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
-          New events start as drafts — add tasks, teams, and a board, then activate.
-        </p>
-        <EventCreateForm groupId={groupId} />
-      </section>
+    <div className="space-y-8">
+      <EventInvitationsInbox groupId={groupId} invitations={invitations} />
+      <div className="grid gap-10 lg:grid-cols-2">
+        <section>
+          <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">New event</h2>
+          <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
+            New events start as drafts — add tasks, teams, and a board, then activate.
+          </p>
+          <EventCreateForm groupId={groupId} />
+        </section>
 
-      <section>
-        <div className="heading-rule mb-4 flex items-baseline justify-between pb-1">
-          <h2 className="text-osrs-gold text-lg font-semibold">Events</h2>
-          <span
-            className="text-osrs-parchment-dark/60 text-xs"
-            title="Simultaneously active events allowed by the group's subscription tier"
-          >
-            active {activeCount} / {limitLabel} (tier limit)
-          </span>
-        </div>
-        {events.length ? (
-          <ul className="divide-osrs-bronze/20 divide-y">
-            {events.map((e) => (
-              <li key={e.id} className="flex items-center justify-between py-3">
-                <Link
-                  href={`/groups/${groupId}/events/${e.id}` as Route}
-                  className="hover:text-osrs-gold-bright font-medium"
-                >
-                  {e.name}
-                </Link>
-                <span
-                  className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
-                >
-                  {e.status}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <EmptyState
-            title="No events yet"
-            hint="Create one to add tasks, teams, and bingo boards."
-          />
-        )}
-      </section>
+        <section>
+          <div className="heading-rule mb-4 flex items-baseline justify-between pb-1">
+            <h2 className="text-osrs-gold text-lg font-semibold">Events</h2>
+            <span
+              className="text-osrs-parchment-dark/60 text-xs"
+              title="Simultaneously active events allowed by the group's subscription tier"
+            >
+              active {activeCount} / {limitLabel} (tier limit)
+            </span>
+          </div>
+          {events.length ? (
+            <ul className="divide-osrs-bronze/20 divide-y">
+              {events.map((e) => (
+                <li key={e.id} className="flex items-center justify-between py-3">
+                  <Link
+                    href={`/groups/${groupId}/events/${e.id}` as Route}
+                    className="hover:text-osrs-gold-bright font-medium"
+                  >
+                    {e.name}
+                  </Link>
+                  <span
+                    className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
+                  >
+                    {e.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <EmptyState
+              title="No events yet"
+              hint="Create one to add tasks, teams, and bingo boards."
+            />
+          )}
+        </section>
+      </div>
+      <EventTemplatesManager groupId={groupId} initial={templates} />
     </div>
   );
 

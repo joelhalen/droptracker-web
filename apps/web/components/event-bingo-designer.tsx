@@ -510,6 +510,14 @@ function CellEditor({
                         {item.difficulty && (
                           <span className="text-osrs-gold-bright/70 ml-2 text-xs capitalize">{item.difficulty}</span>
                         )}
+                        {item.visibility === "private" && (
+                          <span
+                            className="border-osrs-bronze/40 text-osrs-parchment-dark/70 ml-2 rounded border px-1 text-[10px] uppercase"
+                            title="Saved privately by your clan — other clans can't see it"
+                          >
+                            private
+                          </span>
+                        )}
                       </span>
                       <span className="text-osrs-parchment-dark/60 shrink-0 text-xs">
                         {item.default_points} pts

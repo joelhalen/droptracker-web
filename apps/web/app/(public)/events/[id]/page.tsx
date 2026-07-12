@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { entityPath } from "@/lib/slug";
 import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
 import { EventWindow, LocalTime } from "@/components/local-time";
@@ -108,7 +109,11 @@ export default async function EventDetailPage({ params }: { params: Params }) {
             <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
               Participate
             </h2>
-            <EventJoinPanel event={event} players={players} />
+            <EventJoinPanel
+              event={event}
+              players={players}
+              viewerGroupIds={user?.groups.map((g) => g.id) ?? []}
+            />
           </div>
 
           <div>
@@ -148,7 +153,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                         {team.members!.map((m) => (
                           <li key={m.player_id} className="flex items-center justify-between">
                             <Link
-                              href={`/players/${m.player_id}`}
+                              href={entityPath("players", m.player_id, m.player_name)}
                               className="hover:text-osrs-gold-bright"
                             >
                               {m.player_name}

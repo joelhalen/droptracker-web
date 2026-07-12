@@ -16,19 +16,30 @@ type LinkedPlayer = { id: number; name: string };
 /**
  * Public join panel (Task 16): lets a signed-in user put one of their linked
  * players on a team, per the event's formation mode (events-prd.md D4).
- * Ownership/eligibility/join-code rules are enforced by the Web API; this
- * panel only guides the happy path.
+ * Clan-vs-clan events constrain team selection to the viewer's own clan(s).
  */
 export function EventJoinPanel({
   event,
   players,
+  viewerGroupIds = [],
 }: {
   event: EventDetail;
   players: LinkedPlayer[] | null;
+  /** Group ids the signed-in viewer belongs to (from GET /me). */
+  viewerGroupIds?: number[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  const isClanVsClan = event.mode === "clan_vs_clan";
+  const viewerGids = useMemo(() => new Set(viewerGroupIds), [viewerGroupIds]);
+
+  /** Teams the viewer may join on clan-vs-clan events (their clan's teams only). */
+  const eligibleTeams = useMemo(() => {
+    if (!isClanVsClan) return event.teams;
+    return event.teams.filter((t) => t.group_id != null && viewerGids.has(t.group_id));
+  }, [event.teams, isClanVsClan, viewerGids]);
 
   // Which of the viewer's players are already on a team (derived from the
   // public roster; the API's viewer block agrees but isn't cached with ISR).
@@ -47,7 +58,7 @@ export function EventJoinPanel({
   const freePlayers = (players ?? []).filter((p) => !memberships.has(p.id));
 
   const [playerChoice, setPlayerChoice] = useState<number | "">("");
-  const [teamId, setTeamId] = useState<number | "">(event.teams[0]?.id ?? "");
+  const [teamId, setTeamId] = useState<number | "">(eligibleTeams[0]?.id ?? "");
   const [joinCode, setJoinCode] = useState("");
   // The roster refreshes under us after joins/leaves; fall back to the first
   // still-free player when the chosen one is no longer available.
@@ -120,9 +131,35 @@ export function EventJoinPanel({
     });
   };
 
+  const clanRecruiting =
+    isClanVsClan &&
+    (selfJoin || autoAssign) &&
+    memberships.size === 0 &&
+    eligibleTeams.length > 0;
+
+  const noEligibleTeams =
+    isClanVsClan &&
+    (selfJoin || autoAssign) &&
+    memberships.size === 0 &&
+    freePlayers.length > 0 &&
+    eligibleTeams.length === 0;
+
   return (
     <div className="space-y-3">
       {error && <Alert variant="error">{error}</Alert>}
+
+      {clanRecruiting && (
+        <p className="text-osrs-gold-bright/90 text-sm">
+          Your clan is recruiting for this event — opt in below to join your clan&apos;s team.
+        </p>
+      )}
+
+      {noEligibleTeams && (
+        <p className="text-osrs-parchment-dark/60 text-sm">
+          None of your clans have a team on this event yet. Ask an event admin to create one for
+          your clan.
+        </p>
+      )}
 
       {[...memberships.entries()].map(([pid, m]) => {
         const player = players.find((p) => p.id === pid);
@@ -146,7 +183,7 @@ export function EventJoinPanel({
         );
       })}
 
-      {(selfJoin || autoAssign) && freePlayers.length > 0 && (
+      {(selfJoin || autoAssign) && freePlayers.length > 0 && eligibleTeams.length > 0 && (
         <form onSubmit={onJoin} className="space-y-2">
           <label className="block text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Player</span>
@@ -163,7 +200,7 @@ export function EventJoinPanel({
             </select>
           </label>
 
-          {selfJoin && event.teams.length > 1 && (
+          {selfJoin && eligibleTeams.length > 1 && (
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Team</span>
               <select
@@ -171,7 +208,7 @@ export function EventJoinPanel({
                 onChange={(e) => setTeamId(e.target.value ? Number(e.target.value) : "")}
                 className={`${field} w-full`}
               >
-                {event.teams.map((t) => (
+                {eligibleTeams.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} ({t.member_count} players)
                   </option>
@@ -182,7 +219,7 @@ export function EventJoinPanel({
 
           {autoAssign && (
             <p className="text-osrs-parchment-dark/50 text-xs">
-              You&apos;ll be placed on a team automatically to keep sides balanced.
+              You&apos;ll be placed on your clan&apos;s smallest team automatically.
             </p>
           )}
 

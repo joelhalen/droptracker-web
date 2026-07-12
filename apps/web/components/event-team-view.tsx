@@ -9,6 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { entityPath } from "@/lib/slug";
 import type { EventTeamActivity, EventTeamDetail } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
 import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
@@ -201,7 +202,7 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                       <span className="min-w-0 truncate">
                         {a.player_id != null && a.player_name ? (
                           <Link
-                            href={`/players/${a.player_id}`}
+                            href={entityPath("players", a.player_id, a.player_name)}
                             className="text-osrs-parchment hover:text-osrs-gold-bright"
                           >
                             {a.player_name}
@@ -259,7 +260,7 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                 >
                   <div className="flex items-center justify-between">
                     <Link
-                      href={`/players/${m.player_id}`}
+                      href={entityPath("players", m.player_id, m.player_name)}
                       className="hover:text-osrs-gold-bright font-medium"
                     >
                       {m.player_name}

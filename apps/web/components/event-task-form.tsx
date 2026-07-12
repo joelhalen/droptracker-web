@@ -200,6 +200,9 @@ export function EventTaskForm({
   const [label, setLabel] = useState(initial?.label ?? "");
   const [points, setPoints] = useState(initial?.points ?? 0);
   const [requiresReview, setRequiresReview] = useState(initial?.requires_confirmation ?? false);
+  const [visibility, setVisibility] = useState<"public" | "private">(
+    initial?.visibility ?? "public",
+  );
 
   // item_collection
   const [itemMode, setItemMode] = useState<ItemMode>(
@@ -314,6 +317,7 @@ export function EventTaskForm({
       label: label.trim() || suggestedLabel() || "Task",
       points,
       requires_confirmation: requiresReview,
+      visibility,
     };
     switch (type) {
       case "item_collection":
@@ -365,6 +369,7 @@ export function EventTaskForm({
             target_value: input.target_value ?? null,
             points: input.points,
             requires_confirmation: input.requires_confirmation,
+            visibility: input.visibility,
           });
           onSaved({ ...initial, ...input, config: initial.config });
         } else {
@@ -374,6 +379,7 @@ export function EventTaskForm({
             ...input,
             points: input.points ?? 0,
             requires_confirmation: input.requires_confirmation ?? false,
+            visibility: input.visibility ?? "public",
           });
         }
       } catch (err) {
@@ -650,7 +656,7 @@ export function EventTaskForm({
         </label>
       )}
 
-      {/* ── points / review / submit ─────────────────────────────────────── */}
+      {/* ── points / review / sharing / submit ───────────────────────────── */}
       <div className="flex flex-wrap items-end gap-3">
         <label className="grid gap-1 text-sm">
           <span className="text-osrs-parchment-dark/80">Points</span>
@@ -661,6 +667,18 @@ export function EventTaskForm({
             onChange={(e) => setPoints(Math.max(0, Number(e.target.value)))}
             className={`${field} w-24`}
           />
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="text-osrs-parchment-dark/80">Task library</span>
+          <select
+            value={visibility}
+            onChange={(e) => setVisibility(e.target.value as "public" | "private")}
+            className={field}
+            title="Every task is saved to the reusable task library — choose who can find it there"
+          >
+            <option value="public">Public — any clan can reuse it</option>
+            <option value="private">Private — save for this clan only</option>
+          </select>
         </label>
         <label className="text-osrs-parchment-dark/80 mb-2 flex items-center gap-2 text-sm">
           <input

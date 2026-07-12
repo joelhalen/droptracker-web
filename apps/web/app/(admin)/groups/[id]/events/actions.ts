@@ -10,6 +10,10 @@ import {
   EventTaskInputSchema,
   EventTaskPatchSchema,
   EventTeamInputSchema,
+  EventTeamPatchSchema,
+  EventTemplateInstantiateInputSchema,
+  EventTemplatePatchSchema,
+  EventTemplateSaveInputSchema,
   type BingoBoardInput,
   type EventAwardInput,
   type EventChannelConfigInput,
@@ -18,6 +22,11 @@ import {
   type EventTaskInput,
   type EventTaskPatch,
   type EventTeamInput,
+  type EventTeamPatch,
+  type EventTemplateInstantiateInput,
+  type EventTemplatePatch,
+  type EventTemplateSaveInput,
+  type EventParticipant,
 } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
@@ -59,10 +68,7 @@ function eventAdminPath(groupId: EventGroupId, eventId: number): string {
   return groupId == null ? `/admin/events/${eventId}` : `/groups/${groupId}/events/${eventId}`;
 }
 
-export async function createGroupEvent(
-  groupId: EventGroupId,
-  input: Omit<EventInput, "group_id">,
-) {
+export async function createGroupEvent(groupId: EventGroupId, input: Omit<EventInput, "group_id">) {
   await assertEventsEntitlement(groupId);
   const parsed = EventInputSchema.parse({ ...input, group_id: groupId });
   const result = await api.createEvent(parsed);
@@ -86,6 +92,7 @@ export async function updateGroupEvent(
       | "submission_policy"
       | "bonus_line_points"
       | "bonus_blackout_points"
+      | "mode"
     >
   >,
 ) {
@@ -143,6 +150,31 @@ export async function addEventTeam(groupId: EventGroupId, eventId: number, input
   return { ok: true as const, id: result.id };
 }
 
+/** Rename a team (fix a typo). Name only — a clan-vs-clan team's clan is fixed. */
+export async function updateEventTeam(
+  groupId: EventGroupId,
+  eventId: number,
+  teamId: number,
+  patch: EventTeamPatch,
+) {
+  await assertEventsEntitlement(groupId);
+  const parsed = EventTeamPatchSchema.parse(patch);
+  await api.updateEventTeam(eventId, teamId, parsed);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const };
+}
+
+/** Delete a mistakenly-created team and everything scoped to it (roster,
+ * progress, ledger). Blocked server-side once the event is over. */
+export async function deleteEventTeam(groupId: EventGroupId, eventId: number, teamId: number) {
+  await assertEventsEntitlement(groupId);
+  await api.deleteEventTeam(eventId, teamId);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const };
+}
+
 /** Admin roster add — also moves a player already on another team in this
  * event (their join timestamp, the credit cutoff, resets on the new team). */
 export async function addEventTeamMember(
@@ -171,19 +203,116 @@ export async function removeEventTeamMember(
   return { ok: true as const };
 }
 
-/** Search players for the roster add-player picker. Group events search the
- * group's members; global events (superadmin) search all players. */
-export async function searchGroupPlayers(groupId: EventGroupId, q: string) {
+/** Search players across every accepted participant clan (clan-vs-clan roster
+ * picker). Falls back to the host group for standard events. */
+export async function searchParticipantPlayers(
+  groupId: EventGroupId,
+  _eventId: number,
+  participantGroupIds: number[],
+  q: string,
+) {
   await assertEventsEntitlement(groupId);
+  const trimmed = q.trim();
+  if (!trimmed) return [];
   if (groupId == null) {
-    const res = await api.adminLookup(q.trim());
+    const res = await api.adminLookup(trimmed);
     return res.results
       .filter((r) => r.category === "player")
       .map((r) => ({ id: Number(r.id), name: r.label }))
       .filter((p) => Number.isFinite(p.id));
   }
-  const page = await api.groupMembers(groupId, 1, q.trim());
-  return page.members.map((m) => ({ id: m.id, name: m.name }));
+  const gids = participantGroupIds.length ? participantGroupIds : [groupId];
+  const seen = new Set<number>();
+  const out: { id: number; name: string }[] = [];
+  for (const gid of gids) {
+    const page = await api.groupMembers(gid, 1, trimmed);
+    for (const m of page.members) {
+      if (!seen.has(m.id)) {
+        seen.add(m.id);
+        out.push({ id: m.id, name: m.name });
+      }
+    }
+  }
+  return out;
+}
+
+/** Search players for the roster add-player picker (standard/global events). */
+export async function searchGroupPlayers(groupId: EventGroupId, q: string) {
+  return searchParticipantPlayers(groupId, 0, groupId != null ? [groupId] : [], q);
+}
+
+// --- Clan-vs-clan participants (Plan B) ------------------------------------
+
+export async function listEventParticipants(
+  groupId: EventGroupId,
+  eventId: number,
+): Promise<EventParticipant[]> {
+  await assertEventsEntitlement(groupId);
+  return api.eventParticipants(eventId);
+}
+
+export async function inviteEventParticipant(
+  groupId: EventGroupId,
+  eventId: number,
+  opponentGroupId: number,
+) {
+  await assertEventsEntitlement(groupId);
+  await api.inviteEventParticipant(eventId, opponentGroupId);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  return { ok: true as const };
+}
+
+export async function acceptEventInvitation(
+  groupId: EventGroupId,
+  eventId: number,
+  invitedGroupId: number,
+  opts?: { createDiscordEvent?: boolean },
+) {
+  // Accepting clan admin — no events entitlement required on their side.
+  const user = await getUser();
+  if (!user) throw new Error("Forbidden: sign in required.");
+  if (!canAdminGroup(user, invitedGroupId) && !user.is_superadmin) {
+    throw new Error("Forbidden: you do not administer that clan.");
+  }
+  await api.acceptEventInvitation(eventId, invitedGroupId, opts);
+  revalidatePath(eventsIndexPath(groupId));
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const };
+}
+
+export async function declineEventInvitation(
+  groupId: EventGroupId,
+  eventId: number,
+  invitedGroupId: number,
+) {
+  const user = await getUser();
+  if (!user) throw new Error("Forbidden: sign in required.");
+  if (!canAdminGroup(user, invitedGroupId) && !user.is_superadmin) {
+    throw new Error("Forbidden: you do not administer that clan.");
+  }
+  await api.declineEventInvitation(eventId, invitedGroupId);
+  revalidatePath(eventsIndexPath(groupId));
+  return { ok: true as const };
+}
+
+export async function removeEventParticipant(
+  groupId: EventGroupId,
+  eventId: number,
+  participantGroupId: number,
+) {
+  await assertEventsEntitlement(groupId);
+  await api.removeEventParticipant(eventId, participantGroupId);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  return { ok: true as const };
+}
+
+/** Search opponent clans by name for the invite picker. */
+export async function searchOpponentClans(groupId: EventGroupId, q: string) {
+  await assertEventsEntitlement(groupId);
+  if (!q.trim()) return [];
+  const results = await api.search(q.trim());
+  return results.groups.filter((g) => g.id !== groupId);
 }
 
 // --- Bingo designer (Task 20) ------------------------------------------------
@@ -191,7 +320,11 @@ export async function searchGroupPlayers(groupId: EventGroupId, q: string) {
 /** Replace the event's whole bingo board. Returns the refreshed event detail
  * (the PUT may create/delete tasks, so the manager's task list changes too).
  * The API answers 409 once the event has started. */
-export async function saveEventBingo(groupId: EventGroupId, eventId: number, input: BingoBoardInput) {
+export async function saveEventBingo(
+  groupId: EventGroupId,
+  eventId: number,
+  input: BingoBoardInput,
+) {
   await assertEventsEntitlement(groupId);
   const parsed = BingoBoardInputSchema.parse(input);
   await api.saveEventBingo(eventId, parsed);
@@ -306,6 +439,13 @@ export async function listEventDiscordChannels(groupId: EventGroupId, guildId: s
   return api.eventDiscordChannels(guildId);
 }
 
+/** Roles of one guild, for the event ping-role pickers (same cache pipeline
+ * as the channel list; stale ⇒ retry shortly). */
+export async function listEventDiscordRoles(groupId: EventGroupId, guildId: string) {
+  await assertEventsEntitlement(groupId);
+  return api.eventDiscordRoles(guildId);
+}
+
 /** Replace the event's Discord destination; `guild_id: null` clears it. */
 export async function saveEventDiscord(
   groupId: EventGroupId,
@@ -330,5 +470,75 @@ export async function updateEventTask(
   const parsed = EventTaskPatchSchema.parse(patch);
   const result = await api.updateEventTask(eventId, taskId, parsed);
   revalidatePath(eventAdminPath(groupId, eventId));
+  return result;
+}
+
+// --- Event templates (save/rerun events) ------------------------------------
+
+/** Snapshot this event's structure as a reusable template. */
+export async function saveEventTemplate(
+  groupId: EventGroupId,
+  eventId: number,
+  input: EventTemplateSaveInput,
+) {
+  await assertEventsEntitlement(groupId);
+  const parsed = EventTemplateSaveInputSchema.parse(input);
+  const result = await api.saveEventTemplate(eventId, parsed);
+  revalidatePath(eventsIndexPath(groupId));
+  return { ok: true as const, id: result.id };
+}
+
+/** Templates the caller can start from (public ∪ own groups' private). */
+export async function searchEventTemplates(
+  groupId: EventGroupId,
+  params: { query?: string; page?: number } = {},
+) {
+  await assertEventsEntitlement(groupId);
+  return api.eventTemplates(params);
+}
+
+/** Own-group templates for the management list (private + public). */
+export async function listGroupEventTemplates(groupId: EventGroupId) {
+  await assertEventsEntitlement(groupId);
+  return api.eventTemplates(groupId == null ? {} : { groupId });
+}
+
+/** Template detail + preview for the picker. */
+export async function getEventTemplate(groupId: EventGroupId, templateId: number) {
+  await assertEventsEntitlement(groupId);
+  return api.eventTemplate(templateId);
+}
+
+/** Create a fresh draft event in this group from a template. */
+export async function instantiateEventTemplate(
+  groupId: EventGroupId,
+  templateId: number,
+  input: Omit<EventTemplateInstantiateInput, "group_id">,
+) {
+  await assertEventsEntitlement(groupId);
+  const parsed = EventTemplateInstantiateInputSchema.parse({ ...input, group_id: groupId });
+  const result = await api.instantiateEventTemplate(templateId, parsed);
+  revalidatePath(eventsIndexPath(groupId));
+  return { ok: true as const, id: result.id, skipped_tasks: result.skipped_tasks };
+}
+
+/** Rename / re-describe / re-scope a template the group owns. */
+export async function updateEventTemplate(
+  groupId: EventGroupId,
+  templateId: number,
+  patch: EventTemplatePatch,
+) {
+  await assertEventsEntitlement(groupId);
+  const parsed = EventTemplatePatchSchema.parse(patch);
+  const result = await api.updateEventTemplate(templateId, parsed);
+  revalidatePath(eventsIndexPath(groupId));
+  return result;
+}
+
+/** Soft-delete a template the group owns. */
+export async function deleteEventTemplate(groupId: EventGroupId, templateId: number) {
+  await assertEventsEntitlement(groupId);
+  const result = await api.deleteEventTemplate(templateId);
+  revalidatePath(eventsIndexPath(groupId));
   return result;
 }

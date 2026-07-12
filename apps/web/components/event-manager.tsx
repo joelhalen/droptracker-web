@@ -2,7 +2,8 @@
 
 import type { Route } from "next";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import type { EventParticipant } from "@droptracker/api-types";
 import {
   EVENT_FORMATION_MODES,
   EVENT_SUBMISSION_POLICIES,
@@ -12,6 +13,7 @@ import {
 } from "@droptracker/api-types";
 import {
   FORMATION_MODE_LABELS,
+  EVENT_MODE_LABELS,
   SUBMISSION_POLICY_HELP,
   SUBMISSION_POLICY_LABELS,
   TASK_TYPE_LABELS,
@@ -23,17 +25,23 @@ import {
   activateEvent,
   addEventTeam,
   addEventTeamMember,
+  deleteEventTeam,
   endEvent,
+  listEventParticipants,
   removeEventTask,
   removeEventTeamMember,
-  searchGroupPlayers,
+  searchParticipantPlayers,
   updateEventTask,
+  updateEventTeam,
   updateGroupEvent,
 } from "@/app/(admin)/groups/[id]/events/actions";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
+import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
 import { EventDiscord } from "@/components/event-discord";
 import { EventTaskForm } from "@/components/event-task-form";
+import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
+import { EventTemplateSaver } from "@/components/event-template-saver";
 import { EventReview } from "@/components/event-review";
 import { LocalTime, TimezoneNote } from "@/components/local-time";
 
@@ -58,14 +66,22 @@ function StatusChip({ status }: { status: EventDetail["status"] }) {
     past: "bg-osrs-brown-dark/60 text-osrs-parchment-dark/50",
   };
   return (
-    <span className={`${styles[status]} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}>
+    <span
+      className={`${styles[status]} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
+    >
       {status}
     </span>
   );
 }
 
 /** `groupId` is null for global events (superadmin-managed from /admin/events). */
-export function EventManager({ groupId, event: initialEvent }: { groupId: number | null; event: EventDetail }) {
+export function EventManager({
+  groupId,
+  event: initialEvent,
+}: {
+  groupId: number | null;
+  event: EventDetail;
+}) {
   const [event, setEvent] = useState(initialEvent);
   const [tasks, setTasks] = useState<EventTask[]>(initialEvent.tasks);
   const [teams, setTeams] = useState<EventTeam[]>(initialEvent.teams);
@@ -199,12 +215,33 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
 
   /** Task id being edited inline, or -1 for the create form, or null. */
   const [taskFormFor, setTaskFormFor] = useState<number | null>(null);
+  /** Copy-from-library panel (mutually exclusive with the create form). */
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
+  const [teamGroupId, setTeamGroupId] = useState<number | "">("");
+  const [participants, setParticipants] = useState<EventParticipant[]>([]);
+
+  const isClanVsClan = event.mode === "clan_vs_clan";
+  const acceptedParticipantIds = participants
+    .filter((p) => p.status === "accepted")
+    .map((p) => p.group_id);
+
+  useEffect(() => {
+    if (!isClanVsClan || groupId == null) {
+      setParticipants([]);
+      return;
+    }
+    listEventParticipants(groupId, event.id)
+      .then(setParticipants)
+      .catch(() => setParticipants([]));
+  }, [isClanVsClan, groupId, event.id]);
 
   /** Per-task manual-review toggle (PRD D3). */
   const onToggleTaskReview = (t: EventTask) => {
     const next = !t.requires_confirmation;
-    setTasks((prev) => prev.map((x) => (x.id === t.id ? { ...x, requires_confirmation: next } : x)));
+    setTasks((prev) =>
+      prev.map((x) => (x.id === t.id ? { ...x, requires_confirmation: next } : x)),
+    );
     setError(null);
     startTransition(async () => {
       try {
@@ -235,14 +272,63 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
   const onAddTeam = (e: React.FormEvent) => {
     e.preventDefault();
     if (!teamName.trim()) return;
+    if (isClanVsClan && teamGroupId === "") {
+      setError("Pick which clan this team represents.");
+      return;
+    }
     setError(null);
     startTransition(async () => {
       try {
-        const { id } = await addEventTeam(groupId, event.id, { name: teamName.trim() });
-        setTeams((prev) => [...prev, { id, name: teamName.trim(), score: 0, member_count: 0 }]);
+        const { id } = await addEventTeam(groupId, event.id, {
+          name: teamName.trim(),
+          ...(isClanVsClan && teamGroupId !== "" ? { group_id: teamGroupId } : {}),
+        });
+        setTeams((prev) => [
+          ...prev,
+          {
+            id,
+            name: teamName.trim(),
+            score: 0,
+            member_count: 0,
+            ...(isClanVsClan && teamGroupId !== "" ? { group_id: teamGroupId } : {}),
+          },
+        ]);
         setTeamName("");
+        setTeamGroupId("");
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't add the team. Please try again."));
+      }
+    });
+  };
+
+  /** Rename a team (optimistic; reverts on failure). */
+  const onRenameTeam = (teamId: number, name: string) => {
+    const next = name.trim();
+    if (!next) return;
+    const prev = teams;
+    setTeams((ts) => ts.map((t) => (t.id === teamId ? { ...t, name: next } : t)));
+    setError(null);
+    startTransition(async () => {
+      try {
+        await updateEventTeam(groupId, event.id, teamId, { name: next });
+      } catch (err) {
+        setTeams(prev);
+        setError(getErrorMessage(err, "Couldn't rename the team. Please try again."));
+      }
+    });
+  };
+
+  /** Delete a team and its roster/progress (optimistic; reverts on failure). */
+  const onDeleteTeam = (teamId: number) => {
+    const prev = teams;
+    setTeams((ts) => ts.filter((t) => t.id !== teamId));
+    setError(null);
+    startTransition(async () => {
+      try {
+        await deleteEventTeam(groupId, event.id, teamId);
+      } catch (err) {
+        setTeams(prev);
+        setError(getErrorMessage(err, "Couldn't delete the team. Please try again."));
       }
     });
   };
@@ -354,8 +440,8 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
             <span>
               Require manual confirmation for <em>every</em> completion
               <span className="text-osrs-parchment-dark/60 block text-xs">
-                All automatic completions queue in Review until an admin confirms them. You can
-                also require review per task below.
+                All automatic completions queue in Review until an admin confirms them. You can also
+                require review per task below.
               </span>
             </span>
           </label>
@@ -392,6 +478,11 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
                 {groupId == null && (
                   <span className="bg-osrs-gold/15 text-osrs-gold rounded px-1.5 py-0.5 text-xs">
                     Global
+                  </span>
+                )}
+                {isClanVsClan && (
+                  <span className="bg-osrs-gold/15 text-osrs-gold rounded px-1.5 py-0.5 text-xs">
+                    {EVENT_MODE_LABELS.clan_vs_clan}
                   </span>
                 )}
               </div>
@@ -503,6 +594,11 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
                 ))}
             </span>
           </div>
+
+          {/* Save the event's structure for re-use ("Saving/Rerunning Events"). */}
+          <div className="flex justify-end">
+            <EventTemplateSaver groupId={groupId} eventId={event.id} eventName={event.name} />
+          </div>
         </div>
       )}
 
@@ -512,15 +608,42 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
       <section>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="heading-rule text-osrs-gold pb-1 text-lg font-semibold">Tasks</h3>
-          {taskFormFor !== -1 && (
-            <button
-              onClick={() => setTaskFormFor(-1)}
-              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
-            >
-              New task
-            </button>
-          )}
+          <span className="flex items-center gap-2">
+            {!libraryOpen && (
+              <button
+                onClick={() => {
+                  setLibraryOpen(true);
+                  setTaskFormFor(null);
+                }}
+                className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-1.5 text-sm font-medium"
+                title="Copy a preset, a task another clan shared publicly, or one of your clan's private saves"
+              >
+                From library
+              </button>
+            )}
+            {taskFormFor !== -1 && (
+              <button
+                onClick={() => {
+                  setTaskFormFor(-1);
+                  setLibraryOpen(false);
+                }}
+                className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
+              >
+                New task
+              </button>
+            )}
+          </span>
         </div>
+        {libraryOpen && (
+          <div className="mb-4">
+            <EventTaskLibraryPicker
+              groupId={groupId}
+              eventId={event.id}
+              onAdded={(t) => setTasks((prev) => [...prev, t])}
+              onClose={() => setLibraryOpen(false)}
+            />
+          </div>
+        )}
         {taskFormFor === -1 && (
           <div className="mb-4">
             <EventTaskForm
@@ -563,6 +686,14 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
                     )}
                     {t.points > 0 && (
                       <span className="text-osrs-gold-bright ml-2 text-xs">{t.points} pts</span>
+                    )}
+                    {t.visibility === "private" && (
+                      <span
+                        className="border-osrs-bronze/40 text-osrs-parchment-dark/70 ml-2 rounded border px-1 text-[10px] uppercase"
+                        title="Library copy saved privately — other clans can't reuse this task"
+                      >
+                        private
+                      </span>
                     )}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
@@ -624,7 +755,10 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
                   const target = taskThreshold(t);
                   return (
                     <tr key={t.id}>
-                      <td className="text-osrs-parchment max-w-0 truncate py-1.5 pr-3" title={t.label}>
+                      <td
+                        className="text-osrs-parchment max-w-0 truncate py-1.5 pr-3"
+                        title={t.label}
+                      >
                         {t.label}
                       </td>
                       {teams.map((tm) => {
@@ -659,15 +793,40 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
         </section>
       )}
 
+      {/* Clan-vs-clan participant roster */}
+      {isClanVsClan && groupId != null && (
+        <EventParticipantsPanel
+          groupId={groupId}
+          eventId={event.id}
+          isHost={event.group_id === groupId}
+        />
+      )}
+
       {/* Teams */}
       <section>
         <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Teams</h3>
-        <form onSubmit={onAddTeam} className="mb-4 flex gap-2">
+        <form onSubmit={onAddTeam} className="mb-4 flex flex-wrap gap-2">
+          {isClanVsClan && (
+            <select
+              value={teamGroupId}
+              onChange={(e) => setTeamGroupId(e.target.value ? Number(e.target.value) : "")}
+              className={`${field} min-w-[10rem]`}
+            >
+              <option value="">Clan…</option>
+              {participants
+                .filter((p) => p.status === "accepted")
+                .map((p) => (
+                  <option key={p.group_id} value={p.group_id}>
+                    {p.group_name ?? `Clan ${p.group_id}`}
+                  </option>
+                ))}
+            </select>
+          )}
           <input
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
             placeholder="Team name"
-            className={`${field} flex-1`}
+            className={`${field} min-w-[10rem] flex-1`}
           />
           <button
             type="submit"
@@ -684,10 +843,17 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
               <TeamRoster
                 key={team.id}
                 groupId={groupId}
+                eventId={event.id}
+                participantGroupIds={
+                  isClanVsClan ? acceptedParticipantIds : groupId != null ? [groupId] : []
+                }
                 team={team}
+                participants={participants}
                 pending={pending}
                 onAddMember={onAddMember}
                 onRemoveMember={onRemoveMember}
+                onRename={onRenameTeam}
+                onDelete={onDeleteTeam}
               />
             ))}
           </ul>
@@ -721,25 +887,44 @@ export function EventManager({ groupId, event: initialEvent }: { groupId: number
 }
 
 /** One team's roster: member list with remove, plus an add-player search over
- * the group's members. */
+ * the group's members (or all participant clans on clan-vs-clan events). */
 function TeamRoster({
   groupId,
+  eventId,
+  participantGroupIds,
   team,
+  participants,
   pending,
   onAddMember,
   onRemoveMember,
+  onRename,
+  onDelete,
 }: {
   groupId: number | null;
+  eventId: number;
+  participantGroupIds: number[];
   team: EventTeam;
+  participants: EventParticipant[];
   pending: boolean;
   onAddMember: (teamId: number, player: { id: number; name: string }) => void;
   onRemoveMember: (teamId: number, playerId: number) => void;
+  onRename: (teamId: number, name: string) => void;
+  onDelete: (teamId: number) => void;
 }) {
   const members = team.members ?? [];
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ id: number; name: string }[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(team.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const clanLabel =
+    team.group_id != null
+      ? (participants.find((p) => p.group_id === team.group_id)?.group_name ??
+        `Clan ${team.group_id}`)
+      : null;
 
   const onSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -748,7 +933,8 @@ function TeamRoster({
     setSearching(true);
     setSearchError(null);
     try {
-      const found = await searchGroupPlayers(groupId, q);
+      const searchGids = team.group_id != null ? [team.group_id] : participantGroupIds;
+      const found = await searchParticipantPlayers(groupId, eventId, searchGids, q);
       setResults(found.filter((p) => !members.some((m) => m.player_id === p.id)));
     } catch (err) {
       setSearchError(getErrorMessage(err, "Search failed. Please try again."));
@@ -765,12 +951,114 @@ function TeamRoster({
 
   return (
     <li className="border-osrs-bronze/20 rounded border p-3">
-      <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">{team.name}</span>
-        <span className="text-osrs-parchment-dark/60 text-xs">
-          {members.length} players · {team.score} pts
-        </span>
-      </div>
+      {editing ? (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const next = draftName.trim();
+            if (!next) return;
+            if (next !== team.name) onRename(team.id, next);
+            setEditing(false);
+          }}
+          className="flex flex-wrap items-center gap-2"
+        >
+          <input
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            maxLength={80}
+            autoFocus
+            className={`${field} min-w-[10rem] flex-1`}
+          />
+          <button
+            type="submit"
+            disabled={pending || !draftName.trim()}
+            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+          >
+            Save
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDraftName(team.name);
+              setEditing(false);
+            }}
+            className="text-osrs-parchment-dark/70 hover:text-osrs-parchment rounded px-2 py-1.5 text-xs"
+          >
+            Cancel
+          </button>
+        </form>
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="font-medium">
+            {team.name}
+            {clanLabel && (
+              <span className="text-osrs-parchment-dark/50 ml-2 text-xs">({clanLabel})</span>
+            )}
+          </span>
+          <div className="flex items-center gap-1">
+            <span className="text-osrs-parchment-dark/60 mr-1 text-xs">
+              {members.length} players · {team.score} pts
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setDraftName(team.name);
+                setEditing(true);
+                setConfirmDelete(false);
+              }}
+              disabled={pending}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright rounded px-2 py-1 text-xs disabled:opacity-50"
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              disabled={pending}
+              className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirmDelete && !editing && (
+        <div className="border-osrs-red/30 bg-osrs-red/5 mt-2 rounded border p-2 text-xs">
+          <p className="text-osrs-parchment-dark/80">
+            Delete <span className="font-medium">{team.name}</span>?
+            {members.length > 0 || team.score > 0 ? (
+              <>
+                {" "}
+                This removes {members.length} member{members.length === 1 ? "" : "s"} and erases the
+                team&apos;s {team.score} pts of progress. This can&apos;t be undone.
+              </>
+            ) : (
+              <> This can&apos;t be undone.</>
+            )}
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmDelete(false);
+                onDelete(team.id);
+              }}
+              disabled={pending}
+              className="bg-osrs-red/80 hover:bg-osrs-red text-osrs-parchment rounded px-3 py-1 text-xs font-medium disabled:opacity-50"
+            >
+              Delete team
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-parchment rounded px-2 py-1 text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {members.length > 0 && (
         <ul className="divide-osrs-bronze/10 mt-2 divide-y">
@@ -800,7 +1088,13 @@ function TeamRoster({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={groupId == null ? "Search players…" : "Search group members…"}
+          placeholder={
+            groupId == null
+              ? "Search players…"
+              : participantGroupIds.length > 1
+                ? "Search participant clan members…"
+                : "Search group members…"
+          }
           className={`${field} flex-1`}
         />
         <button
@@ -811,9 +1105,7 @@ function TeamRoster({
           {searching ? "Searching…" : "Search"}
         </button>
       </form>
-      {searchError && (
-        <p className="text-osrs-red mt-1 text-xs">{searchError}</p>
-      )}
+      {searchError && <p className="text-osrs-red mt-1 text-xs">{searchError}</p>}
       {results && (
         <ul className="border-osrs-bronze/20 mt-2 max-h-48 overflow-y-auto rounded border">
           {results.length ? (

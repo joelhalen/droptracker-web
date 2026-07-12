@@ -7,6 +7,12 @@ export const FORMATION_MODE_LABELS: Record<EventDetail["formation_mode"], string
   admin_assign: "Admin assign — admins place players",
 };
 
+/** Event ownership shape labels. */
+export const EVENT_MODE_LABELS: Record<EventDetail["mode"], string> = {
+  standard: "Standard — single clan",
+  clan_vs_clan: "Clan vs clan — invite an opponent",
+};
+
 /** Submission policies as shown in the admin settings form. */
 export const SUBMISSION_POLICY_LABELS: Record<EventDetail["submission_policy"], string> = {
   all: "All submissions count",

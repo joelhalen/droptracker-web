@@ -16,21 +16,43 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   EVENT_CHANNEL_KINDS,
+  EVENT_PING_KEYS,
+  type DiscordRole,
   type EventChannelKind,
+  type EventDiscordPolicy,
+  type EventPingKey,
+  type EventScheduledEventState,
 } from "@droptracker/api-types";
 import type { DiscordChannel, EventDiscordGuild } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
+import { DiscordRolePicker } from "@/components/discord-role-picker";
 import {
   getEventDiscord,
   listEventDiscordChannels,
   listEventDiscordGuilds,
+  listEventDiscordRoles,
   saveEventDiscord,
 } from "@/app/(admin)/groups/[id]/events/actions";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
+
+const PING_META: Record<EventPingKey, { label: string; hint: string }> = {
+  event_created: {
+    label: "Discord event created",
+    hint: "Pinged in Announcements with a link when the scheduled event appears on the server.",
+  },
+  event_started: {
+    label: "Event started",
+    hint: "Pinged on the start announcement.",
+  },
+  event_ended: {
+    label: "Event ended",
+    hint: "Pinged on the final-standings announcement.",
+  },
+};
 
 const KIND_META: Record<EventChannelKind, { label: string; hint: string }> = {
   announcements: {
@@ -66,12 +88,20 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
   const [channelsStale, setChannelsStale] = useState(false);
   // `null` = follow list availability; explicit choice otherwise.
   const [manualGuild, setManualGuild] = useState<boolean | null>(null);
+  // Discord scheduled-event mirror state for the SAVED guild (bot-written).
+  const [savedGuildId, setSavedGuildId] = useState("");
+  const [scheduledEvent, setScheduledEvent] = useState<EventScheduledEventState | null>(null);
+  // When the scheduled event goes live + which roles each post mentions.
+  const [policy, setPolicy] = useState<EventDiscordPolicy>("on_activate");
+  const [pings, setPings] = useState<Partial<Record<EventPingKey, string[]>>>({});
+  const [roleList, setRoleList] = useState<DiscordRole[] | null>(null);
 
   const loadChannels = useCallback(
     async (gid: string) => {
       if (!gid) {
         setChannelList([]);
         setChannelsStale(false);
+        setRoleList([]);
         return;
       }
       try {
@@ -82,6 +112,12 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
         // A channel-list failure must never block manual-id entry.
         setChannelList([]);
         setChannelsStale(true);
+      }
+      try {
+        const roles = await listEventDiscordRoles(groupId, gid);
+        setRoleList(roles.roles);
+      } catch {
+        setRoleList([]);
       }
     },
     [groupId],
@@ -101,6 +137,10 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
         setGuildId(config.guild_id ?? "");
         setGuildName(config.guild_name ?? null);
         setChannels(config.channels ?? {});
+        setSavedGuildId(config.guild_id ?? "");
+        setScheduledEvent(config.scheduled_event ?? null);
+        setPolicy(config.discord_event_policy ?? "on_activate");
+        setPings(config.pings ?? {});
         if (config.guild_id) void loadChannels(config.guild_id);
       } catch (err) {
         if (!cancelled) {
@@ -119,8 +159,20 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
     setGuildId(gid);
     setGuildName(guilds.find((g) => g.id === gid)?.name ?? null);
     setChannels({}); // channels belong to the previous guild
+    setPings({}); // so do the ping roles
     setSaved(false);
     void loadChannels(gid);
+  };
+
+  const togglePingRole = (key: EventPingKey, roleId: string) => {
+    setSaved(false);
+    setPings((prev) => {
+      const current = prev[key] ?? [];
+      const next = current.includes(roleId)
+        ? current.filter((r) => r !== roleId)
+        : [...current, roleId];
+      return { ...prev, [key]: next };
+    });
   };
 
   const setKind = (kind: EventChannelKind, value: string) => {
@@ -141,13 +193,24 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
         const cleaned = Object.fromEntries(
           Object.entries(channels).filter(([, v]) => v && /^\d+$/.test(v)),
         );
+        const cleanedPings = Object.fromEntries(
+          Object.entries(pings)
+            .map(([k, ids]) => [k, (ids ?? []).filter((id) => /^\d+$/.test(id))])
+            .filter(([, ids]) => (ids as string[]).length > 0),
+        );
         const result = await saveEventDiscord(groupId, eventId, {
           guild_id: guildId.trim() || null,
           channels: guildId.trim() ? cleaned : {},
+          discord_event_policy: policy,
+          pings: guildId.trim() ? cleanedPings : {},
         });
         setGuildId(result.guild_id ?? "");
         setGuildName(result.guild_name ?? null);
         setChannels(result.channels ?? {});
+        setSavedGuildId(result.guild_id ?? "");
+        setScheduledEvent(result.scheduled_event ?? null);
+        setPolicy(result.discord_event_policy ?? "on_activate");
+        setPings(result.pings ?? {});
         setSaved(true);
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't save the Discord config. Please try again."));
@@ -234,6 +297,84 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
           </label>
 
           {guildId.trim() && (
+            <fieldset className="border-osrs-bronze/20 space-y-2 rounded border p-3 sm:max-w-md">
+              <legend className="text-osrs-parchment-dark/70 px-1 text-xs">
+                Discord scheduled event
+              </legend>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="event-discord-policy"
+                  checked={policy === "on_activate"}
+                  onChange={() => {
+                    setPolicy("on_activate");
+                    setSaved(false);
+                  }}
+                  className="mt-0.5"
+                />
+                <span>
+                  Create when the event goes live
+                  <span className="text-osrs-parchment-dark/50 block text-xs">
+                    Drafts stay invisible on Discord (recommended).
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="event-discord-policy"
+                  checked={policy === "immediate"}
+                  onChange={() => {
+                    setPolicy("immediate");
+                    setSaved(false);
+                  }}
+                  className="mt-0.5"
+                />
+                <span>
+                  Create right away
+                  <span className="text-osrs-parchment-dark/50 block text-xs">
+                    The scheduled event appears as soon as this is saved, even for a draft.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+          )}
+
+          {!scheduledEvent &&
+            savedGuildId &&
+            guildId.trim() === savedGuildId &&
+            policy === "on_activate" && (
+              <p className="text-osrs-parchment-dark/50 text-xs">
+                The Discord scheduled event will be created when this event goes live.
+              </p>
+            )}
+
+          {scheduledEvent && guildId.trim() === savedGuildId && savedGuildId && (
+            <>
+              {scheduledEvent.status === "failed" ? (
+                <Alert variant="error">
+                  The Discord scheduled event couldn&apos;t be created or updated in{" "}
+                  {guildName ?? "this server"} — make sure the bot has the{" "}
+                  <strong>Manage Events</strong> permission there, then save again.
+                  {scheduledEvent.last_error && (
+                    <span className="mt-1 block text-xs opacity-70">
+                      Last error: {scheduledEvent.last_error}
+                    </span>
+                  )}
+                </Alert>
+              ) : (
+                <p className="text-osrs-parchment-dark/50 text-xs">
+                  {scheduledEvent.status === "synced"
+                    ? "A Discord scheduled event for this event is live on the server — it tracks name, description and time edits automatically."
+                    : scheduledEvent.status === "pending"
+                      ? "The bot will create (or update) this server's Discord scheduled event within a minute — once the event has a start time in the future."
+                      : "This server's Discord scheduled event is being removed."}
+                </p>
+              )}
+            </>
+          )}
+
+          {guildId.trim() && (
             <div className="grid gap-3 sm:grid-cols-2">
               {EVENT_CHANNEL_KINDS.map((kind) => (
                 <label key={kind} className="block text-sm">
@@ -259,6 +400,29 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
               )}
               <ChannelListDelayHint className="sm:col-span-2" />
             </div>
+          )}
+
+          {guildId.trim() && (
+            <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-3">
+              <legend className="text-osrs-parchment-dark/70 px-1 text-xs">Role pings</legend>
+              <p className="text-osrs-parchment-dark/60 text-xs">
+                Mentioned as real pings on the matching post. Posts go to the channels configured
+                above (Announcements for all three).
+              </p>
+              {EVENT_PING_KEYS.map((key) => (
+                <div key={key}>
+                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                    {PING_META[key].label}
+                    <span className="text-osrs-parchment-dark/40 ml-2">{PING_META[key].hint}</span>
+                  </span>
+                  <DiscordRolePicker
+                    roles={roleList}
+                    selected={pings[key] ?? []}
+                    onToggle={(id) => togglePingRole(key, id)}
+                  />
+                </div>
+              ))}
+            </fieldset>
           )}
 
           <div className="flex items-center gap-3">
