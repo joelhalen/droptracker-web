@@ -14,7 +14,7 @@
 import { useMemo, useState } from "react";
 import type { EventProgress, EventTask } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
-import { TASK_TYPE_LABELS, taskConfig, taskConfigItems, taskGoal } from "@/lib/events";
+import { TASK_TYPE_LABELS, taskConfig, taskConfigGroups, taskConfigItems, taskGoal } from "@/lib/events";
 import { formatGp } from "@/lib/format";
 import { TEAM_COLORS } from "@/components/bingo-board";
 
@@ -148,23 +148,48 @@ export function TaskProgressBar({
   );
 }
 
+function ItemChip({ name, suffix }: { name: string; suffix?: string }) {
+  return (
+    <span className="bg-osrs-bronze/15 border-osrs-bronze/25 text-osrs-parchment-dark/80 rounded border px-2 py-0.5 text-xs">
+      {name}
+      {suffix && <span className="text-osrs-gold/80"> {suffix}</span>}
+    </span>
+  );
+}
+
 /** Expandable "what counts" detail for list-based item tasks. */
 function TaskItemList({ task }: { task: EventTask }) {
+  const groups = taskConfigGroups(task);
+  if (groups.length) {
+    // Combined requirements: every group must be satisfied.
+    return (
+      <div className="mt-2 grid gap-1.5">
+        {groups.map((g, gi) => (
+          <div key={gi} className="flex flex-wrap items-center gap-1.5">
+            <span className="text-osrs-gold-bright/70 text-[10px] font-semibold uppercase">
+              {g.mode === "all_of" ? "All of" : g.need > 1 ? `Any ${g.need} of` : "Any of"}
+            </span>
+            {g.items.map((name) => (
+              <ItemChip key={name} name={name} />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
   const items = taskConfigItems(task);
   if (!items.length) return null;
   const isPoints = taskConfig(task).kind === "point_collection";
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
       {items.map((it) => (
-        <span
+        <ItemChip
           key={it.item_name}
-          className="bg-osrs-bronze/15 border-osrs-bronze/25 text-osrs-parchment-dark/80 rounded border px-2 py-0.5 text-xs"
-        >
-          {it.item_name}
-          {isPoints && (
-            <span className="text-osrs-gold/80"> ({it.points ?? 1} pt{(it.points ?? 1) === 1 ? "" : "s"})</span>
-          )}
-        </span>
+          name={it.item_name}
+          suffix={
+            isPoints ? `(${it.points ?? 1} pt${(it.points ?? 1) === 1 ? "" : "s"})` : undefined
+          }
+        />
       ))}
     </div>
   );

@@ -33,6 +33,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
+import { QuantityInput } from "@/components/quantity-input";
 import {
   addEventTask,
   resolveEventMetaNames,
@@ -44,22 +45,41 @@ import {
 const field =
   "bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-osrs-gold/60";
 
-type ItemMode = "single" | "any_of" | "all_of" | "point_collection";
+type ItemMode = "single" | "any_of" | "all_of" | "point_collection" | "groups";
 
 const ITEM_MODE_LABELS: Record<ItemMode, string> = {
   single: "Single item",
-  any_of: "Any item from a list",
+  any_of: "Any item(s) from a list",
   all_of: "All items from a list",
   point_collection: "Points from a list",
+  groups: "Combined requirements",
 };
 
 const ITEM_MODE_HELP: Record<ItemMode, string> = {
   single: "One specific item (optionally more than once).",
-  any_of: "Getting any one item from the list completes the task.",
+  any_of: "Any items from the list count — set how many are needed (e.g. any 2 boaters).",
   all_of: "The team must collect every item on the list.",
   point_collection:
     "Each item is worth points — the team races to the points goal. Weight rare drops higher.",
+  groups:
+    "Combine lists: every group must be satisfied — e.g. ALL three godsword shards plus ANY one hilt.",
 };
+
+/** One sub-requirement of a "Combined requirements" task. */
+type GroupDraft = { mode: "all_of" | "any_of"; need: number; items: PickerEntry[] };
+
+function groupsFromConfig(config: Record<string, unknown>): GroupDraft[] {
+  if (!Array.isArray(config.groups)) return [];
+  return (config.groups as { mode?: string; need?: number; items?: unknown[] }[]).map((g) => ({
+    mode: g.mode === "any_of" ? "any_of" : "all_of",
+    need: typeof g.need === "number" && g.need >= 1 ? g.need : 1,
+    items: (Array.isArray(g.items) ? g.items : []).flatMap((it): PickerEntry[] => {
+      if (typeof it === "string") return [{ name: it }];
+      const name = (it as { item_name?: string } | null)?.item_name;
+      return name ? [{ name }] : [];
+    }),
+  }));
+}
 
 /** Debounced name autocomplete against the item/NPC databases.
  * (Legacy single-input variant — the task form now uses ItemNpcPicker, but
@@ -192,8 +212,13 @@ export function EventTaskForm({
   );
 
   // item_collection
+  const initialGroups = groupsFromConfig(initialConfig);
   const [itemMode, setItemMode] = useState<ItemMode>(
-    initialItems.length ? ((initialConfig.kind as ItemMode) ?? "any_of") : "single",
+    initialGroups.length
+      ? "groups"
+      : initialItems.length
+        ? ((initialConfig.kind as ItemMode) ?? "any_of")
+        : "single",
   );
   const [singleItem, setSingleItem] = useState<PickerEntry[]>(
     initial?.type === "item_collection" && initial.target ? [{ name: initial.target }] : [],
@@ -205,6 +230,23 @@ export function EventTaskForm({
   const [pointsGoal, setPointsGoal] = useState(
     initial?.type === "item_collection" && initialItems.length ? (initial.target_value ?? 0) : 0,
   );
+  // any_of: how many qualifying drops complete the task ("any 2 boaters").
+  const [anyOfQty, setAnyOfQty] = useState(
+    initial?.type === "item_collection" && initialConfig.kind === "any_of"
+      ? (initial.target_value ?? 1)
+      : 1,
+  );
+  // Starter shape mirrors the classic use case: one all-of set + one any-of pick.
+  const [groups, setGroups] = useState<GroupDraft[]>(
+    initialGroups.length
+      ? initialGroups
+      : [
+          { mode: "all_of", need: 1, items: [] },
+          { mode: "any_of", need: 1, items: [] },
+        ],
+  );
+  const patchGroup = (gi: number, patch: Partial<GroupDraft>) =>
+    setGroups((prev) => prev.map((g, i) => (i === gi ? { ...g, ...patch } : g)));
 
   // kc / pb / xp / skill / loot / ehp / ehb
   const [npcSel, setNpcSel] = useState<PickerEntry[]>(
@@ -257,8 +299,19 @@ export function EventTaskForm({
           // valid config (e.g. 500 points of Zulrah's scales at 1pt each).
           if (listItems.length < 1) return "Add at least one item to the list.";
           if (pointsGoal < 1) return "Set a points goal.";
-        } else if (listItems.length < 2) {
-          return "Add at least two items to the list.";
+        } else if (itemMode === "groups") {
+          for (const [i, g] of groups.entries()) {
+            if (!g.items.length) return `Requirement ${i + 1}: add at least one item.`;
+            if (g.mode === "any_of" && g.need < 1)
+              return `Requirement ${i + 1}: "how many" must be at least 1.`;
+          }
+          const names = groups.flatMap((g) => g.items.map((it) => it.name.toLowerCase()));
+          if (new Set(names).size !== names.length)
+            return "An item can only appear in one requirement group.";
+        } else {
+          if (listItems.length < 2) return "Add at least two items to the list.";
+          if (itemMode === "any_of" && anyOfQty < 1)
+            return "Set how many from the list are needed.";
         }
         break;
       case "kc_target":
@@ -293,8 +346,17 @@ export function EventTaskForm({
     switch (type) {
       case "item_collection":
         if (itemMode === "single") return quantity > 1 ? `${quantity}× ${itemName}` : itemName;
-        if (itemMode === "any_of") return `Any of ${listItems.length} items`;
+        if (itemMode === "any_of")
+          return anyOfQty > 1
+            ? `Any ${anyOfQty} of ${listItems.length} items`
+            : `Any of ${listItems.length} items`;
         if (itemMode === "all_of") return `Collect all ${listItems.length} items`;
+        if (itemMode === "groups")
+          return `Collect ${groups
+            .map((g) =>
+              g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
+            )
+            .join(" + ")}`;
         return `${pointsGoal.toLocaleString()} collection points`;
       case "kc_target":
         return `${numericGoal}× ${npcName}`;
@@ -322,9 +384,31 @@ export function EventTaskForm({
     switch (type) {
       case "item_collection":
         if (itemMode === "single") return { ...base, target: itemName, target_value: quantity };
+        if (itemMode === "groups")
+          return {
+            ...base,
+            // Display value; the API recomputes the threshold from the groups.
+            target_value: groups.reduce(
+              (n, g) => n + (g.mode === "all_of" ? g.items.length : g.need),
+              0,
+            ),
+            config: JSON.stringify({
+              kind: "groups",
+              groups: groups.map((g) =>
+                g.mode === "any_of"
+                  ? { mode: "any_of", need: g.need, items: g.items.map((i) => i.name) }
+                  : { mode: "all_of", items: g.items.map((i) => i.name) },
+              ),
+            }),
+          };
         return {
           ...base,
-          target_value: itemMode === "point_collection" ? pointsGoal : listItems.length,
+          target_value:
+            itemMode === "point_collection"
+              ? pointsGoal
+              : itemMode === "any_of"
+                ? anyOfQty
+                : listItems.length,
           config: JSON.stringify({
             kind: itemMode,
             items:
@@ -405,12 +489,12 @@ export function EventTaskForm({
   const goalField = (labelText: string, placeholder: string, min = 1, max?: number) => (
     <label className="grid gap-1 text-sm">
       <span className="text-osrs-parchment-dark/80">{labelText}</span>
-      <input
-        type="number"
+      <QuantityInput
         min={min}
         max={max}
-        value={numericGoal || ""}
-        onChange={(e) => setNumericGoal(Number(e.target.value))}
+        emptyAs={0}
+        value={numericGoal}
+        onChange={setNumericGoal}
         placeholder={placeholder}
         className={field}
       />
@@ -471,37 +555,107 @@ export function EventTaskForm({
             {itemMode === "single" ? (
               <label className="grid gap-1 text-sm">
                 <span className="text-osrs-parchment-dark/80">Quantity</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                  className={field}
-                />
+                <QuantityInput min={1} value={quantity} onChange={setQuantity} className={field} />
               </label>
             ) : itemMode === "point_collection" ? (
               <label className="grid gap-1 text-sm">
                 <span className="text-osrs-parchment-dark/80">Points goal</span>
-                <input
-                  type="number"
+                <QuantityInput
                   min={1}
-                  value={pointsGoal || ""}
-                  onChange={(e) => setPointsGoal(Number(e.target.value))}
+                  emptyAs={0}
+                  value={pointsGoal}
+                  onChange={setPointsGoal}
                   className={field}
+                />
+              </label>
+            ) : itemMode === "any_of" ? (
+              <label className="grid gap-1 text-sm">
+                <span className="text-osrs-parchment-dark/80">How many from the list</span>
+                <QuantityInput
+                  min={1}
+                  value={anyOfQty}
+                  onChange={setAnyOfQty}
+                  className={field}
+                  title="Total qualifying drops needed — duplicates count (any 2 boaters)."
                 />
               </label>
             ) : null}
           </div>
           <p className="text-osrs-parchment-dark/50 text-xs">{ITEM_MODE_HELP[itemMode]}</p>
-          <ItemNpcPicker
-            kind="item"
-            mode={itemMode === "single" ? "single" : "list"}
-            withPoints={itemMode === "point_collection"}
-            selected={itemMode === "single" ? singleItem : listItems}
-            onChange={itemMode === "single" ? setSingleItem : setListItems}
-            search={searchItems}
-            resolve={resolveItems}
-          />
+          {itemMode === "groups" ? (
+            <div className="grid gap-3">
+              {groups.map((g, gi) => (
+                <div key={gi} className="border-osrs-bronze/25 grid gap-2 rounded-lg border p-3">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <span className="text-osrs-gold-bright/80 self-center text-xs font-semibold uppercase">
+                      Requirement {gi + 1}
+                    </span>
+                    <span className="grow" />
+                    <label className="grid gap-1 text-sm">
+                      <span className="text-osrs-parchment-dark/70 text-xs">Mode</span>
+                      <select
+                        value={g.mode}
+                        onChange={(e) =>
+                          patchGroup(gi, { mode: e.target.value as GroupDraft["mode"] })
+                        }
+                        className={field}
+                      >
+                        <option value="all_of">All of these</option>
+                        <option value="any_of">Any of these</option>
+                      </select>
+                    </label>
+                    {g.mode === "any_of" && (
+                      <label className="grid gap-1 text-sm">
+                        <span className="text-osrs-parchment-dark/70 text-xs">How many</span>
+                        <QuantityInput
+                          min={1}
+                          value={g.need}
+                          onChange={(need) => patchGroup(gi, { need })}
+                          className={`${field} w-24`}
+                        />
+                      </label>
+                    )}
+                    {groups.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setGroups((prev) => prev.filter((_, i) => i !== gi))}
+                        className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-red hover:text-osrs-red rounded border px-2 py-2 text-xs"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <ItemNpcPicker
+                    kind="item"
+                    mode="list"
+                    selected={g.items}
+                    onChange={(items) => patchGroup(gi, { items })}
+                    search={searchItems}
+                    resolve={resolveItems}
+                  />
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setGroups((prev) => [...prev, { mode: "any_of", need: 1, items: [] }])
+                }
+                className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright justify-self-start rounded border px-3 py-1.5 text-xs"
+              >
+                + Add requirement group
+              </button>
+            </div>
+          ) : (
+            <ItemNpcPicker
+              kind="item"
+              mode={itemMode === "single" ? "single" : "list"}
+              withPoints={itemMode === "point_collection"}
+              selected={itemMode === "single" ? singleItem : listItems}
+              onChange={itemMode === "single" ? setSingleItem : setListItems}
+              search={searchItems}
+              resolve={resolveItems}
+            />
+          )}
         </div>
       )}
 
@@ -594,13 +748,7 @@ export function EventTaskForm({
       <div className="flex flex-wrap items-end gap-3">
         <label className="grid gap-1 text-sm">
           <span className="text-osrs-parchment-dark/80">Points</span>
-          <input
-            type="number"
-            min={0}
-            value={points}
-            onChange={(e) => setPoints(Math.max(0, Number(e.target.value)))}
-            className={`${field} w-24`}
-          />
+          <QuantityInput min={0} value={points} onChange={setPoints} className={`${field} w-24`} />
         </label>
         <label className="grid gap-1 text-sm">
           <span className="text-osrs-parchment-dark/80">Task library</span>

@@ -15,6 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { EventMetaEntry } from "@droptracker/api-types";
+import { QuantityInput } from "@/components/quantity-input";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 
@@ -349,14 +350,13 @@ export function ItemNpcPicker({
                 <span className="text-osrs-parchment min-w-0 flex-1 truncate">{s.name}</span>
                 {withPoints && (
                   <label className="flex shrink-0 items-center gap-1">
-                    <input
-                      type="number"
+                    <QuantityInput
                       min={0.1}
-                      step={0.1}
+                      integer={false}
                       value={s.points ?? 1}
                       disabled={disabled}
                       onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => setPoints(s.name, Number(e.target.value))}
+                      onChange={(points) => setPoints(s.name, points)}
                       className="bg-osrs-brown-dark/80 border-osrs-bronze/30 text-osrs-parchment w-16 rounded border px-1 py-0.5 text-center text-xs"
                       title={`Points one ${s.name} is worth`}
                     />

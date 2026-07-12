@@ -104,11 +104,36 @@ export function taskConfig(task: Pick<EventTask, "config">): Record<string, unkn
   }
 }
 
-/** Items in an item-list config, for display chips. */
+/** One sub-requirement of a `kind: "groups"` config. */
+export type TaskConfigGroup = { mode: "all_of" | "any_of"; need: number; items: string[] };
+
+/** Structured groups of a combined-requirements config, [] otherwise. */
+export function taskConfigGroups(task: Pick<EventTask, "config">): TaskConfigGroup[] {
+  const cfg = taskConfig(task);
+  if (cfg.kind !== "groups" || !Array.isArray(cfg.groups)) return [];
+  return (cfg.groups as { mode?: string; need?: number; items?: unknown[] }[]).map((g) => {
+    const items = (Array.isArray(g.items) ? g.items : []).flatMap((it) => {
+      if (typeof it === "string") return [it];
+      const name = (it as { item_name?: string } | null)?.item_name;
+      return name ? [name] : [];
+    });
+    const mode = g.mode === "any_of" ? ("any_of" as const) : ("all_of" as const);
+    return {
+      mode,
+      need: mode === "any_of" && typeof g.need === "number" && g.need >= 1 ? g.need : items.length,
+      items,
+    };
+  });
+}
+
+/** Items in an item-list config, for display chips (groups are flattened). */
 export function taskConfigItems(
   task: Pick<EventTask, "config">,
 ): { item_name: string; points?: number }[] {
-  const items = taskConfig(task).items;
+  const cfg = taskConfig(task);
+  const items = Array.isArray(cfg.items)
+    ? cfg.items
+    : taskConfigGroups(task).flatMap((g) => g.items);
   if (!Array.isArray(items)) return [];
   return items.flatMap((it) => {
     if (typeof it === "string") return [{ item_name: it }];
@@ -140,10 +165,22 @@ export function taskGoal(
       return tv != null ? `${tv.toLocaleString()} GP${from}` : "";
     }
     case "item_collection": {
+      const groups = taskConfigGroups(task);
+      if (groups.length) {
+        // e.g. "all 3 + any 1 of 4 items" (godsword: shards + any hilt).
+        const parts = groups.map((g) =>
+          g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
+        );
+        return `${parts.join(" + ")} items`;
+      }
       const items = taskConfigItems(task);
       if (items.length) {
         const kind = String(taskConfig(task).kind ?? "any_of").replace("_", " ");
-        return `${kind} · ${items.length} items`;
+        const need =
+          taskConfig(task).kind === "any_of" && tv != null && tv > 1
+            ? ` · ${tv.toLocaleString()} needed`
+            : "";
+        return `${kind} · ${items.length} items${need}`;
       }
       if (target) return tv != null && tv > 1 ? `${target} · ${tv.toLocaleString()}×` : target;
       return "";

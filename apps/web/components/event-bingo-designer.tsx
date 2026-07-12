@@ -21,6 +21,7 @@ import {
 import { TASK_TYPE_LABELS } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
+import { QuantityInput } from "@/components/quantity-input";
 import {
   saveEventBingo,
   searchEventTaskLibrary,
@@ -583,11 +584,10 @@ function CellEditor({
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
                 Points for “{cell.library.name}”
               </span>
-              <input
-                type="number"
+              <QuantityInput
                 min={0}
                 value={cell.points ?? cell.library.default_points}
-                onChange={(e) => onChange({ points: Math.max(0, Number(e.target.value) || 0) })}
+                onChange={(points) => onChange({ points })}
                 className={`${field} w-28`}
               />
             </label>

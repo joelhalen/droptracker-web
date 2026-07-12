@@ -31,6 +31,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, EmptyState } from "@/components/ui";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
+import { QuantityInput } from "@/components/quantity-input";
 import {
   createTaskPreset,
   deleteTaskPreset,
@@ -52,7 +53,7 @@ type ItemMode = "single" | "any_of" | "all_of" | "point_collection";
 
 const ITEM_MODE_LABELS: Record<ItemMode, string> = {
   single: "Single item",
-  any_of: "Any item from a list",
+  any_of: "Any item(s) from a list",
   all_of: "All items from a list",
   point_collection: "Points from a list",
 };
@@ -458,6 +459,12 @@ function PresetForm({
   const [pointsGoal, setPointsGoal] = useState(
     initial?.type === "item_collection" && initialItems.length ? (initial.target_value ?? 0) : 0,
   );
+  // any_of: how many qualifying drops complete the task ("any 2 boaters").
+  const [anyOfQty, setAnyOfQty] = useState(
+    initial?.type === "item_collection" && initialConfig.kind === "any_of"
+      ? (initial.target_value ?? 1)
+      : 1,
+  );
   const [npcSel, setNpcSel] = useState<PickerEntry[]>(
     initial && ["kc_target", "pb_target"].includes(initial.type) && initial.target
       ? [{ name: initial.target }]
@@ -504,8 +511,10 @@ function PresetForm({
         } else if (itemMode === "point_collection") {
           if (listItems.length < 1) return "Add at least one item to the list.";
           if (pointsGoal < 1) return "Set a points goal.";
-        } else if (listItems.length < 2) {
-          return "Add at least two items to the list.";
+        } else {
+          if (listItems.length < 2) return "Add at least two items to the list.";
+          if (itemMode === "any_of" && anyOfQty < 1)
+            return "Set how many from the list are needed.";
         }
         break;
       case "kc_target":
@@ -553,7 +562,12 @@ function PresetForm({
         if (itemMode === "single") return { ...base, target: itemName, target_value: quantity };
         return {
           ...base,
-          target_value: itemMode === "point_collection" ? pointsGoal : listItems.length,
+          target_value:
+            itemMode === "point_collection"
+              ? pointsGoal
+              : itemMode === "any_of"
+                ? anyOfQty
+                : listItems.length,
           config: JSON.stringify({
             kind: itemMode,
             items:
@@ -609,12 +623,12 @@ function PresetForm({
   const goalField = (labelText: string, placeholder: string, min = 1, max?: number) => (
     <label className="grid gap-1 text-sm">
       <span className="text-osrs-parchment-dark/80">{labelText}</span>
-      <input
-        type="number"
+      <QuantityInput
         min={min}
         max={max}
-        value={numericGoal || ""}
-        onChange={(e) => setNumericGoal(Number(e.target.value))}
+        emptyAs={0}
+        value={numericGoal}
+        onChange={setNumericGoal}
         placeholder={placeholder}
         className={field}
       />
@@ -685,23 +699,28 @@ function PresetForm({
             {itemMode === "single" ? (
               <label className="grid gap-1 text-sm">
                 <span className="text-osrs-parchment-dark/80">Quantity</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                  className={field}
-                />
+                <QuantityInput min={1} value={quantity} onChange={setQuantity} className={field} />
               </label>
             ) : itemMode === "point_collection" ? (
               <label className="grid gap-1 text-sm">
                 <span className="text-osrs-parchment-dark/80">Points goal</span>
-                <input
-                  type="number"
+                <QuantityInput
                   min={1}
-                  value={pointsGoal || ""}
-                  onChange={(e) => setPointsGoal(Number(e.target.value))}
+                  emptyAs={0}
+                  value={pointsGoal}
+                  onChange={setPointsGoal}
                   className={field}
+                />
+              </label>
+            ) : itemMode === "any_of" ? (
+              <label className="grid gap-1 text-sm">
+                <span className="text-osrs-parchment-dark/80">How many from the list</span>
+                <QuantityInput
+                  min={1}
+                  value={anyOfQty}
+                  onChange={setAnyOfQty}
+                  className={field}
+                  title="Total qualifying drops needed — duplicates count (any 2 boaters)."
                 />
               </label>
             ) : null}
@@ -814,11 +833,10 @@ function PresetForm({
       <div className="flex flex-wrap items-end gap-3">
         <label className="grid gap-1 text-sm">
           <span className="text-osrs-parchment-dark/80">Default points</span>
-          <input
-            type="number"
+          <QuantityInput
             min={0}
             value={defaultPoints}
-            onChange={(e) => setDefaultPoints(Math.max(0, Number(e.target.value)))}
+            onChange={setDefaultPoints}
             className={`${field} w-24`}
             title="Points a task starts with when copied from this preset"
           />
