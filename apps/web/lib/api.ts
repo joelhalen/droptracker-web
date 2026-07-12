@@ -33,6 +33,12 @@ import {
   EventInvitationSchema,
   EventParticipantSchema,
   EventRecruitingItemSchema,
+  EventSignupSchema,
+  EventJoinResultSchema,
+  EventRandomizeResultSchema,
+  type EventSignup,
+  type EventJoinResult,
+  type EventRandomizeResult,
   EventTeamDetailSchema,
   type EventTeamDetail,
   EventSummarySchema,
@@ -124,6 +130,8 @@ import {
   type EventTaskInput,
   type EventMetaEntry,
   type EventTaskLibraryItem,
+  type EventTaskLibraryItemInput,
+  type EventTaskLibraryItemPatch,
   type EventTaskPatch,
   type EventTeamInput,
   type EventTeamPatch,
@@ -764,6 +772,47 @@ export const api = {
     );
   },
 
+  // --- Task-library management (superadmin CP) ------------------------------
+  /** Create a curated site-wide preset (source "curated", group_id null). */
+  async adminCreateEventTaskLibraryItem(
+    input: EventTaskLibraryItemInput,
+  ): Promise<EventTaskLibraryItem> {
+    return withFallback(
+      async () =>
+        EventTaskLibraryItemSchema.parse(await apiSend("POST", `/event-task-library`, input)),
+      () => ({
+        id: Math.floor(Math.random() * 100000),
+        name: input.name,
+        description: input.description ?? null,
+        type: input.type,
+        target: input.target ?? null,
+        target_value: input.target_value ?? null,
+        default_points: input.default_points ?? 0,
+        difficulty: input.difficulty ?? null,
+        config: input.config ?? null,
+        source: "curated",
+        group_id: null,
+        visibility: input.visibility ?? "public",
+      }),
+    );
+  },
+
+  /** Edit any preset (curated or group-saved); absent keys stay unchanged. */
+  async adminUpdateEventTaskLibraryItem(
+    itemId: number,
+    patch: EventTaskLibraryItemPatch,
+  ): Promise<EventTaskLibraryItem> {
+    return EventTaskLibraryItemSchema.parse(
+      await apiSend("PATCH", `/event-task-library/${itemId}`, patch),
+    );
+  },
+
+  /** Soft-delete a preset (tasks already copied into events are untouched). */
+  async adminDeleteEventTaskLibraryItem(itemId: number): Promise<{ ok: true }> {
+    await apiSend("DELETE", `/event-task-library/${itemId}`, {});
+    return { ok: true } as const;
+  },
+
   // --- Event templates (save/rerun events) ----------------------------------
   /** Snapshot an event's structure as a reusable template (any lifecycle
    * state). Upserts per owning group by lower-cased name. */
@@ -852,6 +901,21 @@ export const api = {
     );
   },
 
+  /** Batch exact-name → game-id lookup (icon hydration for stored task
+   * lists; names never contain pipes, so `|` is the separator). Unknown
+   * names are simply absent from the response. */
+  async resolveEventMeta(kind: "item" | "npc", names: string[]): Promise<EventMetaEntry[]> {
+    if (!names.length) return [];
+    const q = new URLSearchParams({ kind, names: names.slice(0, 100).join("|") });
+    return withFallback(
+      async () =>
+        EventMetaEntrySchema.array().parse(
+          await apiGet(`/events/meta/resolve?${q}`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
   /** NPC-name autocomplete for the task form (exact in-game names). */
   async searchEventNpcs(query: string): Promise<EventMetaEntry[]> {
     return withFallback(
@@ -863,9 +927,19 @@ export const api = {
     );
   },
 
-  async addEventTask(eventId: number, input: EventTaskInput): Promise<{ id: number }> {
+  /** `visibility` echoes what the library actually stored — a "public" save
+   * whose requirements duplicate an existing public preset comes back
+   * "private" (group-only). */
+  async addEventTask(
+    eventId: number,
+    input: EventTaskInput,
+  ): Promise<{ id: number; visibility?: "public" | "private" }> {
     return withFallback(
-      async () => (await apiSend("POST", `/events/${eventId}/tasks`, input)) as { id: number },
+      async () =>
+        (await apiSend("POST", `/events/${eventId}/tasks`, input)) as {
+          id: number;
+          visibility?: "public" | "private";
+        },
       () => ({ id: Math.floor(Math.random() * 100000) }),
     );
   },
@@ -990,10 +1064,10 @@ export const api = {
   },
 
   // --- Event membership (Task 16) ------------------------------------------
-  async joinEvent(eventId: number, input: EventJoinInput): Promise<{ team_id: number }> {
+  async joinEvent(eventId: number, input: EventJoinInput): Promise<EventJoinResult> {
     return withFallback(
-      async () => (await apiSend("POST", `/events/${eventId}/join`, input)) as { team_id: number },
-      () => ({ team_id: input.team_id ?? 21 }),
+      async () => EventJoinResultSchema.parse(await apiSend("POST", `/events/${eventId}/join`, input)),
+      () => ({ team_id: input.team_id ?? 21, pooled: false }),
     );
   },
 
@@ -1111,6 +1185,72 @@ export const api = {
           await apiGet(`/events/recruiting`, { authed: true }),
         ),
       () => [],
+    );
+  },
+
+  // --- Sign-up pool (formation_mode === "signup_pool") ---------------------
+  /** The event's sign-up pool, with each player's current placement (admin). */
+  async eventSignups(eventId: number): Promise<EventSignup[]> {
+    return withFallback(
+      async () =>
+        EventSignupSchema.array().parse(
+          await apiGet(`/events/${eventId}/signups`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
+  /** Place one signed-up player onto a team (admin manual sort). */
+  async assignEventSignup(eventId: number, playerId: number, teamId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/signups/assign`, {
+          player_id: playerId,
+          team_id: teamId,
+        });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Randomly (re)distribute the pool across teams; optional clan scope. */
+  async randomizeEventSignups(
+    eventId: number,
+    groupId?: number,
+  ): Promise<EventRandomizeResult> {
+    return withFallback(
+      async () =>
+        EventRandomizeResultSchema.parse(
+          await apiSend(
+            "POST",
+            `/events/${eventId}/signups/randomize`,
+            groupId != null ? { group_id: groupId } : {},
+          ),
+        ),
+      () => ({ assigned: 0, unassigned: 0 }),
+    );
+  },
+
+  /** Withdraw a player from the pool (admin). */
+  async removeEventSignup(eventId: number, playerId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/events/${eventId}/signups/${playerId}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Post an interactive "Sign up" button to the event's Discord channel. */
+  async postEventSignupMessage(eventId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/signup-message`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
     );
   },
 

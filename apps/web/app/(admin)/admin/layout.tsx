@@ -8,6 +8,7 @@ import { TabNav, type NavTab } from "@/components/tab-nav";
 const TABS: NavTab[] = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/events", label: "Events", matchPrefix: true },
+  { href: "/admin/task-library", label: "Task library" },
   { href: "/admin/data", label: "Data" },
   { href: "/admin/logs", label: "Logs" },
   { href: "/admin/groups", label: "Groups" },

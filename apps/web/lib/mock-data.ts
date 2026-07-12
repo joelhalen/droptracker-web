@@ -1393,7 +1393,7 @@ export function mockEvent(id: number): EventDetail {
       { task_id: 14, team_id: 22, progress: 4_250_000, completed: false, completed_at: null },
     ],
     bingo: summary.has_bingo ? { size: 5, cells } : null,
-    viewer: { player_ids_on_event: [1337], team_id: 21 },
+    viewer: { player_ids_on_event: [1337], team_id: 21, signed_up_player_ids: [] },
     join_requires_code: false,
     join_code: null,
     starts_at: summary.starts_at ?? now,

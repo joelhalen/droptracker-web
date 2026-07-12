@@ -9,9 +9,13 @@
  * the copy is an ordinary event task the admin can edit or delete afterwards.
  * The bingo designer has its own picker (cells bind `library_item_id`
  * server-side) — this component is for the flat tasks list.
+ *
+ * Browsing UX: the whole library is listed as soon as the picker opens (no
+ * search required); the type dropdown and the search box both filter live, and
+ * "Load more" pages through everything the filter matches.
  */
 
-import { useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   EVENT_TASK_TYPES,
   type EventTask,
@@ -27,6 +31,10 @@ import {
 const field =
   "bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-osrs-gold/60";
 
+// Mirrors the API's page size (web_api/routes/event_admin.py _LIBRARY_PAGE_SIZE):
+// a full page means there may be more to load.
+const PAGE_SIZE = 50;
+
 export function EventTaskLibraryPicker({
   groupId,
   eventId,
@@ -39,28 +47,47 @@ export function EventTaskLibraryPicker({
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
-  const [results, setResults] = useState<EventTaskLibraryItem[] | null>(null);
-  const [searching, setSearching] = useState(false);
+  const [items, setItems] = useState<EventTaskLibraryItem[] | null>(null);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const doSearch = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    setSearching(true);
-    setError(null);
-    try {
-      const found = await searchEventTaskLibrary(groupId, {
-        query: query.trim() || undefined,
-        type: typeFilter || undefined,
-      });
-      setResults(found);
-    } catch (err) {
-      setError(getErrorMessage(err, "Library search failed. Please try again."));
-    } finally {
-      setSearching(false);
-    }
-  };
+  // Debounce the search box so typing filters live without a request per key.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 250);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  const load = useCallback(
+    async (pageNum: number, replace: boolean) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const found = await searchEventTaskLibrary(groupId, {
+          query: debouncedQuery || undefined,
+          type: typeFilter || undefined,
+          page: pageNum,
+        });
+        setItems((prev) => (replace || !prev ? found : [...prev, ...found]));
+        setHasMore(found.length === PAGE_SIZE);
+        setPage(pageNum);
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't load the task library. Please try again."));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [groupId, debouncedQuery, typeFilter],
+  );
+
+  // List everything on open, and re-list from page 1 whenever a filter changes.
+  useEffect(() => {
+    load(1, true);
+  }, [load]);
 
   const copyIn = (item: EventTaskLibraryItem) => {
     setError(null);
@@ -73,14 +100,20 @@ export function EventTaskLibraryPicker({
           target_value: item.target_value ?? undefined,
           points: item.default_points,
           config: item.config ?? undefined,
-          // The copy is this event's own task; keep the clan's default
-          // sharing (public) — the admin can flip it to private when editing.
+          // The copy is this event's own task. "public" is the sitewide
+          // default; the API dedupes by requirements, so re-sharing a preset
+          // that already exists never creates a second public library row.
           visibility: "public" as const,
         };
-        const { id } = await addEventTask(groupId, eventId, input);
+        const res = await addEventTask(groupId, eventId, input);
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
         onAdded({
-          id,
           ...input,
+          id: res.id,
+          visibility: res.visibility ?? input.visibility,
           target: input.target ?? null,
           target_value: input.target_value ?? null,
           config: input.config ?? null,
@@ -107,16 +140,18 @@ export function EventTaskLibraryPicker({
       <p className="text-osrs-parchment-dark/60 text-xs">
         Curated presets, tasks other clans shared publicly, and your clan&apos;s private saves.
       </p>
-      <form onSubmit={doSearch} className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search tasks by name…"
+          placeholder="Filter by name…"
+          aria-label="Filter tasks by name"
           className={`${field} min-w-40 flex-1`}
         />
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
+          aria-label="Filter tasks by type"
           className={field}
         >
           <option value="">All types</option>
@@ -126,19 +161,15 @@ export function EventTaskLibraryPicker({
             </option>
           ))}
         </select>
-        <button
-          type="submit"
-          disabled={searching}
-          className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-2 text-sm disabled:opacity-50"
-        >
-          {searching ? "Searching…" : "Search"}
-        </button>
-      </form>
+      </div>
       {error && <p className="text-osrs-red text-xs">{error}</p>}
-      {results && (
-        <ul className="border-osrs-bronze/20 max-h-64 overflow-y-auto rounded border">
-          {results.length ? (
-            results.map((item) => (
+
+      {items === null ? (
+        <p className="text-osrs-parchment-dark/50 px-1 py-2 text-xs">Loading the task library…</p>
+      ) : (
+        <ul className="border-osrs-bronze/20 max-h-72 overflow-y-auto rounded border">
+          {items.length ? (
+            items.map((item) => (
               <li
                 key={item.id}
                 className="hover:bg-osrs-bronze/10 flex items-center justify-between gap-2 px-3 py-1.5 text-sm"
@@ -148,11 +179,9 @@ export function EventTaskLibraryPicker({
                   <span className="text-osrs-parchment-dark/50 ml-2 text-xs uppercase">
                     {TASK_TYPE_LABELS[item.type]}
                   </span>
-                  {item.difficulty && (
-                    <span className="text-osrs-gold-bright/70 ml-2 text-xs capitalize">
-                      {item.difficulty}
-                    </span>
-                  )}
+                  {/* item.difficulty (air/water/earth/fire) is the legacy
+                      BoardGame tier — meaningless for the current event types,
+                      so it stays data-only until a board-style mode returns. */}
                   {item.visibility === "private" && (
                     <span
                       className="border-osrs-bronze/40 text-osrs-parchment-dark/70 ml-2 rounded border px-1 text-[10px] uppercase"
@@ -178,14 +207,22 @@ export function EventTaskLibraryPicker({
               </li>
             ))
           ) : (
-            <li className="text-osrs-parchment-dark/50 px-3 py-2 text-xs">No matching tasks.</li>
+            <li className="text-osrs-parchment-dark/50 px-3 py-2 text-xs">
+              {loading ? "Loading…" : "No tasks match your filters."}
+            </li>
           )}
         </ul>
       )}
-      {!results && (
-        <p className="text-osrs-parchment-dark/50 text-xs">
-          Search to browse — leave the box empty to list everything.
-        </p>
+
+      {items !== null && hasMore && (
+        <button
+          type="button"
+          onClick={() => load(page + 1, false)}
+          disabled={loading}
+          className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright self-start rounded border px-3 py-1.5 text-xs disabled:opacity-50"
+        >
+          {loading ? "Loading…" : "Load more"}
+        </button>
       )}
     </div>
   );

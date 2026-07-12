@@ -24,6 +24,18 @@ export default async function ManageEventPage({ params }: { params: Params }) {
     getUser(),
   ]);
 
+  // A clan challenged into a clan-vs-clan event (group_id is the HOST) co-manages
+  // it without its own paid tier — only the host pays. Don't paywall them.
+  const isParticipant = event.mode === "clan_vs_clan" && event.group_id !== groupId;
+
+  const manager = (
+    <div className="max-w-3xl">
+      <EventManager groupId={groupId} event={event} />
+    </div>
+  );
+
+  if (isParticipant) return manager;
+
   return (
     <FeatureGate
       entitlement="events"
@@ -32,9 +44,7 @@ export default async function ManageEventPage({ params }: { params: Params }) {
       groupId={groupId}
       isSuperadmin={user?.is_superadmin}
     >
-      <div className="max-w-3xl">
-        <EventManager groupId={groupId} event={event} />
-      </div>
+      {manager}
     </FeatureGate>
   );
 }

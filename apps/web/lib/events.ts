@@ -2,10 +2,23 @@ import type { EventDetail, EventTask } from "@droptracker/api-types";
 
 /** Formation modes (events-prd.md D4) as shown in the admin settings form. */
 export const FORMATION_MODE_LABELS: Record<EventDetail["formation_mode"], string> = {
-  self_join: "Self join — players pick a team",
-  auto_assign: "Auto-assign — server balances teams",
-  admin_assign: "Admin assign — admins place players",
+  self_join: "Self sign-up — players pick their team",
+  auto_assign: "Self sign-up — auto-assigned to a team",
+  signup_pool: "Sign-up pool — admins sort teams later",
+  admin_assign: "Admin assign — no self sign-up",
 };
+
+/** One-line help under the formation-mode picker. */
+export const FORMATION_MODE_HELP: Record<EventDetail["formation_mode"], string> = {
+  self_join: "Players sign up from the event page and choose which team to join.",
+  auto_assign: "Players sign up and are dropped onto the smallest team automatically.",
+  signup_pool:
+    "Players sign up into a pool with no team. You sort them into teams when ready — by hand or with a Randomize button you can re-roll as often as you like.",
+  admin_assign: "Only admins place players on teams; there is no self sign-up.",
+};
+
+/** Formation modes that let a player sign themselves up. */
+export const SELF_SIGNUP_MODES = ["self_join", "auto_assign", "signup_pool"] as const;
 
 /** Event ownership shape labels. */
 export const EVENT_MODE_LABELS: Record<EventDetail["mode"], string> = {
@@ -104,8 +117,11 @@ export function taskConfigItems(
   });
 }
 
-/** Human-readable goal for a task, e.g. "Vorkath · 50 KC" or "Zulrah · sub 1:10". */
-export function taskGoal(task: EventTask): string {
+/** Human-readable goal for a task, e.g. "Vorkath · 50 KC" or "Zulrah · sub 1:10".
+ * Takes the goal fields only, so task-library presets qualify too. */
+export function taskGoal(
+  task: Pick<EventTask, "type" | "target" | "target_value" | "config">,
+): string {
   const target = task.target ?? "";
   const tv = task.target_value;
   switch (task.type) {

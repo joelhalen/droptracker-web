@@ -42,9 +42,46 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
   const rawLimit = Number(subscription?.entitlements?.["events_max_active"] ?? 1);
   const limitLabel = rawLimit >= 1_000_000 ? "∞" : String(rawLimit);
 
-  const content = (
+  // Clan-vs-clan events this group was CHALLENGED into (group_id is the host,
+  // not us). These are co-managed without our own paid tier, so they live
+  // OUTSIDE the events paywall — as do pending invitations.
+  const battles = events.filter((e) => e.mode === "clan_vs_clan" && e.group_id !== groupId);
+  const ownEvents = events.filter((e) => !(e.mode === "clan_vs_clan" && e.group_id !== groupId));
+
+  // Always visible (even to a group without the events entitlement): respond to
+  // invitations and manage the clan battles you've accepted.
+  const openToEveryone = (
     <div className="space-y-8">
       <EventInvitationsInbox groupId={groupId} invitations={invitations} />
+      {battles.length > 0 && (
+        <section>
+          <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
+            Clan battles you&apos;re in
+          </h2>
+          <ul className="divide-osrs-bronze/20 divide-y">
+            {battles.map((e) => (
+              <li key={e.id} className="flex items-center justify-between py-3">
+                <Link
+                  href={`/groups/${groupId}/events/${e.id}` as Route}
+                  className="hover:text-osrs-gold-bright font-medium"
+                >
+                  {e.name}
+                </Link>
+                <span
+                  className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
+                >
+                  {e.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+
+  const gated = (
+    <div className="space-y-8">
       <div className="grid gap-10 lg:grid-cols-2">
         <section>
           <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">New event</h2>
@@ -64,9 +101,9 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
               active {activeCount} / {limitLabel} (tier limit)
             </span>
           </div>
-          {events.length ? (
+          {ownEvents.length ? (
             <ul className="divide-osrs-bronze/20 divide-y">
-              {events.map((e) => (
+              {ownEvents.map((e) => (
                 <li key={e.id} className="flex items-center justify-between py-3">
                   <Link
                     href={`/groups/${groupId}/events/${e.id}` as Route}
@@ -95,14 +132,17 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
   );
 
   return (
-    <FeatureGate
-      entitlement="events"
-      subscription={subscription}
-      tiers={tiers}
-      groupId={groupId}
-      isSuperadmin={user?.is_superadmin}
-    >
-      {content}
-    </FeatureGate>
+    <div className="space-y-8">
+      {openToEveryone}
+      <FeatureGate
+        entitlement="events"
+        subscription={subscription}
+        tiers={tiers}
+        groupId={groupId}
+        isSuperadmin={user?.is_superadmin}
+      >
+        {gated}
+      </FeatureGate>
+    </div>
   );
 }

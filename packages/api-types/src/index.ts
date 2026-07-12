@@ -1545,8 +1545,18 @@ export const EVENT_TASK_TYPES = [
  * group's picker, private rows only in the owning group's. */
 export const EVENT_TASK_VISIBILITIES = ["public", "private"] as const;
 
-/** How players get onto teams (events-prd.md D4). */
-export const EVENT_FORMATION_MODES = ["self_join", "auto_assign", "admin_assign"] as const;
+/** How players get onto teams (events-prd.md D4). All but `admin_assign` let
+ * players self-sign-up from the event page / a Discord button. `signup_pool`
+ * collects opt-ins with no team; admins sort/randomize them later. */
+export const EVENT_FORMATION_MODES = [
+  "self_join",
+  "auto_assign",
+  "signup_pool",
+  "admin_assign",
+] as const;
+
+/** Formation modes that let a player sign themselves up. */
+export const EVENT_SELF_SIGNUP_MODES = ["self_join", "auto_assign", "signup_pool"] as const;
 
 /** Event ownership shape: one group (or global), or host-vs-invited-clans. */
 export const EVENT_MODES = ["standard", "clan_vs_clan"] as const;
@@ -1694,6 +1704,8 @@ export const EventViewerSchema = z.object({
   player_ids_on_event: z.array(z.number().int()).default([]),
   /** Team of the viewer's first joined player, if any. */
   team_id: z.number().int().nullable().optional(),
+  /** Viewer's players in the sign-up pool but not yet placed (signup_pool). */
+  signed_up_player_ids: z.array(z.number().int()).default([]),
 });
 export type EventViewer = z.infer<typeof EventViewerSchema>;
 
@@ -1819,6 +1831,10 @@ export const EventTaskPatchSchema = z.object({
   /** When present, re-saves the task's library copy with this publicity;
    * absent ⇒ the library copy is left alone. */
   visibility: z.enum(EVENT_TASK_VISIBILITIES).optional(),
+  /** JSON string — replaces the item-list / source-NPC config (revalidated
+   * server-side). Explicit null switches an item_collection back to
+   * single-item semantics; absent ⇒ unchanged. */
+  config: z.string().nullable().optional(),
 });
 export type EventTaskPatch = z.infer<typeof EventTaskPatchSchema>;
 
@@ -1920,12 +1936,38 @@ export const EventTaskLibraryItemSchema = z.object({
 export type EventTaskLibraryItem = z.infer<typeof EventTaskLibraryItemSchema>;
 
 /** GET /events/meta/items | /events/meta/npcs — task-form autocomplete rows.
- * `id` is the game id (itemdb/npcdb icon key), `name` the exact in-game name. */
+ * `id` is the game id (itemdb/npcdb icon key), `name` the exact in-game name.
+ * Also the row shape of /events/meta/resolve (batch name → id, icon
+ * hydration for stored task lists). */
 export const EventMetaEntrySchema = z.object({
   id: z.number().int(),
   name: z.string(),
 });
 export type EventMetaEntry = z.infer<typeof EventMetaEntrySchema>;
+
+/** Legacy BoardGame difficulty tiers still carried by curated presets. */
+export const EVENT_TASK_DIFFICULTIES = ["air", "water", "earth", "fire"] as const;
+
+/** POST /event-task-library — create a curated site-wide preset (superadmin).
+ * Goal fields (target/target_value/config) are revalidated per type exactly
+ * like an event task, so a preset that saves is a preset that instantiates. */
+export const EventTaskLibraryItemInputSchema = z.object({
+  name: z.string().min(1).max(120),
+  description: z.string().max(2000).nullable().optional(),
+  type: z.enum(EVENT_TASK_TYPES),
+  target: z.string().nullable().optional(),
+  target_value: z.number().int().nonnegative().nullable().optional(),
+  default_points: z.number().int().nonnegative().optional(),
+  difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
+  /** JSON string: any_of/all_of/point_collection item lists, source NPCs… */
+  config: z.string().nullable().optional(),
+  visibility: z.enum(EVENT_TASK_VISIBILITIES).optional(),
+});
+export type EventTaskLibraryItemInput = z.infer<typeof EventTaskLibraryItemInputSchema>;
+
+/** PATCH /event-task-library/{id} — absent keys are left unchanged. */
+export const EventTaskLibraryItemPatchSchema = EventTaskLibraryItemInputSchema.partial();
+export type EventTaskLibraryItemPatch = z.infer<typeof EventTaskLibraryItemPatchSchema>;
 
 /** Saved event structure — the whole-event analogue of the task library
  * ("save/rerun events"). Public rows reach every clan's picker; private rows
@@ -2132,6 +2174,36 @@ export const EventRecruitingItemSchema = z.object({
   group_name: z.string().nullable().optional(),
 });
 export type EventRecruitingItem = z.infer<typeof EventRecruitingItemSchema>;
+
+// --- Sign-up pool (formation_mode === "signup_pool") -------------------------
+
+/** One entry in the sign-up pool (GET /events/{id}/signups): a player who
+ * opted in, with their current team placement (null while unassigned). */
+export const EventSignupSchema = z.object({
+  player_id: z.number().int(),
+  player_name: z.string(),
+  group_id: z.number().int().nullable().optional(),
+  group_name: z.string().nullable().optional(),
+  team_id: z.number().int().nullable(),
+  source: z.enum(["web", "discord"]).default("web"),
+  signed_up_at: z.number().int().nullable().optional(),
+});
+export type EventSignup = z.infer<typeof EventSignupSchema>;
+
+/** POST /events/{id}/join response — team_id is null when the event pools
+ * sign-ups (`pooled` true) rather than placing immediately. */
+export const EventJoinResultSchema = z.object({
+  team_id: z.number().int().nullable().optional(),
+  pooled: z.boolean().optional(),
+});
+export type EventJoinResult = z.infer<typeof EventJoinResultSchema>;
+
+/** POST /events/{id}/signups/randomize response. */
+export const EventRandomizeResultSchema = z.object({
+  assigned: z.number().int(),
+  unassigned: z.number().int(),
+});
+export type EventRandomizeResult = z.infer<typeof EventRandomizeResultSchema>;
 
 /** POST /events/{id}/join (Task 16). `team_id` is required for self_join
  * events with more than one team and forbidden for auto_assign. */

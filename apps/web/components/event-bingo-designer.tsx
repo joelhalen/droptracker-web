@@ -7,7 +7,8 @@
  * custom tasks / free cells, bonus point fields, one PUT on save. Read-only
  * with a notice once the event has started (the API answers 409 then too).
  */
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import {
   EVENT_BOARD_SIZES,
   EVENT_TASK_TYPES,
@@ -49,12 +50,22 @@ type DesignerCell = {
 
 const FREE_CELL: DesignerCell = { label: "", taskId: null, library: null, points: null, newTask: null };
 
-function cellsFromEvent(event: EventDetail, size: number): DesignerCell[] {
+function cellsFromEvent(event: EventDetail, size: number, tasks: EventTask[]): DesignerCell[] {
   const cells: DesignerCell[] = Array.from({ length: size * size }, () => ({ ...FREE_CELL }));
   if (event.bingo && event.bingo.size === size) {
     for (const c of event.bingo.cells) {
       if (c.index < cells.length) {
-        cells[c.index] = { ...FREE_CELL, label: c.label, taskId: c.task_id ?? null };
+        // The API stores a *display* label on every cell (the bound task's
+        // name, or "Free space" for unbound ones). Only a label that differs
+        // from that derived value is a real custom label; importing derived
+        // ones as custom froze the tile text — a cell once saved free kept
+        // showing "Free space" no matter what task was bound afterwards.
+        const derived =
+          c.task_id != null
+            ? (tasks.find((t) => t.id === c.task_id)?.label ?? "")
+            : "Free space";
+        const label = c.label.trim() === derived.trim() ? "" : c.label;
+        cells[c.index] = { ...FREE_CELL, label, taskId: c.task_id ?? null };
       }
     }
   }
@@ -115,7 +126,7 @@ export function EventBingoDesigner({
   const editable = boardEditable(event);
   const initialSize = event.bingo?.size && event.bingo.size >= 3 ? event.bingo.size : (event.board_size ?? 5);
   const [size, setSize] = useState<number>(initialSize);
-  const [cells, setCells] = useState<DesignerCell[]>(() => cellsFromEvent(event, initialSize));
+  const [cells, setCells] = useState<DesignerCell[]>(() => cellsFromEvent(event, initialSize, tasks));
   const [selected, setSelected] = useState<number | null>(null);
   const [bonusLine, setBonusLine] = useState(String(event.bonus_line_points ?? 0));
   const [bonusBlackout, setBonusBlackout] = useState(String(event.bonus_blackout_points ?? 0));
@@ -193,7 +204,9 @@ export function EventBingoDesigner({
         setSaved(true);
         setSelected(null);
         onSaved(detail);
-        setCells(cellsFromEvent(detail, detail.bingo?.size ?? size));
+        // detail.tasks, not the tasks prop: the PUT may have just created the
+        // tasks the refreshed cells are bound to.
+        setCells(cellsFromEvent(detail, detail.bingo?.size ?? size, detail.tasks));
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't save the board. Please try again."));
       }
@@ -311,23 +324,58 @@ export function EventBingoDesigner({
       </div>
 
       {selected != null && selectedCell && (
-        <CellEditor
-          key={selected}
-          groupId={groupId}
-          idx={selected}
-          size={size}
-          cell={selectedCell}
-          tasks={tasks}
-          pending={pending}
-          onChange={(patch) => updateCell(selected, patch)}
-          onClose={() => setSelected(null)}
-        />
+        <CellEditorModal onClose={() => setSelected(null)}>
+          <CellEditor
+            key={selected}
+            groupId={groupId}
+            idx={selected}
+            size={size}
+            cell={selectedCell}
+            tasks={tasks}
+            pending={pending}
+            onChange={(patch) => updateCell(selected, patch)}
+            onClose={() => setSelected(null)}
+          />
+        </CellEditorModal>
       )}
       <p className="text-osrs-parchment-dark/50 text-xs">
         Click a cell to bind it to a task, pick one from the library, or leave it free. Free cells
         complete for every team the moment the event starts. Saving replaces the whole board.
       </p>
     </div>
+  );
+}
+
+/** Floating card for the cell editor, so configuring a tile doesn't require
+ * scrolling beneath the board. Backdrop click and Escape both close it (the
+ * cell edits apply live to board state, so closing never loses work). */
+function CellEditorModal({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto p-4 sm:items-center">
+      <div className="fixed inset-0 bg-black/60" onClick={onClose} aria-hidden />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Configure bingo cell"
+        className="card-pop menu-in relative max-h-[85vh] w-full max-w-2xl overflow-y-auto p-4"
+      >
+        {children}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -418,7 +466,7 @@ function CellEditor({
   );
 
   return (
-    <div className="border-osrs-bronze/30 space-y-3 rounded border p-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-osrs-gold text-sm font-semibold">
           Cell {idx} <span className="text-osrs-parchment-dark/50 font-normal">(row {row + 1}, col {col + 1})</span>
@@ -507,9 +555,9 @@ function CellEditor({
                         <span className="text-osrs-parchment-dark/50 ml-2 text-xs uppercase">
                           {TASK_TYPE_LABELS[item.type]}
                         </span>
-                        {item.difficulty && (
-                          <span className="text-osrs-gold-bright/70 ml-2 text-xs capitalize">{item.difficulty}</span>
-                        )}
+                        {/* item.difficulty (air/water/earth/fire) is the legacy
+                            BoardGame tier — meaningless for bingo, so not shown.
+                            Future board-style event types may surface it again. */}
                         {item.visibility === "private" && (
                           <span
                             className="border-osrs-bronze/40 text-osrs-parchment-dark/70 ml-2 rounded border px-1 text-[10px] uppercase"

@@ -55,7 +55,15 @@ export function EventJoinPanel({
     return mine;
   }, [event.teams, players]);
 
-  const freePlayers = (players ?? []).filter((p) => !memberships.has(p.id));
+  // Sign-up-pool opt-ins that aren't on a team yet (signup_pool mode).
+  const pooledIds = useMemo(
+    () => new Set(event.viewer?.signed_up_player_ids ?? []),
+    [event.viewer],
+  );
+
+  const freePlayers = (players ?? []).filter(
+    (p) => !memberships.has(p.id) && !pooledIds.has(p.id),
+  );
 
   const [playerChoice, setPlayerChoice] = useState<number | "">("");
   const [teamId, setTeamId] = useState<number | "">(eligibleTeams[0]?.id ?? "");
@@ -70,8 +78,14 @@ export function EventJoinPanel({
 
   const selfJoin = event.formation_mode === "self_join";
   const autoAssign = event.formation_mode === "auto_assign";
+  const pool = event.formation_mode === "signup_pool";
+  const canSelfSignup = selfJoin || autoAssign || pool;
+  // The new sign-up surfaces (the pool, and clan-vs-clan) enter one account per
+  // person; legacy standard self_join/auto_assign keep multi-account behavior.
+  const oneAccount = pool || isClanVsClan;
+  const hasEntry = memberships.size > 0 || pooledIds.size > 0;
 
-  if (!selfJoin && !autoAssign && memberships.size === 0) {
+  if (!canSelfSignup && memberships.size === 0) {
     return (
       <p className="text-osrs-parchment-dark/60 text-sm">
         Teams for this event are assigned by the event admins.
@@ -183,10 +197,47 @@ export function EventJoinPanel({
         );
       })}
 
-      {(selfJoin || autoAssign) && freePlayers.length > 0 && eligibleTeams.length > 0 && (
+      {/* Pool opt-ins awaiting team assignment (signup_pool). */}
+      {[...pooledIds].map((pid) => {
+        const player = players.find((p) => p.id === pid);
+        return (
+          <div
+            key={`pool-${pid}`}
+            className="border-osrs-bronze/20 flex items-center justify-between rounded border px-3 py-2 text-sm"
+          >
+            <span>
+              <span className="text-osrs-gold-bright">{player?.name ?? `Player ${pid}`}</span>
+              <span className="text-osrs-parchment-dark/60">
+                {" "}
+                is in the sign-up pool — teams are assigned later.
+              </span>
+            </span>
+            <button
+              onClick={() => onLeave(pid)}
+              disabled={pending}
+              className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+            >
+              Withdraw
+            </button>
+          </div>
+        );
+      })}
+
+      {oneAccount && hasEntry && (
+        <p className="text-osrs-parchment-dark/50 text-xs">
+          One account per person takes part — you&apos;re in!
+        </p>
+      )}
+
+      {canSelfSignup &&
+        (!oneAccount || !hasEntry) &&
+        freePlayers.length > 0 &&
+        (pool || eligibleTeams.length > 0) && (
         <form onSubmit={onJoin} className="space-y-2">
           <label className="block text-sm">
-            <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Player</span>
+            <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+              Enter with {oneAccount ? <strong>one account</strong> : "an account"}
+            </span>
             <select
               value={playerId}
               onChange={(e) => setPlayerChoice(e.target.value ? Number(e.target.value) : "")}
@@ -198,6 +249,11 @@ export function EventJoinPanel({
                 </option>
               ))}
             </select>
+            {oneAccount && (
+              <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
+                You take part with a single account — choose which one.
+              </span>
+            )}
           </label>
 
           {selfJoin && eligibleTeams.length > 1 && (
@@ -219,7 +275,15 @@ export function EventJoinPanel({
 
           {autoAssign && (
             <p className="text-osrs-parchment-dark/50 text-xs">
-              You&apos;ll be placed on your clan&apos;s smallest team automatically.
+              You&apos;ll be placed on {isClanVsClan ? "your clan's" : "the"} smallest team
+              automatically.
+            </p>
+          )}
+
+          {pool && (
+            <p className="text-osrs-parchment-dark/50 text-xs">
+              You&apos;ll join the sign-up pool. Admins build the teams once sign-ups
+              close — keep an eye on this page.
             </p>
           )}
 
@@ -240,7 +304,7 @@ export function EventJoinPanel({
             disabled={pending || playerId === "" || (event.join_requires_code && !joinCode.trim())}
             className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark w-full rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
           >
-            {pending ? "Joining…" : "Join event"}
+            {pending ? "Signing up…" : "Sign up!"}
           </button>
         </form>
       )}

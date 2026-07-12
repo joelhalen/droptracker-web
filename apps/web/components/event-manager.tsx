@@ -39,6 +39,7 @@ import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
 import { EventDiscord } from "@/components/event-discord";
+import { EventSignupTools } from "@/components/event-signup-tools";
 import { EventTaskForm } from "@/components/event-task-form";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
 import { EventTemplateSaver } from "@/components/event-template-saver";
@@ -255,7 +256,11 @@ export function EventManager({
     });
   };
 
+  /** Task id awaiting delete confirmation (destructive: erases progress). */
+  const [confirmRemoveTask, setConfirmRemoveTask] = useState<number | null>(null);
+
   const onRemoveTask = (taskId: number) => {
+    setConfirmRemoveTask(null);
     const prevTasks = tasks;
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     setError(null);
@@ -675,55 +680,89 @@ export function EventManager({
                   />
                 </li>
               ) : (
-                <li key={t.id} className="flex items-center justify-between py-2.5 text-sm">
-                  <span>
-                    <span className="text-osrs-parchment-dark/50 mr-2 text-xs uppercase">
-                      {TASK_TYPE_LABELS[t.type]}
-                    </span>
-                    {t.label}
-                    {taskGoal(t) && (
-                      <span className="text-osrs-parchment-dark/60"> — {taskGoal(t)}</span>
-                    )}
-                    {t.points > 0 && (
-                      <span className="text-osrs-gold-bright ml-2 text-xs">{t.points} pts</span>
-                    )}
-                    {t.visibility === "private" && (
-                      <span
-                        className="border-osrs-bronze/40 text-osrs-parchment-dark/70 ml-2 rounded border px-1 text-[10px] uppercase"
-                        title="Library copy saved privately — other clans can't reuse this task"
-                      >
-                        private
+                <li key={t.id} className="py-2.5 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span>
+                      <span className="text-osrs-parchment-dark/50 mr-2 text-xs uppercase">
+                        {TASK_TYPE_LABELS[t.type]}
                       </span>
-                    )}
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <label
-                      className="text-osrs-parchment-dark/60 flex cursor-pointer items-center gap-1 text-xs"
-                      title="Completions of this task queue for admin review"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={t.requires_confirmation}
-                        onChange={() => onToggleTaskReview(t)}
+                      {t.label}
+                      {taskGoal(t) && (
+                        <span className="text-osrs-parchment-dark/60"> — {taskGoal(t)}</span>
+                      )}
+                      {t.points > 0 && (
+                        <span className="text-osrs-gold-bright ml-2 text-xs">{t.points} pts</span>
+                      )}
+                      {t.visibility === "private" && (
+                        <span
+                          className="border-osrs-bronze/40 text-osrs-parchment-dark/70 ml-2 rounded border px-1 text-[10px] uppercase"
+                          title="Library copy saved privately — other clans can't reuse this task"
+                        >
+                          private
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <label
+                        className="text-osrs-parchment-dark/60 flex cursor-pointer items-center gap-1 text-xs"
+                        title="Completions of this task queue for admin review"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={t.requires_confirmation}
+                          onChange={() => onToggleTaskReview(t)}
+                          disabled={pending}
+                          className="size-3.5"
+                        />
+                        review
+                      </label>
+                      <button
+                        onClick={() => {
+                          setTaskFormFor(t.id);
+                          setConfirmRemoveTask(null);
+                        }}
+                        className="text-osrs-parchment-dark/70 hover:bg-osrs-bronze/15 rounded px-2 py-1 text-xs"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setConfirmRemoveTask(t.id)}
                         disabled={pending}
-                        className="size-3.5"
-                      />
-                      review
-                    </label>
-                    <button
-                      onClick={() => setTaskFormFor(t.id)}
-                      className="text-osrs-parchment-dark/70 hover:bg-osrs-bronze/15 rounded px-2 py-1 text-xs"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => onRemoveTask(t.id)}
-                      disabled={pending}
-                      className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
-                    >
-                      Remove
-                    </button>
-                  </span>
+                        className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                  {confirmRemoveTask === t.id && (
+                    <div className="border-osrs-red/30 bg-osrs-red/5 mt-2 rounded border p-2 text-xs">
+                      <p className="text-osrs-parchment-dark/80">
+                        Remove <span className="font-medium">{t.label}</span>? Progress and
+                        completions for this task are erased
+                        {event.has_bingo
+                          ? "; any board cell it fills stays on the board, unbound, ready to be given a new task in the designer"
+                          : ""}
+                        . This can&apos;t be undone.
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => onRemoveTask(t.id)}
+                          disabled={pending}
+                          className="bg-osrs-red/80 hover:bg-osrs-red text-osrs-parchment rounded px-3 py-1 text-xs font-medium disabled:opacity-50"
+                        >
+                          Remove task
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRemoveTask(null)}
+                          className="text-osrs-parchment-dark/70 hover:text-osrs-parchment rounded px-2 py-1 text-xs"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ),
             )}
@@ -876,6 +915,9 @@ export function EventManager({
           }}
         />
       </section>
+
+      {/* Self-service sign-ups: pool sorting + "post to Discord" */}
+      <EventSignupTools groupId={groupId} event={event} teams={teams} />
 
       {/* Per-event Discord destinations (Task 19) */}
       <EventDiscord groupId={groupId} eventId={event.id} />
