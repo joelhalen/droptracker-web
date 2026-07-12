@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import type { ManualSubmission, Me } from "@droptracker/api-types";
-import { getUploadPresign, submitDrop } from "@/app/(dashboard)/submit/actions";
+import { useEffect, useRef, useState, useTransition } from "react";
+import type { ManualPolicyNotice, ManualSubmission, Me } from "@droptracker/api-types";
+import { getUploadPresign, manualPreflight, submitDrop } from "@/app/(dashboard)/submit/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 
@@ -34,9 +34,26 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
     player_id: players[0]?.id ?? 0,
     quantity: 1,
   });
+  const [notices, setNotices] = useState<ManualPolicyNotice[]>([]);
 
   const set = <K extends keyof ManualSubmission>(k: K, v: ManualSubmission[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  // Warn about clans that hold/disable this account's manual submissions
+  // (suggestion #45). Refetched whenever the selected account changes.
+  useEffect(() => {
+    if (!form.player_id) {
+      setNotices([]);
+      return;
+    }
+    let cancelled = false;
+    manualPreflight(form.player_id)
+      .then((r) => !cancelled && setNotices(r.notices))
+      .catch(() => !cancelled && setNotices([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [form.player_id]);
 
   const onFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,6 +140,20 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
           ))}
         </select>
       </label>
+
+      {notices.length > 0 && (
+        <div className="border-osrs-gold/40 bg-osrs-gold/10 text-osrs-parchment-dark/90 space-y-1 rounded border px-3 py-2 text-xs">
+          <p className="text-osrs-gold-bright font-medium">Heads up about manual submissions:</p>
+          <ul className="list-disc space-y-0.5 pl-4">
+            {notices.map((n) => (
+              <li key={n.group_id}>
+                <span className="text-osrs-parchment">{n.group_name}</span>: your submission{" "}
+                {n.message}.
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <label className="block">
         <span className="mb-1 block text-sm font-medium">Source NPC / boss</span>

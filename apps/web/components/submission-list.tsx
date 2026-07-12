@@ -1,5 +1,5 @@
-import type { Route } from "next";
 import Link from "next/link";
+import { entityPath } from "@/lib/slug";
 import type { Submission } from "@droptracker/api-types";
 import { formatRelativeTime } from "@/lib/format";
 import { EntityHoverCard } from "@/components/entity-hover-card";
@@ -50,20 +50,39 @@ export function SubmissionList({
               <Badge tone={TYPE_META[s.type]?.tone ?? "neutral"}>
                 {TYPE_META[s.type]?.label ?? s.type}
               </Badge>
-              <span className="truncate font-medium">{s.label}</span>
+              {s.item_id ? (
+                <Link
+                  href={entityPath("items", s.item_id, s.label)}
+                  className="hover:text-osrs-gold-bright truncate font-medium transition-colors"
+                >
+                  {s.label}
+                </Link>
+              ) : (
+                <span className="truncate font-medium">{s.label}</span>
+              )}
               {s.quantity != null && s.quantity > 1 && (
                 <span className="text-osrs-parchment-dark/60 text-xs">×{s.quantity}</span>
               )}
             </div>
             <div className="text-osrs-parchment-dark/60 flex flex-wrap items-center gap-x-1.5 text-xs">
-              {s.npc_name && <span>{s.npc_name}</span>}
+              {s.npc_name &&
+                (s.npc_id ? (
+                  <Link
+                    href={entityPath("npcs", s.npc_id, s.npc_name)}
+                    className="hover:text-osrs-gold-bright transition-colors"
+                  >
+                    {s.npc_name}
+                  </Link>
+                ) : (
+                  <span>{s.npc_name}</span>
+                ))}
               {s.npc_name && <span aria-hidden>·</span>}
               {showPlayer && s.player_name && (
                 <>
                   {s.player_id ? (
                     <EntityHoverCard kind="player" id={s.player_id} name={s.player_name}>
                       <Link
-                        href={`/players/${s.player_id}` as Route}
+                        href={entityPath("players", s.player_id, s.player_name)}
                         className="hover:text-osrs-gold-bright"
                       >
                         {s.player_name}

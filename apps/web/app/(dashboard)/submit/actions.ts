@@ -12,6 +12,13 @@ export async function submitDrop(input: ManualSubmission) {
   return { ok: true as const, id: result.id };
 }
 
+/** Server Action: per-group manual-policy notices for a player (suggestion
+ * #45, Phase 3) — the submit form warns before submitting to a clan that
+ * holds/disables manual submissions. */
+export async function manualPreflight(playerId: number) {
+  return api.manualPreflight(playerId);
+}
+
 /**
  * Server Action: get a presigned B2 upload URL for proof-of-drop media. The
  * browser PUTs the file directly to `upload_url` (never through this server);
