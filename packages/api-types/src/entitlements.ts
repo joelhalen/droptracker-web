@@ -122,9 +122,17 @@ export function entitlementFieldsForScope(scope: TierScope): EntitlementField[] 
   return scope === "user" ? USER_ENTITLEMENT_FIELDS : ENTITLEMENT_FIELDS;
 }
 
-/** Group-config keys that require the Hall of Fame entitlement. */
+/**
+ * Group-config keys that require the Hall of Fame entitlement.
+ * Must stay in sync with HALL_OF_FAME_CONFIG_KEYS in the backend
+ * (disc: db/entitlements.py). notify_pbs is intentionally excluded — plain PB
+ * notifications are available to every group.
+ */
 export const HALL_OF_FAME_CONFIG_KEYS = [
+  "create_pb_embeds",
   "personal_best_embed_boss_list",
+  "number_of_pbs_to_display",
+  "channel_id_to_send_pb_embeds",
   "hof_individual_boss_messages",
 ] as const;
 

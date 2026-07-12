@@ -97,10 +97,14 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "post99_xp_interval", label: "Post-99 XP interval", category: "levels", type: "int", help: "After level 99, notify every N XP gained.", default: 25000000, min: 0 },
 
   // --- Personal best ------------------------------------------------------
-  { key: "notify_pbs", label: "Notify personal bests", category: "pbs", type: "boolean", help: "Post personal-best notifications.", default: true, seasonalMirror: true },
-  { key: "personal_best_embed_boss_list", label: "Hall of Fame bosses", category: "pbs", type: "bosslist", help: "Bosses featured in the Hall of Fame personal-best embeds. Empty = no Hall of Fame.", default: "", entitlement: "hall_of_fame" },
-  { key: "number_of_pbs_to_display", label: "PBs to display", category: "pbs", type: "int", help: "Top PB entries shown per team-size bracket in Hall of Fame messages.", default: 5, min: 1, max: 10 },
-  { key: "channel_id_to_send_pb_embeds", label: "PB embed channel", category: "pbs", type: "channel", help: "Optional override channel for PB embeds.", default: null },
+  // notify_pbs (PB notifications) is available to every group. The Hall of
+  // Fame fields below are premium (entitlement: "hall_of_fame");
+  // create_pb_embeds is the master switch the HOF bot keys off of.
+  { key: "notify_pbs", label: "Notify personal bests", category: "pbs", type: "boolean", help: "Post personal-best notifications in Discord. Available to all groups.", default: true, seasonalMirror: true },
+  { key: "create_pb_embeds", label: "Enable Hall of Fame", category: "pbs", type: "boolean", help: "Post and keep updated the Hall of Fame personal-best leaderboards in Discord. Turn this on, then choose the bosses and channel below.", default: false, entitlement: "hall_of_fame" },
+  { key: "personal_best_embed_boss_list", label: "Hall of Fame bosses", category: "pbs", type: "bosslist", help: "Bosses featured in the Hall of Fame. Empty = no bosses shown.", default: "", entitlement: "hall_of_fame" },
+  { key: "number_of_pbs_to_display", label: "PBs to display", category: "pbs", type: "int", help: "Top PB entries shown per team-size bracket in Hall of Fame messages.", default: 5, min: 1, max: 10, entitlement: "hall_of_fame" },
+  { key: "channel_id_to_send_pb_embeds", label: "Hall of Fame channel", category: "pbs", type: "channel", help: "Channel where the Hall of Fame leaderboards are posted.", default: null, entitlement: "hall_of_fame" },
   { key: "hof_individual_boss_messages", label: "Individual Hall of Fame messages", category: "pbs", type: "boolean", help: "Post one Hall of Fame message per boss. When off, only the directory message is posted and members use its drop-down to view each boss's leaderboard.", default: false, entitlement: "hall_of_fame" },
 
   // --- Combat achievements ------------------------------------------------
@@ -142,12 +146,36 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // Points page (`point_sharing` / `point_sharing_method`, points routes).
   { key: "split_gp_tracking", label: "Split GP tracking", category: "drops", type: "boolean", help: "Track raid loot splits: members receive their share of a split drop's GP value instead of the receiver keeping the full amount. Point splitting is configured separately on the Points tab.", default: false },
 
+  // --- Manual submissions (suggestion #45) ----------------------------------
+  {
+    key: "manual_submission_policy",
+    label: "Manual submissions",
+    category: "drops",
+    type: "select",
+    help: "How drops submitted manually on the website count for this group. They always count globally and for the player's other groups — this only controls this group's boards and notifications.",
+    default: "allow",
+    options: [
+      { value: "allow", label: "Allow (count immediately)" },
+      { value: "confirm", label: "Hold for admin approval" },
+      { value: "authorized_only", label: "Authorized members only" },
+      { value: "block", label: "Never count for this group" },
+    ],
+  },
+  {
+    key: "channel_id_to_post_manual_review",
+    label: "Manual review channel",
+    category: "channels",
+    type: "channel",
+    help: "Optional. Where to ping when a manual submission is held for approval (the \"Hold for admin approval\" policy). Leave unset to review only on the website.",
+    default: null,
+  },
+
   // --- Misc / integration -------------------------------------------------
   { key: "group_name", label: "Group name", category: "integration", type: "string", help: "Display name of the group.", default: "" },
   { key: "group_description", label: "Description", category: "integration", type: "text", help: "Short description shown on the public group page.", default: "" },
   { key: "clan_chat_name", label: "Clan chat name", category: "integration", type: "string", help: "In-game clan chat name used for auto-provisioning.", default: "" },
   { key: "discord_url", label: "Discord invite URL", category: "integration", type: "string", help: "Public Discord invite shown on the group page.", default: "" },
-  { key: "auto_provision_members", label: "Auto-provision members", category: "integration", type: "boolean", help: "Automatically add players who submit from the clan chat.", default: false },
+  { key: "auto_provision_members", label: "Auto-add WiseOldMan members", category: "integration", type: "boolean", help: "Creates DropTracker profiles ahead of time for everyone in this group's linked WiseOldMan group, so members join this group automatically the moment they install the plugin — instead of waiting up to an hour for the next member sync.", default: false },
   { key: "export_api_key", label: "Export API key", category: "integration", type: "string", help: "Per-group key used for on-demand WOM sync. Treat as a secret.", default: null },
 ];
 
