@@ -17,6 +17,8 @@ export type NavTab = {
   label: string;
   matchPrefix?: boolean;
   locked?: boolean;
+  /** Small count badge on the tab (e.g. pending review items). Shown when > 0. */
+  badge?: number;
   /** Optional description shown under the label inside header dropdowns. */
   description?: string;
   /** Sub-links rendered as a dropdown (desktop) / indented list (mobile). */
@@ -43,6 +45,11 @@ export function TabNav({ tabs, className = "" }: { tabs: NavTab[]; className?: s
           <>
             {t.label}
             {t.locked ? <span className="ml-1 opacity-70">🔒</span> : null}
+            {t.badge && t.badge > 0 ? (
+              <span className="bg-osrs-gold text-osrs-brown-dark ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold">
+                {t.badge > 99 ? "99+" : t.badge}
+              </span>
+            ) : null}
           </>
         );
         return (

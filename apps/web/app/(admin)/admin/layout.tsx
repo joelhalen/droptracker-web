@@ -16,12 +16,15 @@ const TABS: NavTab[] = [
   { href: "/admin/audit", label: "Audit log" },
   { href: "/admin/announcements", label: "Global news" },
   { href: "/admin/docs", label: "Docs" },
+  { href: "/admin/redirects", label: "Redirects" },
   { href: "/admin/discord", label: "Discord sender" },
   { href: "/admin/services", label: "Services" },
   { href: "/admin/lookup", label: "Lookup" },
   { href: "/admin/tiers", label: "Tiers" },
   { href: "/admin/subscriptions", label: "Revenue" },
   { href: "/admin/badges", label: "Badges" },
+  { href: "/admin/personal-bests", label: "Personal bests" },
+  { href: "/admin/item-values", label: "Item values" },
 ];
 
 /** Superadmin shell. Gates the whole /admin subtree to site staff. */

@@ -22,7 +22,9 @@ docs/                 events-prd.md + backend-tasks/ (specs for the backend repo
 
 - `(public)` — `/`, `/leaderboards`, `/events[/id]`, `/announcements[/id]`,
   `/search`, `/docs[/slug]` (DB-backed CMS), `/groups/[id][/lootboard]`,
-  `/players/[id]`, `/premium`
+  `/players/[id]`, `/npcs/[npcId]` (drop table + loot totals + PB boards),
+  `/items/[itemId]`, `/personal-bests` (index; per-boss URLs 308 → `/npcs/[id]`),
+  `/premium`
 - `(dashboard)` — authed: `/dashboard`, `/settings`, `/submit`
   (guard: `requireUser()` in layout)
 - `(admin)` — group admin `/groups/[id]/{settings,members,announcements,events,subscription,diagnostics}`

@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import type { Route } from "next";
 import Link from "next/link";
+import { entityPath } from "@/lib/slug";
 import type { GroupMember, WomSyncResult } from "@droptracker/api-types";
 import { setHidden, syncWom } from "@/app/(admin)/groups/[id]/members/actions";
 import { getErrorMessage } from "@/lib/errors";
@@ -101,7 +102,7 @@ export function MembersManager({
                 >
                   <td className="px-3 py-2">
                     <EntityHoverCard kind="player" id={m.id} name={m.name} className="flex min-w-0">
-                      <EntityChip href={`/players/${m.id}`} name={m.name} size="sm" />
+                      <EntityChip href={entityPath("players", m.id, m.name)} name={m.name} size="sm" />
                     </EntityHoverCard>
                   </td>
                   <td className="px-3 py-2">

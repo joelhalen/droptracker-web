@@ -115,6 +115,76 @@ export const AdminBadgeInputSchema = z.object({
 });
 export type AdminBadgeInput = z.infer<typeof AdminBadgeInputSchema>;
 
+// --- Item value overrides (post-submission "component of X, worth Y" rules) ---
+export const ItemValueComponentSchema = z.object({
+  item_id: z.number().int().nullable().optional(),
+  item_name: z.string(),
+  quantity: z.number().int(),
+  /** Present on API reads: ``/img/itemdb/{id}.png``. */
+  icon_url: z.string().nullable().optional(),
+});
+export type ItemValueComponent = z.infer<typeof ItemValueComponentSchema>;
+
+/** One override row from the admin list (includes a live computed preview). */
+export const ItemValueOverrideSchema = z.object({
+  id: z.number().int(),
+  item_id: z.number().int().nullable(),
+  item_name: z.string(),
+  icon_url: z.string().nullable().optional(),
+  divisor: z.number().int(),
+  flat_bonus: z.number().int(),
+  fallback_value: z.number().int(),
+  components: z.array(ItemValueComponentSchema),
+  description: z.string().nullable().optional(),
+  active: z.boolean(),
+  updated_at: z.string().nullable().optional(),
+  computed_value: z.number().int().nullable().optional(),
+});
+export type ItemValueOverride = z.infer<typeof ItemValueOverrideSchema>;
+
+export const ItemValueComponentInputSchema = z.object({
+  item_id: z.number().int().nullable().optional(),
+  item_name: z.string().min(1).max(125),
+  quantity: z
+    .number()
+    .int()
+    .refine((n) => n !== 0, "quantity must be non-zero"),
+});
+export type ItemValueComponentInput = z.infer<typeof ItemValueComponentInputSchema>;
+
+/** Create/update payload for an override. */
+export const ItemValueOverrideInputSchema = z.object({
+  item_id: z.number().int().nullable().optional(),
+  item_name: z.string().min(1).max(125),
+  divisor: z.number().int().min(1).default(1),
+  flat_bonus: z.number().int().default(0),
+  fallback_value: z.number().int().min(0).default(0),
+  components: z.array(ItemValueComponentInputSchema).default([]),
+  description: z.string().max(255).optional(),
+  active: z.boolean().default(true),
+});
+export type ItemValueOverrideInput = z.infer<typeof ItemValueOverrideInputSchema>;
+
+/** Item search hit for the component picker. */
+export const ItemSearchResultSchema = z.object({
+  item_id: z.number().int(),
+  item_name: z.string(),
+});
+export type ItemSearchResult = z.infer<typeof ItemSearchResultSchema>;
+
+/** Public /item-values row: live valuation + human-readable formula. */
+export const PublicItemValueSchema = z.object({
+  item_id: z.number().int().nullable(),
+  item_name: z.string(),
+  icon_url: z.string().nullable().optional(),
+  description: z.string().nullable().optional(),
+  formula: z.string(),
+  components: z.array(ItemValueComponentSchema),
+  value: MoneySchema,
+  priced: z.boolean(),
+});
+export type PublicItemValue = z.infer<typeof PublicItemValueSchema>;
+
 export const LeaderboardEntrySchema = z.object({
   rank: z.number().int(),
   id: z.number().int(),
@@ -180,6 +250,10 @@ export const SubmissionSchema = z.object({
   quantity: z.number().int().optional(),
   /** Item/NPC icon (`/img/itemdb/{id}.png` or `/img/npcdb/{id}.png`), not a proof screenshot. */
   image_url: z.string().optional(),
+  /** Dropped/logged item id — links the label to `/items/{id}` where present. */
+  item_id: z.number().int().nullable().optional(),
+  /** Source NPC id — links the NPC name to `/npcs/{id}` where present. */
+  npc_id: z.number().int().nullable().optional(),
   npc_name: z.string().nullable().optional(),
   /** Who received this submission — populated on group-scope listings. */
   player_id: z.number().int().nullable().optional(),
@@ -335,6 +409,167 @@ export const PbBossIndexSchema = z.object({
 });
 export type PbBossIndex = z.infer<typeof PbBossIndexSchema>;
 
+// --- NPC pages (/npcs/{npcId}) ---------------------------------------------
+/** Lifetime tracked totals for one NPC (covers the full drops history). */
+export const NpcLifetimeStatsSchema = z.object({
+  loot: MoneySchema,
+  drop_count: z.number().int(),
+  unique_players: z.number().int(),
+  last_drop_ts: z.number().int().nullable().optional(),
+});
+export type NpcLifetimeStats = z.infer<typeof NpcLifetimeStatsSchema>;
+
+export const NpcMonthStatsSchema = z.object({
+  partition: z.number().int(),
+  loot: MoneySchema,
+  drop_count: z.number().int(),
+  unique_players: z.number().int(),
+});
+export type NpcMonthStats = z.infer<typeof NpcMonthStatsSchema>;
+
+export const NpcTopPlayerSchema = z.object({
+  rank: z.number().int(),
+  player_id: z.number().int(),
+  player_name: z.string(),
+  loot: MoneySchema,
+  drop_count: z.number().int(),
+});
+export type NpcTopPlayer = z.infer<typeof NpcTopPlayerSchema>;
+
+export const NpcRecentDropSchema = z.object({
+  drop_id: z.number().int(),
+  item_id: z.number().int().nullable(),
+  item_name: z.string(),
+  icon_url: z.string().nullable(),
+  player_id: z.number().int(),
+  player_name: z.string(),
+  value: MoneySchema,
+  quantity: z.number().int(),
+  ts: z.number().int(),
+});
+export type NpcRecentDrop = z.infer<typeof NpcRecentDropSchema>;
+
+export const NpcDetailSchema = z.object({
+  npc_id: z.number().int(),
+  name: z.string(),
+  icon_url: z.string(),
+  wiki_url: z.string(),
+  /** Pretty-URL slug to declare canonical (null only if the name is unslugifiable). */
+  canonical_slug: z.string().nullish(),
+  lifetime: NpcLifetimeStatsSchema,
+  month: NpcMonthStatsSchema,
+  top_players: z.array(NpcTopPlayerSchema),
+  recent_drops: z.array(NpcRecentDropSchema),
+});
+export type NpcDetail = z.infer<typeof NpcDetailSchema>;
+
+/** One wiki drop-table row, annotated with who last received it from this NPC. */
+export const NpcDropTableItemSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  icon_url: z.string(),
+  /** Wiki quantity spelling, e.g. "1" or "1-3". */
+  quantity: z.string(),
+  noted: z.boolean(),
+  /** Drop probability in [0,1]; 1 = always. */
+  rarity: z.number(),
+  rolls: z.number().int(),
+  last_drop: z
+    .object({
+      player_id: z.number().int(),
+      player_name: z.string(),
+      ts: z.number().int(),
+      value: MoneySchema,
+    })
+    .nullable(),
+});
+export type NpcDropTableItem = z.infer<typeof NpcDropTableItemSchema>;
+
+export const NpcDropTableSchema = z.object({
+  npc_id: z.number().int(),
+  name: z.string(),
+  items: z.array(NpcDropTableItemSchema),
+  /** "building" while the last-received registry cold-builds in the background. */
+  last_drops_status: z.enum(["ready", "building"]),
+});
+export type NpcDropTable = z.infer<typeof NpcDropTableSchema>;
+
+// --- Item pages (/items/{itemId}) ------------------------------------------
+export const ItemLifetimeStatsSchema = z.object({
+  loot: MoneySchema,
+  quantity: z.number().int(),
+  drop_count: z.number().int(),
+  unique_players: z.number().int(),
+  last_drop_ts: z.number().int().nullable().optional(),
+});
+export type ItemLifetimeStats = z.infer<typeof ItemLifetimeStatsSchema>;
+
+export const ItemMonthStatsSchema = z.object({
+  partition: z.number().int(),
+  loot: MoneySchema,
+  quantity: z.number().int(),
+  drop_count: z.number().int(),
+  unique_players: z.number().int(),
+});
+export type ItemMonthStats = z.infer<typeof ItemMonthStatsSchema>;
+
+export const ItemTopReceiverSchema = z.object({
+  rank: z.number().int(),
+  player_id: z.number().int(),
+  player_name: z.string(),
+  loot: MoneySchema,
+  quantity: z.number().int(),
+  drop_count: z.number().int(),
+});
+export type ItemTopReceiver = z.infer<typeof ItemTopReceiverSchema>;
+
+export const ItemRecentDropSchema = z.object({
+  drop_id: z.number().int(),
+  npc_id: z.number().int().nullable(),
+  npc_name: z.string().nullable(),
+  npc_icon_url: z.string().nullable(),
+  player_id: z.number().int(),
+  player_name: z.string(),
+  value: MoneySchema,
+  quantity: z.number().int(),
+  ts: z.number().int(),
+});
+export type ItemRecentDrop = z.infer<typeof ItemRecentDropSchema>;
+
+/** An NPC whose wiki drop table includes the item. */
+export const ItemSourceSchema = z.object({
+  npc_id: z.number().int(),
+  name: z.string(),
+  icon_url: z.string(),
+  quantity: z.string(),
+  rarity: z.number(),
+  rolls: z.number().int(),
+});
+export type ItemSource = z.infer<typeof ItemSourceSchema>;
+
+export const ItemDetailSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  icon_url: z.string(),
+  wiki_url: z.string(),
+  /** Pretty-URL slug to declare canonical (null only if the name is unslugifiable). */
+  canonical_slug: z.string().nullish(),
+  stackable: z.boolean(),
+  /** Live GE price (null when unpriced, e.g. untradeables). */
+  ge_value: MoneySchema.nullable().optional(),
+  /** Null while heavy aggregates cold-build (`stats_status: "building"`). */
+  lifetime: ItemLifetimeStatsSchema.nullable(),
+  month: ItemMonthStatsSchema.nullable(),
+  top_receivers: z.array(ItemTopReceiverSchema),
+  stats_status: z.enum(["ready", "building"]),
+  recent_drops: z.array(ItemRecentDropSchema),
+  sources: z.object({
+    total: z.number().int(),
+    npcs: z.array(ItemSourceSchema),
+  }),
+});
+export type ItemDetail = z.infer<typeof ItemDetailSchema>;
+
 export const PlayerProfileSchema = PlayerSummarySchema.extend({
   points: z.number().int().optional(),
   top_npc: z.string().optional(),
@@ -348,6 +583,8 @@ export const PlayerProfileSchema = PlayerSummarySchema.extend({
   badges: z.array(PlayerBadgeSchema).optional(),
   /** Owner has an active supporter subscription (display flair). */
   is_supporter: z.boolean().optional(),
+  /** Pretty-URL slug to declare canonical (null when the RSN collides with another visible player). */
+  canonical_slug: z.string().nullish(),
 });
 export type PlayerProfile = z.infer<typeof PlayerProfileSchema>;
 
@@ -368,6 +605,8 @@ export const GroupProfileSchema = z.object({
   recent_submissions: z.array(SubmissionSchema).default([]),
   /** Group tier flair, present for subscribed groups. */
   flair: GroupFlairSchema.optional(),
+  /** Pretty-URL slug to declare canonical (null when the name collides with another group). */
+  canonical_slug: z.string().nullish(),
 });
 export type GroupProfile = z.infer<typeof GroupProfileSchema>;
 
@@ -476,7 +715,16 @@ export const AccountSettingsPatchSchema = AccountSettingsSchema.omit({
 }).partial();
 export type AccountSettingsPatch = z.infer<typeof AccountSettingsPatchSchema>;
 
-/** Combined player+group search results (FRONTEND_PLAN.md §9 "Search"). */
+/** An NPC or item hit in combined search (name + catalog icon). */
+export const SearchEntitySchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  icon_url: z.string(),
+});
+export type SearchEntity = z.infer<typeof SearchEntitySchema>;
+
+/** Combined search results (FRONTEND_PLAN.md §9 "Search"). `npcs`/`items`
+ *  default empty so older API deployments without them still parse. */
 export const SearchResultsSchema = z.object({
   players: z.array(PlayerSummarySchema),
   groups: z.array(
@@ -488,8 +736,36 @@ export const SearchResultsSchema = z.object({
       flair: GroupFlairSchema.optional(),
     }),
   ),
+  npcs: z.array(SearchEntitySchema).default([]),
+  items: z.array(SearchEntitySchema).default([]),
 });
 export type SearchResults = z.infer<typeof SearchResultsSchema>;
+
+// --- Slug resolution (/resolve/{kind}) -------------------------------------
+/** One candidate returned by /resolve. Fields beyond id/name are kind-specific
+ *  (group: member_count/created_ts/flair/icon_url; player: total_loot;
+ *  npc/item: icon_url). */
+export const ResolveCandidateSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  icon_url: z.string().optional(),
+  member_count: z.number().int().optional(),
+  created_ts: z.number().int().optional(),
+  total_loot: MoneySchema.optional(),
+  flair: GroupFlairSchema.optional(),
+});
+export type ResolveCandidate = z.infer<typeof ResolveCandidateSchema>;
+
+/** Result of resolving a nice-URL slug: a single `match`, or (group/player
+ *  only) `match: null` with a `candidates` list for a disambiguation page. An
+ *  empty `candidates` list with a null match means "not found". */
+export const ResolveResultSchema = z.object({
+  kind: z.enum(["group", "player", "npc", "item"]),
+  slug: z.string(),
+  match: ResolveCandidateSchema.nullable(),
+  candidates: z.array(ResolveCandidateSchema).default([]),
+});
+export type ResolveResult = z.infer<typeof ResolveResultSchema>;
 
 /**
  * Manual submission input (FRONTEND_PLAN.md §6.3, wraps `/manual-submit`).
@@ -507,6 +783,46 @@ export const ManualSubmissionSchema = z.object({
   notes: z.string().max(500).optional(),
 });
 export type ManualSubmission = z.infer<typeof ManualSubmissionSchema>;
+
+/** One manual-submission review row (suggestion #45, Phase 2). */
+export const ManualSubmissionRowSchema = z.object({
+  drop_id: z.number().int(),
+  status: z.enum(["pending", "approved", "rejected", "excluded"]),
+  player_id: z.number().int().nullable(),
+  player_name: z.string().nullable(),
+  item_id: z.number().int().nullable(),
+  item_name: z.string().nullable(),
+  npc_name: z.string().nullable(),
+  quantity: z.number().int(),
+  value: MoneySchema,
+  image_url: z.string().nullable(),
+  submitted_ts: z.number().int().nullable(),
+  reviewed_ts: z.number().int().nullable(),
+  reason: z.string().nullable(),
+});
+export type ManualSubmissionRow = z.infer<typeof ManualSubmissionRowSchema>;
+
+export const ManualSubmissionQueueSchema = z.object({
+  pending: z.array(ManualSubmissionRowSchema).default([]),
+  recent: z.array(ManualSubmissionRowSchema).default([]),
+  pending_count: z.number().int().default(0),
+});
+export type ManualSubmissionQueue = z.infer<typeof ManualSubmissionQueueSchema>;
+
+/** Per-group manual-policy notice for the submit page (suggestion #45, Ph 3). */
+export const ManualPolicyNoticeSchema = z.object({
+  group_id: z.number().int(),
+  group_name: z.string(),
+  policy: z.string().nullable(),
+  held: z.enum(["excluded", "pending"]),
+  message: z.string(),
+});
+export type ManualPolicyNotice = z.infer<typeof ManualPolicyNoticeSchema>;
+
+export const ManualPreflightSchema = z.object({
+  notices: z.array(ManualPolicyNoticeSchema).default([]),
+});
+export type ManualPreflight = z.infer<typeof ManualPreflightSchema>;
 
 /** Announcement create/update input (FRONTEND_PLAN.md §10). */
 export const AnnouncementInputSchema = z.object({
@@ -783,6 +1099,8 @@ export const EMBED_TYPES = [
   "pet",
   "level_up",
   "quest",
+  "death",
+  "diary",
   "lb",
 ] as const;
 export type EmbedType = (typeof EMBED_TYPES)[number];
@@ -795,6 +1113,8 @@ export const EMBED_TYPE_LABELS: Record<EmbedType, string> = {
   pet: "Pets",
   level_up: "Level ups",
   quest: "Quests",
+  death: "Deaths",
+  diary: "Achievement diaries",
   lb: "Lootboard",
 };
 
@@ -912,6 +1232,52 @@ export const AdminLookupResponseSchema = z.object({
 export type AdminLookupResponse = z.infer<typeof AdminLookupResponseSchema>;
 
 /**
+ * Superadmin personal-best NPC blocklist. Some NPCs have no real personal best
+ * (the game exposes none, so our tracking is bugged and stores junk). Blocking
+ * an NPC drops future PB submissions for it and permanently purges its existing
+ * rows. A "boss" bundles the variant npc_ids that share a name (e.g. Giant Mole
+ * -> two ids), which are always blocked/unblocked together.
+ */
+export const PbBlockBossSchema = z.object({
+  name: z.string(),
+  npc_ids: z.array(z.number().int()),
+  /** Existing personal_best rows for this boss (0 once purged). */
+  pb_count: z.number().int(),
+});
+export type PbBlockBoss = z.infer<typeof PbBlockBossSchema>;
+
+/** GET /admin/pb-blocks */
+export const PbBlockListSchema = z.object({
+  bosses: z.array(PbBlockBossSchema),
+  blocked_ids: z.array(z.number().int()),
+});
+export type PbBlockList = z.infer<typeof PbBlockListSchema>;
+
+/** One search hit (GET /admin/pb-blocks/search) — a boss, plus whether it is
+ * already fully blocked. */
+export const PbBlockSearchResultSchema = PbBlockBossSchema.extend({
+  blocked: z.boolean(),
+});
+export type PbBlockSearchResult = z.infer<typeof PbBlockSearchResultSchema>;
+
+export const PbBlockSearchResponseSchema = z.object({
+  results: z.array(PbBlockSearchResultSchema),
+});
+export type PbBlockSearchResponse = z.infer<typeof PbBlockSearchResponseSchema>;
+
+/** Result of adding/removing a block (POST/DELETE /admin/pb-blocks). */
+export const PbBlockMutationSchema = z.object({
+  ok: z.boolean(),
+  blocked_ids: z.array(z.number().int()),
+  bosses: z.array(PbBlockBossSchema).default([]),
+  added_ids: z.array(z.number().int()).optional(),
+  removed_ids: z.array(z.number().int()).optional(),
+  /** personal_best rows deleted by a block add. */
+  deleted_pb: z.number().int().optional(),
+});
+export type PbBlockMutation = z.infer<typeof PbBlockMutationSchema>;
+
+/**
  * Superadmin site overview KPIs (dashboard landing). Flexible tiles: each stat
  * has a machine `key`, human `label`, numeric `value`, and optional `hint`.
  */
@@ -983,9 +1349,7 @@ export const AdminSubscriptionsOverviewSchema = z.object({
     }),
   ),
   /** Last 12 months of ledger income (payments − refunds), oldest first. */
-  income_by_month: z.array(
-    z.object({ month: z.string(), amount_cents: z.number().int() }),
-  ),
+  income_by_month: z.array(z.object({ month: z.string(), amount_cents: z.number().int() })),
   subscriptions: z.array(AdminSubscriptionRowSchema),
   recent_payments: z.array(AdminPaymentRowSchema),
   generated_at: z.number().int(),
@@ -1043,10 +1407,7 @@ export type AdminDataRecordResponse = z.infer<typeof AdminDataRecordResponseSche
 
 /** PATCH body: only allowlisted editable columns are accepted (422 otherwise). */
 export const AdminDataPatchInputSchema = z.object({
-  fields: z.record(
-    z.string(),
-    z.union([z.string(), z.number(), z.boolean(), z.null()]),
-  ),
+  fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])),
 });
 export type AdminDataPatchInput = z.infer<typeof AdminDataPatchInputSchema>;
 
@@ -1180,8 +1541,19 @@ export const EVENT_TASK_TYPES = [
   "custom",
 ] as const;
 
+/** How a task's reusable library copy is shared: public rows appear in every
+ * group's picker, private rows only in the owning group's. */
+export const EVENT_TASK_VISIBILITIES = ["public", "private"] as const;
+
 /** How players get onto teams (events-prd.md D4). */
 export const EVENT_FORMATION_MODES = ["self_join", "auto_assign", "admin_assign"] as const;
+
+/** Event ownership shape: one group (or global), or host-vs-invited-clans. */
+export const EVENT_MODES = ["standard", "clan_vs_clan"] as const;
+
+/** Clan-vs-clan participant roster (web_event_groups). */
+export const EVENT_PARTICIPANT_ROLES = ["host", "opponent"] as const;
+export const EVENT_PARTICIPANT_STATUSES = ["invited", "accepted", "declined"] as const;
 
 /** Which submissions the event engine accepts: everything, non-plugin ones
  * queued for admin confirmation, or plugin-API ones only. */
@@ -1198,7 +1570,23 @@ export const EVENT_COMPLETION_STATUSES = [
 ] as const;
 
 /** Per-event Discord destination kinds (events-prd.md D8). */
-export const EVENT_CHANNEL_KINDS = ["announcements", "completions", "leaderboard", "admin"] as const;
+export const EVENT_CHANNEL_KINDS = [
+  "announcements",
+  "completions",
+  "leaderboard",
+  "admin",
+] as const;
+
+/** When the mirrored Discord scheduled event goes live: on activation
+ * (default — drafts create nothing on Discord) or immediately at creation. */
+export const EVENT_DISCORD_POLICIES = ["on_activate", "immediate"] as const;
+export type EventDiscordPolicy = (typeof EVENT_DISCORD_POLICIES)[number];
+
+/** Role-ping slots (web_events.ping_config): the companion message posted
+ * when the Discord scheduled event is created, plus the start/end
+ * announcements. */
+export const EVENT_PING_KEYS = ["event_created", "event_started", "event_ended"] as const;
+export type EventPingKey = (typeof EVENT_PING_KEYS)[number];
 
 /** Square bingo boards only; 5×5 is the default. */
 export const EVENT_BOARD_SIZES = [3, 4, 5, 6, 7] as const;
@@ -1214,6 +1602,8 @@ export const EventTaskSchema = z.object({
   points: z.number().int().default(0),
   /** Completions of this task queue for admin review instead of auto-applying. */
   requires_confirmation: z.boolean().default(false),
+  /** Library-copy publicity: public (any clan can reuse) or private (this clan only). */
+  visibility: z.enum(EVENT_TASK_VISIBILITIES).default("public"),
   /** JSON string: any_of/assembly/point_collection item lists etc. */
   config: z.string().nullable().optional(),
 });
@@ -1232,6 +1622,8 @@ export const EventTeamSchema = z.object({
   name: z.string(),
   score: z.number().int().default(0),
   member_count: z.number().int().default(0),
+  /** The clan this team represents (clan_vs_clan only; null on standard). */
+  group_id: z.number().int().nullable().optional(),
   /** Present on EventDetail reads (Task 16); absent on legacy payloads. */
   members: z.array(EventMemberSchema).optional(),
 });
@@ -1281,6 +1673,9 @@ export const EventSummarySchema = z.object({
   starts_at: z.number().int().nullable(),
   ends_at: z.number().int().nullable(),
   has_bingo: z.boolean().default(false),
+  /** clan_vs_clan events keep `group_id` = the HOST clan; opponents live in
+   * the participants roster (GET /events/{id}/participants). */
+  mode: z.enum(EVENT_MODES).default("standard"),
   formation_mode: z.enum(EVENT_FORMATION_MODES).default("admin_assign"),
   /** Event-level force: all completions queue for admin review. */
   requires_confirmation: z.boolean().default(false),
@@ -1366,6 +1761,7 @@ export const EventTeamDetailSchema = z.object({
     id: z.number().int(),
     name: z.string(),
     score: z.number().int().default(0),
+    group_id: z.number().int().nullable().optional(),
     rank: z.number().int(),
     team_count: z.number().int(),
     member_count: z.number().int().default(0),
@@ -1379,6 +1775,8 @@ export type EventTeamDetail = z.infer<typeof EventTeamDetailSchema>;
 export const EventInputSchema = z.object({
   /** null ⇒ global event (superadmin only). */
   group_id: z.number().int().nullable(),
+  /** clan_vs_clan requires a non-null group_id (the host clan). */
+  mode: z.enum(EVENT_MODES).optional(),
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional(),
   starts_at: z.number().int().nullable().optional(),
@@ -1390,6 +1788,10 @@ export const EventInputSchema = z.object({
   board_size: z.number().int().min(3).max(7).optional(),
   bonus_line_points: z.number().int().nonnegative().optional(),
   bonus_blackout_points: z.number().int().nonnegative().optional(),
+  /** When the Discord scheduled event is created (default: on_activate). */
+  discord_event_policy: z.enum(EVENT_DISCORD_POLICIES).optional(),
+  /** Role ids to ping per slot (max 10 each). */
+  pings: z.record(z.enum(EVENT_PING_KEYS), z.array(z.string().regex(/^\d+$/)).max(10)).optional(),
 });
 export type EventInput = z.infer<typeof EventInputSchema>;
 
@@ -1400,6 +1802,8 @@ export const EventTaskInputSchema = z.object({
   target_value: z.number().int().nonnegative().optional(),
   points: z.number().int().nonnegative().default(0),
   requires_confirmation: z.boolean().optional(),
+  /** Library-copy publicity; the API defaults an absent value to "public". */
+  visibility: z.enum(EVENT_TASK_VISIBILITIES).optional(),
   /** JSON string: any_of/assembly/point_collection item lists etc. */
   config: z.string().nullable().optional(),
 });
@@ -1412,6 +1816,9 @@ export const EventTaskPatchSchema = z.object({
   target_value: z.number().int().nonnegative().nullable().optional(),
   points: z.number().int().nonnegative().optional(),
   requires_confirmation: z.boolean().optional(),
+  /** When present, re-saves the task's library copy with this publicity;
+   * absent ⇒ the library copy is left alone. */
+  visibility: z.enum(EVENT_TASK_VISIBILITIES).optional(),
 });
 export type EventTaskPatch = z.infer<typeof EventTaskPatchSchema>;
 
@@ -1456,11 +1863,25 @@ export const EventCompletionSchema = z.object({
 });
 export type EventCompletion = z.infer<typeof EventCompletionSchema>;
 
+/** Discord scheduled-event mirror state for the event's target guild
+ * (web_event_guilds; the bot creates/edits the real Discord event and writes
+ * the state back). `failed` + `last_error` usually means the bot lacks the
+ * Manage Events permission in that server. */
+export const EventScheduledEventStateSchema = z.object({
+  id: z.string().nullable(),
+  status: z.enum(["pending", "synced", "delete_pending", "failed"]),
+  last_error: z.string().nullable().optional(),
+});
+export type EventScheduledEventState = z.infer<typeof EventScheduledEventStateSchema>;
+
 /** Per-event Discord destinations (events-prd.md D8). */
 export const EventChannelConfigSchema = z.object({
   guild_id: z.string().nullable(),
   guild_name: z.string().nullable().optional(),
   channels: z.record(z.enum(EVENT_CHANNEL_KINDS), z.string()).default({}),
+  scheduled_event: EventScheduledEventStateSchema.nullable().optional(),
+  discord_event_policy: z.enum(EVENT_DISCORD_POLICIES).default("on_activate"),
+  pings: z.record(z.enum(EVENT_PING_KEYS), z.array(z.string())).default({}),
 });
 export type EventChannelConfig = z.infer<typeof EventChannelConfigSchema>;
 
@@ -1472,10 +1893,15 @@ export type EventChannelKind = (typeof EVENT_CHANNEL_KINDS)[number];
 export const EventChannelConfigInputSchema = z.object({
   guild_id: z.string().regex(/^\d+$/, "Discord ids are numeric").nullable(),
   channels: z.record(z.enum(EVENT_CHANNEL_KINDS), z.string().regex(/^\d+$/)).default({}),
+  /** Absent keys leave the stored value unchanged (backend contract). */
+  discord_event_policy: z.enum(EVENT_DISCORD_POLICIES).optional(),
+  pings: z.record(z.enum(EVENT_PING_KEYS), z.array(z.string().regex(/^\d+$/)).max(10)).optional(),
 });
 export type EventChannelConfigInput = z.infer<typeof EventChannelConfigInputSchema>;
 
-/** Curated task preset from the library (seeded from the legacy task store). */
+/** Reusable task preset: a curated seed (`source: "legacy_v1"`) or a
+ * group-saved task (`source: "group"`). Private rows only reach admins of the
+ * owning group; everything else in the listing is public. */
 export const EventTaskLibraryItemSchema = z.object({
   id: z.number().int(),
   name: z.string(),
@@ -1486,6 +1912,10 @@ export const EventTaskLibraryItemSchema = z.object({
   default_points: z.number().int().default(0),
   difficulty: z.string().nullable().optional(),
   config: z.string().nullable().optional(),
+  source: z.string().optional(),
+  /** Owning group for group-saved rows; null = site-wide/curated. */
+  group_id: z.number().int().nullable().optional(),
+  visibility: z.enum(EVENT_TASK_VISIBILITIES).default("public"),
 });
 export type EventTaskLibraryItem = z.infer<typeof EventTaskLibraryItemSchema>;
 
@@ -1496,6 +1926,101 @@ export const EventMetaEntrySchema = z.object({
   name: z.string(),
 });
 export type EventMetaEntry = z.infer<typeof EventMetaEntrySchema>;
+
+/** Saved event structure — the whole-event analogue of the task library
+ * ("save/rerun events"). Public rows reach every clan's picker; private rows
+ * only the owning group's admins. The snapshot itself stays server-side —
+ * instantiation happens on the backend. */
+export const EventTemplateSummarySchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  source_event_id: z.number().int().nullable().optional(),
+  /** Owning group; null = site-wide (saved from a global event). */
+  group_id: z.number().int().nullable().optional(),
+  visibility: z.enum(EVENT_TASK_VISIBILITIES).default("private"),
+  /** Source event's mode — informational; instantiation always yields a
+   * standard draft (clan bindings/invites are per-run). */
+  mode: z.enum(EVENT_MODES).default("standard"),
+  has_bingo: z.boolean().default(false),
+  board_size: z.number().int().default(5),
+  task_count: z.number().int().default(0),
+  team_count: z.number().int().default(0),
+  times_used: z.number().int().default(0),
+  created_at: z.number().int().nullable().optional(),
+  updated_at: z.number().int().nullable().optional(),
+});
+export type EventTemplateSummary = z.infer<typeof EventTemplateSummarySchema>;
+
+/** GET /event-templates/{id} — summary + picker preview. Preview task `type`
+ * is a plain string: old snapshots may carry types the current enum dropped,
+ * and a stale preview row must not fail the whole response. */
+export const EventTemplateDetailSchema = EventTemplateSummarySchema.extend({
+  preview: z.object({
+    description: z.string().nullable().optional(),
+    formation_mode: z.enum(EVENT_FORMATION_MODES).default("admin_assign"),
+    requires_confirmation: z.boolean().default(false),
+    submission_policy: z.enum(EVENT_SUBMISSION_POLICIES).default("all"),
+    bonus_line_points: z.number().int().default(0),
+    bonus_blackout_points: z.number().int().default(0),
+    tasks: z.array(
+      z.object({
+        type: z.string(),
+        label: z.string().nullable().optional(),
+        target: z.string().nullable().optional(),
+        target_value: z.number().int().nullable().optional(),
+        points: z.number().int().default(0),
+      }),
+    ),
+    teams: z.array(z.string()),
+  }),
+});
+export type EventTemplateDetail = z.infer<typeof EventTemplateDetailSchema>;
+
+/** POST /events/{id}/save-template — upserts per owning group by lower-cased
+ * name (re-saving a same-named template updates it, task-library semantics). */
+export const EventTemplateSaveInputSchema = z.object({
+  name: z.string().min(1).max(120),
+  description: z.string().max(2000).optional(),
+  visibility: z.enum(EVENT_TASK_VISIBILITIES).default("private"),
+  /** Carry team names (never members) into the template. */
+  include_teams: z.boolean().default(true),
+});
+export type EventTemplateSaveInput = z.infer<typeof EventTemplateSaveInputSchema>;
+
+/** POST /event-templates/{id}/instantiate → a fresh standard draft. */
+export const EventTemplateInstantiateInputSchema = z.object({
+  group_id: z.number().int().nullable(),
+  name: z.string().min(1).max(120).optional(),
+  description: z.string().max(2000).optional(),
+  starts_at: z.number().int().nullable().optional(),
+  ends_at: z.number().int().nullable().optional(),
+  include_teams: z.boolean().optional(),
+});
+export type EventTemplateInstantiateInput = z.infer<typeof EventTemplateInstantiateInputSchema>;
+
+export const EventTemplateInstantiateResultSchema = z.object({
+  id: z.number().int(),
+  /** Tasks that no longer validate (renamed items/NPCs, tightened rules) —
+   * skipped on instantiate; their bingo cells survive unbound so the
+   * designer can rebind them. */
+  skipped_tasks: z.array(
+    z.object({
+      index: z.number().int(),
+      label: z.string(),
+      reason: z.string(),
+    }),
+  ),
+});
+export type EventTemplateInstantiateResult = z.infer<typeof EventTemplateInstantiateResultSchema>;
+
+/** PATCH /event-templates/{id} — rename / re-describe / re-scope. */
+export const EventTemplatePatchSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  description: z.string().max(2000).nullable().optional(),
+  visibility: z.enum(EVENT_TASK_VISIBILITIES).optional(),
+});
+export type EventTemplatePatch = z.infer<typeof EventTemplatePatchSchema>;
 
 /** One designer cell for PUT /events/{id}/bingo. Exactly one of `task_id`
  * (existing event task) / `library_item_id` (copy a preset into the event's
@@ -1531,9 +2056,12 @@ export type BingoCellInput = z.infer<typeof BingoCellInputSchema>;
  * events only; the API answers 409 once the event has started). */
 export const BingoBoardInputSchema = z
   .object({
-    size: z.number().int().refine((n) => (EVENT_BOARD_SIZES as readonly number[]).includes(n), {
-      message: `size must be one of ${EVENT_BOARD_SIZES.join(", ")}`,
-    }),
+    size: z
+      .number()
+      .int()
+      .refine((n) => (EVENT_BOARD_SIZES as readonly number[]).includes(n), {
+        message: `size must be one of ${EVENT_BOARD_SIZES.join(", ")}`,
+      }),
     cells: z.array(BingoCellInputSchema),
   })
   .superRefine((board, ctx) => {
@@ -1545,7 +2073,10 @@ export const BingoBoardInputSchema = z
       return;
     }
     const idxs = new Set(board.cells.map((c) => c.idx));
-    if (idxs.size !== board.cells.length || [...idxs].some((i) => i < 0 || i >= board.cells.length)) {
+    if (
+      idxs.size !== board.cells.length ||
+      [...idxs].some((i) => i < 0 || i >= board.cells.length)
+    ) {
       ctx.addIssue({
         code: "custom",
         message: `Cell idx values must cover 0…${board.cells.length - 1} exactly once.`,
@@ -1554,8 +2085,53 @@ export const BingoBoardInputSchema = z
   });
 export type BingoBoardInput = z.infer<typeof BingoBoardInputSchema>;
 
-export const EventTeamInputSchema = z.object({ name: z.string().min(1).max(80) });
+export const EventTeamInputSchema = z.object({
+  name: z.string().min(1).max(80),
+  /** Required on clan_vs_clan events: the accepted participant clan this
+   * team represents. Omit for standard/global events. */
+  group_id: z.number().int().optional(),
+});
 export type EventTeamInput = z.infer<typeof EventTeamInputSchema>;
+
+/** Editable fields of an existing team. The clan a clan_vs_clan team
+ * represents is fixed at create time — only the display name can change. */
+export const EventTeamPatchSchema = z.object({
+  name: z.string().min(1).max(80),
+});
+export type EventTeamPatch = z.infer<typeof EventTeamPatchSchema>;
+
+// --- Clan-vs-clan participants (Implementation Plan B) -----------------------
+
+/** One clan on a clan-vs-clan event's roster (GET /events/{id}/participants). */
+export const EventParticipantSchema = z.object({
+  group_id: z.number().int(),
+  group_name: z.string().nullable().optional(),
+  role: z.enum(EVENT_PARTICIPANT_ROLES),
+  status: z.enum(EVENT_PARTICIPANT_STATUSES),
+  invited_at: z.number().int().nullable().optional(),
+  responded_at: z.number().int().nullable().optional(),
+});
+export type EventParticipant = z.infer<typeof EventParticipantSchema>;
+
+/** Invitation-inbox entry (GET /events/invitations): a pending invite for a
+ * clan the caller administers. */
+export const EventInvitationSchema = z.object({
+  event: EventSummarySchema,
+  group_id: z.number().int(),
+  group_name: z.string().nullable().optional(),
+  host_group_name: z.string().nullable().optional(),
+  invited_at: z.number().int().nullable().optional(),
+});
+export type EventInvitation = z.infer<typeof EventInvitationSchema>;
+
+/** Recruiting-banner entry (GET /events/recruiting): a clan-vs-clan event one
+ * of the caller's clans participates in, open to member opt-in. */
+export const EventRecruitingItemSchema = z.object({
+  event: EventSummarySchema,
+  group_id: z.number().int(),
+  group_name: z.string().nullable().optional(),
+});
+export type EventRecruitingItem = z.infer<typeof EventRecruitingItemSchema>;
 
 /** POST /events/{id}/join (Task 16). `team_id` is required for self_join
  * events with more than one team and forbidden for auto_assign. */

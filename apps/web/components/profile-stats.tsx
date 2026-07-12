@@ -6,7 +6,7 @@
  */
 
 import Link from "next/link";
-import type { Route } from "next";
+import { entityPath } from "@/lib/slug";
 import type { GroupRecord, GroupTopPlayer, PersonalBestSummary, TopBoss } from "@droptracker/api-types";
 
 import { EntityHoverCard } from "@/components/entity-hover-card";
@@ -32,7 +32,7 @@ export function TopPlayersList({ players }: { players: GroupTopPlayer[] }) {
               seed={{ rank: p.rank, loot: p.loot.value_formatted, periodLabel: "this month" }}
               className="flex min-w-0"
             >
-              <EntityChip href={`/players/${p.id}`} name={p.name} size="sm" />
+              <EntityChip href={entityPath("players", p.id, p.name)} name={p.name} size="sm" />
             </EntityHoverCard>
             <div className="bg-osrs-surface-3/60 mt-1.5 h-1 overflow-hidden rounded-full">
               <div
@@ -66,7 +66,12 @@ export function BossActivityList({ bosses }: { bosses: TopBoss[] }) {
           />
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-2">
-              <span className="truncate text-sm font-medium">{b.name}</span>
+              <Link
+                href={entityPath("npcs", b.npc_id, b.name)}
+                className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
+              >
+                {b.name}
+              </Link>
               <span className="text-osrs-gold-bright shrink-0 text-sm font-semibold tabular-nums">
                 {b.loot.value_formatted}
               </span>
@@ -114,9 +119,13 @@ export function RecordsShowcase({ records }: { records: GroupRecord[] }) {
                 className="size-8 shrink-0 rounded object-contain"
                 loading="lazy"
               />
-              <span className="truncate text-sm font-medium" title={r.boss}>
+              <Link
+                href={entityPath("npcs", r.npc_id, r.boss)}
+                className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
+                title={r.boss}
+              >
                 {r.boss}
-              </span>
+              </Link>
             </div>
             <div className="text-osrs-gold-bright mt-2 font-mono text-xl font-bold tabular-nums">
               {r.time_display}
@@ -129,7 +138,7 @@ export function RecordsShowcase({ records }: { records: GroupRecord[] }) {
                 className="min-w-0 truncate"
               >
                 <Link
-                  href={`/players/${r.holder.id}` as Route}
+                  href={entityPath("players", r.holder.id, r.holder.name)}
                   className="hover:text-osrs-gold-bright truncate font-medium transition-colors"
                 >
                   {r.holder.name}
@@ -162,9 +171,13 @@ export function PersonalBestsShowcase({ pbs }: { pbs: PersonalBestSummary[] }) {
               className="size-8 shrink-0 rounded object-contain"
               loading="lazy"
             />
-            <span className="truncate text-sm font-medium" title={pb.boss}>
+            <Link
+              href={entityPath("npcs", pb.npc_id, pb.boss)}
+              className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
+              title={pb.boss}
+            >
               {pb.boss}
-            </span>
+            </Link>
           </div>
           <div className="mt-2 flex items-baseline justify-between gap-2">
             <span className="text-osrs-gold-bright font-mono text-xl font-bold tabular-nums">

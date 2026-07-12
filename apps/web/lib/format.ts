@@ -52,3 +52,15 @@ export function formatRelativeTime(unixSeconds: number | null): string {
   if (diffSec < 172800) return `${Math.floor(diffSec / 86400)}d ago`;
   return formatDate(unixSeconds);
 }
+
+/**
+ * Wiki drop rarity (probability in [0,1]) → OSRS-style display: "Always" for
+ * guaranteed rows, otherwise a reduced "1/N" fraction ("1/512", "1/5,000").
+ */
+export function formatRarity(rarity: number): string {
+  if (rarity >= 1) return "Always";
+  if (rarity <= 0) return "—";
+  const denominator = 1 / rarity;
+  const rounded = denominator >= 100 ? Math.round(denominator) : Math.round(denominator * 10) / 10;
+  return `1/${rounded.toLocaleString()}`;
+}

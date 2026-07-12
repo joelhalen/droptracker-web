@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { entityPath } from "@/lib/slug";
 import type { Supporters } from "@droptracker/api-types";
 import { Badge, Card, EntityChip } from "@/components/ui";
 
@@ -42,7 +43,7 @@ export function SupportersSection({ supporters }: { supporters: Supporters }) {
                   className="border-osrs-bronze/20 bg-osrs-surface-2/40 min-w-0 rounded-lg border px-3 py-2"
                 >
                   <EntityChip
-                    href={`/groups/${g.id}`}
+                    href={entityPath("groups", g.id, g.name)}
                     name={g.name}
                     size="sm"
                     flair={g.flair?.style}
@@ -69,7 +70,7 @@ export function SupportersSection({ supporters }: { supporters: Supporters }) {
                   className="border-osrs-bronze/20 bg-osrs-surface-2/40 min-w-0 rounded-lg border px-3 py-2"
                 >
                   <EntityChip
-                    href={`/players/${p.player_id}`}
+                    href={entityPath("players", p.player_id, p.name)}
                     name={p.name}
                     size="sm"
                     badges={

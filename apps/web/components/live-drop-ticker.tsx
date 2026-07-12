@@ -8,8 +8,8 @@
  * hydrates from `/api/feed/recent`, which reads a capped Redis history list
  * so the ticker starts pre-filled instead of empty.
  */
-import type { Route } from "next";
 import Link from "next/link";
+import { entityPath } from "@/lib/slug";
 import { useEffect, useState } from "react";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp } from "@/lib/format";
@@ -21,24 +21,47 @@ type FeedDrop = {
   key: string;
   playerId: number | null;
   playerName: string;
+  itemId: number | null;
   itemName: string | null;
+  npcId: number | null;
   npcName: string | null;
   iconUrl: string | null;
   npcIconUrl: string | null;
   value: number;
 };
 
+function parseFeedEntityId(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }
+  return null;
+}
+
+function resolveNpcId(data: Record<string, unknown>): number | null {
+  const fromField = parseFeedEntityId(data.npc_id);
+  if (fromField !== null) return fromField;
+  const iconUrl = typeof data.npc_icon_url === "string" ? data.npc_icon_url : null;
+  if (!iconUrl) return null;
+  const match = /\/npcdb\/(\d+)/.exec(iconUrl);
+  return match ? parseFeedEntityId(match[1]) : null;
+}
+
 function toFeedDrop(data: Record<string, unknown>, fallbackKey: string): FeedDrop | null {
   const value = Number(data.value ?? 0);
   if (!Number.isFinite(value) || value <= 0) return null;
+  const npcIconUrl = typeof data.npc_icon_url === "string" ? data.npc_icon_url : null;
   return {
     key: fallbackKey,
     playerId: typeof data.player_id === "number" ? data.player_id : null,
     playerName: typeof data.player_name === "string" ? data.player_name : "Someone",
+    itemId: typeof data.item_id === "number" ? data.item_id : null,
     itemName: typeof data.item_name === "string" ? data.item_name : null,
+    npcId: resolveNpcId(data),
     npcName: typeof data.npc_name === "string" ? data.npc_name : null,
     iconUrl: typeof data.icon_url === "string" ? data.icon_url : null,
-    npcIconUrl: typeof data.npc_icon_url === "string" ? data.npc_icon_url : null,
+    npcIconUrl,
     value,
   };
 }
@@ -50,7 +73,7 @@ function TickerEntry({ d }: { d: FeedDrop }) {
         // The marquee pauses while the pointer is over the ticker (see the
         // animation wrapper), so the hover card has a stable anchor.
         <EntityHoverCard kind="player" id={d.playerId} name={d.playerName}>
-          <Link href={`/players/${d.playerId}` as Route} className="hover:text-osrs-gold-bright font-medium">
+          <Link href={entityPath("players", d.playerId, d.playerName)} className="hover:text-osrs-gold-bright font-medium">
             {d.playerName}
           </Link>
         </EntityHoverCard>
@@ -63,12 +86,30 @@ function TickerEntry({ d }: { d: FeedDrop }) {
       ) : (
         <span className="bg-osrs-bronze/30 size-5 rounded" aria-hidden />
       )}
-      <span className="text-osrs-gold-bright font-medium">{d.itemName ?? "an item"}</span>
+      {d.itemId ? (
+        <Link
+          href={entityPath("items", d.itemId, d.itemName)}
+          className="text-osrs-gold-bright font-medium hover:underline"
+        >
+          {d.itemName ?? "an item"}
+        </Link>
+      ) : (
+        <span className="text-osrs-gold-bright font-medium">{d.itemName ?? "an item"}</span>
+      )}
       {d.npcName && (
         <>
           <span className="text-osrs-parchment-dark/70">from</span>
           {d.npcIconUrl && <img src={d.npcIconUrl} alt="" className="size-5 object-contain" />}
-          <span className="text-osrs-parchment-dark/70">{d.npcName}</span>
+          {d.npcId ? (
+            <Link
+              href={entityPath("npcs", d.npcId, d.npcName)}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright hover:underline"
+            >
+              {d.npcName}
+            </Link>
+          ) : (
+            <span className="text-osrs-parchment-dark/70">{d.npcName}</span>
+          )}
         </>
       )}
       <span className="text-osrs-green font-semibold">{formatGp(d.value)} gp</span>

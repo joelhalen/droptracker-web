@@ -1,5 +1,20 @@
 import type { Metadata } from "next";
 import type { GroupProfile } from "@droptracker/api-types";
+import type { EntityKind } from "./slug";
+
+/**
+ * `alternates.canonical` for an entity page. The pretty slug URL is canonical
+ * when the backend confirms the name is unique (`canonical_slug`); a colliding
+ * name has no unique pretty URL and keeps its id URL. Relative paths resolve
+ * against `metadataBase` (set in app/layout.tsx).
+ */
+export function entityCanonical(
+  kind: EntityKind,
+  id: number,
+  canonicalSlug?: string | null,
+): { canonical: string } {
+  return { canonical: canonicalSlug ? `/${kind}/${canonicalSlug}` : `/${kind}/${id}` };
+}
 
 /**
  * Social-card metadata for a group-scoped page. The group's uploaded icon

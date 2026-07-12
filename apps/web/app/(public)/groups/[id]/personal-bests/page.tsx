@@ -3,6 +3,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { resolveRef, resolveIdOrRedirect } from "@/lib/entity-ref";
 import { PbBoards } from "@/components/pb-boards";
 import { PbBossPicker } from "@/components/pb-boss-picker";
 import { EmptyState } from "@/components/ui";
@@ -18,9 +19,9 @@ function parseId(raw: string | undefined): number | null {
 }
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const groupId = parseId((await params).id);
-  if (groupId === null) return { title: "Personal Bests" };
-  const index = await api.pbBosses(groupId);
+  const ref = await resolveRef("group", (await params).id).catch(() => null);
+  if (!ref || ref.ambiguous) return { title: "Personal Bests" };
+  const index = await api.pbBosses(ref.id);
   const name = index.group_name;
   return {
     title: name ? `${name} — Personal Bests` : "Personal Bests",
@@ -37,8 +38,8 @@ export default async function GroupPersonalBestsPage({
   params: Params;
   searchParams: SearchParams;
 }) {
-  const groupId = parseId((await params).id);
-  if (groupId === null) notFound();
+  const segment = (await params).id;
+  const groupId = await resolveIdOrRedirect("group", "groups", segment);
 
   const index = await api.pbBosses(groupId);
   if (!index.group_name && index.bosses.length === 0) notFound();
@@ -52,14 +53,16 @@ export default async function GroupPersonalBestsPage({
       : index.bosses[0]?.npc_id;
 
   const board = selected !== undefined ? await api.pbBoard(selected, groupId) : null;
-  const basePath = `/groups/${groupId}/personal-bests`;
+  // Keep the caller's URL form (slug or id) in this page's own nav links.
+  const base = `/groups/${segment}`;
+  const basePath = `${base}/personal-bests`;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <Link
-            href={`/groups/${groupId}` as Route}
+            href={base as Route}
             className="text-osrs-parchment-dark/60 text-sm hover:text-osrs-gold-bright"
           >
             ← {index.group_name ?? "Group"}
@@ -71,9 +74,7 @@ export default async function GroupPersonalBestsPage({
           </p>
         </div>
         <Link
-          href={
-            (selected !== undefined ? `/personal-bests/${selected}` : "/personal-bests") as Route
-          }
+          href={(selected !== undefined ? `/npcs/${selected}` : "/personal-bests") as Route}
           className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
         >
           Global boards →

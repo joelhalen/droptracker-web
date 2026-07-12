@@ -15,11 +15,16 @@ import {
   GroupConfigPatchSchema,
   LeaderboardPageSchema,
   LootboardSchema,
+  ItemDetailSchema,
   MeSchema,
+  NpcDetailSchema,
+  NpcDropTableSchema,
   PbBossBoardSchema,
   PbBossIndexSchema,
   PlayerLootTrackerSchema,
   PlayerProfileSchema,
+  SearchResultsSchema,
+  ResolveResultSchema,
   ServiceStatusSchema,
   SupportersSchema,
   allConfigKeys,
@@ -34,6 +39,10 @@ import {
   mockAdminSubscriptionsOverview,
   mockAdminTickets,
   mockGroupSubscription,
+  mockItemDetail,
+  mockNpcDetail,
+  mockNpcDropTable,
+  mockSearch,
   mockGroupSubscriptionSummary,
   mockLookup,
   mockLootboard,
@@ -45,6 +54,7 @@ import {
   mockPlayerLeaderboard,
   mockPlayerLoot,
   mockPlayerProfile,
+  mockResolve,
   mockServices,
   mockSupporters,
 } from "../lib/mock-data";
@@ -60,6 +70,10 @@ test("OpenAPI spec declares the public-read surface the BFF consumes", () => {
     "/groups/{groupId}",
     "/announcements",
     "/me",
+    "/npcs/{npcId}",
+    "/npcs/{npcId}/drop-table",
+    "/items/{itemId}",
+    "/resolve/{kind}",
   ]) {
     assert.ok(paths.includes(expected), `OpenAPI missing path ${expected}`);
   }
@@ -90,6 +104,21 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => PbBossIndexSchema.parse(mockPbBosses(101)));
   assert.doesNotThrow(() => PbBossBoardSchema.parse(mockPbBoard(13696)));
   assert.doesNotThrow(() => PbBossBoardSchema.parse(mockPbBoard(13696, 101)));
+  assert.doesNotThrow(() => NpcDetailSchema.parse(mockNpcDetail(8060)));
+  assert.doesNotThrow(() => NpcDropTableSchema.parse(mockNpcDropTable(8060)));
+  assert.doesNotThrow(() => ItemDetailSchema.parse(mockItemDetail(22006)));
+  assert.doesNotThrow(() => SearchResultsSchema.parse(mockSearch("vork")));
+  // Slug resolution: a single match and an ambiguous (disambiguation) result.
+  assert.doesNotThrow(() => ResolveResultSchema.parse(mockResolve("npc", "vorkath")));
+  assert.doesNotThrow(() => ResolveResultSchema.parse(mockResolve("group", "dup-clan")));
+});
+
+// Older API deployments answer /search without npcs/items — the schema must
+// default them to empty arrays rather than failing the whole search page.
+test("SearchResults tolerates missing npcs/items sections", () => {
+  const parsed = SearchResultsSchema.parse({ players: [], groups: [] });
+  assert.deepEqual(parsed.npcs, []);
+  assert.deepEqual(parsed.items, []);
 });
 
 // The backend serializes an empty event description as JSON null (not omitted).

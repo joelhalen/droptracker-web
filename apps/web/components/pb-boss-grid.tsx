@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Route } from "next";
 import Link from "next/link";
+import { entityPath } from "@/lib/slug";
 import type { PbBossSummary } from "@droptracker/api-types";
 import { Card, EmptyState, fieldInputClass } from "@/components/ui";
 
@@ -10,7 +10,7 @@ const IMG_BASE = "https://www.droptracker.io/img";
 
 function BossCard({ boss }: { boss: PbBossSummary }) {
   return (
-    <Link href={`/personal-bests/${boss.npc_id}` as Route} className="group block min-w-0">
+    <Link href={entityPath("npcs", boss.npc_id, boss.name)} className="group block min-w-0">
       <Card padding="p-4" className="hover:border-osrs-gold/40 h-full transition-colors">
         <div className="flex items-center gap-2.5">
           <img

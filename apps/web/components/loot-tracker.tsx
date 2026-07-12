@@ -9,6 +9,8 @@
  */
 
 import { useRef, useState } from "react";
+import Link from "next/link";
+import { entityPath } from "@/lib/slug";
 import type { LootTrackerItem, LootTrackerNpc, PlayerLootTracker } from "@droptracker/api-types";
 import { CARD_SECTION_CLASS, CardStatLine, HoverCard } from "@/components/hover-card";
 import { Card, EmptyState } from "@/components/ui";
@@ -51,7 +53,12 @@ function ItemCardContent({ item, npc }: { item: LootTrackerItem; npc: LootTracke
           />
         </span>
         <div className="min-w-0">
-          <div className="truncate font-semibold">{item.name}</div>
+          <Link
+            href={entityPath("items", item.item_id, item.name)}
+            className="hover:text-osrs-gold-bright block truncate font-semibold transition-colors"
+          >
+            {item.name}
+          </Link>
           <div className="text-osrs-parchment-dark/60 text-xs">from {npc.name}</div>
         </div>
       </div>
@@ -94,9 +101,13 @@ function NpcBox({ npc }: { npc: LootTrackerNpc }) {
   return (
     <Card padding="p-0" className="overflow-hidden">
       <div className="border-osrs-bronze/25 bg-osrs-surface-2/70 flex items-baseline gap-2 border-b px-3 py-2">
-        <span className="truncate text-sm font-medium" title={npc.name}>
+        <Link
+          href={entityPath("npcs", npc.npc_id, npc.name)}
+          className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
+          title={npc.name}
+        >
           {npc.name}
-        </span>
+        </Link>
         <span className="text-osrs-parchment-dark/60 shrink-0 text-xs tabular-nums">
           × {npc.kills.toLocaleString()}
         </span>

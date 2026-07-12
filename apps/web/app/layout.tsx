@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { env } from "@/lib/env";
 import localFont from "next/font/local";
@@ -146,6 +146,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <nav className="flex gap-4">
                 <Link href="/docs" className="hover:text-osrs-gold-bright">
                   Docs
+                </Link>
+                <Link href={"/item-values" as Route} className="hover:text-osrs-gold-bright">
+                  Item values
                 </Link>
                 <Link href="/premium" className="hover:text-osrs-gold-bright">
                   Premium

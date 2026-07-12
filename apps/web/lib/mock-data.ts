@@ -13,6 +13,8 @@ import type {
   EventTeamDetail,
   EventSummary,
   EventTaskLibraryItem,
+  EventTemplateSummary,
+  EventTemplateDetail,
   GroupDiagnostics,
   GroupEmbedsResponse,
   GroupMembersPage,
@@ -25,10 +27,15 @@ import type {
   GuildStatus,
   LeaderboardPage,
   Lootboard,
+  ManualSubmissionQueue,
   Me,
+  ItemDetail,
+  NpcDetail,
+  NpcDropTable,
   PlayerLootTracker,
   PlayerProfile,
   SearchResults,
+  ResolveResult,
   ServiceLogs,
   ServiceStatus,
   SubscriptionTier,
@@ -46,6 +53,7 @@ import type {
   WomSyncResult,
 } from "@droptracker/api-types";
 import { EMBED_TYPES, GROUP_CONFIG_FIELDS } from "@droptracker/api-types";
+import { slugify } from "./slug";
 
 const fmt = (n: number): string => {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
@@ -54,7 +62,7 @@ const fmt = (n: number): string => {
   return String(n);
 };
 
-const money = (value: number) => ({ value, value_formatted: fmt(value) });
+const money = (value: number) => ({ value: Math.floor(value), value_formatted: fmt(value) });
 
 const NAMES = [
   "Zezima",
@@ -114,9 +122,11 @@ export function mockGroupLeaderboard(page = 1, limit = 25): LeaderboardPage {
 }
 
 export function mockPlayerProfile(id: number): PlayerProfile {
+  const name = NAMES[id % NAMES.length] ?? `Player ${id}`;
   return {
     id,
-    name: NAMES[id % NAMES.length] ?? `Player ${id}`,
+    name,
+    canonical_slug: slugify(name),
     global_rank: (id % 500) + 1,
     total_loot: money(1_234_567_890),
     points: 4200,
@@ -129,8 +139,22 @@ export function mockPlayerProfile(id: number): PlayerProfile {
       { npc_id: 12214, name: "Araxxor", loot: money(120_000_000), drops: 145 },
     ],
     personal_bests: [
-      { npc_id: 12214, boss: "Araxxor", time_ms: 58800, time_display: "0:58.8", team_size: "Solo", date_ts: Math.floor(Date.now() / 1000) - 86400 },
-      { npc_id: 8061, boss: "Vorkath", time_ms: 72400, time_display: "1:12.4", team_size: "Solo", date_ts: Math.floor(Date.now() / 1000) - 604800 },
+      {
+        npc_id: 12214,
+        boss: "Araxxor",
+        time_ms: 58800,
+        time_display: "0:58.8",
+        team_size: "Solo",
+        date_ts: Math.floor(Date.now() / 1000) - 86400,
+      },
+      {
+        npc_id: 8061,
+        boss: "Vorkath",
+        time_ms: 72400,
+        time_display: "1:12.4",
+        team_size: "Solo",
+        date_ts: Math.floor(Date.now() / 1000) - 604800,
+      },
     ],
     groups: [{ id: 2, name: "Global" }],
     recent_submissions: [
@@ -143,7 +167,13 @@ export function mockPlayerProfile(id: number): PlayerProfile {
         npc_name: "Alchemical Hydra",
         ts: Math.floor(Date.now() / 1000) - 300,
       },
-      { id: 2, type: "pet", label: "Vorki", npc_name: "Vorkath", ts: Math.floor(Date.now() / 1000) - 3600 },
+      {
+        id: 2,
+        type: "pet",
+        label: "Vorki",
+        npc_name: "Vorkath",
+        ts: Math.floor(Date.now() / 1000) - 3600,
+      },
       {
         id: 3,
         type: "clog",
@@ -172,9 +202,33 @@ export function mockPlayerLoot(id: number, partition?: number): PlayerLootTracke
         kills: 214,
         loot: money(410_000_000),
         items: [
-          { item_id: 22006, name: "Vorkath's head", quantity: 4, loot: money(120_000_000), drops: 4, first_ts: daysAgo(24), last_ts: daysAgo(2) },
-          { item_id: 11286, name: "Draconic visage", quantity: 2, loot: money(9_800_000), drops: 2, first_ts: daysAgo(18), last_ts: daysAgo(6) },
-          { item_id: 1613, name: "Dragon bones", quantity: 428, loot: money(1_100_000), drops: 214, first_ts: daysAgo(27), last_ts: daysAgo(0) },
+          {
+            item_id: 22006,
+            name: "Vorkath's head",
+            quantity: 4,
+            loot: money(120_000_000),
+            drops: 4,
+            first_ts: daysAgo(24),
+            last_ts: daysAgo(2),
+          },
+          {
+            item_id: 11286,
+            name: "Draconic visage",
+            quantity: 2,
+            loot: money(9_800_000),
+            drops: 2,
+            first_ts: daysAgo(18),
+            last_ts: daysAgo(6),
+          },
+          {
+            item_id: 1613,
+            name: "Dragon bones",
+            quantity: 428,
+            loot: money(1_100_000),
+            drops: 214,
+            first_ts: daysAgo(27),
+            last_ts: daysAgo(0),
+          },
         ],
       },
       {
@@ -183,8 +237,24 @@ export function mockPlayerLoot(id: number, partition?: number): PlayerLootTracke
         kills: 156,
         loot: money(260_000_000),
         items: [
-          { item_id: 12934, name: "Zulrah's scales", quantity: 31_200, loot: money(4_600_000), drops: 156, first_ts: daysAgo(25), last_ts: daysAgo(1) },
-          { item_id: 12922, name: "Tanzanite fang", quantity: 1, loot: money(2_400_000), drops: 1, first_ts: daysAgo(9), last_ts: daysAgo(9) },
+          {
+            item_id: 12934,
+            name: "Zulrah's scales",
+            quantity: 31_200,
+            loot: money(4_600_000),
+            drops: 156,
+            first_ts: daysAgo(25),
+            last_ts: daysAgo(1),
+          },
+          {
+            item_id: 12922,
+            name: "Tanzanite fang",
+            quantity: 1,
+            loot: money(2_400_000),
+            drops: 1,
+            first_ts: daysAgo(9),
+            last_ts: daysAgo(9),
+          },
         ],
       },
     ],
@@ -195,6 +265,7 @@ export function mockGroupProfile(id: number): GroupProfile {
   return {
     id,
     name: `Clan ${id}`,
+    canonical_slug: slugify(`Clan ${id}`),
     description: "A mock clan profile served while the Web API is unavailable.",
     member_count: 128,
     global_rank: (id % 100) + 1,
@@ -217,9 +288,33 @@ export function mockGroupProfile(id: number): GroupProfile {
       { npc_id: 7554, name: "Corporeal Beast", loot: money(410_000_000), drops: 205 },
     ],
     records: [
-      { npc_id: 12214, boss: "Araxxor", time_ms: 58800, time_display: "0:58.8", team_size: "Solo", holder: { id: 1337, name: "Zezima" }, date_ts: Math.floor(Date.now() / 1000) - 7200 },
-      { npc_id: 10814, boss: "Theatre of Blood", time_ms: 872000, time_display: "14:32.0", team_size: "4", holder: { id: 1338, name: "Woox" }, date_ts: Math.floor(Date.now() / 1000) - 86400 },
-      { npc_id: 8061, boss: "Vorkath", time_ms: 65100, time_display: "1:05.1", team_size: "Solo", holder: { id: 1339, name: "B0aty" }, date_ts: Math.floor(Date.now() / 1000) - 259200 },
+      {
+        npc_id: 12214,
+        boss: "Araxxor",
+        time_ms: 58800,
+        time_display: "0:58.8",
+        team_size: "Solo",
+        holder: { id: 1337, name: "Zezima" },
+        date_ts: Math.floor(Date.now() / 1000) - 7200,
+      },
+      {
+        npc_id: 10814,
+        boss: "Theatre of Blood",
+        time_ms: 872000,
+        time_display: "14:32.0",
+        team_size: "4",
+        holder: { id: 1338, name: "Woox" },
+        date_ts: Math.floor(Date.now() / 1000) - 86400,
+      },
+      {
+        npc_id: 8061,
+        boss: "Vorkath",
+        time_ms: 65100,
+        time_display: "1:05.1",
+        team_size: "Solo",
+        holder: { id: 1339, name: "B0aty" },
+        date_ts: Math.floor(Date.now() / 1000) - 259200,
+      },
     ],
     recent_submissions: [
       {
@@ -280,7 +375,11 @@ export function mockAccountSettings(): AccountSettings {
     dm_levels: false,
     dm_min_value: 1_000_000,
     dm_delivery_issue: false,
-    supporter_entitlements: { dm_submissions: true, supporter_flair: true, video_submissions: true },
+    supporter_entitlements: {
+      dm_submissions: true,
+      supporter_flair: true,
+      video_submissions: true,
+    },
     players: [
       { id: 1, name: "Mock Player", hidden: false },
       { id: 2, name: "Mock Alt", hidden: true },
@@ -307,7 +406,59 @@ export function mockSearch(q: string): SearchResults {
         flair: { tier_key: "premium", tier_name: "Premium", style: "gold" },
       },
     ],
+    npcs: [
+      { id: 8060, name: "Vorkath", icon_url: "https://www.droptracker.io/img/npcdb/8060.png" },
+      { id: 2042, name: "Zulrah", icon_url: "https://www.droptracker.io/img/npcdb/2042.png" },
+    ],
+    items: [
+      {
+        id: 20997,
+        name: "Twisted bow",
+        icon_url: "https://www.droptracker.io/img/itemdb/20997.png",
+      },
+      {
+        id: 22006,
+        name: "Skeletal visage",
+        icon_url: "https://www.droptracker.io/img/itemdb/22006.png",
+      },
+    ],
   };
+}
+
+/**
+ * Mock slug resolution. Derives a deterministic id from the slug so pretty URLs
+ * round-trip in mock mode. A slug containing "dup" simulates a name collision
+ * (two candidates) so the disambiguation page is testable without a live DB.
+ */
+export function mockResolve(
+  kind: "group" | "player" | "npc" | "item",
+  slug: string,
+): ResolveResult {
+  const cleaned = slugify(slug);
+  const title = cleaned
+    .split("-")
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+    .join(" ");
+  const baseId =
+    (Math.abs([...cleaned].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7)) % 900) + 100;
+
+  if ((kind === "group" || kind === "player") && cleaned.includes("dup")) {
+    const candidates =
+      kind === "group"
+        ? [
+            { id: baseId, name: title, member_count: 128, created_ts: 1_700_000_000 },
+            { id: baseId + 1, name: title, member_count: 12, created_ts: 1_760_000_000 },
+          ]
+        : [
+            { id: baseId, name: title, total_loot: money(2_000_000_000) },
+            { id: baseId + 1, name: title, total_loot: money(50_000_000) },
+          ];
+    return { kind, slug: cleaned, match: null, candidates };
+  }
+
+  if (!cleaned) return { kind, slug: cleaned, match: null, candidates: [] };
+  const match = { id: baseId, name: title };
+  return { kind, slug: cleaned, match, candidates: [match] };
 }
 
 /** Mock config: every key set to its registry default. */
@@ -554,6 +705,142 @@ export function mockPbBoard(npcId: number, groupId?: number): PbBossBoard {
         entries: [entry(1, 45, "B0aty", 495000, "8:15.0")],
       },
     ],
+  };
+}
+
+export function mockNpcDetail(npcId: number): NpcDetail {
+  return {
+    npc_id: npcId,
+    name: "Vorkath",
+    canonical_slug: "vorkath",
+    icon_url: `https://www.droptracker.io/img/npcdb/${npcId}.png`,
+    wiki_url: "https://oldschool.runescape.wiki/w/Vorkath",
+    lifetime: {
+      loot: money(17_134_824_514),
+      drop_count: 391_830,
+      unique_players: 1018,
+      last_drop_ts: 1783768488,
+    },
+    month: {
+      partition: 202607,
+      loot: money(780_516_575),
+      drop_count: 20_425,
+      unique_players: 160,
+    },
+    top_players: NAMES.slice(0, 5).map((name, i) => ({
+      rank: i + 1,
+      player_id: 1000 + i,
+      player_name: name,
+      loot: money(500_000_000 / (i + 1)),
+      drop_count: Math.floor(40_000 / (i + 1)),
+    })),
+    recent_drops: NAMES.slice(0, 6).map((name, i) => ({
+      drop_id: 9_000_000 - i,
+      item_id: i % 2 === 0 ? 22006 : 11286,
+      item_name: i % 2 === 0 ? "Skeletal visage" : "Draconic visage",
+      icon_url: `https://www.droptracker.io/img/itemdb/${i % 2 === 0 ? 22006 : 11286}.png`,
+      player_id: 1000 + i,
+      player_name: name,
+      value: money(14_000_000),
+      quantity: 1,
+      ts: 1783768488 - i * 3600,
+    })),
+  };
+}
+
+export function mockNpcDropTable(npcId: number): NpcDropTable {
+  const row = (
+    itemId: number,
+    name: string,
+    rarity: number,
+    lastName: string | null,
+  ): NpcDropTable["items"][number] => ({
+    item_id: itemId,
+    name,
+    icon_url: `https://www.droptracker.io/img/itemdb/${itemId}.png`,
+    quantity: "1",
+    noted: false,
+    rarity,
+    rolls: 1,
+    last_drop:
+      lastName == null
+        ? null
+        : {
+            player_id: 4242,
+            player_name: lastName,
+            ts: 1783768488,
+            value: money(14_000_000),
+          },
+  });
+  return {
+    npc_id: npcId,
+    name: "Vorkath",
+    items: [
+      row(11943, "Superior dragon bones", 1, "Zezima"),
+      row(22106, "Jar of decay", 1 / 3000, "Woox"),
+      row(22006, "Skeletal visage", 1 / 5000, "B0aty"),
+      row(21992, "Vorki", 1 / 3000, null),
+    ],
+    last_drops_status: "ready",
+  };
+}
+
+export function mockItemDetail(itemId: number): ItemDetail {
+  return {
+    item_id: itemId,
+    name: "Skeletal visage",
+    canonical_slug: "skeletal-visage",
+    icon_url: `https://www.droptracker.io/img/itemdb/${itemId}.png`,
+    wiki_url: "https://oldschool.runescape.wiki/w/Skeletal_visage",
+    stackable: false,
+    ge_value: money(14_101_200),
+    lifetime: {
+      loot: money(288_236_091),
+      quantity: 20,
+      drop_count: 20,
+      unique_players: 18,
+      last_drop_ts: 1753903651,
+    },
+    month: {
+      partition: 202607,
+      loot: money(28_000_000),
+      quantity: 2,
+      drop_count: 2,
+      unique_players: 2,
+    },
+    top_receivers: NAMES.slice(0, 5).map((name, i) => ({
+      rank: i + 1,
+      player_id: 1000 + i,
+      player_name: name,
+      loot: money(43_000_000 / (i + 1)),
+      quantity: 3 - Math.min(i, 2),
+      drop_count: 3 - Math.min(i, 2),
+    })),
+    stats_status: "ready",
+    recent_drops: NAMES.slice(0, 6).map((name, i) => ({
+      drop_id: 9_000_000 - i,
+      npc_id: 8060,
+      npc_name: "Vorkath",
+      npc_icon_url: "https://www.droptracker.io/img/npcdb/8060.png",
+      player_id: 1000 + i,
+      player_name: name,
+      value: money(14_000_000),
+      quantity: 1,
+      ts: 1783768488 - i * 86400,
+    })),
+    sources: {
+      total: 1,
+      npcs: [
+        {
+          npc_id: 8060,
+          name: "Vorkath",
+          icon_url: "https://www.droptracker.io/img/npcdb/8060.png",
+          quantity: "1",
+          rarity: 1 / 5000,
+          rolls: 1,
+        },
+      ],
+    },
   };
 }
 
@@ -822,9 +1109,27 @@ export function mockGroupEmbeds(): GroupEmbedsResponse {
 export function mockServices(): ServiceStatus[] {
   const now = Math.floor(Date.now() / 1000);
   return [
-    { unit: "droptracker-core", name: "Core processor", status: "running", active: true, since: now - 86400 * 3 },
-    { unit: "droptracker-api", name: "Intake API", status: "running", active: true, since: now - 86400 * 3 },
-    { unit: "droptracker-webhooks", name: "Webhooks / notifications", status: "running", active: true, since: now - 3600 },
+    {
+      unit: "droptracker-core",
+      name: "Core processor",
+      status: "running",
+      active: true,
+      since: now - 86400 * 3,
+    },
+    {
+      unit: "droptracker-api",
+      name: "Intake API",
+      status: "running",
+      active: true,
+      since: now - 86400 * 3,
+    },
+    {
+      unit: "droptracker-webhooks",
+      name: "Webhooks / notifications",
+      status: "running",
+      active: true,
+      since: now - 3600,
+    },
   ];
 }
 
@@ -855,8 +1160,18 @@ export function mockLootboard(groupId: number, period: string): Lootboard {
   const icon = (id: number) => `https://www.droptracker.io/img/itemdb/${id}.png`;
 
   const PLAYERS = [
-    "Zezima", "B0aty", "Woox", "Framed", "SkillSpecs", "Odablock",
-    "Torvesta", "Faux", "Settled", "Mr Mammal", "A Friend", "Solomission",
+    "Zezima",
+    "B0aty",
+    "Woox",
+    "Framed",
+    "SkillSpecs",
+    "Odablock",
+    "Torvesta",
+    "Faux",
+    "Settled",
+    "Mr Mammal",
+    "A Friend",
+    "Solomission",
   ];
 
   const nowMs = Date.now();
@@ -934,6 +1249,7 @@ const DAY = 86400;
 export function mockEvents(groupId?: number, status?: string): EventSummary[] {
   const now = Math.floor(Date.now() / 1000);
   const eventDefaults = {
+    mode: "standard" as const,
     formation_mode: "self_join" as const,
     requires_confirmation: false,
     submission_policy: "all" as const,
@@ -991,17 +1307,60 @@ export function mockEvent(id: number): EventDetail {
             },
           ]
         : i % 7 === 0
-          ? [{ team_id: 22, team_name: "Team Blue", player_id: 2003, player_name: "Framed", completed_at: now - 7200 }]
+          ? [
+              {
+                team_id: 22,
+                team_name: "Team Blue",
+                player_id: 2003,
+                player_name: "Framed",
+                completed_at: now - 7200,
+              },
+            ]
           : [],
   }));
   return {
     ...summary,
     id,
     tasks: [
-      { id: 11, type: "kc_target", label: "Vorkath 50 KC", target: "Vorkath", target_value: 50, points: 10, requires_confirmation: false },
-      { id: 12, type: "item_collection", label: "Obtain a Twisted bow", target: "Twisted bow", points: 50, requires_confirmation: true },
-      { id: 13, type: "skill_target", label: "Reach 99 Slayer", target: "Slayer", target_value: 99, points: 25, requires_confirmation: false },
-      { id: 14, type: "xp_target", label: "Gain 10M Ranged XP", target: "Ranged", target_value: 10_000_000, points: 15, requires_confirmation: false },
+      {
+        id: 11,
+        type: "kc_target",
+        label: "Vorkath 50 KC",
+        target: "Vorkath",
+        target_value: 50,
+        points: 10,
+        requires_confirmation: false,
+        visibility: "public",
+      },
+      {
+        id: 12,
+        type: "item_collection",
+        label: "Obtain a Twisted bow",
+        target: "Twisted bow",
+        points: 50,
+        requires_confirmation: true,
+        visibility: "private",
+      },
+      {
+        id: 13,
+        type: "skill_target",
+        label: "Reach 99 Slayer",
+        target: "Slayer",
+        target_value: 99,
+        points: 25,
+        requires_confirmation: false,
+        visibility: "public",
+      },
+      {
+        id: 14,
+        type: "xp_target",
+        label: "Gain 10M Ranged XP",
+        target: "Ranged",
+        target_value: 10_000_000,
+        points: 15,
+        requires_confirmation: false,
+        visibility: "public",
+      },
     ],
     teams: [
       {
@@ -1047,7 +1406,8 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
   const now = Math.floor(Date.now() / 1000);
   const event = mockEvent(eventId);
   const team = event.teams.find((t) => t.id === teamId) ?? event.teams[0]!;
-  const rank = [...event.teams].sort((a, b) => b.score - a.score).findIndex((t) => t.id === team.id) + 1;
+  const rank =
+    [...event.teams].sort((a, b) => b.score - a.score).findIndex((t) => t.id === team.id) + 1;
   return {
     event: mockEvents().find((e) => e.id === eventId) ?? mockEvents()[0]!,
     team: {
@@ -1070,9 +1430,36 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
       completed_at: i === 1 ? now - 3600 : null,
     })),
     activity: [
-      { id: 901, task_id: 11, task_label: "Vorkath 50 KC", player_id: 1337, player_name: "Zezima", quantity: 1, source_type: "kc", created_at: now - 900 },
-      { id: 900, task_id: 12, task_label: "Obtain a Twisted bow", player_id: 2001, player_name: "Woox", quantity: 1, source_type: "drop", created_at: now - 3600 },
-      { id: 899, task_id: 11, task_label: "Vorkath 50 KC", player_id: 2002, player_name: "B0aty", quantity: 1, source_type: "kc", created_at: now - 5400 },
+      {
+        id: 901,
+        task_id: 11,
+        task_label: "Vorkath 50 KC",
+        player_id: 1337,
+        player_name: "Zezima",
+        quantity: 1,
+        source_type: "kc",
+        created_at: now - 900,
+      },
+      {
+        id: 900,
+        task_id: 12,
+        task_label: "Obtain a Twisted bow",
+        player_id: 2001,
+        player_name: "Woox",
+        quantity: 1,
+        source_type: "drop",
+        created_at: now - 3600,
+      },
+      {
+        id: 899,
+        task_id: 11,
+        task_label: "Vorkath 50 KC",
+        player_id: 2002,
+        player_name: "B0aty",
+        quantity: 1,
+        source_type: "kc",
+        created_at: now - 5400,
+      },
     ],
   };
 }
@@ -1133,11 +1520,76 @@ export function mockEventCompletions(eventId: number, status?: string): EventCom
 /** Curated task presets for the bingo designer picker (Task 20). */
 export function mockEventTaskLibrary(query?: string, type?: string): EventTaskLibraryItem[] {
   const all: EventTaskLibraryItem[] = [
-    { id: 1, name: "Abyssal whip", description: "Obtain an Abyssal whip", type: "item_collection", target: "Abyssal whip", target_value: 1, default_points: 5, difficulty: "air", config: null },
-    { id: 2, name: "Full Barrows set", description: "Collect any complete Barrows set", type: "item_collection", target: null, target_value: null, default_points: 25, difficulty: "earth", config: '{"kind":"any_of","items":["Dharok\'s helm","Dharok\'s platebody"]}' },
-    { id: 3, name: "Zulrah 50 KC", description: "Kill Zulrah 50 times", type: "kc_target", target: "Zulrah", target_value: 50, default_points: 15, difficulty: "water", config: null },
-    { id: 4, name: "Sub-20 Grotesque Guardians", description: "Beat the Guardians in under 20 minutes", type: "pb_target", target: "Grotesque Guardians", target_value: 1200, default_points: 30, difficulty: "fire", config: null },
-    { id: 5, name: "Twisted bow", description: "Obtain a Twisted bow", type: "item_collection", target: "Twisted bow", target_value: 1, default_points: 100, difficulty: "fire", config: null },
+    {
+      id: 1,
+      name: "Abyssal whip",
+      description: "Obtain an Abyssal whip",
+      type: "item_collection",
+      target: "Abyssal whip",
+      target_value: 1,
+      default_points: 5,
+      difficulty: "air",
+      source: "legacy_v1",
+      group_id: null,
+      visibility: "public",
+      config: null,
+    },
+    {
+      id: 2,
+      name: "Full Barrows set",
+      description: "Collect any complete Barrows set",
+      type: "item_collection",
+      target: null,
+      target_value: null,
+      default_points: 25,
+      difficulty: "earth",
+      source: "legacy_v1",
+      group_id: null,
+      visibility: "public",
+      config: '{"kind":"any_of","items":["Dharok\'s helm","Dharok\'s platebody"]}',
+    },
+    {
+      id: 3,
+      name: "Zulrah 50 KC",
+      description: "Kill Zulrah 50 times",
+      type: "kc_target",
+      target: "Zulrah",
+      target_value: 50,
+      default_points: 15,
+      difficulty: "water",
+      source: "group",
+      group_id: 1,
+      visibility: "public",
+      config: null,
+    },
+    {
+      id: 4,
+      name: "Sub-20 Grotesque Guardians",
+      description: "Beat the Guardians in under 20 minutes",
+      type: "pb_target",
+      target: "Grotesque Guardians",
+      target_value: 1200,
+      default_points: 30,
+      difficulty: "fire",
+      source: "group",
+      group_id: 1,
+      visibility: "private",
+      config: null,
+    },
+    {
+      id: 5,
+      name: "Twisted bow",
+      description: "Obtain a Twisted bow",
+      type: "item_collection",
+      target: "Twisted bow",
+      target_value: 1,
+      default_points: 100,
+      difficulty: "fire",
+      source: "legacy_v1",
+      group_id: null,
+      visibility: "public",
+      config: null,
+    },
   ];
   const q = (query ?? "").trim().toLowerCase();
   return all.filter(
@@ -1145,6 +1597,89 @@ export function mockEventTaskLibrary(query?: string, type?: string): EventTaskLi
       (!q || i.name.toLowerCase().includes(q) || (i.description ?? "").toLowerCase().includes(q)) &&
       (!type || i.type === type),
   );
+}
+
+/** Saved event templates for the "start from a template" picker. */
+export function mockEventTemplates(query?: string): EventTemplateSummary[] {
+  const now = Math.floor(Date.now() / 1000);
+  const all: EventTemplateSummary[] = [
+    {
+      id: 1,
+      name: "Classic 5x5 Bingo",
+      description: "A balanced 5x5 board for 2-4 teams — the standard clan bingo.",
+      source_event_id: 1,
+      group_id: null,
+      visibility: "public",
+      mode: "standard",
+      has_bingo: true,
+      board_size: 5,
+      task_count: 25,
+      team_count: 2,
+      times_used: 14,
+      created_at: now - 30 * 86400,
+      updated_at: now - 7 * 86400,
+    },
+    {
+      id: 2,
+      name: "Winter Skilling Race",
+      description: "XP-target sprint across six skills, no board.",
+      source_event_id: 2,
+      group_id: 1,
+      visibility: "private",
+      mode: "standard",
+      has_bingo: false,
+      board_size: 5,
+      task_count: 6,
+      team_count: 3,
+      times_used: 2,
+      created_at: now - 14 * 86400,
+      updated_at: now - 14 * 86400,
+    },
+  ];
+  const q = (query ?? "").trim().toLowerCase();
+  return all.filter(
+    (t) =>
+      !q || t.name.toLowerCase().includes(q) || (t.description ?? "").toLowerCase().includes(q),
+  );
+}
+
+export function mockEventTemplateDetail(id: number): EventTemplateDetail {
+  const summary = mockEventTemplates().find((t) => t.id === id) ?? mockEventTemplates()[0]!;
+  return {
+    ...summary,
+    preview: {
+      description: summary.description,
+      formation_mode: "self_join",
+      requires_confirmation: false,
+      submission_policy: "all",
+      bonus_line_points: 5,
+      bonus_blackout_points: 25,
+      tasks: [
+        {
+          type: "item_collection",
+          label: "Abyssal whip",
+          target: "Abyssal whip",
+          target_value: 1,
+          points: 5,
+        },
+        {
+          type: "kc_target",
+          label: "Zulrah 50 KC",
+          target: "Zulrah",
+          target_value: 50,
+          points: 15,
+        },
+        {
+          type: "pb_target",
+          label: "Sub-20 Grotesque Guardians",
+          target: "Grotesque Guardians",
+          target_value: 1200,
+          points: 30,
+        },
+      ],
+      teams: ["Team Red", "Team Blue"],
+    },
+  };
 }
 
 /** Per-event Discord destinations (Task 19). */
@@ -1155,6 +1690,15 @@ export function mockEventDiscord(_eventId: number): EventChannelConfig {
     channels: {
       announcements: "333333333333333333",
       completions: "111111111111111111",
+    },
+    scheduled_event: {
+      id: "777777777777777777",
+      status: "synced",
+      last_error: null,
+    },
+    discord_event_policy: "on_activate",
+    pings: {
+      event_created: ["888888888888888888"],
     },
   };
 }
@@ -1191,7 +1735,13 @@ export function mockEventDiscordChannels(_guildId: string) {
 export function mockLookup(q: string): AdminLookupResponse {
   return {
     results: [
-      { category: "player", id: "1337", label: `Zezima (matches "${q}")`, detail: "rank #1", href: "/players/1337" },
+      {
+        category: "player",
+        id: "1337",
+        label: `Zezima (matches "${q}")`,
+        detail: "rank #1",
+        href: "/players/1337",
+      },
       { category: "group", id: "101", label: `Clan 1`, detail: "128 members", href: "/groups/101" },
       { category: "item", id: "20997", label: "Twisted bow", detail: "item #20997" },
       { category: "npc", id: "8061", label: "Vorkath", detail: "npc #8061" },
@@ -1256,7 +1806,12 @@ export function mockTicket(ticketId: number): TicketDetail {
         content:
           "I changed my RSN yesterday and my drops stopped tracking. <@100000000000000001> can you help?",
         attachments: [
-          { filename: "screenshot.png", url: "/img/tickets/1/screenshot.png", content_type: "image/png", size: 12345 },
+          {
+            filename: "screenshot.png",
+            url: "/img/tickets/1/screenshot.png",
+            content_type: "image/png",
+            size: 12345,
+          },
         ],
         date_sent: MOCK_NOW - 89_000,
         date_edited: null,
@@ -1308,8 +1863,7 @@ export function mockSuggestionSummary(
       ? "My seasonal drops stopped showing on the lootboard. Step 1 Step 2"
       : "A darker board theme would fit the site better at night.",
     message_count: id % 3,
-    discord_thread_url:
-      status === "posted" ? `https://discord.com/channels/1/${1000 + id}` : null,
+    discord_thread_url: status === "posted" ? `https://discord.com/channels/1/${1000 + id}` : null,
     created_at: MOCK_NOW - 86_400 * id,
     last_activity_at: MOCK_NOW - 3_600 * id,
   };
@@ -1365,5 +1919,46 @@ export function mockAdminTickets(page = 1): AdminTicketPage {
       total: 314,
       open_by_type: { players: 2, support: 1 },
     },
+  };
+}
+
+export function mockManualSubmissions(): ManualSubmissionQueue {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    pending: [
+      {
+        drop_id: 900001,
+        status: "pending",
+        player_id: 1337,
+        player_name: "Zezima",
+        item_id: 20997,
+        item_name: "Twisted bow",
+        npc_name: "Chambers of Xeric",
+        quantity: 1,
+        value: money(1_100_000_000),
+        image_url: "https://www.droptracker.io/img/itemdb/20997.png",
+        submitted_ts: now - 1800,
+        reviewed_ts: null,
+        reason: "policy:confirm",
+      },
+    ],
+    recent: [
+      {
+        drop_id: 900000,
+        status: "approved",
+        player_id: 1338,
+        player_name: "Woox",
+        item_id: 22486,
+        item_name: "Scythe of vitur",
+        npc_name: "Theatre of Blood",
+        quantity: 1,
+        value: money(780_000_000),
+        image_url: null,
+        submitted_ts: now - 90_000,
+        reviewed_ts: now - 86_000,
+        reason: "policy:confirm",
+      },
+    ],
+    pending_count: 1,
   };
 }

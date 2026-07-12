@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { entityPath } from "@/lib/slug";
 import { orNotFound } from "@/lib/fetch";
+import { resolveRef } from "@/lib/entity-ref";
+import { entityCanonical } from "@/lib/seo";
+import { EntityDisambiguation } from "@/components/entity-disambiguation";
 import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { LootTracker } from "@/components/loot-tracker";
@@ -16,11 +19,14 @@ type Params = Promise<{ id: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
+  const ref = await resolveRef("player", id).catch(() => null);
+  if (!ref || ref.ambiguous) return { title: "Player" };
   try {
-    const player = await api.player(Number(id));
+    const player = await api.player(ref.id);
     return {
       title: player.name,
       description: `${player.name} — total loot ${player.total_loot?.value_formatted ?? "?"}, global rank ${player.global_rank ?? "?"}.`,
+      alternates: entityCanonical("players", player.id, player.canonical_slug),
     };
   } catch {
     return { title: "Player" };
@@ -47,8 +53,13 @@ function momDelta(current?: number, previous?: number): { text: string; up: bool
 
 export default async function PlayerPage({ params }: { params: Params }) {
   const { id } = await params;
-  const playerId = Number(id);
-  if (!Number.isFinite(playerId)) notFound();
+  const ref = await resolveRef("player", id);
+  if (ref.ambiguous) {
+    return (
+      <EntityDisambiguation kind="players" slug={decodeURIComponent(id)} candidates={ref.candidates} />
+    );
+  }
+  const playerId = ref.id;
   const player = await orNotFound(api.player(playerId));
   // Loot tracker is non-critical: render the profile even if it fails.
   const loot = await api.playerLoot(playerId).catch(() => null);
@@ -171,7 +182,7 @@ export default async function PlayerPage({ params }: { params: Params }) {
                   <li key={g.id}>
                     <EntityHoverCard kind="group" id={g.id} name={g.name} className="flex min-w-0">
                       <EntityChip
-                        href={`/groups/${g.id}`}
+                        href={entityPath("groups", g.id, g.name)}
                         name={g.name}
                         size="sm"
                         flair={g.flair?.style}

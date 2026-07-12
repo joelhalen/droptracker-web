@@ -7,8 +7,8 @@
  * (FRONTEND_PLAN.md §8.4).
  */
 import { useEffect, useMemo, useState } from "react";
-import type { Route } from "next";
 import type { LeaderboardEntry } from "@droptracker/api-types";
+import { entityPath } from "@/lib/slug";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp } from "@/lib/format";
 import { EmptyState, EntityChip, RankMedal } from "@/components/ui";
@@ -63,7 +63,6 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
     }, BADGE_DURATION_MS);
   });
 
-  const hrefBase = kind === "players" ? "/players" : "/groups";
   const maxLoot = rows.reduce((max, r) => Math.max(max, r.loot.value), 0);
   const liveLabel = useMemo(
     () =>
@@ -135,7 +134,7 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                       className="flex min-w-0 items-center gap-1.5"
                     >
                       <EntityChip
-                        href={`${hrefBase}/${r.id}` as Route}
+                        href={entityPath(kind, r.id, r.name)}
                         name={r.name}
                         size="sm"
                         className="shrink-0"
@@ -152,7 +151,7 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                       className="flex min-w-0 items-center"
                     >
                       <EntityChip
-                        href={`${hrefBase}/${r.id}` as Route}
+                        href={entityPath(kind, r.id, r.name)}
                         name={r.name}
                         size="sm"
                         flair={r.flair?.style}

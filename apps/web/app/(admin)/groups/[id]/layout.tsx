@@ -29,9 +29,12 @@ export default async function GroupAdminLayout({
   const group = await api.group(groupId);
   // Tier badge in the admin header — makes the group's plan visible from every
   // admin tab. Best-effort: header still renders if the billing API is down.
-  const [subscription, tiers] = await Promise.all([
+  // The manual-review pending count drives the Submissions tab badge (small
+  // payload; best-effort so a hiccup never blocks the shell).
+  const [subscription, tiers, manualQueue] = await Promise.all([
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
+    api.manualSubmissions(groupId).catch(() => null),
   ]);
 
   const tabs: NavTab[] = [
@@ -44,6 +47,11 @@ export default async function GroupAdminLayout({
     },
     { href: `/groups/${groupId}/announcements`, label: "Announcements" },
     { href: `/groups/${groupId}/members`, label: "Members" },
+    {
+      href: `/groups/${groupId}/submissions`,
+      label: "Submissions",
+      badge: manualQueue?.pending_count ?? 0,
+    },
     { href: `/groups/${groupId}/authorized`, label: "Authorized users" },
     {
       href: `/groups/${groupId}/events`,

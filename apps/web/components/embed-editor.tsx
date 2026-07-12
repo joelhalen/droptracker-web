@@ -35,6 +35,12 @@ const COMMON_MEDIA: PlaceholderDoc[] = [
   { token: "{video_link}", help: "Markdown link to the video", sample: "" },
 ];
 
+const PLUGIN_VERSION: PlaceholderDoc = {
+  token: "{plugin_version}",
+  help: "RuneLite plugin version that submitted the event (empty if unknown)",
+  sample: "5.4.0",
+};
+
 const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
   drop: [
     { token: "{player_name}", help: "Player who received the drop", sample: "RuneLite Ron" },
@@ -55,6 +61,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{user_count}", help: "Tracked members in the group", sample: "86" },
     { token: "{group_points_awarded}", help: "Group points awarded (if enabled)", sample: "12" },
     { token: "{group_points_receiver_total}", help: "Receiver's point total", sample: "340" },
+    PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
   clog: [
@@ -66,6 +73,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{kc_received}", help: "Kill count when received", sample: "412" },
     { token: "{player_loot_month}", help: "Player's loot total this month", sample: "48.2M" },
     { token: "{total_tracked}", help: "Tracked members in the group", sample: "86" },
+    PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
   pb: [
@@ -78,6 +86,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{total_ranked_global}", help: "Players ranked globally", sample: "4,120" },
     { token: "{group_rank}", help: "Rank within the group", sample: "1" },
     { token: "{total_ranked_group}", help: "Group members ranked", sample: "22" },
+    PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
   ca: [
@@ -91,6 +100,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{next_tier_points}", help: "Points required for the next tier", sample: "2,005" },
     { token: "{points_left}", help: "Points still needed", sample: "719" },
     { token: "{progress}", help: "Progress toward the next tier", sample: "64%" },
+    PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
   pet: [
@@ -102,6 +112,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{milestone}", help: "Milestone text", sample: "1,432 kills" },
     { token: "{duplicate}", help: "Whether it's a duplicate", sample: "No" },
     { token: "{previously_owned}", help: "Whether previously owned", sample: "No" },
+    PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
   level_up: [
@@ -115,6 +126,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{total_level}", help: "Player's total level", sample: "2,154" },
     { token: "{total_xp}", help: "Player's total XP", sample: "312,441,092" },
     { token: "{combat_level}", help: "Player's combat level", sample: "126" },
+    PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
   quest: [
@@ -127,6 +139,25 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{total_quest_points}", help: "Player's total quest points", sample: "293" },
     { token: "{qp_percentage}", help: "Quest point completion %", sample: "94%" },
     { token: "{timestamp}", help: "Completion time", sample: "today" },
+    PLUGIN_VERSION,
+    ...COMMON_MEDIA,
+  ],
+  death: [
+    { token: "{player_name}", help: "Player who died", sample: "RuneLite Ron" },
+    { token: "{source}", help: "What killed the player", sample: "Abyssal demon" },
+    { token: "{killer}", help: "Alias for {source}", sample: "Abyssal demon" },
+    { token: "{location}", help: "Where the death occurred", sample: "Catacombs of Kourend" },
+    { token: "{region_id}", help: "OSRS region id", sample: "6551" },
+    { token: "{timestamp}", help: "When the death occurred", sample: "today" },
+    PLUGIN_VERSION,
+    ...COMMON_MEDIA,
+  ],
+  diary: [
+    { token: "{player_name}", help: "Player who completed the diary", sample: "RuneLite Ron" },
+    { token: "{diary_name}", help: "Achievement diary area", sample: "Kourend & Kebos" },
+    { token: "{diary_tier}", help: "Tier completed", sample: "Elite" },
+    { token: "{timestamp}", help: "Completion time", sample: "today" },
+    PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
   lb: [
@@ -143,6 +174,8 @@ const TYPE_HELP: Record<EmbedType, string> = {
   pet: "Posted when a member receives a pet.",
   level_up: "Posted when a member levels up a skill.",
   quest: "Posted when a member completes a quest.",
+  death: "Posted when a tracked member dies in-game.",
+  diary: "Posted when a member completes an achievement diary.",
   lb: "The message that accompanies your group's lootboard image.",
 };
 
@@ -290,7 +323,7 @@ function DiscordPreview({
     <div className="rounded-lg bg-[#313338] p-4 font-sans">
       <div className="flex items-start gap-3">
         <div className="bg-osrs-gold/90 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg">
-          📊
+          <img src="/images/logo.png" alt="DropTracker" className="h-6 w-6" />
         </div>
         <div className="min-w-0">
           <div className="flex items-baseline gap-2">

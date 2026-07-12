@@ -23,15 +23,30 @@ import {
   GroupMembersPageSchema,
   GroupProfileSchema,
   AdminLookupResponseSchema,
+  PbBlockListSchema,
+  PbBlockSearchResponseSchema,
+  PbBlockMutationSchema,
   BingoBoardSchema,
   EventChannelConfigSchema,
   EventCompletionSchema,
   EventDetailSchema,
+  EventInvitationSchema,
+  EventParticipantSchema,
+  EventRecruitingItemSchema,
   EventTeamDetailSchema,
   type EventTeamDetail,
   EventSummarySchema,
   EventMetaEntrySchema,
   EventTaskLibraryItemSchema,
+  EventTemplateSummarySchema,
+  type EventTemplateSummary,
+  EventTemplateDetailSchema,
+  type EventTemplateDetail,
+  type EventTemplateSaveInput,
+  type EventTemplateInstantiateInput,
+  EventTemplateInstantiateResultSchema,
+  type EventTemplateInstantiateResult,
+  type EventTemplatePatch,
   LootboardImageSchema,
   LootboardSchema,
   GroupEmbedSchema,
@@ -45,10 +60,18 @@ import {
   PlayerLootTrackerSchema,
   PlayerProfileSchema,
   SearchResultsSchema,
+  ResolveResultSchema,
+  type ResolveResult,
   PbBossBoardSchema,
   type PbBossBoard,
   PbBossIndexSchema,
   type PbBossIndex,
+  ItemDetailSchema,
+  type ItemDetail,
+  NpcDetailSchema,
+  type NpcDetail,
+  NpcDropTableSchema,
+  type NpcDropTable,
   ServiceLogsSchema,
   ServiceStatusSchema,
   SubscriptionTierSchema,
@@ -68,6 +91,9 @@ import {
   type AdminBadge,
   type AdminBadgeInput,
   type AdminLookupResponse,
+  type PbBlockList,
+  type PbBlockSearchResponse,
+  type PbBlockMutation,
   type BadgeDefinition,
   type PlayerBadge as PlayerBadgeAward,
   type Announcement,
@@ -89,7 +115,10 @@ import {
   type EventCompletion,
   type EventDetail,
   type EventInput,
+  type EventInvitation,
   type EventJoinInput,
+  type EventParticipant,
+  type EventRecruitingItem,
   type EventRevokeInput,
   type EventSummary,
   type EventTaskInput,
@@ -97,6 +126,7 @@ import {
   type EventTaskLibraryItem,
   type EventTaskPatch,
   type EventTeamInput,
+  type EventTeamPatch,
   type EmbedType,
   type GroupConfigPatch,
   type GroupDiagnostics,
@@ -113,6 +143,10 @@ import {
   type Lootboard,
   type LootboardImage,
   type ManualSubmission,
+  type ManualPreflight,
+  ManualPreflightSchema,
+  type ManualSubmissionQueue,
+  ManualSubmissionQueueSchema,
   type Me,
   type PlayerLootTracker,
   type PlayerProfile,
@@ -157,8 +191,22 @@ import {
   PointsSettingsSchema,
   type PointRule,
   PointRuleSchema,
+  type ItemValueOverride,
+  ItemValueOverrideSchema,
+  type ItemValueOverrideInput,
+  type ItemSearchResult,
+  ItemSearchResultSchema,
+  type PublicItemValue,
+  PublicItemValueSchema,
 } from "@droptracker/api-types";
 import { env, SESSION_COOKIE } from "./env";
+import {
+  RedirectRuleSchema,
+  RedirectSchema,
+  type Redirect,
+  type RedirectInput,
+  type RedirectRule,
+} from "./redirects";
 import {
   mockAccountSettings,
   mockAnnouncements,
@@ -182,9 +230,12 @@ import {
   mockEventDiscordGuilds,
   mockEvents,
   mockEventTaskLibrary,
+  mockEventTemplates,
+  mockEventTemplateDetail,
   mockAdminTickets,
   mockLookup,
   mockLootboard,
+  mockManualSubmissions,
   mockMyTickets,
   mockSuggestionDetail,
   mockSuggestions,
@@ -194,8 +245,12 @@ import {
   mockPlayerLoot,
   mockPlayerProfile,
   mockSearch,
+  mockResolve,
   mockPbBoard,
   mockPbBosses,
+  mockItemDetail,
+  mockNpcDetail,
+  mockNpcDropTable,
   mockServiceLogs,
   mockServices,
   mockSubscriptionTiers,
@@ -270,11 +325,7 @@ async function apiSend(
 }
 
 /** Multipart variant of apiSend — lets fetch set the multipart boundary header. */
-async function apiSendForm(
-  method: "POST" | "PUT",
-  path: string,
-  form: FormData,
-): Promise<unknown> {
+async function apiSendForm(method: "POST" | "PUT", path: string, form: FormData): Promise<unknown> {
   const url = `${env.webApiInternalUrl}/api/v1${path}`;
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   const res = await fetch(url, {
@@ -510,18 +561,24 @@ export const api = {
     if (params.page) q.set("page", String(params.page));
     if (params.limit) q.set("limit", String(params.limit));
     return withFallback(
-      async () => LeaderboardPageSchema.parse(await apiGet(`/leaderboards/players?${q}`, { revalidate: 15 })),
+      async () =>
+        LeaderboardPageSchema.parse(await apiGet(`/leaderboards/players?${q}`, { revalidate: 15 })),
       () => mockPlayerLeaderboard(params.page ?? 1, params.limit ?? 25),
     );
   },
 
-  async groupLeaderboard(params: { period?: string; page?: number; limit?: number }): Promise<LeaderboardPage> {
+  async groupLeaderboard(params: {
+    period?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<LeaderboardPage> {
     const q = new URLSearchParams();
     if (params.period) q.set("period", params.period);
     if (params.page) q.set("page", String(params.page));
     if (params.limit) q.set("limit", String(params.limit));
     return withFallback(
-      async () => LeaderboardPageSchema.parse(await apiGet(`/leaderboards/groups?${q}`, { revalidate: 15 })),
+      async () =>
+        LeaderboardPageSchema.parse(await apiGet(`/leaderboards/groups?${q}`, { revalidate: 15 })),
       () => mockGroupLeaderboard(params.page ?? 1, params.limit ?? 25),
     );
   },
@@ -562,12 +619,15 @@ export const api = {
   },
 
   // --- Events ------------------------------------------------------------
-  async events(params: { groupId?: number; status?: "active" | "past" } = {}): Promise<EventSummary[]> {
+  async events(
+    params: { groupId?: number; status?: "active" | "past" } = {},
+  ): Promise<EventSummary[]> {
     const q = new URLSearchParams();
     if (params.groupId) q.set("groupId", String(params.groupId));
     if (params.status) q.set("status", params.status);
     return withFallback(
-      async () => EventSummarySchema.array().parse(await apiGet(`/events?${q}`, { revalidate: 30 })),
+      async () =>
+        EventSummarySchema.array().parse(await apiGet(`/events?${q}`, { revalidate: 30 })),
       () => mockEvents(params.groupId, params.status),
     );
   },
@@ -637,6 +697,7 @@ export const api = {
         | "submission_policy"
         | "bonus_line_points"
         | "bonus_blackout_points"
+        | "mode"
       >
     >,
   ): Promise<EventDetail> {
@@ -703,6 +764,83 @@ export const api = {
     );
   },
 
+  // --- Event templates (save/rerun events) ----------------------------------
+  /** Snapshot an event's structure as a reusable template (any lifecycle
+   * state). Upserts per owning group by lower-cased name. */
+  async saveEventTemplate(eventId: number, input: EventTemplateSaveInput): Promise<{ id: number }> {
+    return withFallback(
+      async () =>
+        (await apiSend("POST", `/events/${eventId}/save-template`, input)) as { id: number },
+      () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  /** Templates visible to the caller: public ∪ own groups' private rows.
+   * `groupId` narrows to that group's own templates (management view). */
+  async eventTemplates(
+    params: { query?: string; groupId?: number; page?: number } = {},
+  ): Promise<EventTemplateSummary[]> {
+    const q = new URLSearchParams();
+    if (params.query) q.set("query", params.query);
+    if (params.groupId != null) q.set("groupId", String(params.groupId));
+    if (params.page) q.set("page", String(params.page));
+    return withFallback(
+      async () =>
+        EventTemplateSummarySchema.array().parse(
+          await apiGet(`/event-templates?${q}`, { authed: true }),
+        ),
+      () => mockEventTemplates(params.query),
+    );
+  },
+
+  /** Template detail + preview (task list, team names) for the picker. */
+  async eventTemplate(templateId: number): Promise<EventTemplateDetail> {
+    return withFallback(
+      async () =>
+        EventTemplateDetailSchema.parse(
+          await apiGet(`/event-templates/${templateId}`, { authed: true }),
+        ),
+      () => mockEventTemplateDetail(templateId),
+    );
+  },
+
+  /** Create a fresh draft event from a template. Tasks that no longer
+   * validate come back in `skipped_tasks` (their cells survive unbound). */
+  async instantiateEventTemplate(
+    templateId: number,
+    input: EventTemplateInstantiateInput,
+  ): Promise<EventTemplateInstantiateResult> {
+    return withFallback(
+      async () =>
+        EventTemplateInstantiateResultSchema.parse(
+          await apiSend("POST", `/event-templates/${templateId}/instantiate`, input),
+        ),
+      () => ({ id: Math.floor(Math.random() * 100000), skipped_tasks: [] }),
+    );
+  },
+
+  /** Rename / re-describe / re-scope a template. */
+  async updateEventTemplate(templateId: number, patch: EventTemplatePatch): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("PATCH", `/event-templates/${templateId}`, patch);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Soft-delete a template (instantiated events are untouched). */
+  async deleteEventTemplate(templateId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/event-templates/${templateId}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
   /** Item-name autocomplete for the task form (exact in-game names). */
   async searchEventItems(query: string): Promise<EventMetaEntry[]> {
     return withFallback(
@@ -746,6 +884,30 @@ export const api = {
     return withFallback(
       async () => (await apiSend("POST", `/events/${eventId}/teams`, input)) as { id: number },
       () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  async updateEventTeam(
+    eventId: number,
+    teamId: number,
+    patch: EventTeamPatch,
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("PATCH", `/events/${eventId}/teams/${teamId}`, patch);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async deleteEventTeam(eventId: number, teamId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/events/${eventId}/teams/${teamId}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
     );
   },
 
@@ -875,12 +1037,91 @@ export const api = {
     );
   },
 
+  // --- Clan-vs-clan participants (Plan B) ------------------------------------
+  async eventParticipants(eventId: number): Promise<EventParticipant[]> {
+    return withFallback(
+      async () =>
+        EventParticipantSchema.array().parse(
+          await apiGet(`/events/${eventId}/participants`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
+  async inviteEventParticipant(eventId: number, groupId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/participants`, { group_id: groupId });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async acceptEventInvitation(
+    eventId: number,
+    groupId: number,
+    opts?: { createDiscordEvent?: boolean },
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/participants/${groupId}/accept`, {
+          create_discord_event: Boolean(opts?.createDiscordEvent),
+        });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async declineEventInvitation(eventId: number, groupId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/participants/${groupId}/decline`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async removeEventParticipant(eventId: number, groupId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/events/${eventId}/participants/${groupId}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Pending invites for clans the caller administers. */
+  async eventInvitations(): Promise<EventInvitation[]> {
+    return withFallback(
+      async () =>
+        EventInvitationSchema.array().parse(await apiGet(`/events/invitations`, { authed: true })),
+      () => [],
+    );
+  },
+
+  /** Clan-vs-clan events open to member opt-in that the caller hasn't joined. */
+  async eventRecruiting(): Promise<EventRecruitingItem[]> {
+    return withFallback(
+      async () =>
+        EventRecruitingItemSchema.array().parse(
+          await apiGet(`/events/recruiting`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
   // --- Event Discord destinations (Task 19) --------------------------------
   /** The event's Discord destination config (admin-only). */
   async eventDiscord(eventId: number): Promise<EventChannelConfig> {
     return withFallback(
       async () =>
-        EventChannelConfigSchema.parse(await apiGet(`/events/${eventId}/discord`, { authed: true })),
+        EventChannelConfigSchema.parse(
+          await apiGet(`/events/${eventId}/discord`, { authed: true }),
+        ),
       () => mockEventDiscord(eventId),
     );
   },
@@ -893,7 +1134,13 @@ export const api = {
     return withFallback(
       async () =>
         EventChannelConfigSchema.parse(await apiSend("PUT", `/events/${eventId}/discord`, input)),
-      () => ({ guild_id: input.guild_id, guild_name: null, channels: input.channels }),
+      () => ({
+        guild_id: input.guild_id,
+        guild_name: null,
+        channels: input.channels,
+        discord_event_policy: input.discord_event_policy ?? "on_activate",
+        pings: input.pings ?? {},
+      }),
     );
   },
 
@@ -910,11 +1157,24 @@ export const api = {
   async eventDiscordChannels(guildId: string): Promise<EventDiscordChannelList> {
     return withFallback(
       async () =>
-        (await apiGet(
-          `/events/discord/guilds/${encodeURIComponent(guildId)}/channels`,
-          { authed: true },
-        )) as EventDiscordChannelList,
+        (await apiGet(`/events/discord/guilds/${encodeURIComponent(guildId)}/channels`, {
+          authed: true,
+        })) as EventDiscordChannelList,
       () => mockEventDiscordChannels(guildId),
+    );
+  },
+
+  /** Roles of one guild, for the event ping-role pickers (same bot cache
+   * pipeline as the channel list; `stale: true` while the cache warms). */
+  async eventDiscordRoles(guildId: string): Promise<GroupDiscordRoles> {
+    return withFallback(
+      async () =>
+        GroupDiscordRolesSchema.parse(
+          await apiGet(`/events/discord/guilds/${encodeURIComponent(guildId)}/roles`, {
+            authed: true,
+          }),
+        ),
+      () => ({ roles: [], stale: false }),
     );
   },
 
@@ -978,7 +1238,8 @@ export const api = {
 
   async adminUpdateDoc(slug: string, patch: Partial<DocInput>): Promise<Doc> {
     return withFallback(
-      async () => DocSchema.parse(await apiSend("PATCH", `/admin/docs/${encodeURIComponent(slug)}`, patch)),
+      async () =>
+        DocSchema.parse(await apiSend("PATCH", `/admin/docs/${encodeURIComponent(slug)}`, patch)),
       () => ({
         slug,
         title: patch.title ?? slug,
@@ -994,6 +1255,105 @@ export const api = {
     return withFallback(
       async () => {
         await apiSend("DELETE", `/admin/docs/${encodeURIComponent(slug)}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  // --- Redirects (admin-configurable, resolved at request time by middleware) --
+  /** Enabled rules for the middleware read path (unauthed, cache-friendly). */
+  async redirects(): Promise<RedirectRule[]> {
+    return withFallback(
+      async () => RedirectRuleSchema.array().parse(await apiGet(`/redirects`, { revalidate: 60 })),
+      () => [],
+    );
+  },
+
+  async adminRedirects(): Promise<Redirect[]> {
+    return withFallback(
+      async () => RedirectSchema.array().parse(await apiGet(`/admin/redirects`, { authed: true })),
+      () => [],
+    );
+  },
+
+  async adminCreateRedirect(input: RedirectInput): Promise<Redirect> {
+    return RedirectSchema.parse(await apiSend("POST", `/admin/redirects`, input));
+  },
+
+  async adminUpdateRedirect(id: number, patch: Partial<RedirectInput>): Promise<Redirect> {
+    return RedirectSchema.parse(await apiSend("PATCH", `/admin/redirects/${id}`, patch));
+  },
+
+  async adminDeleteRedirect(id: number): Promise<{ ok: true }> {
+    await apiSend("DELETE", `/admin/redirects/${id}`, {});
+    return { ok: true } as const;
+  },
+
+  // --- Item value overrides (post-submission valuation rules) -----------
+  async itemValues(): Promise<PublicItemValue[]> {
+    return withFallback(
+      async () =>
+        PublicItemValueSchema.array().parse(await apiGet(`/item-values`, { revalidate: 120 })),
+      () => [],
+    );
+  },
+
+  async adminItemValues(): Promise<ItemValueOverride[]> {
+    return withFallback(
+      async () =>
+        ItemValueOverrideSchema.array().parse(await apiGet(`/admin/item-values`, { authed: true })),
+      () => [],
+    );
+  },
+
+  async adminItemSearch(q: string): Promise<ItemSearchResult[]> {
+    return withFallback(
+      async () =>
+        ItemSearchResultSchema.array().parse(
+          await apiGet(`/admin/item-values/item-search?q=${encodeURIComponent(q)}`, {
+            authed: true,
+          }),
+        ),
+      () => [],
+    );
+  },
+
+  async adminItemValuesExport(): Promise<{ txt: string; count: number }> {
+    return withFallback(
+      async () =>
+        (await apiGet(`/admin/item-values/export`, { authed: true })) as {
+          txt: string;
+          count: number;
+        },
+      () => ({ txt: "", count: 0 }),
+    );
+  },
+
+  async adminCreateItemValue(input: ItemValueOverrideInput): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/admin/item-values`, input)) as { id: number },
+      () => ({ id: Math.floor(Math.random() * 100000) }),
+    );
+  },
+
+  async adminUpdateItemValue(
+    id: number,
+    patch: Partial<ItemValueOverrideInput>,
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("PATCH", `/admin/item-values/${id}`, patch);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminDeleteItemValue(id: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/admin/item-values/${id}`, {});
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,
@@ -1042,10 +1402,12 @@ export const api = {
   },
 
   async search(q: string): Promise<SearchResults> {
-    if (!q.trim()) return { players: [], groups: [] };
+    if (!q.trim()) return { players: [], groups: [], npcs: [], items: [] };
     return withFallback(
       async () =>
-        SearchResultsSchema.parse(await apiGet(`/search?q=${encodeURIComponent(q)}`, { revalidate: 10 })),
+        SearchResultsSchema.parse(
+          await apiGet(`/search?q=${encodeURIComponent(q)}`, { revalidate: 10 }),
+        ),
       () => mockSearch(q),
     );
   },
@@ -1097,6 +1459,48 @@ export const api = {
     ).catch(() => null); // 404 = no ranked times for this boss
   },
 
+  // --- NPC / item pages -----------------------------------------------------
+  /** NPC overview: lifetime + month totals, top players, recent drops. */
+  async npcDetail(npcId: number): Promise<NpcDetail | null> {
+    return withFallback(
+      async () => NpcDetailSchema.parse(await apiGet(`/npcs/${npcId}`, { revalidate: 60 })),
+      () => mockNpcDetail(npcId),
+    ).catch(() => null); // 404 = unknown NPC
+  },
+
+  /** Wiki drop table for one NPC, with most-recent receiver per item. */
+  async npcDropTable(npcId: number): Promise<NpcDropTable | null> {
+    return withFallback(
+      async () =>
+        // Short revalidate so "building" registries surface quickly once warm.
+        NpcDropTableSchema.parse(await apiGet(`/npcs/${npcId}/drop-table`, { revalidate: 30 })),
+      () => mockNpcDropTable(npcId),
+    ).catch(() => null); // 404 = unknown NPC (a known NPC with no table returns items: [])
+  },
+
+  /** Item overview: totals, GE value, recent/top receivers, drop sources. */
+  async itemDetail(itemId: number): Promise<ItemDetail | null> {
+    return withFallback(
+      async () => ItemDetailSchema.parse(await apiGet(`/items/${itemId}`, { revalidate: 60 })),
+      () => mockItemDetail(itemId),
+    ).catch(() => null); // 404 = unknown item
+  },
+
+  /**
+   * Resolve a nice-URL slug (`/groups/awesome-clan`) to its entity, or — when a
+   * group/player name is shared — to a candidate list for a disambiguation page.
+   * NPC/item duplicate names collapse to the primary id. See `lib/entity-ref.ts`.
+   */
+  async resolve(kind: "group" | "player" | "npc" | "item", slug: string): Promise<ResolveResult> {
+    return withFallback(
+      async () =>
+        ResolveResultSchema.parse(
+          await apiGet(`/resolve/${kind}?slug=${encodeURIComponent(slug)}`, { revalidate: 300 }),
+        ),
+      () => mockResolve(kind, slug),
+    );
+  },
+
   async groupConfig(groupId: number): Promise<Record<string, string | number | boolean | null>> {
     return withFallback(
       async () =>
@@ -1112,7 +1516,9 @@ export const api = {
   async groupDiscordChannels(groupId: number): Promise<DiscordChannelList> {
     return withFallback(
       async () =>
-        (await apiGet(`/groups/${groupId}/discord-channels`, { authed: true })) as DiscordChannelList,
+        (await apiGet(`/groups/${groupId}/discord-channels`, {
+          authed: true,
+        })) as DiscordChannelList,
       () => ({
         channels: [
           { id: "111111111111111111", name: "drops", position: 0, type: "text" as const },
@@ -1167,6 +1573,52 @@ export const api = {
     );
   },
 
+  /** Per-group manual-policy notices for a player before submitting (Ph 3). */
+  async manualPreflight(playerId: number): Promise<ManualPreflight> {
+    return withFallback(
+      async () =>
+        ManualPreflightSchema.parse(
+          await apiGet(`/submissions/manual/preflight?player_id=${playerId}`, { authed: true }),
+        ),
+      () => ({ notices: [] }),
+    );
+  },
+
+  /** A group's manual-submission review queue (pending + recent). */
+  async manualSubmissions(groupId: number): Promise<ManualSubmissionQueue> {
+    return withFallback(
+      async () =>
+        ManualSubmissionQueueSchema.parse(
+          await apiGet(`/groups/${groupId}/manual-submissions`, { authed: true }),
+        ),
+      () => mockManualSubmissions(),
+    );
+  },
+
+  async approveManualSubmission(groupId: number, dropId: number): Promise<{ status: string }> {
+    return withFallback(
+      async () =>
+        (await apiSend(
+          "POST",
+          `/groups/${groupId}/manual-submissions/${dropId}/approve`,
+          {},
+        )) as { status: string },
+      () => ({ status: "approved" }),
+    );
+  },
+
+  async rejectManualSubmission(groupId: number, dropId: number): Promise<{ status: string }> {
+    return withFallback(
+      async () =>
+        (await apiSend(
+          "POST",
+          `/groups/${groupId}/manual-submissions/${dropId}/reject`,
+          {},
+        )) as { status: string },
+      () => ({ status: "rejected" }),
+    );
+  },
+
   /** Presign a direct-to-B2 upload for proof media on a manual submission. */
   async uploadPresign(
     contentType: string,
@@ -1218,7 +1670,15 @@ export const api = {
   ): Promise<Announcement> {
     return withFallback(
       async () => AnnouncementSchema.parse(await apiSend("PATCH", `/announcements/${id}`, patch)),
-      () => ({ id, scope_type: "global" as const, title: "", body_md: "", pinned: false, published_at: 0, ...patch }),
+      () => ({
+        id,
+        scope_type: "global" as const,
+        title: "",
+        body_md: "",
+        pinned: false,
+        published_at: 0,
+        ...patch,
+      }),
     );
   },
 
@@ -1257,7 +1717,10 @@ export const api = {
   },
 
   /** Add by Discord ID (snowflake) or DropTracker username. */
-  async addGroupAuthorizedUser(groupId: number, identifier: string): Promise<AuthorizedUsersResponse> {
+  async addGroupAuthorizedUser(
+    groupId: number,
+    identifier: string,
+  ): Promise<AuthorizedUsersResponse> {
     return withFallback(
       async () =>
         AuthorizedUsersResponseSchema.parse(
@@ -1359,7 +1822,11 @@ export const api = {
     return data.boosts;
   },
 
-  async updateGroupPointBoost(groupId: number, boostId: number, body: unknown): Promise<PointBoost[]> {
+  async updateGroupPointBoost(
+    groupId: number,
+    boostId: number,
+    body: unknown,
+  ): Promise<PointBoost[]> {
     const data = z
       .object({ boosts: z.array(PointBoostSchema) })
       .parse(await apiSend("PATCH", `/groups/${groupId}/points/boosts/${boostId}`, body));
@@ -1442,11 +1909,7 @@ export const api = {
     );
   },
 
-  async setHiddenPlayer(
-    groupId: number,
-    playerId: number,
-    hidden: boolean,
-  ): Promise<{ ok: true }> {
+  async setHiddenPlayer(groupId: number, playerId: number, hidden: boolean): Promise<{ ok: true }> {
     return withFallback(
       async () => {
         await apiSend("PATCH", `/groups/${groupId}/hidden-players`, {
@@ -1461,7 +1924,8 @@ export const api = {
 
   async womSync(groupId: number): Promise<WomSyncResult> {
     return withFallback(
-      async () => WomSyncResultSchema.parse(await apiSend("POST", `/groups/${groupId}/wom-sync`, {})),
+      async () =>
+        WomSyncResultSchema.parse(await apiSend("POST", `/groups/${groupId}/wom-sync`, {})),
       () => mockWomSync(),
     );
   },
@@ -1469,7 +1933,9 @@ export const api = {
   async diagnostics(groupId: number): Promise<GroupDiagnostics> {
     return withFallback(
       async () =>
-        GroupDiagnosticsSchema.parse(await apiGet(`/groups/${groupId}/diagnostics`, { authed: true })),
+        GroupDiagnosticsSchema.parse(
+          await apiGet(`/groups/${groupId}/diagnostics`, { authed: true }),
+        ),
       () => mockDiagnostics(),
     );
   },
@@ -1477,7 +1943,8 @@ export const api = {
   // --- Group creation wizard --------------------------------------------
   async womLookup(womId: number): Promise<WomGroupPreview> {
     return withFallback(
-      async () => WomGroupPreviewSchema.parse(await apiGet(`/groups/wom-lookup/${womId}`, { authed: true })),
+      async () =>
+        WomGroupPreviewSchema.parse(await apiGet(`/groups/wom-lookup/${womId}`, { authed: true })),
       () => mockWomLookup(womId),
     );
   },
@@ -1514,7 +1981,9 @@ export const api = {
   async groupSubscription(groupId: number): Promise<GroupSubscription> {
     return withFallback(
       async () =>
-        GroupSubscriptionSchema.parse(await apiGet(`/groups/${groupId}/subscription`, { authed: true })),
+        GroupSubscriptionSchema.parse(
+          await apiGet(`/groups/${groupId}/subscription`, { authed: true }),
+        ),
       () => mockGroupSubscription(groupId),
     );
   },
@@ -1568,7 +2037,9 @@ export const api = {
   async groupEmbeds(groupId: number): Promise<GroupEmbedsResponse> {
     return withFallback(
       async () =>
-        GroupEmbedsResponseSchema.parse(await apiGet(`/groups/${groupId}/embeds`, { authed: true })),
+        GroupEmbedsResponseSchema.parse(
+          await apiGet(`/groups/${groupId}/embeds`, { authed: true }),
+        ),
       () => mockGroupEmbeds(),
     );
   },
@@ -1605,7 +2076,9 @@ export const api = {
   async billingPortal(groupId: number): Promise<CheckoutSession> {
     return withFallback(
       async () =>
-        CheckoutSessionSchema.parse(await apiSend("POST", `/groups/${groupId}/subscription/portal`, {})),
+        CheckoutSessionSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/subscription/portal`, {}),
+        ),
       () => ({ url: null }),
     );
   },
@@ -1674,7 +2147,8 @@ export const api = {
   // --- Superadmin --------------------------------------------------------
   async adminServices(): Promise<ServiceStatus[]> {
     return withFallback(
-      async () => ServiceStatusSchema.array().parse(await apiGet(`/admin/services`, { authed: true })),
+      async () =>
+        ServiceStatusSchema.array().parse(await apiGet(`/admin/services`, { authed: true })),
       () => mockServices(),
     );
   },
@@ -1724,12 +2198,53 @@ export const api = {
     );
   },
 
+  // --- Personal-best NPC blocklist ---------------------------------------
+  async adminPbBlocks(): Promise<PbBlockList> {
+    return withFallback(
+      async () => PbBlockListSchema.parse(await apiGet(`/admin/pb-blocks`, { authed: true })),
+      () => ({ bosses: [], blocked_ids: [] }),
+    );
+  },
+
+  async adminPbBlockSearch(q: string): Promise<PbBlockSearchResponse> {
+    if (!q.trim()) return { results: [] };
+    return withFallback(
+      async () =>
+        PbBlockSearchResponseSchema.parse(
+          await apiGet(`/admin/pb-blocks/search?q=${encodeURIComponent(q)}`, { authed: true }),
+        ),
+      () => ({ results: [] }),
+    );
+  },
+
+  /** Block a boss (its variant ids) and purge existing PB rows. `confirm` must
+   * be true to actually delete — the backend returns 409 otherwise. */
+  async adminAddPbBlock(npcIds: number[], confirm: boolean): Promise<PbBlockMutation> {
+    return withFallback(
+      async () =>
+        PbBlockMutationSchema.parse(
+          await apiSend("POST", `/admin/pb-blocks`, { npc_ids: npcIds, confirm }),
+        ),
+      () => ({ ok: true, blocked_ids: [], bosses: [] }),
+    );
+  },
+
+  async adminRemovePbBlock(npcId: number): Promise<PbBlockMutation> {
+    return withFallback(
+      async () =>
+        PbBlockMutationSchema.parse(await apiSend("DELETE", `/admin/pb-blocks/${npcId}`, {})),
+      () => ({ ok: true, blocked_ids: [], bosses: [] }),
+    );
+  },
+
   async adminSaveTier(tier: SubscriptionTierInput, isNew: boolean): Promise<{ ok: true }> {
     return withFallback(
       async () => {
         await apiSend(
           isNew ? "POST" : "PATCH",
-          isNew ? `/admin/subscriptions/tiers` : `/admin/subscriptions/tiers/${encodeURIComponent(tier.key)}`,
+          isNew
+            ? `/admin/subscriptions/tiers`
+            : `/admin/subscriptions/tiers/${encodeURIComponent(tier.key)}`,
           tier,
         );
         return { ok: true } as const;
@@ -1916,9 +2431,12 @@ export const api = {
   async adminDataRecord(entity: string, id: string | number): Promise<AdminDataRecord> {
     return withFallback(
       async () =>
-        (await apiGet(`/admin/data/${encodeURIComponent(entity)}/${encodeURIComponent(String(id))}`, {
-          authed: true,
-        })) as AdminDataRecord,
+        (await apiGet(
+          `/admin/data/${encodeURIComponent(entity)}/${encodeURIComponent(String(id))}`,
+          {
+            authed: true,
+          },
+        )) as AdminDataRecord,
       () => ({ entity, id, record: {}, editable: [] }),
     );
   },
@@ -1959,7 +2477,13 @@ export const api = {
       async () =>
         (await apiGet(`/admin/groups/${groupId}/overview`, { authed: true })) as AdminGroupOverview,
       () => ({
-        group: { id: groupId, name: `Group #${groupId}`, member_count: 0, guild_id: null, wom_id: null },
+        group: {
+          id: groupId,
+          name: `Group #${groupId}`,
+          member_count: 0,
+          guild_id: null,
+          wom_id: null,
+        },
         subscription: null,
         config_summary: {},
         activity_7d: [],
@@ -1983,8 +2507,7 @@ export const api = {
 
   async ticket(ticketId: number): Promise<TicketDetail> {
     return withFallback(
-      async () =>
-        TicketDetailSchema.parse(await apiGet(`/tickets/${ticketId}`, { authed: true })),
+      async () => TicketDetailSchema.parse(await apiGet(`/tickets/${ticketId}`, { authed: true })),
       () => mockTicket(ticketId),
     );
   },
@@ -2012,9 +2535,7 @@ export const api = {
   ): Promise<TicketSummary> {
     return withFallback(
       async () =>
-        TicketSummarySchema.parse(
-          await apiSend("PATCH", `/admin/tickets/${ticketId}`, { action }),
-        ),
+        TicketSummarySchema.parse(await apiSend("PATCH", `/admin/tickets/${ticketId}`, { action })),
       () => mockMyTickets(1).items[0]!,
     );
   },
@@ -2047,8 +2568,7 @@ export const api = {
 
   async createSuggestion(input: SuggestionCreate): Promise<SuggestionDetail> {
     return withFallback(
-      async () =>
-        SuggestionDetailSchema.parse(await apiSend("POST", `/suggestions`, input)),
+      async () => SuggestionDetailSchema.parse(await apiSend("POST", `/suggestions`, input)),
       () => ({ ...mockSuggestionDetail(99), ...input, status: "pending" as const }),
     );
   },
@@ -2068,7 +2588,14 @@ export const api = {
 
   // --- Superadmin dashboard: audit log -----------------------------------
   async adminAuditLog(
-    params: { action?: string; actorUserId?: number; groupId?: number; q?: string; page?: number; limit?: number } = {},
+    params: {
+      action?: string;
+      actorUserId?: number;
+      groupId?: number;
+      q?: string;
+      page?: number;
+      limit?: number;
+    } = {},
   ): Promise<AdminAuditLog> {
     const qs = new URLSearchParams();
     if (params.action) qs.set("action", params.action);
@@ -2080,7 +2607,10 @@ export const api = {
     const suffix = qs.toString() ? `?${qs}` : "";
     return withFallback(
       async () => (await apiGet(`/admin/audit${suffix}`, { authed: true })) as AdminAuditLog,
-      () => ({ entries: [], meta: { page: params.page ?? 1, limit: params.limit ?? 50, total: 0 } }),
+      () => ({
+        entries: [],
+        meta: { page: params.page ?? 1, limit: params.limit ?? 50, total: 0 },
+      }),
     );
   },
 

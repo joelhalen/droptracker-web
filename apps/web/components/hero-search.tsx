@@ -8,18 +8,20 @@
  */
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
+import { entityPath } from "@/lib/slug";
 import { useEffect, useRef, useState } from "react";
 import type { SearchResults } from "@droptracker/api-types";
 
 const DEBOUNCE_MS = 250;
 const MAX_PLAYERS = 5;
 const MAX_GROUPS = 4;
+const MAX_ENTITIES = 3;
 
 type Suggestion = {
   key: string;
   href: Route;
   name: string;
-  kind: "Player" | "Clan";
+  kind: "Player" | "Clan" | "Boss" | "Item";
   detail: string | null;
 };
 
@@ -27,7 +29,7 @@ function toSuggestions(results: SearchResults): Suggestion[] {
   const players = results.players.slice(0, MAX_PLAYERS).map(
     (p): Suggestion => ({
       key: `p-${p.id}`,
-      href: `/players/${p.id}` as Route,
+      href: entityPath("players", p.id, p.name),
       name: p.name,
       kind: "Player",
       detail: p.global_rank != null ? `Global rank #${p.global_rank}` : null,
@@ -36,7 +38,7 @@ function toSuggestions(results: SearchResults): Suggestion[] {
   const groups = results.groups.slice(0, MAX_GROUPS).map(
     (g): Suggestion => ({
       key: `g-${g.id}`,
-      href: `/groups/${g.id}` as Route,
+      href: entityPath("groups", g.id, g.name),
       name: g.name,
       kind: "Clan",
       detail:
@@ -45,7 +47,25 @@ function toSuggestions(results: SearchResults): Suggestion[] {
           : null,
     }),
   );
-  return [...players, ...groups];
+  const npcs = (results.npcs ?? []).slice(0, MAX_ENTITIES).map(
+    (n): Suggestion => ({
+      key: `n-${n.id}`,
+      href: entityPath("npcs", n.id, n.name),
+      name: n.name,
+      kind: "Boss",
+      detail: null,
+    }),
+  );
+  const items = (results.items ?? []).slice(0, MAX_ENTITIES).map(
+    (i): Suggestion => ({
+      key: `i-${i.id}`,
+      href: entityPath("items", i.id, i.name),
+      name: i.name,
+      kind: "Item",
+      detail: null,
+    }),
+  );
+  return [...players, ...groups, ...npcs, ...items];
 }
 
 export function HeroSearch() {
@@ -145,8 +165,8 @@ export function HeroSearch() {
             onChange={(e) => setQ(e.target.value)}
             onFocus={() => searched && setOpen(true)}
             onKeyDown={onKeyDown}
-            placeholder="Find a player or clan…"
-            aria-label="Search players and clans"
+            placeholder="Find a player, clan, boss or item…"
+            aria-label="Search players, clans, bosses and items"
             role="combobox"
             aria-expanded={showDropdown}
             aria-controls="hero-search-listbox"

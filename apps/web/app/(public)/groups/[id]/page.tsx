@@ -1,10 +1,12 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { entityPath } from "@/lib/slug";
 import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
-import { groupSocialMetadata } from "@/lib/seo";
+import { resolveRef } from "@/lib/entity-ref";
+import { groupSocialMetadata, entityCanonical } from "@/lib/seo";
+import { EntityDisambiguation } from "@/components/entity-disambiguation";
 import { CountUp } from "@/components/count-up";
 import { GroupSupportCard } from "@/components/group-support-card";
 import { EntityHoverCard } from "@/components/entity-hover-card";
@@ -18,9 +20,14 @@ type Params = Promise<{ id: string }>;
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { id } = await params;
+  const ref = await resolveRef("group", id).catch(() => null);
+  if (!ref || ref.ambiguous) return { title: "Group" };
   try {
-    const group = await api.group(Number(id));
-    return groupSocialMetadata(group, { title: group.name });
+    const group = await api.group(ref.id);
+    return {
+      ...groupSocialMetadata(group, { title: group.name }),
+      alternates: entityCanonical("groups", group.id, group.canonical_slug),
+    };
   } catch {
     return { title: "Group" };
   }
@@ -28,9 +35,17 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
 
 export default async function GroupPage({ params }: { params: Params }) {
   const { id } = await params;
-  const groupId = Number(id);
-  if (!Number.isFinite(groupId)) notFound();
+  const ref = await resolveRef("group", id);
+  if (ref.ambiguous) {
+    return (
+      <EntityDisambiguation kind="groups" slug={decodeURIComponent(id)} candidates={ref.candidates} />
+    );
+  }
+  const groupId = ref.id;
   const group = await orNotFound(api.group(groupId));
+  // Pretty base for this group's own sub-nav (slug when the name is unique, else
+  // id). Sub-routes resolve either form; the slug keeps the address bar clean.
+  const base = group.canonical_slug ? `/groups/${group.canonical_slug}` : `/groups/${groupId}`;
   // Subscription-pool summary for the support card; both are best-effort.
   const [subSummary, viewer] = await Promise.all([
     api.groupSubscriptionSummary(groupId).catch(() => null),
@@ -71,19 +86,19 @@ export default async function GroupPage({ params }: { params: Params }) {
         </div>
         <div className="flex gap-2">
           <Link
-            href={`/groups/${group.id}/lootboard`}
+            href={`${base}/lootboard` as Route}
             className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
           >
             Lootboard
           </Link>
           <Link
-            href={`/groups/${group.id}/personal-bests` as Route}
+            href={`${base}/personal-bests` as Route}
             className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
           >
             Personal bests
           </Link>
           <Link
-            href={`/groups/${group.id}/points/leaderboard` as Route}
+            href={`${base}/points/leaderboard` as Route}
             className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
           >
             Points
@@ -131,7 +146,7 @@ export default async function GroupPage({ params }: { params: Params }) {
               className="flex min-w-0"
             >
               <EntityChip
-                href={`/players/${group.top_player.id}`}
+                href={entityPath("players", group.top_player.id, group.top_player.name)}
                 name={group.top_player.name}
                 size="sm"
                 className="mt-1.5"
@@ -151,7 +166,7 @@ export default async function GroupPage({ params }: { params: Params }) {
               Clan records
             </h2>
             <Link
-              href={`/groups/${group.id}/personal-bests` as Route}
+              href={`${base}/personal-bests` as Route}
               className="text-osrs-parchment-dark/70 shrink-0 text-sm hover:text-osrs-gold-bright"
             >
               All personal bests →

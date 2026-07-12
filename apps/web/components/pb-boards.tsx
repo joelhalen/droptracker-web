@@ -1,5 +1,5 @@
-import type { Route } from "next";
 import Link from "next/link";
+import { entityPath } from "@/lib/slug";
 import type { PbBossBoard, PbTeamBoard } from "@droptracker/api-types";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { Badge, Card, EmptyState, RankMedal } from "@/components/ui";
@@ -38,7 +38,7 @@ function BoardCard({ board, isGroupScoped }: { board: PbTeamBoard; isGroupScoped
                     className="min-w-0 truncate"
                   >
                     <Link
-                      href={`/players/${e.player_id}` as Route}
+                      href={entityPath("players", e.player_id, e.player_name)}
                       className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
                     >
                       {e.player_name}

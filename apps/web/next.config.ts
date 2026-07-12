@@ -62,6 +62,14 @@ const nextConfig: NextConfig = {
       // the admin page lives at /points/manage instead of /points.
       { source: "/groups/:id(\\d+)/points", destination: "/groups/:id/points/manage", permanent: false },
 
+      // NPC / item pages. The per-boss PB page grew into the full NPC page
+      // (drop table + loot totals + PB boards), so old links land there; the
+      // XF-era "view/{id}" spellings map to the same pages.
+      { source: "/personal-bests/:id(\\d+)", destination: "/npcs/:id", permanent: true },
+      { source: "/personal_best/:id(\\d+)", destination: "/npcs/:id", permanent: true },
+      { source: "/npcs/view/:id(\\d+)", destination: "/npcs/:id", permanent: true },
+      { source: "/items/view/:id(\\d+)", destination: "/items/:id", permanent: true },
+
       // Subscriptions (was feature store, now per-group subscription)
       { source: "/feature-store/:id(\\d+)", destination: "/groups/:id/subscription", permanent: true },
 

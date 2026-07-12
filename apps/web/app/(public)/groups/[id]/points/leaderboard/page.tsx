@@ -1,9 +1,10 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
+import { resolveRef, resolveIdOrRedirect } from "@/lib/entity-ref";
 import { groupSocialMetadata } from "@/lib/seo";
+import { entityPath } from "@/lib/slug";
 import { Card, EmptyState, NameTile, RankMedal } from "@/components/ui";
 
 // Rendered dynamically: the fetch forwards the viewer's session so group
@@ -20,9 +21,10 @@ const PERIOD_TABS = [
 ];
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
-  const { id } = await params;
+  const ref = await resolveRef("group", (await params).id).catch(() => null);
+  if (!ref || ref.ambiguous) return { title: "Points leaderboard" };
   try {
-    const group = await api.group(Number(id));
+    const group = await api.group(ref.id);
     return groupSocialMetadata(group, {
       title: `${group.name} — Points leaderboard`,
       description: `Points standings for ${group.name} on DropTracker.`,
@@ -40,8 +42,9 @@ export default async function GroupPointsLeaderboardPage({
   searchParams: SearchParams;
 }) {
   const { id } = await params;
-  const groupId = Number(id);
-  if (!Number.isFinite(groupId)) notFound();
+  const groupId = await resolveIdOrRedirect("group", "groups", id);
+  // Keep the caller's URL form (slug or id) in this page's own nav links.
+  const base = `/groups/${id}`;
   const { period = "month", page: pageParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
 
@@ -54,7 +57,7 @@ export default async function GroupPointsLeaderboardPage({
     if (err instanceof ApiError && err.status === 403) {
       return (
         <div className="space-y-6">
-          <Header groupId={groupId} groupName={group.name} />
+          <Header base={base} groupName={group.name} />
           <EmptyState
             icon="🔒"
             title="This leaderboard is private"
@@ -86,13 +89,13 @@ export default async function GroupPointsLeaderboardPage({
 
   return (
     <div className="space-y-6">
-      <Header groupId={groupId} groupName={group.name} />
+      <Header base={base} groupName={group.name} />
 
       <div className="flex flex-wrap items-center gap-1">
         {PERIOD_TABS.map((p) => (
           <Link
             key={p.key}
-            href={`/groups/${groupId}/points/leaderboard?period=${p.key}` as Route}
+            href={`${base}/points/leaderboard?period=${p.key}` as Route}
             className={tabClass(isPresetActive(p.key))}
           >
             {p.label}
@@ -101,7 +104,7 @@ export default async function GroupPointsLeaderboardPage({
         {board.seasons.map((s) => (
           <Link
             key={s.id}
-            href={`/groups/${groupId}/points/leaderboard?period=season:${s.id}` as Route}
+            href={`${base}/points/leaderboard?period=season:${s.id}` as Route}
             className={tabClass(board.period === `season:${s.id}`)}
             title={
               s.start_at && s.end_at
@@ -145,7 +148,7 @@ export default async function GroupPointsLeaderboardPage({
                   </td>
                   <td className="px-4 py-2">
                     <Link
-                      href={`/players/${row.id}` as Route}
+                      href={entityPath("players", row.id, row.name)}
                       className="hover:text-osrs-gold-bright flex items-center gap-2"
                     >
                       <NameTile name={row.name} />
@@ -167,7 +170,7 @@ export default async function GroupPointsLeaderboardPage({
           {page > 1 && (
             <Link
               href={
-                `/groups/${groupId}/points/leaderboard?period=${board.period}&page=${page - 1}` as Route
+                `${base}/points/leaderboard?period=${board.period}&page=${page - 1}` as Route
               }
               className="text-osrs-gold-bright hover:underline"
             >
@@ -180,7 +183,7 @@ export default async function GroupPointsLeaderboardPage({
           {page < totalPages && (
             <Link
               href={
-                `/groups/${groupId}/points/leaderboard?period=${board.period}&page=${page + 1}` as Route
+                `${base}/points/leaderboard?period=${board.period}&page=${page + 1}` as Route
               }
               className="text-osrs-gold-bright hover:underline"
             >
@@ -193,11 +196,11 @@ export default async function GroupPointsLeaderboardPage({
   );
 }
 
-function Header({ groupId, groupName }: { groupId: number; groupName: string }) {
+function Header({ base, groupName }: { base: string; groupName: string }) {
   return (
     <div>
       <Link
-        href={`/groups/${groupId}`}
+        href={base as Route}
         className="text-osrs-parchment-dark/60 text-sm hover:text-osrs-gold-bright"
       >
         ← {groupName}

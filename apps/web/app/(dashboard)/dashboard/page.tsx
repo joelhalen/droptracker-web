@@ -1,7 +1,10 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
+import { api } from "@/lib/api";
+import { entityPath } from "@/lib/slug";
 import { EntityHoverCard } from "@/components/entity-hover-card";
+import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
 import { EmptyState, EntityChip, RoleBadge } from "@/components/ui";
 
 export const metadata: Metadata = { title: "My accounts" };
@@ -11,9 +14,11 @@ export default async function DashboardPage() {
   // layouts and pages concurrently, so the page must guard against a null `me`
   // itself rather than trusting the layout's redirect to run first.
   const user = await requireUser("/dashboard");
+  const recruiting = await api.eventRecruiting().catch(() => []);
 
   return (
     <div className="space-y-10">
+      {recruiting.length > 0 && <EventRecruitingBanner items={recruiting} />}
       <section>
         <h1 className="text-osrs-gold mb-4 text-2xl font-bold">My OSRS accounts</h1>
         {user.players.length ? (
@@ -22,7 +27,7 @@ export default async function DashboardPage() {
               <li key={p.id} className="flex items-center justify-between gap-3 py-3">
                 <EntityHoverCard kind="player" id={p.id} name={p.name} className="min-w-0">
                   <EntityChip
-                    href={`/players/${p.id}`}
+                    href={entityPath("players", p.id, p.name)}
                     name={p.name}
                     subtitle={`Global rank #${p.global_rank ?? "—"}`}
                   />
@@ -63,7 +68,7 @@ export default async function DashboardPage() {
                 <li key={g.id} className="flex items-center justify-between gap-3 py-3">
                   <EntityHoverCard kind="group" id={g.id} name={g.name} className="min-w-0">
                     <EntityChip
-                      href={`/groups/${g.id}`}
+                      href={entityPath("groups", g.id, g.name)}
                       name={g.name}
                       flair={g.flair?.style}
                       flairTitle={g.flair?.tier_name}
