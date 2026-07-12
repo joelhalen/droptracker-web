@@ -65,6 +65,18 @@ real backend instead, set `USE_MOCK_API=false` and point
 | `pnpm test` | Unit + OpenAPI contract tests |
 | `pnpm gen:api-types` | Regenerate TS types from `openapi.json` |
 
+## Deploying
+
+To deploy the web app on the production box, run **`scripts/deploy.sh`** from
+the repo root: it does `pnpm install --frozen-lockfile` → `pnpm gen:api-types`
+→ `pnpm build` → an **immediate** `sudo systemctl restart droptracker-node`
+(the restart must directly follow the build — a stale server writing ISR output
+into a fresh `.next` has caused a ChunkLoadError outage) → polls
+`127.0.0.1:31380` until it returns 200 → PASS/FAIL summary. Flags:
+`--skip-install`, `--dry-run`. Assumes the invoking user can `sudo systemctl`.
+The backend has its own script: `deploy/deploy.sh` in the backend repo
+(`/store/droptracker/disc`). Full deployment notes: [DEPLOY.md](./DEPLOY.md).
+
 ## Status
 
 Built so far (FRONTEND_PLAN.md §17):

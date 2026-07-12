@@ -68,7 +68,17 @@ The live site runs on the DropTracker box as the systemd unit
   must stay `false` while the origin is plain HTTP behind Cloudflare Flexible
   SSL — Secure cookies get silently dropped and sign-in loops.
 
-To ship a change:
+To ship a change, run the deploy script (does all of the below, restarts the
+unit **immediately** after the build — a gap between build and restart once
+caused a ChunkLoadError outage via ISR writes into the fresh `.next` — then
+polls `:31380` until it returns 200):
+
+```bash
+cd /store/droptracker/web
+scripts/deploy.sh            # flags: --skip-install, --dry-run
+```
+
+Manual equivalent (avoid — easy to forget the restart):
 
 ```bash
 cd /store/droptracker/web
