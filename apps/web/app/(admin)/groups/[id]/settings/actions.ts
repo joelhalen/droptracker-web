@@ -68,6 +68,31 @@ export async function removeGroupIcon(groupId: number) {
   return { ok: true as const };
 }
 
+/** Server Action: generate a custom-timeframe lootboard PNG (leaders only).
+ * Backend errors (invalid range, month still backfilling, per-group cooldown)
+ * carry user-presentable messages — surface them verbatim. */
+export async function generateTimeframeBoard(
+  groupId: number,
+  startDate: string,
+  endDate: string,
+): Promise<{ url: string; start_date: string; end_date: string }> {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  try {
+    const { url, start_date, end_date } = await api.generateTimeframeBoard(
+      groupId,
+      startDate,
+      endDate,
+    );
+    return { url, start_date, end_date };
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
+}
+
 /** Server Action: list the group's Discord text channels for the channel picker. */
 export async function fetchGroupDiscordChannels(groupId: number): Promise<DiscordChannelList> {
   const user = await getUser();

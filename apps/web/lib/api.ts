@@ -1363,6 +1363,29 @@ export const api = {
     );
   },
 
+  /** Generate a custom-timeframe lootboard PNG (group-admin only). Errors
+   * (invalid range, month still backfilling, cooldown) surface as ApiError
+   * with a user-presentable message — deliberately no mock fallback. */
+  async generateTimeframeBoard(
+    groupId: number,
+    startDate: string,
+    endDate: string,
+  ): Promise<{ url: string; start_date: string; end_date: string; source: string }> {
+    const data = (await apiSend("POST", `/groups/${groupId}/lootboard/timeframe`, {
+      start_date: startDate,
+      end_date: endDate,
+    })) as { url?: unknown; start_date?: unknown; end_date?: unknown; source?: unknown };
+    if (!data || typeof data.url !== "string") {
+      throw new ApiError(500, "Board generation returned no image URL.");
+    }
+    return {
+      url: data.url,
+      start_date: String(data.start_date ?? startDate),
+      end_date: String(data.end_date ?? endDate),
+      source: String(data.source ?? ""),
+    };
+  },
+
   async announcements(scope = "global"): Promise<AnnouncementPage> {
     return withFallback(
       async () =>

@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { ConfigEditor } from "@/components/config-editor";
 import { GroupIconCard } from "@/components/group-icon-card";
+import { TimeframeBoardCard } from "@/components/timeframe-board-card";
 
 export const metadata: Metadata = { title: "Group settings" };
 
@@ -31,6 +32,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
         Notification, lootboard, points, and integration configuration.
       </p>
       <GroupIconCard groupId={groupId} initialIconUrl={group?.icon_url} />
+      <TimeframeBoardCard groupId={groupId} />
       <ConfigEditor
         groupId={groupId}
         initial={config}
