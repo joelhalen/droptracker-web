@@ -45,10 +45,19 @@ function coerce(key: string, raw: ConfigValue): ConfigValue {
   }
 }
 
+/** Fields with a `seasonal_`-prefixed mirror, editable on the Seasonal tab. */
+const SEASONAL_FIELDS = GROUP_CONFIG_FIELDS.filter((f) => f.seasonalMirror);
+const seasonalKey = (key: string) => `seasonal_${key}`;
+const SEASONAL_CATEGORY = { id: "seasonal", label: "Seasonal (Leagues)" };
+
 function normalize(map: ConfigMap): ConfigMap {
   const out: ConfigMap = {};
   for (const f of GROUP_CONFIG_FIELDS) {
     out[f.key] = coerce(f.key, map[f.key] ?? null);
+  }
+  for (const f of SEASONAL_FIELDS) {
+    const k = seasonalKey(f.key);
+    out[k] = coerce(k, map[k] ?? null);
   }
   return out;
 }
@@ -62,12 +71,15 @@ export function ConfigEditor({
   subscription = null,
   tiers: _tiers = [],
   isSuperadmin = false,
+  seasonalActive = true,
 }: {
   groupId: number;
   initial: ConfigMap;
   subscription?: GroupSubscription | null;
   tiers?: SubscriptionTier[];
   isSuperadmin?: boolean;
+  /** Global seasonal-processing switch state (from GET /seasonal-status). */
+  seasonalActive?: boolean;
 }) {
   const normalized = useMemo(() => normalize(initial), [initial]);
   const [baseline, setBaseline] = useState<ConfigMap>(normalized);
@@ -102,7 +114,10 @@ export function ConfigEditor({
   }, [groupId]);
 
   const categories = useMemo(
-    () => CONFIG_CATEGORIES.filter((cat) => GROUP_CONFIG_FIELDS.some((f) => f.category === cat.id)),
+    () => [
+      ...CONFIG_CATEGORIES.filter((cat) => GROUP_CONFIG_FIELDS.some((f) => f.category === cat.id)),
+      SEASONAL_CATEGORY,
+    ],
     [],
   );
 
@@ -143,6 +158,12 @@ export function ConfigEditor({
       const v = values[f.key] ?? null;
       if (v !== (baseline[f.key] ?? null)) patch[f.key] = v;
     }
+    for (const f of SEASONAL_FIELDS) {
+      if (isFieldLocked(f)) continue;
+      const k = seasonalKey(f.key);
+      const v = values[k] ?? null;
+      if (v !== (baseline[k] ?? null)) patch[k] = v;
+    }
     return patch;
   }, [values, baseline, subscription, isSuperadmin]);
 
@@ -150,8 +171,11 @@ export function ConfigEditor({
   const changedByCategory = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const key of Object.keys(changed)) {
-      const cat = getConfigField(key)?.category;
-      if (cat) counts[cat] = (counts[cat] ?? 0) + 1;
+      const field = getConfigField(key);
+      if (!field) continue;
+      // A key that resolved via prefix-stripping is a seasonal mirror.
+      const cat = key !== field.key ? "seasonal" : field.category;
+      counts[cat] = (counts[cat] ?? 0) + 1;
     }
     return counts;
   }, [changed]);
@@ -215,6 +239,64 @@ export function ConfigEditor({
 
       <form onSubmit={onSubmit} className="min-w-0 space-y-6 pb-24">
         {categories.map((cat) => {
+          if (cat.id === "seasonal") {
+            const toggles = SEASONAL_FIELDS.filter((f) => f.type === "boolean");
+            const compact = SEASONAL_FIELDS.filter(
+              (f) => !["boolean", "text", "csv", "bosslist"].includes(f.type),
+            );
+            return (
+              <Card key={cat.id} id={sectionId(cat.id)} padding="p-6" className="scroll-mt-24">
+                <h2 className="text-osrs-gold mb-1 text-lg font-semibold">{cat.label}</h2>
+                <p className="text-osrs-parchment-dark/60 mb-4 text-xs">
+                  Separate settings applied only to submissions from seasonal worlds (Leagues,
+                  Deadman). Your main-world settings are unaffected.
+                </p>
+                {!seasonalActive && (
+                  <div className="mb-4">
+                    <Alert variant="info">
+                      Seasonal processing is currently disabled globally — these settings will
+                      take effect again when the next seasonal game mode goes live.
+                    </Alert>
+                  </div>
+                )}
+                {compact.length > 0 && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {compact.map((f) => (
+                      <InputField
+                        key={seasonalKey(f.key)}
+                        field={f}
+                        value={values[seasonalKey(f.key)] ?? f.default}
+                        onChange={(v) => set(seasonalKey(f.key), v)}
+                        channels={channels}
+                        bosses={bosses}
+                        locked={isFieldLocked(f)}
+                        groupId={groupId}
+                      />
+                    ))}
+                  </div>
+                )}
+                {toggles.length > 0 && (
+                  <div
+                    className={`grid gap-3 sm:grid-cols-2 ${
+                      compact.length > 0 ? "border-osrs-bronze/20 mt-5 border-t pt-5" : ""
+                    }`}
+                  >
+                    {toggles.map((f) => (
+                      <ToggleField
+                        key={seasonalKey(f.key)}
+                        field={f}
+                        value={Boolean(values[seasonalKey(f.key)] ?? f.default)}
+                        onChange={(v) => set(seasonalKey(f.key), v)}
+                        locked={isFieldLocked(f)}
+                        groupId={groupId}
+                      />
+                    ))}
+                  </div>
+                )}
+              </Card>
+            );
+          }
+
           const fields = GROUP_CONFIG_FIELDS.filter((f) => f.category === cat.id);
           const toggles = fields.filter((f) => f.type === "boolean");
           const compact = fields.filter((f) => !["boolean", "text", "csv", "bosslist"].includes(f.type));

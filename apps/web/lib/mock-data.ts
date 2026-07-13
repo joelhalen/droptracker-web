@@ -36,6 +36,9 @@ import type {
   PlayerProfile,
   SearchResults,
   ResolveResult,
+  B2Usage,
+  BackupOffsite,
+  BackupOverview,
   ServiceLogs,
   ServiceStatus,
   SubscriptionTier,
@@ -1140,6 +1143,79 @@ export function mockServiceLogs(unit: string): ServiceLogs {
     return `${t} ${unit}[1234]: processed batch ${1000 + i} ok`;
   });
   return { unit, lines };
+}
+
+export function mockBackupOverview(): BackupOverview {
+  const now = Math.floor(Date.now() / 1000);
+  const day = (offset: number) =>
+    new Date((now - offset * 86400) * 1000).toISOString().slice(0, 10);
+  const files = (date: string) => [
+    { name: `data-${date}.sql.gz`, size: 3_150_000_000, modified: now - 3600 },
+    { name: `data-schema-${date}.sql.gz`, size: 12_500, modified: now - 3500 },
+    { name: `xenforo-${date}.sql.gz`, size: 223_000_000, modified: now - 3400 },
+    { name: `redis-${date}.rdb.gz`, size: 400_000_000, modified: now - 3300 },
+  ];
+  return {
+    unit: "droptracker-db-backup",
+    running: false,
+    timer: { enabled: true, active: true, next_run: now + 43200, last_trigger: now - 43200 },
+    last_run: {
+      started: now - 44400,
+      finished: now - 43200,
+      duration_seconds: 1200,
+      success: true,
+      result: "success",
+      exit_status: 0,
+    },
+    sets: [0, 1, 2].map((i) => ({
+      date: day(i),
+      status: "complete" as const,
+      total_bytes: 3_773_012_500,
+      files: files(day(i)),
+    })),
+    disk: { free_bytes: 76_000_000_000, total_bytes: 440_000_000_000 },
+    retention: { local_days: 7, remote_days: 30 },
+  };
+}
+
+export function mockBackupOffsite(): BackupOffsite {
+  const overview = mockBackupOverview();
+  return {
+    bucket: "droptracker-videos",
+    prefix: "dt_backups/",
+    total_bytes: overview.sets.reduce((sum, s) => sum + s.total_bytes, 0),
+    days: overview.sets.map((s) => ({
+      date: s.date,
+      objects: s.files.length,
+      total_bytes: s.total_bytes,
+      files: s.files,
+    })),
+  };
+}
+
+export function mockB2Usage(): B2Usage {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    bucket: "droptracker-video",
+    generated_at: now,
+    objects: 213,
+    total_bytes: 7_806_710_062,
+    prefixes: [
+      { prefix: "dt_backups", objects: 8, total_bytes: 7_552_805_071 },
+      { prefix: "dt_videos", objects: 205, total_bytes: 253_904_991 },
+    ],
+    largest: [
+      { key: "dt_backups/mysql/2026-07-13/data-2026-07-13.sql.gz", size: 3_154_800_806, modified: now - 3600 },
+      { key: "dt_backups/mysql/2026-07-12/data-2026-07-12.sql.gz", size: 3_145_368_292, modified: now - 90000 },
+      { key: "dt_backups/mysql/2026-07-13/redis-2026-07-13.rdb.gz", size: 409_077_275, modified: now - 3500 },
+    ],
+    estimate: {
+      storage_rate_usd_per_gb_month: 0.006,
+      free_storage_bytes: 10_000_000_000,
+      storage_usd_per_month: 0,
+      free_egress_bytes_per_month: 23_420_130_186,
+    },
+  };
 }
 
 export function mockLootboard(groupId: number, period: string): Lootboard {

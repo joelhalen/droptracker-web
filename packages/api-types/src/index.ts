@@ -1197,6 +1197,105 @@ export const ServiceLogsSchema = z.object({
 });
 export type ServiceLogs = z.infer<typeof ServiceLogsSchema>;
 
+/**
+ * Superadmin: nightly database backup visibility (/admin/backups).
+ * Mirrors the backend's droptracker-db-backup unit + local set scan.
+ */
+export const BackupFileSchema = z.object({
+  name: z.string(),
+  size: z.number().int(),
+  /** Unix seconds. */
+  modified: z.number().int(),
+});
+export type BackupFile = z.infer<typeof BackupFileSchema>;
+
+export const BackupSetSchema = z.object({
+  /** UTC date of the set, YYYY-MM-DD. */
+  date: z.string(),
+  status: z.enum(["complete", "in_progress", "incomplete"]),
+  total_bytes: z.number().int(),
+  files: z.array(BackupFileSchema),
+});
+export type BackupSet = z.infer<typeof BackupSetSchema>;
+
+export const BackupOverviewSchema = z.object({
+  unit: z.string(),
+  running: z.boolean(),
+  timer: z.object({
+    enabled: z.boolean(),
+    active: z.boolean(),
+    next_run: z.number().int().nullable(),
+    last_trigger: z.number().int().nullable(),
+  }),
+  last_run: z
+    .object({
+      started: z.number().int(),
+      finished: z.number().int().nullable(),
+      duration_seconds: z.number().int().nullable(),
+      success: z.boolean(),
+      result: z.string(),
+      exit_status: z.number().int().nullable(),
+    })
+    .nullable(),
+  sets: z.array(BackupSetSchema),
+  disk: z.object({
+    free_bytes: z.number().int(),
+    total_bytes: z.number().int(),
+  }),
+  retention: z.object({
+    local_days: z.number().int(),
+    remote_days: z.number().int(),
+  }),
+});
+export type BackupOverview = z.infer<typeof BackupOverviewSchema>;
+
+export const BackupOffsiteSchema = z.object({
+  bucket: z.string(),
+  prefix: z.string(),
+  total_bytes: z.number().int(),
+  days: z.array(
+    z.object({
+      date: z.string(),
+      objects: z.number().int(),
+      total_bytes: z.number().int(),
+      files: z.array(BackupFileSchema),
+    }),
+  ),
+});
+export type BackupOffsite = z.infer<typeof BackupOffsiteSchema>;
+
+/**
+ * Superadmin: bucket-wide B2 storage usage + cost estimate (/admin/b2/usage).
+ * Bandwidth/egress is NOT included — B2's public API does not expose it.
+ */
+export const B2UsageSchema = z.object({
+  bucket: z.string(),
+  generated_at: z.number().int(),
+  objects: z.number().int(),
+  total_bytes: z.number().int(),
+  prefixes: z.array(
+    z.object({
+      prefix: z.string(),
+      objects: z.number().int(),
+      total_bytes: z.number().int(),
+    }),
+  ),
+  largest: z.array(
+    z.object({
+      key: z.string(),
+      size: z.number().int(),
+      modified: z.number().int(),
+    }),
+  ),
+  estimate: z.object({
+    storage_rate_usd_per_gb_month: z.number(),
+    free_storage_bytes: z.number().int(),
+    storage_usd_per_month: z.number(),
+    free_egress_bytes_per_month: z.number().int(),
+  }),
+});
+export type B2Usage = z.infer<typeof B2UsageSchema>;
+
 /** Superadmin Discord message sender (FRONTEND_PLAN.md §14.1 actionSendMessage). */
 export const DiscordSendInputSchema = z.object({
   channel_id: z.string().min(1),

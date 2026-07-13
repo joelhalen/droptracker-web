@@ -27,3 +27,17 @@ export async function fetchServiceLogs(unit: string) {
   await requireSuperadmin("/admin/services");
   return api.adminServiceLogs(unit);
 }
+
+/** Server Action: toggle global seasonal-world submission processing. */
+export async function setSeasonalActive(
+  active: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireSuperadmin("/admin/services");
+  try {
+    await api.adminSetSeasonal(Boolean(active));
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || "Toggle failed." };
+  }
+  revalidatePath("/admin/services");
+  return { ok: true as const };
+}

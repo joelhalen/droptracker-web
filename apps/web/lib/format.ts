@@ -33,6 +33,19 @@ export function formatGp(value: number): string {
   return `${sign}${abs.toLocaleString()}`;
 }
 
+/** Human-readable binary size ("3.5 GB", "12.4 KB"). */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let i = -1;
+  do {
+    value /= 1024;
+    i++;
+  } while (value >= 1024 && i < units.length - 1);
+  return `${value >= 100 ? Math.round(value) : value.toFixed(1)} ${units[i]}`;
+}
+
 export function formatDate(unixSeconds: number | null): string {
   if (!unixSeconds) return "—";
   return new Date(unixSeconds * 1000).toLocaleDateString(undefined, {

@@ -80,6 +80,12 @@ import {
   type NpcDropTable,
   ServiceLogsSchema,
   ServiceStatusSchema,
+  BackupOverviewSchema,
+  type BackupOverview,
+  B2UsageSchema,
+  type B2Usage,
+  BackupOffsiteSchema,
+  type BackupOffsite,
   SubscriptionTierSchema,
   SupportersSchema,
   type Supporters,
@@ -259,6 +265,9 @@ import {
   mockItemDetail,
   mockNpcDetail,
   mockNpcDropTable,
+  mockB2Usage,
+  mockBackupOffsite,
+  mockBackupOverview,
   mockServiceLogs,
   mockServices,
   mockSubscriptionTiers,
@@ -2284,7 +2293,36 @@ export const api = {
     );
   },
 
+  /** Whether seasonal-world (Leagues/DMM) submission processing is globally on. */
+  async seasonalStatus(): Promise<{ active: boolean }> {
+    return withFallback(
+      async () =>
+        z.object({ active: z.boolean() }).parse(await apiGet(`/seasonal-status`)),
+      () => ({ active: true }),
+    );
+  },
+
   // --- Superadmin --------------------------------------------------------
+  /** Current state of the global seasonal-processing kill switch. */
+  async adminSeasonal(): Promise<{ active: boolean }> {
+    return withFallback(
+      async () =>
+        z.object({ active: z.boolean() }).parse(await apiGet(`/admin/seasonal`, { authed: true })),
+      () => ({ active: true }),
+    );
+  },
+
+  /** Toggle seasonal-world submission processing globally. */
+  async adminSetSeasonal(active: boolean): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/admin/seasonal`, { active });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
   async adminServices(): Promise<ServiceStatus[]> {
     return withFallback(
       async () =>
@@ -2314,6 +2352,45 @@ export const api = {
           await apiGet(`/admin/services/${encodeURIComponent(unit)}/logs`, { authed: true }),
         ),
       () => mockServiceLogs(unit),
+    );
+  },
+
+  async adminBackups(): Promise<BackupOverview> {
+    return withFallback(
+      async () => BackupOverviewSchema.parse(await apiGet(`/admin/backups`, { authed: true })),
+      () => mockBackupOverview(),
+    );
+  },
+
+  async adminBackupLogs(): Promise<ServiceLogs> {
+    return withFallback(
+      async () => ServiceLogsSchema.parse(await apiGet(`/admin/backups/logs`, { authed: true })),
+      () => mockServiceLogs("droptracker-db-backup"),
+    );
+  },
+
+  async adminBackupOffsite(): Promise<BackupOffsite> {
+    return withFallback(
+      async () =>
+        BackupOffsiteSchema.parse(await apiGet(`/admin/backups/offsite`, { authed: true })),
+      () => mockBackupOffsite(),
+    );
+  },
+
+  async adminRunBackup(): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/admin/backups/run`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  async adminB2Usage(): Promise<B2Usage> {
+    return withFallback(
+      async () => B2UsageSchema.parse(await apiGet(`/admin/b2/usage`, { authed: true })),
+      () => mockB2Usage(),
     );
   },
 

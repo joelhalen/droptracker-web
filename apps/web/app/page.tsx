@@ -2,6 +2,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { api, type FeedEvent } from "@/lib/api";
 import { groupDocsByCategory } from "@/lib/docs";
+import { AuthErrorBanner } from "@/components/auth-error-banner";
 import { HeroSearch } from "@/components/hero-search";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { SupportersSection } from "@/components/supporters-section";
@@ -85,6 +86,10 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-12">
+      {/* Failed OAuth redirects land on `/?auth=<code>` — client island so the
+          page itself never reads searchParams (which would break ISR). */}
+      <AuthErrorBanner />
+
       <Card padding="p-8 sm:p-12" className="relative overflow-hidden">
         {/* Decorative backdrop: item icons from recent global drops, washed
             out under a left-to-right surface gradient so the copy and search

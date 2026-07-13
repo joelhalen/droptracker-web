@@ -15,13 +15,14 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
 
-  const [config, subscription, tiers, user, group] = await Promise.all([
+  const [config, subscription, tiers, user, group, seasonal] = await Promise.all([
     api.groupConfig(groupId),
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
     getUser(),
     // Icon lives on the public profile payload; non-critical for settings.
     api.group(groupId).catch(() => null),
+    api.seasonalStatus().catch(() => ({ active: true })),
   ]);
 
   return (
@@ -36,6 +37,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
         subscription={subscription}
         tiers={tiers}
         isSuperadmin={user?.is_superadmin}
+        seasonalActive={seasonal.active}
       />
     </div>
   );

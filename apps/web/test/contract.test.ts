@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  B2UsageSchema,
+  BackupOffsiteSchema,
+  BackupOverviewSchema,
   AdminLookupResponseSchema,
   AdminSubscriptionsOverviewSchema,
   AnnouncementPageSchema,
@@ -32,6 +35,9 @@ import {
 } from "@droptracker/api-types";
 import openapi from "@droptracker/api-types/openapi" with { type: "json" };
 import {
+  mockB2Usage,
+  mockBackupOffsite,
+  mockBackupOverview,
   mockAnnouncements,
   mockEvent,
   mockEventTeam,
@@ -88,6 +94,9 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => AnnouncementPageSchema.parse(mockAnnouncements()));
   assert.doesNotThrow(() => MeSchema.parse(mockMe()));
   assert.doesNotThrow(() => ServiceStatusSchema.array().parse(mockServices()));
+  assert.doesNotThrow(() => BackupOverviewSchema.parse(mockBackupOverview()));
+  assert.doesNotThrow(() => BackupOffsiteSchema.parse(mockBackupOffsite()));
+  assert.doesNotThrow(() => B2UsageSchema.parse(mockB2Usage()));
   assert.doesNotThrow(() => AdminLookupResponseSchema.parse(mockLookup("zez")));
   assert.doesNotThrow(() => LootboardSchema.parse(mockLootboard(42, "all")));
   assert.doesNotThrow(() => EventSummarySchema.array().parse(mockEvents()));

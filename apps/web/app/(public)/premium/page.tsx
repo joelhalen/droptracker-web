@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { formatPrice } from "@/lib/format";
 import { Badge, EmptyState } from "@/components/ui";
 import { InlineMarkdown } from "@/components/markdown";
+import { PremiumTierCta } from "@/components/premium-tier-cta";
 import { SupporterManager } from "@/components/supporter-manager";
 
 export const revalidate = 300;
@@ -62,6 +63,8 @@ export default async function PremiumPage() {
                 </li>
               ))}
             </ul>
+            {/* Auth-aware CTA is a client island so the page stays static/ISR. */}
+            <PremiumTierCta tierKey={t.key} />
           </div>
         ))}
       </div>

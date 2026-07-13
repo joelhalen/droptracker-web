@@ -77,10 +77,13 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "announcements_channel_id", label: "Announcements channel", category: "channels", type: "channel", help: "Channel where published announcements are syndicated (FRONTEND_PLAN.md §10).", default: null },
 
   // --- Drop notifications -------------------------------------------------
-  { key: "minimum_value_to_notify", label: "Minimum value to notify", category: "drops", type: "int", help: "Suppress drop notifications below this GP value.", default: 100000, min: 0 },
+  // Defaults must match the backend processors' runtime fallbacks
+  // (data/submissions/drop.py) so the editor never shows one behavior while
+  // the bot does another.
+  { key: "minimum_value_to_notify", label: "Minimum value to notify", category: "drops", type: "int", help: "Suppress drop notifications below this GP value.", default: 2500000, min: 0 },
   { key: "only_include_items_over_minimum", label: "Only items over minimum", category: "drops", type: "boolean", help: "On stacked/multi-item drops, only include items above the minimum value.", default: false, seasonalMirror: true },
   { key: "only_send_messages_with_images", label: "Only send with images", category: "drops", type: "boolean", help: "Require a screenshot before posting a drop.", default: false, seasonalMirror: true },
-  { key: "send_stacks_of_items", label: "Send item stacks", category: "drops", type: "boolean", help: "Combine stacks of the same item into one notification.", default: true, seasonalMirror: true },
+  { key: "send_stacks_of_items", label: "Announce item stacks", category: "drops", type: "boolean", help: "Announce drops of stackable items (e.g. rune/coin stacks) when their total value passes the minimum.", default: false, seasonalMirror: true },
   { key: "notify_clogs", label: "Notify collection logs", category: "drops", type: "boolean", help: "Post a notification on new collection-log slots.", default: true, seasonalMirror: true },
   { key: "notify_cas", label: "Notify combat achievements", category: "drops", type: "boolean", help: "Post a notification on combat-achievement completions.", default: true, seasonalMirror: true },
   { key: "notify_pets", label: "Notify pets", category: "drops", type: "boolean", help: "Post a notification on pet drops.", default: true, seasonalMirror: true },
@@ -90,11 +93,11 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "notify_diaries", label: "Notify achievement diaries", category: "drops", type: "boolean", help: "Post a notification on achievement-diary completions.", default: false, seasonalMirror: true },
 
   // --- Level notifications ------------------------------------------------
-  { key: "notify_levels", label: "Notify levels", category: "levels", type: "boolean", help: "Post level-up notifications.", default: false, seasonalMirror: true },
-  { key: "level_minimum_for_notifications", label: "Minimum level", category: "levels", type: "int", help: "Only notify for levels at or above this value.", default: 80, min: 1, max: 99 },
-  { key: "level_increment", label: "Level increment", category: "levels", type: "int", help: "Notify every N levels.", default: 1, min: 1, max: 99 },
-  { key: "level_milestones", label: "Level milestones", category: "levels", type: "csv", help: "Comma-separated specific levels that always notify (e.g. 50,75,99).", default: "50,75,99" },
-  { key: "post99_xp_interval", label: "Post-99 XP interval", category: "levels", type: "int", help: "After level 99, notify every N XP gained.", default: 25000000, min: 0 },
+  { key: "notify_levels", label: "Notify levels", category: "levels", type: "boolean", help: "Master toggle for level-up, total-level milestone, and post-99 XP milestone notifications.", default: false, seasonalMirror: true },
+  { key: "level_minimum_for_notifications", label: "Minimum level", category: "levels", type: "int", help: "Only notify for levels at or above this value.", default: 1, min: 1, max: 99 },
+  { key: "level_increment", label: "Level increment", category: "levels", type: "int", help: "Notify every N levels (1 = every level). Level 99 always notifies.", default: 1, min: 1, max: 99 },
+  { key: "level_milestones", label: "Total level milestones", category: "levels", type: "csv", help: "Comma-separated TOTAL levels that always notify (e.g. 1500,2000,2277).", default: "" },
+  { key: "post99_xp_interval", label: "Post-99 XP interval", category: "levels", type: "int", help: "After a skill reaches 99, notify every N XP (e.g. 25000000 = every 25M). Multiples of 1M; 0 disables.", default: 25000000, min: 0 },
 
   // --- Personal best ------------------------------------------------------
   // notify_pbs (PB notifications) is available to every group. The Hall of
@@ -169,6 +172,13 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
     help: "Optional. Where to ping when a manual submission is held for approval (the \"Hold for admin approval\" policy). Leave unset to review only on the website.",
     default: null,
   },
+
+  // --- Member activity log + voice-channel stat displays -------------------
+  { key: "channel_id_to_send_logs", label: "Member log channel", category: "channels", type: "channel", help: "Channel where member join/leave log messages are posted. Leave unset to disable.", default: null },
+  { key: "vc_to_display_monthly_loot", label: "Monthly loot voice channel", category: "integration", type: "channel", help: "Voice channel renamed every 10 minutes to show the group's monthly loot total. Voice channels aren't listed in the picker — use manual ID entry.", default: null },
+  { key: "vc_to_display_monthly_loot_text", label: "Monthly loot channel text", category: "integration", type: "string", help: "Template for the loot voice channel name. Placeholders: {month}, {gp_amount}.", default: "{month}: {gp_amount} gp" },
+  { key: "vc_to_display_droptracker_users", label: "Member count voice channel", category: "integration", type: "channel", help: "Voice channel renamed every 10 minutes to show the group's tracked member count. Voice channels aren't listed in the picker — use manual ID entry.", default: null },
+  { key: "vc_to_display_droptracker_users_text", label: "Member count channel text", category: "integration", type: "string", help: "Template for the member-count voice channel name. Placeholder: {member_count}.", default: "{member_count} members" },
 
   // --- Misc / integration -------------------------------------------------
   { key: "group_name", label: "Group name", category: "integration", type: "string", help: "Display name of the group.", default: "" },

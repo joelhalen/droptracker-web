@@ -37,10 +37,13 @@ export function SubscriptionManager({
   groupId,
   tiers,
   initial,
+  highlightTierKey,
 }: {
   groupId: number;
   tiers: SubscriptionTier[];
   initial: GroupSubscription;
+  /** Tier deep-linked from /premium (`?tier=`) — its plan card gets a gold ring. */
+  highlightTierKey?: string;
 }) {
   const [sub, setSub] = useState(initial);
   const [pending, startTransition] = useTransition();
@@ -251,7 +254,11 @@ export function SubscriptionManager({
               <div
                 key={t.key}
                 className={`bg-osrs-surface-1 shadow-osrs-card flex flex-col rounded-xl border p-5 ${
-                  t.recommended ? "border-osrs-gold/60" : "border-osrs-bronze/30"
+                  t.key === highlightTierKey
+                    ? "border-osrs-gold ring-osrs-gold/40 ring-1"
+                    : t.recommended
+                      ? "border-osrs-gold/60"
+                      : "border-osrs-bronze/30"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
