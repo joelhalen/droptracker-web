@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { GroupConfigPatchSchema, HALL_OF_FAME_CONFIG_KEYS, type GroupConfigPatch } from "@droptracker/api-types";
-import { api, ApiError, type DiscordChannelList, type PbBossList } from "@/lib/api";
+import { api, ApiError, type DiscordChannelList, type LootboardStyleList, type PbBossList } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
 
@@ -84,4 +84,13 @@ export async function fetchGroupPbBosses(groupId: number): Promise<PbBossList> {
     throw new Error("Forbidden: you do not administer this group.");
   }
   return api.groupPbBosses(groupId);
+}
+
+/** Server Action: the lootboard style catalog for the board-style picker. */
+export async function fetchLootboardStyles(groupId: number): Promise<LootboardStyleList> {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  return api.lootboardStyles();
 }

@@ -28,6 +28,7 @@ export type ConfigFieldType =
   | "text" // multi-line
   | "csv" // comma-separated list
   | "bosslist" // comma-separated boss names, picked from GET /groups/{id}/pb-bosses
+  | "boardstyle" // lootboards-table row id, picked from GET /lootboard-styles
   | "select";
 
 export interface ConfigField {
@@ -126,18 +127,15 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   },
 
   // --- Board settings -----------------------------------------------------
+  // boardstyle: the full ~87-style catalog (GET /lootboard-styles) chosen via
+  // the preview picker modal; the backend PATCH validates the id exists.
   {
     key: "loot_board_type",
-    label: "Lootboard type",
+    label: "Lootboard style",
     category: "board",
-    type: "select",
-    help: "Visual style of the generated lootboard.",
+    type: "boardstyle",
+    help: "Visual style of the generated lootboard. Browse the catalog with live previews.",
     default: "1",
-    options: [
-      { value: "1", label: "Classic" },
-      { value: "2", label: "Compact" },
-      { value: "3", label: "Seasonal" },
-    ],
   },
   { key: "use_dynamic_colors", label: "Dynamic colors", category: "board", type: "boolean", help: "Color item tiles by relative value.", default: true },
   { key: "use_gp_colors", label: "GP colors", category: "board", type: "boolean", help: "Use GP-value color thresholds on the board.", default: true },
@@ -230,6 +228,7 @@ function fieldSchema(f: ConfigField): z.ZodTypeAny {
     case "text":
     case "csv":
     case "bosslist":
+    case "boardstyle":
       return z.string();
     default:
       return z.string();

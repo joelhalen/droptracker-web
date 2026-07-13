@@ -13,13 +13,15 @@ import {
   saveGroupConfig,
   fetchGroupDiscordChannels,
   fetchGroupPbBosses,
+  fetchLootboardStyles,
 } from "@/app/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { BossListPicker } from "@/components/boss-list-picker";
-import type { DiscordChannel } from "@/lib/api";
+import { BoardStylePicker } from "@/components/board-style-picker";
+import type { DiscordChannel, LootboardStyle } from "@/lib/api";
 
 type ConfigValue = string | number | boolean | null;
 type ConfigMap = Record<string, ConfigValue>;
@@ -92,6 +94,8 @@ export function ConfigEditor({
   const [channels, setChannels] = useState<DiscordChannel[]>([]);
   // Boss names with stored PBs, for the Hall of Fame "bosslist" picker.
   const [bosses, setBosses] = useState<string[]>([]);
+  // Lootboard style catalog for the "boardstyle" preview picker.
+  const [boardStyles, setBoardStyles] = useState<LootboardStyle[]>([]);
   useEffect(() => {
     let active = true;
     fetchGroupDiscordChannels(groupId)
@@ -107,6 +111,13 @@ export function ConfigEditor({
       })
       .catch(() => {
         /* boss picker falls back to manual entry when the list is empty */
+      });
+    fetchLootboardStyles(groupId)
+      .then((res) => {
+        if (active) setBoardStyles(res.styles);
+      })
+      .catch(() => {
+        /* style picker falls back to a numeric input when the list is empty */
       });
     return () => {
       active = false;
@@ -269,6 +280,7 @@ export function ConfigEditor({
                         onChange={(v) => set(seasonalKey(f.key), v)}
                         channels={channels}
                         bosses={bosses}
+                        boardStyles={boardStyles}
                         locked={isFieldLocked(f)}
                         groupId={groupId}
                       />
@@ -317,6 +329,7 @@ export function ConfigEditor({
                       onChange={(v) => set(f.key, v)}
                       channels={channels}
                       bosses={bosses}
+                      boardStyles={boardStyles}
                       locked={isFieldLocked(f)}
                       groupId={groupId}
                     />
@@ -334,6 +347,7 @@ export function ConfigEditor({
                       onChange={(v) => set(f.key, v)}
                       channels={channels}
                       bosses={bosses}
+                      boardStyles={boardStyles}
                       locked={isFieldLocked(f)}
                       groupId={groupId}
                     />
@@ -444,6 +458,7 @@ function InputField({
   onChange,
   channels,
   bosses,
+  boardStyles = [],
   locked = false,
   groupId,
 }: {
@@ -452,6 +467,7 @@ function InputField({
   onChange: (v: ConfigValue) => void;
   channels: DiscordChannel[];
   bosses: string[];
+  boardStyles?: LootboardStyle[];
   locked?: boolean;
   groupId: number;
 }) {
@@ -505,6 +521,13 @@ function InputField({
       ) : field.type === "bosslist" ? (
         <BossListPicker
           bosses={bosses}
+          value={String(value ?? "")}
+          onChange={(v) => onChange(v)}
+          disabled={disabled}
+        />
+      ) : field.type === "boardstyle" ? (
+        <BoardStylePicker
+          styles={boardStyles}
           value={String(value ?? "")}
           onChange={(v) => onChange(v)}
           disabled={disabled}

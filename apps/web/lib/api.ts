@@ -540,6 +540,19 @@ export interface PbBossList {
   cached: boolean;
 }
 
+/** GET /lootboard-styles — the selectable lootboard style catalog
+ * (backs the `loot_board_type` preview picker in the config editor). */
+const LootboardStyleSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  category: z.string(),
+  description: z.string(),
+  preview_url: z.string(),
+});
+const LootboardStyleListSchema = z.object({ styles: z.array(LootboardStyleSchema) });
+export type LootboardStyle = z.infer<typeof LootboardStyleSchema>;
+export type LootboardStyleList = z.infer<typeof LootboardStyleListSchema>;
+
 /* -------------------------------------------------------------------------- */
 /* Event Discord config (Task 19): guilds/channels from the bot's Redis caches. */
 /* -------------------------------------------------------------------------- */
@@ -2290,6 +2303,20 @@ export const api = {
       async () =>
         CheckoutSessionSchema.parse(await apiSend("POST", `/users/me/subscription/portal`, {})),
       () => ({ url: null }),
+    );
+  },
+
+  /** Lootboard style catalog (id, category, preview) for the board-style picker. */
+  async lootboardStyles(): Promise<LootboardStyleList> {
+    return withFallback(
+      async () => LootboardStyleListSchema.parse(await apiGet(`/lootboard-styles`)),
+      () => ({
+        styles: [
+          { id: 1, name: "Classic Bank", category: "Classic", description: "The original dark bank layout.", preview_url: "https://www.droptracker.io/img/lootboards/1.png" },
+          { id: 2, name: "Clean Light", category: "Classic", description: "Light parchment variant.", preview_url: "https://www.droptracker.io/img/lootboards/2.png" },
+          { id: 3, name: "RuneLite Dark", category: "RuneLite", description: "Matches the RuneLite client theme.", preview_url: "https://www.droptracker.io/img/lootboards/3.png" },
+        ],
+      }),
     );
   },
 
