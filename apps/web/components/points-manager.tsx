@@ -12,7 +12,7 @@
  * `custom_points` entitlement on every write.
  */
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import type {
@@ -84,6 +84,80 @@ function SectionHeading({ title, hint }: { title: string; hint?: string }) {
       <h2 className="text-osrs-gold text-lg font-semibold">{title}</h2>
       {hint && <p className="text-osrs-parchment-dark/70 mt-0.5 text-sm">{hint}</p>}
     </div>
+  );
+}
+
+/**
+ * Sections whose length grows with user data (overrides, include/exclude
+ * entries) start collapsed once they exceed this many rows, so a group with a
+ * long list doesn't turn the page into an endless scroll.
+ */
+const COLLAPSE_DEFAULT_THRESHOLD = 8;
+
+/**
+ * A section whose body can be folded away behind a clickable heading. When
+ * collapsed it shrinks to a single title + count line; expanding reveals the
+ * table/list and its "Add" form. `count` is live (badge updates as entries are
+ * added/removed); `defaultOpen` is read once at mount from the initial data.
+ */
+function CollapsibleSection({
+  title,
+  hint,
+  count,
+  defaultOpen = true,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  count?: number;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const bodyId = useId();
+
+  return (
+    <section className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        className="group hover:bg-osrs-bronze/10 -mx-2 flex w-full items-start gap-2 rounded-lg px-2 py-1 text-left transition-colors"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          className={`text-osrs-parchment-dark/50 group-hover:text-osrs-gold mt-1 size-4 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <h2 className="text-osrs-gold text-lg font-semibold">{title}</h2>
+            {typeof count === "number" && count > 0 && (
+              <span className="bg-osrs-bronze/20 text-osrs-parchment-dark/80 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums">
+                {count}
+              </span>
+            )}
+            {!open && <span className="text-osrs-parchment-dark/40 text-xs">Show</span>}
+          </div>
+          {hint && open && (
+            <p className="text-osrs-parchment-dark/70 mt-0.5 text-sm">{hint}</p>
+          )}
+        </div>
+      </button>
+      {open && (
+        <div id={bodyId} className="space-y-3">
+          {children}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -510,11 +584,12 @@ function ModsSection({
     });
 
   return (
-    <section className="space-y-3">
-      <SectionHeading
-        title="Item & boss overrides"
-        hint="Replace the default award for specific items and/or NPCs. For drops with a quantity, an override awards points per item; otherwise it's the divisor formula (or a flat award for non-drop types)."
-      />
+    <CollapsibleSection
+      title="Item & boss overrides"
+      hint="Replace the default award for specific items and/or NPCs. For drops with a quantity, an override awards points per item; otherwise it's the divisor formula (or a flat award for non-drop types)."
+      count={mods.length}
+      defaultOpen={initial.length <= COLLAPSE_DEFAULT_THRESHOLD}
+    >
       {mods.length === 0 ? (
         <EmptyState title="No overrides yet" hint="All submissions use the base award rules." />
       ) : (
@@ -646,7 +721,7 @@ function ModsSection({
         </div>
       </Card>
       {error && <Alert variant="error">{error}</Alert>}
-    </section>
+    </CollapsibleSection>
   );
 }
 
@@ -696,11 +771,12 @@ function ListsSection({
   const byType = (t: PointListType) => entries.filter((e) => e.list_type === t);
 
   return (
-    <section className="space-y-3">
-      <SectionHeading
-        title="Include / exclude lists"
-        hint="Fine-grained gates evaluated before any award: blacklist blocks, whitelist restricts, no-split prevents teammate sharing."
-      />
+    <CollapsibleSection
+      title="Include / exclude lists"
+      hint="Fine-grained gates evaluated before any award: blacklist blocks, whitelist restricts, no-split prevents teammate sharing."
+      count={entries.length}
+      defaultOpen={initial.length <= COLLAPSE_DEFAULT_THRESHOLD}
+    >
       <div className="grid gap-3 lg:grid-cols-3">
         {(["blacklist", "whitelist", "no_split"] as const).map((t) => (
           <Card key={t} padding="p-4">
@@ -762,7 +838,7 @@ function ListsSection({
         </div>
       </Card>
       {error && <Alert variant="error">{error}</Alert>}
-    </section>
+    </CollapsibleSection>
   );
 }
 
