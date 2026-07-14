@@ -14,8 +14,10 @@ export default async function AdminServicesPage() {
   return (
     <div>
       <p className="text-osrs-parchment-dark/70 mb-6 text-sm">
-        Control the backend services and inspect recent logs. Stopping a service interrupts
-        processing — proceed with care.
+        Every moving part of DropTracker — APIs, Discord bots, workers, the blue-green web pair
+        and shared infrastructure — with live status, uptime and controls. &ldquo;Deploy
+        site&rdquo; rebuilds and flips the front-end with zero downtime; stopping a service
+        interrupts processing, so those actions ask for confirmation.
       </p>
       <SeasonalTogglePanel initialActive={seasonal.active} />
       <ServicePanel services={services} />

@@ -342,6 +342,7 @@ export function mockMe(): Me {
     display_name: "MockUser",
     avatar_url: null,
     is_superadmin: true,
+    is_moderator: true,
     is_supporter: true,
     players: [
       { id: 1337, name: "Zezima", global_rank: 1, total_loot: money(2_000_000_000) },
@@ -1111,28 +1112,98 @@ export function mockGroupEmbeds(): GroupEmbedsResponse {
 
 export function mockServices(): ServiceStatus[] {
   const now = Math.floor(Date.now() / 1000);
+  // Mirrors the backend SERVICE_REGISTRY (web_api/routes/admin.py): every app
+  // unit grouped by tier, plus read-only infrastructure rows.
+  const svc = (
+    unit: string,
+    name: string,
+    category: string,
+    description: string,
+    over: Partial<ServiceStatus> = {},
+  ): ServiceStatus => ({
+    unit,
+    name,
+    status: "running",
+    active: true,
+    since: now - 86400 * 3,
+    description,
+    category,
+    kind: "service",
+    port: null,
+    sub_state: "running",
+    memory_mb: 180,
+    n_restarts: 0,
+    enabled: true,
+    last_result: "success",
+    actions: ["start", "stop", "restart"],
+    confirm_stop: false,
+    confirm_restart: false,
+    ...over,
+  });
   return [
-    {
-      unit: "droptracker-core",
-      name: "Core processor",
-      status: "running",
-      active: true,
-      since: now - 86400 * 3,
-    },
-    {
-      unit: "droptracker-api",
-      name: "Intake API",
-      status: "running",
-      active: true,
-      since: now - 86400 * 3,
-    },
-    {
-      unit: "droptracker-webhooks",
-      name: "Webhooks / notifications",
-      status: "running",
-      active: true,
+    svc("droptracker-api", "RuneLite intake API", "Web & APIs", "Receives plugin submissions", {
+      port: 31323,
+      confirm_stop: true,
+    }),
+    svc("droptracker-webapi", "Web API (this backend)", "Web & APIs", "Serves /api/v1 for the website", {
+      port: 31325,
+      confirm_stop: true,
+    }),
+    svc("droptracker-node", "Website deploy (blue-green)", "Web & APIs", "Restart = zero-downtime deploy (~2 min)", {
+      kind: "deploy",
+      sub_state: "exited",
+      memory_mb: null,
+      actions: ["restart"],
+    }),
+    svc("droptracker-node-blue", "Website front-end — blue", "Web & APIs", "Next.js instance; one colour serves live traffic", {
+      kind: "web",
+      port: 31380,
+      actions: ["restart"],
+      confirm_stop: true,
+      confirm_restart: true,
+    }),
+    svc("droptracker-node-green", "Website front-end — green", "Web & APIs", "Next.js instance; one colour serves live traffic", {
+      kind: "web",
+      port: 31381,
+      actions: ["restart"],
+      confirm_stop: true,
+      confirm_restart: true,
+    }),
+    svc("droptracker-core", "Discord bot (core)", "Discord bots", "Slash commands, notifications, lootboard posting"),
+    svc("droptracker-webhooks", "Webhook reader bot", "Discord bots", "Reads webhook-channel messages", {
       since: now - 3600,
-    },
+      n_restarts: 2,
+    }),
+    svc("droptracker-heartbeat", "Heartbeat bot", "Discord bots", "Uptime heartbeat"),
+    svc("droptracker-hof", "Hall of Fame bot", "Discord bots", "Generates and posts Hall of Fame images"),
+    svc("droptracker-webhook-consumer", "Intake queue consumer", "Processing & workers", "Drains webhook:queue", {
+      confirm_stop: true,
+    }),
+    svc("droptracker-events", "Events consumer", "Processing & workers", "Applies submissions to active events"),
+    svc("droptracker-lootboards", "Lootboard generator", "Processing & workers", "Regenerates lootboard images", {
+      status: "failed",
+      active: false,
+      sub_state: "failed",
+      memory_mb: null,
+      last_result: "exit-code",
+    }),
+    svc("droptracker-player-updates", "Player updater", "Processing & workers", "WOM sync + leaderboards"),
+    svc("droptracker-video-worker", "Video worker", "Processing & workers", "MJPEG→MP4 conversion + B2 upload"),
+    svc("nginx", "nginx", "Infrastructure", "Reverse proxy fronting every HTTP service", {
+      kind: "infra",
+      port: 80,
+      actions: [],
+    }),
+    svc("mariadb", "MariaDB", "Infrastructure", "Primary database", {
+      kind: "infra",
+      port: 3306,
+      actions: [],
+    }),
+    svc("redis-server", "Redis", "Infrastructure", "Leaderboards, queues, realtime pub/sub", {
+      kind: "infra",
+      port: 6379,
+      actions: [],
+    }),
   ];
 }
 
@@ -1368,8 +1439,8 @@ export function mockEvent(id: number): EventDetail {
   const summary = mockEvents().find((e) => e.id === id) ?? mockEvents()[0]!;
   const cells = Array.from({ length: 25 }, (_, i) => ({
     index: i,
-    label: ["Twisted bow", "Any pet", "99 Slayer", "Vorkath 50kc", "Inferno cape"][i % 5]!,
-    task_id: i % 5 === 0 ? 12 : null,
+    label: ["Twisted bow", "Free space", "99 Slayer", "Vorkath 50kc", "Any 2 hilts"][i % 5]!,
+    task_id: [12, null, 13, 11, 15][i % 5] ?? null,
     completed_by: i % 4 === 0 ? ["Team Red"] : i % 7 === 0 ? ["Team Blue"] : [],
     completions:
       i % 4 === 0
@@ -1407,6 +1478,12 @@ export function mockEvent(id: number): EventDetail {
         points: 10,
         requires_confirmation: false,
         visibility: "public",
+        tile: {
+          badge: "KC TARGET",
+          value: "50 KC",
+          icons: [{ type: "npc", id: 8060, name: "Vorkath" }],
+          icon_overflow: 0,
+        },
       },
       {
         id: 12,
@@ -1416,6 +1493,12 @@ export function mockEvent(id: number): EventDetail {
         points: 50,
         requires_confirmation: true,
         visibility: "private",
+        tile: {
+          badge: "COLLECT",
+          value: null,
+          icons: [{ type: "item", id: 20997, name: "Twisted bow" }],
+          icon_overflow: 0,
+        },
       },
       {
         id: 13,
@@ -1426,6 +1509,12 @@ export function mockEvent(id: number): EventDetail {
         points: 25,
         requires_confirmation: false,
         visibility: "public",
+        tile: {
+          badge: "SKILL LEVEL",
+          value: "Lvl 99",
+          icons: [{ type: "skill", id: null, name: "slayer" }],
+          icon_overflow: 0,
+        },
       },
       {
         id: 14,
@@ -1436,6 +1525,37 @@ export function mockEvent(id: number): EventDetail {
         points: 15,
         requires_confirmation: false,
         visibility: "public",
+        tile: {
+          badge: "XP TARGET",
+          value: "10.00M XP",
+          icons: [{ type: "skill", id: null, name: "ranged" }],
+          icon_overflow: 0,
+        },
+      },
+      {
+        id: 15,
+        type: "item_collection",
+        label: "Collect any 2 godsword hilts",
+        target: null,
+        target_value: 2,
+        points: 30,
+        requires_confirmation: false,
+        visibility: "public",
+        config: JSON.stringify({
+          kind: "any_of",
+          items: ["Bandos hilt", "Armadyl hilt", "Zamorak hilt", "Saradomin hilt"],
+        }),
+        tile: {
+          badge: "ANY 2",
+          value: null,
+          icons: [
+            { type: "item", id: 11812, name: "Bandos hilt" },
+            { type: "item", id: 11810, name: "Armadyl hilt" },
+            { type: "item", id: 11816, name: "Zamorak hilt" },
+            { type: "item", id: 11814, name: "Saradomin hilt" },
+          ],
+          icon_overflow: 0,
+        },
       },
     ],
     teams: [
@@ -1443,6 +1563,7 @@ export function mockEvent(id: number): EventDetail {
         id: 21,
         name: "Team Red",
         score: 120,
+        color: "#e05c4c",
         member_count: 3,
         members: [
           { player_id: 1337, player_name: "Zezima", joined_at: now - 3 * DAY },
@@ -1454,6 +1575,7 @@ export function mockEvent(id: number): EventDetail {
         id: 22,
         name: "Team Blue",
         score: 95,
+        color: "#38bdf8", // custom (not in the default palette)
         member_count: 2,
         members: [
           { player_id: 2003, player_name: "Framed", joined_at: now - 3 * DAY },
@@ -1467,6 +1589,8 @@ export function mockEvent(id: number): EventDetail {
       { task_id: 11, team_id: 22, progress: 50, completed: true, completed_at: now - 5400 },
       { task_id: 12, team_id: 21, progress: 1, completed: true, completed_at: now - 3600 },
       { task_id: 14, team_id: 22, progress: 4_250_000, completed: false, completed_at: null },
+      { task_id: 15, team_id: 21, progress: 1, completed: false, completed_at: null },
+      { task_id: 15, team_id: 22, progress: 2, completed: true, completed_at: now - 900 },
     ],
     bingo: summary.has_bingo ? { size: 5, cells } : null,
     viewer: { player_ids_on_event: [1337], team_id: 21, signed_up_player_ids: [] },

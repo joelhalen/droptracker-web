@@ -23,9 +23,15 @@ export async function runServiceAction(
 }
 
 /** Server Action: fetch recent journal logs for a unit. */
-export async function fetchServiceLogs(unit: string) {
+export async function fetchServiceLogs(unit: string, lines = 200) {
   await requireSuperadmin("/admin/services");
-  return api.adminServiceLogs(unit);
+  return api.adminServiceLogs(unit, lines);
+}
+
+/** Server Action: re-poll live unit statuses (drives the panel's auto-refresh). */
+export async function refreshServices() {
+  await requireSuperadmin("/admin/services");
+  return api.adminServices();
 }
 
 /** Server Action: toggle global seasonal-world submission processing. */

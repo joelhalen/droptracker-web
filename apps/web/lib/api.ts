@@ -501,6 +501,7 @@ export interface AdminUserOverview {
     display_name: string | null;
     avatar_url: string | null;
     is_superadmin: boolean;
+    is_moderator: boolean;
     public: boolean;
     hidden: boolean;
     date_added: number | null;
@@ -2395,11 +2396,14 @@ export const api = {
     );
   },
 
-  async adminServiceLogs(unit: string): Promise<ServiceLogs> {
+  async adminServiceLogs(unit: string, lines = 200): Promise<ServiceLogs> {
     return withFallback(
       async () =>
         ServiceLogsSchema.parse(
-          await apiGet(`/admin/services/${encodeURIComponent(unit)}/logs`, { authed: true }),
+          await apiGet(
+            `/admin/services/${encodeURIComponent(unit)}/logs?lines=${encodeURIComponent(lines)}`,
+            { authed: true },
+          ),
         ),
       () => mockServiceLogs(unit),
     );
@@ -2894,6 +2898,7 @@ export const api = {
           display_name: `User #${userId}`,
           avatar_url: null,
           is_superadmin: false,
+          is_moderator: false,
           public: true,
           hidden: false,
           date_added: null,
@@ -2909,6 +2914,17 @@ export const api = {
     return withFallback(
       async () => {
         await apiSend("POST", `/admin/users/${userId}/superadmin`, { grant });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Grant/revoke the moderator flag (also awards/revokes the profile badge). */
+  async adminSetUserModerator(userId: number, grant: boolean): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/admin/users/${userId}/moderator`, { grant });
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,

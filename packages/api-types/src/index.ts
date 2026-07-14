@@ -636,6 +636,8 @@ export const MeSchema = z.object({
   avatar_url: z.string().nullable().optional(),
   /** Site staff: unlocks the superadmin surfaces (FRONTEND_PLAN.md §9). */
   is_superadmin: z.boolean().default(false),
+  /** Trusted helper: unlocks the /moderation panel (superadmin implies it). */
+  is_moderator: z.boolean().default(false),
   /** Active supporter subscription (user-level premium flair/perks). */
   is_supporter: z.boolean().default(false),
   players: z.array(PlayerSummarySchema).default([]),
@@ -656,7 +658,19 @@ export type Me = z.infer<typeof MeSchema>;
 /** Realtime SSE event envelope (FRONTEND_PLAN.md §8.3). */
 export const RealtimeEventSchema = z.object({
   v: z.literal(1),
-  type: z.enum(["drop", "leaderboard_delta", "announcement", "submission", "event_update"]),
+  type: z.enum([
+    "drop",
+    "leaderboard_delta",
+    "announcement",
+    "submission",
+    "event_update",
+    // Site-wide ticker types (backend services/realtime.py feed publishers).
+    "personal_best",
+    "pet",
+    "group_created",
+    "new_player",
+    "subscription",
+  ]),
   scope: z.string(),
   ts: z.number().int(),
   data: z.record(z.string(), z.unknown()),
@@ -1182,18 +1196,52 @@ export type GroupEmbedInput = z.infer<typeof GroupEmbedInputSchema>;
  * `ServiceManagement`). The three managed units.
  */
 export const SERVICE_UNITS = [
-  "droptracker-core",
   "droptracker-api",
+  "droptracker-webapi",
+  "droptracker-node",
+  "droptracker-node-blue",
+  "droptracker-node-green",
+  "droptracker-core",
   "droptracker-webhooks",
+  "droptracker-heartbeat",
+  "droptracker-hof",
+  "droptracker-webhook-consumer",
+  "droptracker-events",
+  "droptracker-lootboards",
+  "droptracker-player-updates",
+  "droptracker-video-worker",
+  "nginx",
+  "mariadb",
+  "redis-server",
 ] as const;
 
 export const ServiceStatusSchema = z.object({
   unit: z.string(),
   name: z.string(),
-  status: z.enum(["running", "stopped", "failed", "unknown"]),
+  status: z.enum(["running", "stopped", "failed", "starting", "stopping", "unknown"]),
   active: z.boolean(),
   /** Unix seconds since the current state began. */
   since: z.number().int().nullable(),
+  // -- enriched fields (older backends omit them; all defaulted) ----------
+  description: z.string().nullish(),
+  category: z.string().default("Services"),
+  /**
+   * service = normal unit (start/stop/restart) · web = traffic-serving Next.js
+   * colour (confirm-restart only) · deploy = blue-green deploy trigger
+   * (restart = zero-downtime deploy) · infra = read-only system service.
+   */
+  kind: z.enum(["service", "web", "deploy", "infra"]).default("service"),
+  port: z.number().int().nullish(),
+  sub_state: z.string().nullish(),
+  memory_mb: z.number().nullish(),
+  n_restarts: z.number().int().default(0),
+  enabled: z.boolean().default(true),
+  /** systemd Result — for the deploy oneshot this is the last deploy outcome. */
+  last_result: z.string().nullish(),
+  /** Control actions the backend permits for this unit. */
+  actions: z.array(z.enum(["start", "stop", "restart"])).default(["start", "stop", "restart"]),
+  confirm_stop: z.boolean().default(false),
+  confirm_restart: z.boolean().default(false),
 });
 export type ServiceStatus = z.infer<typeof ServiceStatusSchema>;
 
@@ -1711,6 +1759,29 @@ export type EventPingKey = (typeof EVENT_PING_KEYS)[number];
 /** Square bingo boards only; 5×5 is the default. */
 export const EVENT_BOARD_SIZES = [3, 4, 5, 6, 7] as const;
 
+/** One icon of a task tile. `id` maps to `/img/{itemdb|npcdb}/{id}.png`;
+ * skill icons are keyed by name (`/img/metrics/{name}.png`) with `id: null`. */
+export const TaskTileIconSchema = z.object({
+  type: z.enum(["item", "npc", "skill"]),
+  id: z.number().int().nullable().optional(),
+  name: z.string(),
+  /** Required count shown as a chip on the icon (present when > 1). */
+  quantity: z.number().int().optional(),
+});
+export type TaskTileIcon = z.infer<typeof TaskTileIconSchema>;
+
+/** Display metadata for a task's board tile: resolved icon refs plus a
+ * legacy-style badge ("KC TARGET", "FULL SET", …) and short value string
+ * ("100.00M GP"). The frontend composes tile art from these. */
+export const TaskTileSchema = z.object({
+  badge: z.string().nullable().optional(),
+  value: z.string().nullable().optional(),
+  icons: z.array(TaskTileIconSchema),
+  /** Icons dropped past the server-side cap; render as a "+N" chip. */
+  icon_overflow: z.number().int().default(0),
+});
+export type TaskTile = z.infer<typeof TaskTileSchema>;
+
 export const EventTaskSchema = z.object({
   id: z.number().int(),
   type: z.enum(EVENT_TASK_TYPES),
@@ -1726,6 +1797,9 @@ export const EventTaskSchema = z.object({
   visibility: z.enum(EVENT_TASK_VISIBILITIES).default("public"),
   /** JSON string: any_of/assembly/point_collection item lists etc. */
   config: z.string().nullable().optional(),
+  /** Board-tile display metadata (absent on payloads from before the
+   * tile-resurrection pass). */
+  tile: TaskTileSchema.nullable().optional(),
 });
 export type EventTask = z.infer<typeof EventTaskSchema>;
 
@@ -1744,6 +1818,8 @@ export const EventTeamSchema = z.object({
   member_count: z.number().int().default(0),
   /** The clan this team represents (clan_vs_clan only; null on standard). */
   group_id: z.number().int().nullable().optional(),
+  /** Admin-assigned accent color ("#rrggbb"); null = index-based palette. */
+  color: z.string().nullable().optional(),
   /** Present on EventDetail reads (Task 16); absent on legacy payloads. */
   members: z.array(EventMemberSchema).optional(),
 });
@@ -1884,6 +1960,8 @@ export const EventTeamDetailSchema = z.object({
     name: z.string(),
     score: z.number().int().default(0),
     group_id: z.number().int().nullable().optional(),
+    /** Admin-assigned accent color ("#rrggbb"); null = palette default. */
+    color: z.string().nullable().optional(),
     rank: z.number().int(),
     team_count: z.number().int(),
     member_count: z.number().int().default(0),
@@ -2245,11 +2323,21 @@ export const EventTeamInputSchema = z.object({
 });
 export type EventTeamInput = z.infer<typeof EventTeamInputSchema>;
 
-/** Editable fields of an existing team. The clan a clan_vs_clan team
- * represents is fixed at create time — only the display name can change. */
-export const EventTeamPatchSchema = z.object({
-  name: z.string().min(1).max(80),
-});
+/** Editable fields of an existing team — cosmetics only (the clan a
+ * clan_vs_clan team represents is fixed at create time). `color` is
+ * "#rrggbb", or null to reset to the palette default. */
+export const EventTeamPatchSchema = z
+  .object({
+    name: z.string().min(1).max(80).optional(),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/, 'Color must be "#rrggbb" hex')
+      .nullable()
+      .optional(),
+  })
+  .refine((p) => p.name !== undefined || p.color !== undefined, {
+    message: "Provide a name and/or a color",
+  });
 export type EventTeamPatch = z.infer<typeof EventTeamPatchSchema>;
 
 // --- Clan-vs-clan participants (Implementation Plan B) -----------------------
