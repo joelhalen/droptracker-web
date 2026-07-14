@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type { ManualPolicyNotice, ManualSubmission, Me } from "@droptracker/api-types";
 import {
-  getUploadPresign,
   manualPreflight,
   searchItems,
   searchNpcs,
@@ -114,16 +113,20 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
     setProof({ status: "uploading" });
     startUpload(async () => {
       try {
-        const { upload_url, key, public_url } = await getUploadPresign(file.type);
-        const putRes = await fetch(upload_url, {
-          method: "PUT",
-          headers: { "content-type": file.type },
-          body: file,
-        });
-        if (!putRes.ok) throw new Error(`Upload failed (${putRes.status}).`);
+        // POST same-origin to our BFF, which stores the image in B2 server-side.
+        // (A direct browser→B2 PUT is blocked by the bucket's CORS policy.)
+        const form = new FormData();
+        form.set("file", file);
+        const res = await fetch("/api/uploads/proof", { method: "POST", body: form });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(body?.error || `Upload failed (${res.status}).`);
+        }
+        const { key, public_url } = (await res.json()) as { key: string; public_url: string };
         setProof({ status: "done", key, publicUrl: public_url, previewUrl });
         setProofKey(key);
       } catch (err) {
+        URL.revokeObjectURL(previewUrl);
         setProof({
           status: "error",
           message: getErrorMessage(err, "Couldn't upload the image. Try again."),

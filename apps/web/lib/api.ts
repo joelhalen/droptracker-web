@@ -1807,19 +1807,21 @@ export const api = {
     );
   },
 
-  /** Presign a direct-to-B2 upload for proof media on a manual submission. */
-  async uploadPresign(
-    contentType: string,
-  ): Promise<{ upload_url: string; key: string; public_url: string }> {
-    const q = new URLSearchParams({ content_type: contentType, kind: "image" });
+  /**
+   * Upload proof media (multipart 'file') for a manual submission. The Web API
+   * stores it in B2 server-side and returns the object key + public CDN URL;
+   * `key` is passed back as `proof_upload_key` on the submission. This replaces
+   * a direct browser→B2 presigned PUT, which the bucket's CORS policy (GET/HEAD
+   * only) rejected at preflight ("Failed to fetch").
+   */
+  async uploadProof(form: FormData): Promise<{ key: string; public_url: string }> {
     return withFallback(
       async () =>
-        (await apiGet(`/uploads/presign?${q}`, { authed: true })) as {
-          upload_url: string;
+        (await apiSendForm("POST", "/uploads/proof", form)) as {
           key: string;
           public_url: string;
         },
-      () => ({ upload_url: "", key: `uploads/mock-${Date.now()}.png`, public_url: "" }),
+      () => ({ key: `dt_uploads/mock-${Date.now()}.png`, public_url: "" }),
     );
   },
 

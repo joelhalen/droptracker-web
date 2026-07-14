@@ -3,8 +3,6 @@
 import { ManualSubmissionSchema, type ManualSubmission } from "@droptracker/api-types";
 import { api, ApiError } from "@/lib/api";
 
-const ALLOWED_PROOF_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
-
 /**
  * Server Action: validate and forward a manual submission to the Web API.
  *
@@ -43,16 +41,4 @@ export async function searchItems(q: string) {
 export async function searchNpcs(q: string) {
   if (q.trim().length < 2) return [];
   return api.searchEventNpcs(q.trim());
-}
-
-/**
- * Server Action: get a presigned B2 upload URL for proof-of-drop media. The
- * browser PUTs the file directly to `upload_url` (never through this server);
- * `key` is then passed back as `proof_upload_key` on the manual submission.
- */
-export async function getUploadPresign(contentType: string) {
-  if (!ALLOWED_PROOF_TYPES.has(contentType)) {
-    throw new Error("Proof must be a PNG, JPEG, WebP, or GIF image.");
-  }
-  return api.uploadPresign(contentType);
 }
