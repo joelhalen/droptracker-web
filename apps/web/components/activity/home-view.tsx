@@ -11,8 +11,9 @@ import { useEffect, useRef, useState } from "react";
 import type { EventSummary, SearchResults, Submission } from "@droptracker/api-types";
 import { Badge, Card, NameTile, Skeleton, StatTile } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
+import { HoverCard, CardStatLine, CARD_SECTION_CLASS } from "@/components/hover-card";
 import { useEventStream } from "@/lib/use-event-stream";
-import { formatGp } from "@/lib/format";
+import { formatGp, formatRelativeTime } from "@/lib/format";
 import { guildEvents, recentFeed, searchAll } from "@/lib/activity/api";
 import { toActivityFeedRow, type ActivityFeedRow } from "@/lib/activity/feed";
 import { useActivityAuth } from "@/lib/activity/auth-context";
@@ -21,8 +22,18 @@ import { useActivityNav } from "@/lib/activity/nav";
 import { useMyProfile, type MyProfile } from "@/lib/activity/use-my-profile";
 import { openExternal } from "@/lib/activity/discord-sdk";
 import { discordAvatar } from "@/lib/activity/img";
-import { gpAmount } from "@/lib/activity/money";
+import { gpAmount, gpText } from "@/lib/activity/money";
 import { SectionHeading } from "@/components/activity/bits";
+
+const SUBMISSION_KIND: Record<Submission["type"], string> = {
+  drop: "Drop",
+  clog: "Collection log",
+  pb: "Personal best",
+  ca: "Combat achievement",
+  pet: "Pet",
+  level: "Level",
+  quest: "Quest",
+};
 
 const FEED_LIMIT = 6;
 
@@ -182,38 +193,80 @@ function PersonalPanel({ my }: { my: MyProfile }) {
   );
 }
 
-/** Horizontal icon strip of the player's newest drops/clogs/PBs. */
-function LatestCollections({ recent }: { recent: Submission[] }) {
+/** One submission thumbnail wrapped in the shared site hover card. */
+function SubmissionThumb({ s }: { s: Submission }) {
+  const kind = SUBMISSION_KIND[s.type] ?? "Drop";
+  const qty = s.quantity != null && s.quantity > 1 ? s.quantity : null;
+  const worth = s.value && gpAmount(s.value) > 0 ? gpText(s.value) : null;
+  return (
+    <HoverCard
+      className="shrink-0"
+      content={
+        <div className="p-3">
+          <div className="flex items-center gap-2.5">
+            {s.image_url ? (
+              <img src={s.image_url} alt="" className="size-9 shrink-0 object-contain" />
+            ) : (
+              <span aria-hidden className="text-osrs-gold/70 w-9 text-center text-xl">
+                ◆
+              </span>
+            )}
+            <div className="min-w-0">
+              <p className="text-osrs-parchment truncate text-[13px] font-semibold">
+                {s.label}
+                {qty && <span className="text-osrs-gold/80"> ×{qty.toLocaleString()}</span>}
+              </p>
+              <p className="text-osrs-parchment-dark/60 text-[11px]">{kind}</p>
+            </div>
+          </div>
+          <div className={CARD_SECTION_CLASS}>
+            {s.npc_name && <CardStatLine label="Source" value={s.npc_name} />}
+            {worth && <CardStatLine label="Value" value={<span className="text-osrs-green">{worth}</span>} />}
+            <CardStatLine label="When" value={formatRelativeTime(s.ts)} />
+          </div>
+          {s.item_id != null && (
+            <button
+              onClick={() => void openExternal(`https://www.droptracker.io/items/${s.item_id}`)}
+              className="text-osrs-gold-bright mt-2.5 text-[11.5px] font-semibold hover:underline"
+            >
+              View item ↗
+            </button>
+          )}
+        </div>
+      }
+    >
+      <span className="bg-osrs-surface-2/60 border-osrs-bronze/25 hover:border-osrs-bronze/60 flex size-11 items-center justify-center rounded-lg border transition-colors">
+        {s.image_url ? (
+          <img
+            src={s.image_url}
+            alt={s.label}
+            className="size-8 object-contain drop-shadow"
+            loading="lazy"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+            }}
+          />
+        ) : (
+          <span aria-hidden className="text-osrs-gold/70 text-lg">
+            ◆
+          </span>
+        )}
+      </span>
+    </HoverCard>
+  );
+}
+
+/** Horizontal strip of the player's newest submissions, each with a hover card. */
+function LatestSubmissions({ recent }: { recent: Submission[] }) {
   if (recent.length === 0) return null;
   return (
     <div>
-      <SectionHeading>Your latest collections</SectionHeading>
+      <SectionHeading>Your latest submissions</SectionHeading>
       <Card padding="p-3">
-        <div className="flex items-center gap-3 overflow-x-auto">
-          {recent.slice(0, 10).map((s, i) =>
-            s.image_url ? (
-              <img
-                key={`${s.type}-${s.id}-${i}`}
-                src={s.image_url}
-                alt={s.label}
-                title={s.label}
-                className="size-10 shrink-0 object-contain drop-shadow"
-                loading="lazy"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            ) : (
-              <span
-                key={`${s.type}-${s.id}-${i}`}
-                aria-hidden
-                title={s.label}
-                className="text-osrs-gold/70 w-10 shrink-0 text-center text-xl"
-              >
-                ◆
-              </span>
-            ),
-          )}
+        <div className="flex items-center gap-2.5 overflow-x-auto pb-0.5">
+          {recent.slice(0, 12).map((s, i) => (
+            <SubmissionThumb key={`${s.type}-${s.id}-${i}`} s={s} />
+          ))}
         </div>
       </Card>
     </div>
@@ -438,8 +491,8 @@ export function HomeView() {
           />
         </div>
 
-        {/* Your latest collections (signed-in only) */}
-        {sessionToken && <LatestCollections recent={my.recent} />}
+        {/* Your latest submissions (signed-in only) */}
+        {sessionToken && <LatestSubmissions recent={my.recent} />}
 
         {/* Live feed */}
         {feed.length > 0 && (

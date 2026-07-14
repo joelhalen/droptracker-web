@@ -208,7 +208,9 @@ export function ActivityShell() {
         </nav>
 
         <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3.5 py-3.5 md:px-6 md:py-5">
-          <div key={JSON.stringify(nav.view)} className={`mx-auto w-full ${viewMaxWidth(nav.view)}`}>
+          {/* Content hugs the sidebar (left-aligned) rather than centering in
+              the wide area — centering left a large gap after the rail. */}
+          <div key={JSON.stringify(nav.view)} className={`w-full ${viewMaxWidth(nav.view)}`}>
             {renderView(nav.view, guildId, nav.canPop ? nav.pop : undefined)}
           </div>
         </main>
