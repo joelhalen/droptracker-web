@@ -2,8 +2,9 @@ import type { Metadata, Viewport } from "next";
 
 /*
  * Chromeless shell for the Discord Activity iframe — no site header, ticker or
- * footer (those live in app/(site)/layout.tsx). Safe-area padding matters on
- * Discord mobile, where the iframe extends under notches and home indicators.
+ * footer (those live in app/(site)/layout.tsx). The shell component owns the
+ * viewport (header/tab bar apply their own safe-area insets; edge-to-edge
+ * matters on Discord mobile where the iframe extends under notches).
  */
 export const metadata: Metadata = {
   title: "DropTracker Activity",
@@ -18,15 +19,5 @@ export const viewport: Viewport = {
 };
 
 export default function ActivityLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="min-h-screen"
-      style={{
-        padding:
-          "env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)",
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <div className="min-h-dvh">{children}</div>;
 }

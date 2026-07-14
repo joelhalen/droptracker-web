@@ -12,11 +12,31 @@
 import {
   EventDetailSchema,
   EventSummarySchema,
+  GroupProfileSchema,
+  LeaderboardPageSchema,
   MeSchema,
+  PbBossBoardSchema,
+  PbBossIndexSchema,
+  PlayerProfileSchema,
+  SearchResultsSchema,
   type EventDetail,
   type EventSummary,
+  type GroupProfile,
+  type LeaderboardPage,
   type Me,
+  type PbBossBoard,
+  type PbBossIndex,
+  type PlayerProfile,
+  type SearchResults,
 } from "@droptracker/api-types";
+import { z } from "zod";
+
+/** Feed history envelope (matches lib/api.ts's local FeedEventSchema). */
+const FeedEventSchema = z.object({
+  type: z.string(),
+  data: z.record(z.string(), z.unknown()),
+});
+export type FeedEvent = z.infer<typeof FeedEventSchema>;
 
 export class ActivityApiError extends Error {
   constructor(
@@ -125,4 +145,64 @@ export async function leaveEvent(
   sessionToken: string,
 ): Promise<unknown> {
   return send(`/api/activity/events/${eventId}/leave`, sessionToken, { player_id: playerId });
+}
+
+// --- Expanded mini-app reads (all anonymous upstream; icons pre-rewritten to
+// --- same-origin /img by the BFF, so payloads are CSP-safe as-is). ----------
+
+export async function leaderboard(
+  kind: "players" | "groups",
+  period: string,
+  scope?: string,
+): Promise<LeaderboardPage> {
+  const q = new URLSearchParams({ kind, period });
+  if (scope) q.set("scope", scope);
+  return LeaderboardPageSchema.parse(await get(`/api/activity/leaderboards?${q}`, null));
+}
+
+export async function pbBosses(groupId?: number): Promise<PbBossIndex> {
+  const q = groupId ? `?groupId=${groupId}` : "";
+  return PbBossIndexSchema.parse(await get(`/api/activity/pbs${q}`, null));
+}
+
+export async function pbBoard(npcId: number, groupId?: number): Promise<PbBossBoard> {
+  const q = new URLSearchParams({ npcId: String(npcId) });
+  if (groupId) q.set("groupId", String(groupId));
+  return PbBossBoardSchema.parse(await get(`/api/activity/pbs/board?${q}`, null));
+}
+
+export async function playerProfile(id: number): Promise<PlayerProfile> {
+  return PlayerProfileSchema.parse(await get(`/api/activity/players/${id}`, null));
+}
+
+export async function groupProfile(id: number): Promise<GroupProfile> {
+  return GroupProfileSchema.parse(await get(`/api/activity/groups/${id}`, null));
+}
+
+export async function searchAll(q: string): Promise<SearchResults> {
+  return SearchResultsSchema.parse(
+    await get(`/api/activity/search?q=${encodeURIComponent(q)}`, null),
+  );
+}
+
+export async function recentFeed(): Promise<FeedEvent[]> {
+  return FeedEventSchema.array().parse(await get("/api/activity/feed", null));
+}
+
+const GuildGroupSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  member_count: z.number().int().optional(),
+  icon_url: z.string().nullable().optional(),
+});
+export type GuildGroup = z.infer<typeof GuildGroupSchema>;
+
+/** The DropTracker group linked to the launch guild; null when unregistered. */
+export async function guildGroup(guildId: string): Promise<GuildGroup | null> {
+  const res = await fetch(`/api/activity/guild-group?guildId=${encodeURIComponent(guildId)}`, {
+    headers: { accept: "application/json" },
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new ActivityApiError(res.status, `guild-group → ${res.status}`);
+  return GuildGroupSchema.parse(await res.json());
 }

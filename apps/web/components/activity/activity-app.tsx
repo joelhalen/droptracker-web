@@ -1,39 +1,38 @@
 "use client";
 
 /**
- * Discord Activity entry — the client-side state machine.
+ * Discord Activity entry — boot state machine.
  *
- *   boot → authorizing → resolving → event | picker | empty | outside | error
+ *   boot → outside | authorizing → ready | error
  *
  * Flow: SDK handshake (`ready()`), then OAuth authorize/authenticate (declining
- * degrades to anonymous viewing — public events don't need a session), then
- * resolve the launch guild's active events: exactly one → straight to the
- * board; several → picker; none → empty state pointing at the website.
+ * degrades to anonymous viewing — public data doesn't need a session), then a
+ * best-effort resolve of the launch guild's registered group. Everything after
+ * that is the multi-view mini-app: <ActivityShell/> with the view-stack nav
+ * (home hub, leaderboards, events, profiles, me). Launching from a DM (no
+ * guild) still works — global content only.
  */
 import { useEffect, useState } from "react";
-import type { EventSummary } from "@droptracker/api-types";
 import {
   ActivityAuthProvider,
   type ActivityAuth,
 } from "@/lib/activity/auth-context";
+import { ActivityDataProvider, type ActivityData } from "@/lib/activity/data-context";
+import { ActivityNavProvider } from "@/lib/activity/nav";
 import { activityClientId, getDiscordSdk, inDiscordFrame } from "@/lib/activity/discord-sdk";
-import { exchangeAuthCode, guildEvents } from "@/lib/activity/api";
-import { EventView } from "@/components/activity/event-view";
+import { exchangeAuthCode, guildGroup } from "@/lib/activity/api";
+import { ActivityShell } from "@/components/activity/shell";
 
 type Stage =
   | { kind: "boot" }
   | { kind: "outside" } // rendered in a plain browser tab, not Discord
   | { kind: "authorizing" }
-  | { kind: "resolving" }
-  | { kind: "no-guild" } // launched from a DM — no guild context
-  | { kind: "empty" }
-  | { kind: "picker"; events: EventSummary[] }
-  | { kind: "event"; eventId: number }
+  | { kind: "ready" }
   | { kind: "error"; message: string };
 
 function Splash({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-3 px-6 text-center">
       {children}
     </div>
   );
@@ -54,9 +53,7 @@ function Spinner({ label }: { label: string }) {
 export function ActivityApp() {
   const [stage, setStage] = useState<Stage>({ kind: "boot" });
   const [auth, setAuth] = useState<ActivityAuth>({ sessionToken: null, user: null });
-  const [guildId, setGuildId] = useState<string | null>(null);
-  // Kept so "back" from an event can return to the picker (multi-event guilds).
-  const [pickerEvents, setPickerEvents] = useState<EventSummary[]>([]);
+  const [data, setData] = useState<ActivityData>({ guildId: null, group: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -97,25 +94,15 @@ export function ActivityApp() {
         if (cancelled) return;
         setAuth(nextAuth);
 
-        // --- Resolve the launch guild's events. -----------------------------
-        if (!sdk.guildId) {
-          setStage({ kind: "no-guild" });
-          return;
+        // --- Launch context: resolve the guild's registered group. ---------
+        const guildId = sdk.guildId ?? null;
+        let group = null;
+        if (guildId) {
+          group = await guildGroup(guildId).catch(() => null);
         }
-        setGuildId(sdk.guildId);
-        setStage({ kind: "resolving" });
-
-        const active = await guildEvents(sdk.guildId, "active", nextAuth.sessionToken);
         if (cancelled) return;
-        setPickerEvents(active);
-        const only = active.length === 1 ? active[0] : undefined;
-        if (only) {
-          setStage({ kind: "event", eventId: only.id });
-        } else if (active.length > 1) {
-          setStage({ kind: "picker", events: active });
-        } else {
-          setStage({ kind: "empty" });
-        }
+        setData({ guildId, group });
+        setStage({ kind: "ready" });
       } catch (err) {
         console.error("[activity] boot failed", err);
         if (!cancelled) {
@@ -135,85 +122,37 @@ export function ActivityApp() {
       return <Spinner label="Connecting to Discord…" />;
     case "authorizing":
       return <Spinner label="Signing you in…" />;
-    case "resolving":
-      return <Spinner label="Finding your events…" />;
     case "outside":
       return (
         <Splash>
-          <h1 className="text-osrs-gold text-2xl font-bold">DropTracker</h1>
+          <h1 className="text-osrs-gold font-serif text-2xl font-bold">DropTracker</h1>
           <p className="text-osrs-parchment-dark/80 max-w-sm text-sm">
             This page is the DropTracker Discord Activity — launch it from a Discord server to see
-            your clan&apos;s live event board.
+            your clan&apos;s live boards, leaderboards, and profiles.
           </p>
-          <a href="https://www.droptracker.io/events" className="text-osrs-gold-bright text-sm hover:underline">
-            Browse events on the website →
+          <a
+            href="https://www.droptracker.io"
+            className="text-osrs-gold-bright text-sm hover:underline"
+          >
+            Browse DropTracker on the website →
           </a>
-        </Splash>
-      );
-    case "no-guild":
-      return (
-        <Splash>
-          <h1 className="text-osrs-gold text-xl font-bold">Open this in a server</h1>
-          <p className="text-osrs-parchment-dark/80 max-w-sm text-sm">
-            Events belong to clan servers — launch the activity from your clan&apos;s Discord server
-            to see its board.
-          </p>
-        </Splash>
-      );
-    case "empty":
-      return (
-        <Splash>
-          <h1 className="text-osrs-gold text-xl font-bold">No active events</h1>
-          <p className="text-osrs-parchment-dark/80 max-w-sm text-sm">
-            This server doesn&apos;t have a running DropTracker event right now. Group admins can
-            set one up at www.droptracker.io.
-          </p>
         </Splash>
       );
     case "error":
       return (
         <Splash>
-          <h1 className="text-osrs-gold text-xl font-bold">Something went wrong</h1>
+          <h1 className="text-osrs-gold font-serif text-xl font-bold">Something went wrong</h1>
           <p className="text-osrs-parchment-dark/80 max-w-sm text-sm">{stage.message}</p>
         </Splash>
       );
-    case "picker":
+    case "ready":
       return (
         <ActivityAuthProvider value={auth}>
-          <Splash>
-            <h1 className="text-osrs-gold text-xl font-bold">Pick an event</h1>
-            <div className="flex w-full max-w-sm flex-col gap-2">
-              {stage.events.map((ev) => (
-                <button
-                  key={ev.id}
-                  onClick={() => setStage({ kind: "event", eventId: ev.id })}
-                  className="border-osrs-bronze/30 bg-osrs-brown-dark/40 hover:border-osrs-bronze/60 rounded border px-4 py-3 text-left"
-                >
-                  <span className="text-osrs-gold block font-medium">{ev.name}</span>
-                  {ev.description && (
-                    <span className="text-osrs-parchment-dark/60 mt-0.5 line-clamp-2 block text-xs">
-                      {ev.description}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </Splash>
-        </ActivityAuthProvider>
-      );
-    case "event":
-      return (
-        <ActivityAuthProvider value={auth}>
-          <EventView
-            eventId={stage.eventId}
-            guildId={guildId}
-            onBack={
-              // Only offer "back" when there was a picker to go back to.
-              pickerEvents.length > 1
-                ? () => setStage({ kind: "picker", events: pickerEvents })
-                : null
-            }
-          />
+          <ActivityDataProvider value={data}>
+            <ActivityNavProvider>
+              <ActivityShell />
+            </ActivityNavProvider>
+          </ActivityDataProvider>
         </ActivityAuthProvider>
       );
   }
