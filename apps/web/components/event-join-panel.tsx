@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import type { EventDetail } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
-import { joinEvent, leaveEvent } from "@/app/(public)/events/[id]/actions";
+import { joinEvent, leaveEvent } from "@/app/(site)/(public)/events/[id]/actions";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";

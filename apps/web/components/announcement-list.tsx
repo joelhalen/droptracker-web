@@ -5,11 +5,11 @@ import type { Announcement } from "@droptracker/api-types";
 import {
   editAnnouncement,
   archiveGroupAnnouncement,
-} from "@/app/(admin)/groups/[id]/announcements/actions";
+} from "@/app/(site)/(admin)/groups/[id]/announcements/actions";
 import {
   editGlobalAnnouncement,
   archiveGlobalAnnouncement,
-} from "@/app/(admin)/admin/announcements/actions";
+} from "@/app/(site)/(admin)/admin/announcements/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, EmptyState } from "@/components/ui";
 

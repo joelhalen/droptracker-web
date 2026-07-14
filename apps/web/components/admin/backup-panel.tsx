@@ -7,7 +7,7 @@ import {
   fetchBackupLogs,
   fetchOffsiteBackups,
   runBackupNow,
-} from "@/app/(admin)/admin/backups/actions";
+} from "@/app/(site)/(admin)/admin/backups/actions";
 import { StatTile } from "@/components/ui";
 import { formatBytes, formatRelativeTime } from "@/lib/format";
 

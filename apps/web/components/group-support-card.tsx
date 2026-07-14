@@ -11,7 +11,7 @@ import Link from "next/link";
 import type { GroupSubscriptionSummary } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, TierBadge } from "@/components/ui";
-import { contributeToGroup } from "@/app/(public)/groups/[id]/actions";
+import { contributeToGroup } from "@/app/(site)/(public)/groups/[id]/actions";
 
 const fmtUsd = (cents: number) => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`;
 

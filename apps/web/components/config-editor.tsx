@@ -14,7 +14,7 @@ import {
   fetchGroupDiscordChannels,
   fetchGroupPbBosses,
   fetchLootboardStyles,
-} from "@/app/(admin)/groups/[id]/settings/actions";
+} from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
 import { Alert, Card, fieldInputClass } from "@/components/ui";

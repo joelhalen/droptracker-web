@@ -5,7 +5,7 @@ import type { DocInput, DocSummary } from "@droptracker/api-types";
 import { groupDocsByCategory } from "@/lib/docs";
 import { Markdown } from "@/components/markdown";
 import { EmptyState, Alert } from "@/components/ui";
-import { createDoc, deleteDoc, getDocForEdit, updateDoc } from "@/app/(admin)/admin/docs/actions";
+import { createDoc, deleteDoc, getDocForEdit, updateDoc } from "@/app/(site)/(admin)/admin/docs/actions";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";

@@ -22,7 +22,7 @@ import {
   fetchServiceLogs,
   refreshServices,
   runServiceAction,
-} from "@/app/(admin)/admin/services/actions";
+} from "@/app/(site)/(admin)/admin/services/actions";
 import { Card } from "@/components/ui";
 
 /* --- tiny presentation helpers --------------------------------------------- */

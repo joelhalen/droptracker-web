@@ -5,8 +5,8 @@ import type { AnnouncementInput, DiscordRole } from "@droptracker/api-types";
 import {
   fetchDiscordRoles,
   publishAnnouncement,
-} from "@/app/(admin)/groups/[id]/announcements/actions";
-import { publishGlobalAnnouncement } from "@/app/(admin)/admin/announcements/actions";
+} from "@/app/(site)/(admin)/groups/[id]/announcements/actions";
+import { publishGlobalAnnouncement } from "@/app/(site)/(admin)/admin/announcements/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 

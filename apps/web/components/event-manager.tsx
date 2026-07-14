@@ -36,7 +36,7 @@ import {
   updateEventTask,
   updateEventTeam,
   updateGroupEvent,
-} from "@/app/(admin)/groups/[id]/events/actions";
+} from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";

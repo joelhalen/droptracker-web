@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { AccountSettings } from "@droptracker/api-types";
-import { saveSettings, setPlayerHidden } from "@/app/(dashboard)/settings/actions";
+import { saveSettings, setPlayerHidden } from "@/app/(site)/(dashboard)/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 

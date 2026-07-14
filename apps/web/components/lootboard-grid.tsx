@@ -9,7 +9,7 @@
 import { useState, useTransition } from "react";
 import type { Lootboard } from "@droptracker/api-types";
 import { lootValueClass } from "@/lib/format";
-import { generateLootboardImage } from "@/app/(public)/groups/[id]/lootboard/actions";
+import { generateLootboardImage } from "@/app/(site)/(public)/groups/[id]/lootboard/actions";
 import { ItemContributors } from "@/components/lootboard-item-tooltip";
 import { EmptyState } from "@/components/ui";
 

@@ -40,7 +40,7 @@ import {
   searchLibraryNpcs,
   searchTaskLibrary,
   updateTaskPreset,
-} from "@/app/(admin)/admin/task-library/actions";
+} from "@/app/(site)/(admin)/admin/task-library/actions";
 
 const field =
   "bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-osrs-gold/60";

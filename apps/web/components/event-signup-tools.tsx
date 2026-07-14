@@ -10,7 +10,7 @@ import {
   postEventSignupMessage,
   randomizeEventSignups,
   removeEventSignup,
-} from "@/app/(admin)/groups/[id]/events/actions";
+} from "@/app/(site)/(admin)/groups/[id]/events/actions";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-2 py-1 text-sm outline-none";

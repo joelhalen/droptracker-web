@@ -5,7 +5,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { entityPath } from "@/lib/slug";
 import type { GroupMember, WomSyncResult } from "@droptracker/api-types";
-import { setHidden, syncWom } from "@/app/(admin)/groups/[id]/members/actions";
+import { setHidden, syncWom } from "@/app/(site)/(admin)/groups/[id]/members/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { Alert, Badge, EmptyState, EntityChip } from "@/components/ui";

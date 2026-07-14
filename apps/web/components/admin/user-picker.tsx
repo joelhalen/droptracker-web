@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { searchUsers } from "@/app/(admin)/admin/users/actions";
+import { searchUsers } from "@/app/(site)/(admin)/admin/users/actions";
 
 export function UserPicker({ initial = "" }: { initial?: string }) {
   const router = useRouter();

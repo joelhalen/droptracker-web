@@ -17,7 +17,7 @@
 import { useCallback, useLayoutEffect, useRef, useState, useTransition } from "react";
 import type { Lootboard, LootItem, LootboardRecentDrop } from "@droptracker/api-types";
 import { formatGp } from "@/lib/format";
-import { generateLootboardImage } from "@/app/(public)/groups/[id]/lootboard/actions";
+import { generateLootboardImage } from "@/app/(site)/(public)/groups/[id]/lootboard/actions";
 import { LootboardGrid } from "@/components/lootboard-grid";
 import { ItemContributors } from "@/components/lootboard-item-tooltip";
 import {

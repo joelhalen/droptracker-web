@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { sendDiscordMessage } from "@/app/(admin)/admin/discord/actions";
+import { sendDiscordMessage } from "@/app/(site)/(admin)/admin/discord/actions";
 
 export function DiscordSender() {
   const [channelId, setChannelId] = useState("");

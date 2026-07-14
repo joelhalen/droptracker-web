@@ -12,7 +12,7 @@ import {
   openSupporterPortal,
   resumeSupporter,
   startSupporterCheckout,
-} from "@/app/(public)/premium/actions";
+} from "@/app/(site)/(public)/premium/actions";
 
 /**
  * Personal supporter subscription card for the /premium page.

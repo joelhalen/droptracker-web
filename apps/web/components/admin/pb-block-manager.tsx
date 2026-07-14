@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import type { PbBlockBoss, PbBlockList, PbBlockSearchResult } from "@droptracker/api-types";
 import { Alert } from "@/components/ui";
-import { addBlock, removeBlock, searchBosses } from "@/app/(admin)/admin/personal-bests/actions";
+import { addBlock, removeBlock, searchBosses } from "@/app/(site)/(admin)/admin/personal-bests/actions";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";

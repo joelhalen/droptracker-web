@@ -10,7 +10,7 @@
 
 import { useState, useTransition } from "react";
 import type { EventTemplateSummary } from "@droptracker/api-types";
-import { deleteEventTemplate, updateEventTemplate } from "@/app/(admin)/groups/[id]/events/actions";
+import { deleteEventTemplate, updateEventTemplate } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
 
 const field =

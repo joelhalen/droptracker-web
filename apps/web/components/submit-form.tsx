@@ -8,7 +8,7 @@ import {
   searchItems,
   searchNpcs,
   submitDrop,
-} from "@/app/(dashboard)/submit/actions";
+} from "@/app/(site)/(dashboard)/submit/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
 import { Alert } from "@/components/ui";

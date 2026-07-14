@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { GuildStatus, WomGroupPreview } from "@droptracker/api-types";
-import { checkGuild, createGroup, lookupWom } from "@/app/(admin)/groups/new/actions";
+import { checkGuild, createGroup, lookupWom } from "@/app/(site)/(admin)/groups/new/actions";
 import { getErrorMessage } from "@/lib/errors";
 
 type Step = 1 | 2 | 3;

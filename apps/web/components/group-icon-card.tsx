@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { Card } from "@/components/ui";
 import { getErrorMessage } from "@/lib/errors";
-import { removeGroupIcon, uploadGroupIcon } from "@/app/(admin)/groups/[id]/settings/actions";
+import { removeGroupIcon, uploadGroupIcon } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 
 const MAX_BYTES = 2 * 1024 * 1024;
 const ACCEPT = "image/png,image/jpeg,image/gif,image/webp";

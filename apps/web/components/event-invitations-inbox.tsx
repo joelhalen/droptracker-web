@@ -9,7 +9,7 @@ import { Alert } from "@/components/ui";
 import {
   acceptEventInvitation,
   declineEventInvitation,
-} from "@/app/(admin)/groups/[id]/events/actions";
+} from "@/app/(site)/(admin)/groups/[id]/events/actions";
 
 /** Pending clan-vs-clan invites for one group's events admin page. */
 export function EventInvitationsInbox({

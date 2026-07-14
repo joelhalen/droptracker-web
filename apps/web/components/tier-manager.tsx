@@ -10,7 +10,7 @@ import {
 import { formatPrice } from "@/lib/format";
 import { resolveFlair } from "@/lib/tier-flair";
 import { InlineMarkdown } from "@/components/markdown";
-import { deleteTier, saveTier } from "@/app/(admin)/admin/tiers/actions";
+import { deleteTier, saveTier } from "@/app/(site)/(admin)/admin/tiers/actions";
 
 const blankTier = (): SubscriptionTier => ({
   key: "",

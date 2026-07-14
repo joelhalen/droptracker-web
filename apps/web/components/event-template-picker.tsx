@@ -23,7 +23,7 @@ import {
   getEventTemplate,
   instantiateEventTemplate,
   searchEventTemplates,
-} from "@/app/(admin)/groups/[id]/events/actions";
+} from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { TASK_TYPE_LABELS } from "@/lib/events";
 import { Alert } from "@/components/ui";

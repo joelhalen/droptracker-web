@@ -22,7 +22,7 @@ import {
   openBillingPortal,
   resumeLeg,
   startCheckout,
-} from "@/app/(admin)/groups/[id]/subscription/actions";
+} from "@/app/(site)/(admin)/groups/[id]/subscription/actions";
 
 const fmtUsd = (cents: number) => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`;
 

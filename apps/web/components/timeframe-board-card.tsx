@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { generateTimeframeBoard } from "@/app/(admin)/groups/[id]/settings/actions";
+import { generateTimeframeBoard } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
 

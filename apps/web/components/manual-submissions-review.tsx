@@ -7,7 +7,7 @@ import { Alert, EmptyState } from "@/components/ui";
 import {
   approveManualSubmission,
   rejectManualSubmission,
-} from "@/app/(admin)/groups/[id]/submissions/actions";
+} from "@/app/(site)/(admin)/groups/[id]/submissions/actions";
 
 const relTime = (ts: number | null): string => {
   if (!ts) return "";

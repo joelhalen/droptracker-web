@@ -9,7 +9,7 @@ import type {
 } from "@droptracker/api-types";
 import { Badge } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
-import { deleteItemValue, saveItemValue, searchItems } from "@/app/(admin)/admin/item-values/actions";
+import { deleteItemValue, saveItemValue, searchItems } from "@/app/(site)/(admin)/admin/item-values/actions";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/60 text-osrs-parchment placeholder:text-osrs-parchment-dark/50 focus:border-osrs-gold block w-full min-w-0 rounded border px-3 py-2.5 text-base outline-none";

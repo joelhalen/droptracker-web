@@ -9,7 +9,7 @@
  */
 
 import { useState, useTransition } from "react";
-import { saveEventTemplate } from "@/app/(admin)/groups/[id]/events/actions";
+import { saveEventTemplate } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
 
 const field =

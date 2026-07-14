@@ -46,7 +46,7 @@ import {
   searchPointItems,
   searchPointNpcs,
   searchPointPlayers,
-} from "@/app/(admin)/groups/[id]/points/manage/actions";
+} from "@/app/(site)/(admin)/groups/[id]/points/manage/actions";
 
 const field =
   "bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-osrs-gold/60";

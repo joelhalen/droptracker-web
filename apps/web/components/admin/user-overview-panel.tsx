@@ -4,7 +4,7 @@ import type { Route } from "next";
 import { useState, useTransition } from "react";
 import type { AdminUserOverview } from "@/lib/api";
 import { formatDate, formatRelativeTime } from "@/lib/format";
-import { setUserModerator, setUserSuperadmin } from "@/app/(admin)/admin/users/actions";
+import { setUserModerator, setUserSuperadmin } from "@/app/(site)/(admin)/admin/users/actions";
 import { Badge, EmptyState, EntityChip, ModeratorBadge, RoleBadge, SuperadminBadge } from "@/components/ui";
 
 function actorLabel(actor: AdminUserOverview["recent_audit"][number]["actor"]): string {

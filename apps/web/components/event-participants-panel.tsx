@@ -9,7 +9,7 @@ import {
   listEventParticipants,
   removeEventParticipant,
   searchOpponentClans,
-} from "@/app/(admin)/groups/[id]/events/actions";
+} from "@/app/(site)/(admin)/groups/[id]/events/actions";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";

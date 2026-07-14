@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { EmptyState, Alert } from "@/components/ui";
 import { isExternalDestination, type Redirect, type RedirectInput } from "@/lib/redirects";
 import { isValidSource } from "@/lib/redirect-resolver";
-import { createRedirect, deleteRedirect, updateRedirect } from "@/app/(admin)/admin/redirects/actions";
+import { createRedirect, deleteRedirect, updateRedirect } from "@/app/(site)/(admin)/admin/redirects/actions";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";

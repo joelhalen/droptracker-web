@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { searchGroups } from "@/app/(admin)/admin/groups/actions";
+import { searchGroups } from "@/app/(site)/(admin)/admin/groups/actions";
 
 export function GroupPicker({ initial = "" }: { initial?: string }) {
   const router = useRouter();

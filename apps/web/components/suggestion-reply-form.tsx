@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { submitReply } from "@/app/(public)/suggestions/actions";
+import { submitReply } from "@/app/(site)/(public)/suggestions/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 

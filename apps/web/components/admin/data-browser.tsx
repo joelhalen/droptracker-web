@@ -4,7 +4,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { AdminDataList, AdminDataRow } from "@/lib/api";
-import { fetchRecord, saveRecord } from "@/app/(admin)/admin/data/actions";
+import { fetchRecord, saveRecord } from "@/app/(site)/(admin)/admin/data/actions";
 import { EmptyState } from "@/components/ui";
 
 const field =

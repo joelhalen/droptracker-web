@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { SuggestionCreate, SuggestionType } from "@droptracker/api-types";
-import { submitSuggestion } from "@/app/(public)/suggestions/actions";
+import { submitSuggestion } from "@/app/(site)/(public)/suggestions/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { Markdown } from "@/components/markdown";

@@ -6,7 +6,7 @@ import { useState, useTransition } from "react";
 import type { GroupSubscription, SubscriptionTier } from "@droptracker/api-types";
 import type { AdminGroupOverview } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import { grantComp, revokeComp } from "@/app/(admin)/admin/groups/actions";
+import { grantComp, revokeComp } from "@/app/(site)/(admin)/admin/groups/actions";
 
 const STATUS_STYLES: Record<GroupSubscription["status"], string> = {
   none: "text-osrs-parchment-dark/60",

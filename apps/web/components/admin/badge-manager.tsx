@@ -13,7 +13,7 @@ import {
   lookupPlayers,
   revokeBadge,
   saveBadge,
-} from "@/app/(admin)/admin/badges/actions";
+} from "@/app/(site)/(admin)/admin/badges/actions";
 
 const TONES = BadgeToneSchema.options;
 

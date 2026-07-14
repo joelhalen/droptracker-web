@@ -10,7 +10,7 @@
  */
 import { useState, useTransition } from "react";
 import type { AuthorizedUser, AuthorizedUsersResponse } from "@droptracker/api-types";
-import { addAuthorizedUser, removeAuthorizedUser } from "@/app/(admin)/groups/[id]/authorized/actions";
+import { addAuthorizedUser, removeAuthorizedUser } from "@/app/(site)/(admin)/groups/[id]/authorized/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Badge, NameTile } from "@/components/ui";
 

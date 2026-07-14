@@ -19,7 +19,7 @@ import {
 import {
   resetGroupEmbedAction,
   saveGroupEmbedAction,
-} from "@/app/(admin)/groups/[id]/embeds/actions";
+} from "@/app/(site)/(admin)/groups/[id]/embeds/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
 

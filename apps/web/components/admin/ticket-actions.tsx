@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { TicketDetail } from "@droptracker/api-types";
-import { ticketAction } from "@/app/(admin)/admin/tickets/actions";
+import { ticketAction } from "@/app/(site)/(admin)/admin/tickets/actions";
 
 /** Claim / unclaim / close controls on the admin transcript view. */
 export function TicketAdminActions({

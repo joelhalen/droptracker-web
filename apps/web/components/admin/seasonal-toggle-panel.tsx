@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { setSeasonalActive } from "@/app/(admin)/admin/services/actions";
+import { setSeasonalActive } from "@/app/(site)/(admin)/admin/services/actions";
 import { Alert, Card } from "@/components/ui";
 
 /**
