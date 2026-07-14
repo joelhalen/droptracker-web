@@ -76,6 +76,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "channel_id_to_post_deaths", label: "Deaths channel", category: "channels", type: "channel", help: "Channel for player-death notifications. Falls back to the drops channel when unset.", default: null },
   { key: "channel_id_to_post_diaries", label: "Diaries channel", category: "channels", type: "channel", help: "Channel for achievement-diary notifications. Falls back to the drops channel when unset.", default: null },
   { key: "announcements_channel_id", label: "Announcements channel", category: "channels", type: "channel", help: "Channel where published announcements are syndicated (FRONTEND_PLAN.md §10).", default: null },
+  { key: "activity_launch_channel", label: "Activity launcher channel", category: "channels", type: "channel", help: "Post an “Open DropTracker” card in this channel with a button that opens the in-Discord app. The bot keeps one card here and moves or removes it when you change this.", default: null },
 
   // --- Drop notifications -------------------------------------------------
   // Defaults must match the backend processors' runtime fallbacks
