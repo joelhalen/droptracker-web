@@ -197,6 +197,26 @@ const GuildGroupSchema = z.object({
 });
 export type GuildGroup = z.infer<typeof GuildGroupSchema>;
 
+const LaunchTargetSchema = z.object({ event_id: z.number().int().nullable() });
+
+/**
+ * Deep-link target for this launch: the event the user tapped "Open in Discord"
+ * to reach. One-shot claim keyed by their Discord id — returns null when there's
+ * nothing pending (they opened the app some other way).
+ */
+export async function launchIntent(sessionToken: string): Promise<number | null> {
+  const data = LaunchTargetSchema.parse(await get("/api/activity/launch-intent", sessionToken));
+  return data.event_id;
+}
+
+/** Anonymous fallback: the event whose board/notifications live in this channel. */
+export async function eventByChannel(channelId: string): Promise<number | null> {
+  const data = LaunchTargetSchema.parse(
+    await get(`/api/activity/event-by-channel?channelId=${encodeURIComponent(channelId)}`, null),
+  );
+  return data.event_id;
+}
+
 /** The DropTracker group linked to the launch guild; null when unregistered. */
 export async function guildGroup(guildId: string): Promise<GuildGroup | null> {
   const res = await fetch(`/api/activity/guild-group?guildId=${encodeURIComponent(guildId)}`, {

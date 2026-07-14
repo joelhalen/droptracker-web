@@ -18,9 +18,9 @@ import {
   type ActivityAuth,
 } from "@/lib/activity/auth-context";
 import { ActivityDataProvider, type ActivityData } from "@/lib/activity/data-context";
-import { ActivityNavProvider } from "@/lib/activity/nav";
+import { ActivityNavProvider, type ActivityView } from "@/lib/activity/nav";
 import { activityClientId, getDiscordSdk, inDiscordFrame } from "@/lib/activity/discord-sdk";
-import { exchangeAuthCode, guildGroup } from "@/lib/activity/api";
+import { eventByChannel, exchangeAuthCode, guildGroup, launchIntent } from "@/lib/activity/api";
 import { ActivityShell } from "@/components/activity/shell";
 
 type Stage =
@@ -54,6 +54,7 @@ export function ActivityApp() {
   const [stage, setStage] = useState<Stage>({ kind: "boot" });
   const [auth, setAuth] = useState<ActivityAuth>({ sessionToken: null, user: null });
   const [data, setData] = useState<ActivityData>({ guildId: null, group: null });
+  const [initialView, setInitialView] = useState<ActivityView | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,8 +101,24 @@ export function ActivityApp() {
         if (guildId) {
           group = await guildGroup(guildId).catch(() => null);
         }
+
+        // --- Deep-link: open straight to the event a launch button targeted.
+        // Precise path first (claimed intent, needs a session), then the
+        // anonymous channel fallback. Both best-effort — a miss just lands on
+        // the home hub.
+        let target: ActivityView | undefined;
+        if (nextAuth.sessionToken) {
+          const eid = await launchIntent(nextAuth.sessionToken).catch(() => null);
+          if (eid) target = { name: "event", id: eid };
+        }
+        if (!target && sdk.channelId) {
+          const eid = await eventByChannel(sdk.channelId).catch(() => null);
+          if (eid) target = { name: "event", id: eid };
+        }
+
         if (cancelled) return;
         setData({ guildId, group });
+        setInitialView(target);
         setStage({ kind: "ready" });
       } catch (err) {
         console.error("[activity] boot failed", err);
@@ -149,7 +166,7 @@ export function ActivityApp() {
       return (
         <ActivityAuthProvider value={auth}>
           <ActivityDataProvider value={data}>
-            <ActivityNavProvider>
+            <ActivityNavProvider initial={initialView}>
               <ActivityShell />
             </ActivityNavProvider>
           </ActivityDataProvider>

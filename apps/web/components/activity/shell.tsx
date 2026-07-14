@@ -91,7 +91,11 @@ function presenceLabel(view: ActivityView): string {
   }
 }
 
-function renderView(view: ActivityView, guildId: string | null, pop: () => void) {
+function renderView(
+  view: ActivityView,
+  guildId: string | null,
+  onBack: (() => void) | undefined,
+) {
   switch (view.name) {
     case "home":
       return <HomeView />;
@@ -102,7 +106,7 @@ function renderView(view: ActivityView, guildId: string | null, pop: () => void)
     case "me":
       return <MeView />;
     case "event":
-      return <EventView eventId={view.id} guildId={guildId} onBack={pop} />;
+      return <EventView eventId={view.id} guildId={guildId} onBack={onBack} />;
     case "player":
       return <PlayerView id={view.id} />;
     case "group":
@@ -157,7 +161,7 @@ export function ActivityShell() {
       {/* View area */}
       <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3.5 py-3.5">
         <div key={JSON.stringify(nav.view)} className="mx-auto w-full max-w-lg">
-          {renderView(nav.view, guildId, nav.pop)}
+          {renderView(nav.view, guildId, nav.canPop ? nav.pop : undefined)}
         </div>
       </main>
 
