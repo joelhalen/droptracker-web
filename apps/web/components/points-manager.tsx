@@ -12,7 +12,7 @@
  * `custom_points` entitlement on every write.
  */
 
-import { useId, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import type {
@@ -87,77 +87,120 @@ function SectionHeading({ title, hint }: { title: string; hint?: string }) {
   );
 }
 
-/**
- * Sections whose length grows with user data (overrides, include/exclude
- * entries) start collapsed once they exceed this many rows, so a group with a
- * long list doesn't turn the page into an endless scroll.
- */
-const COLLAPSE_DEFAULT_THRESHOLD = 8;
+/** How many rows the paginated overrides table / list columns show per page. */
+const PAGE_SIZE = 10;
+const LIST_PAGE_SIZE = 6;
 
-/**
- * A section whose body can be folded away behind a clickable heading. When
- * collapsed it shrinks to a single title + count line; expanding reveals the
- * table/list and its "Add" form. `count` is live (badge updates as entries are
- * added/removed); `defaultOpen` is read once at mount from the initial data.
- */
-function CollapsibleSection({
-  title,
-  hint,
-  count,
-  defaultOpen = true,
-  children,
+/** Does an item/NPC target (override or list entry) match a lowercased query? */
+function targetMatches(
+  q: string,
+  t: {
+    item_name?: string | null;
+    npc_name?: string | null;
+    item_id?: number | null;
+    npc_id?: number | null;
+    description?: string | null;
+  },
+): boolean {
+  return [
+    t.item_name,
+    t.npc_name,
+    t.description,
+    t.item_id ? `#${t.item_id}` : null,
+    t.npc_id ? `#${t.npc_id}` : null,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(q);
+}
+
+/** Compact search box (magnifier + clear) that filters a section in real time. */
+function SearchInput({
+  value,
+  onChange,
+  placeholder,
+  className = "",
 }: {
-  title: string;
-  hint?: string;
-  count?: number;
-  defaultOpen?: boolean;
-  children: ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  className?: string;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
-  const bodyId = useId();
-
   return (
-    <section className="space-y-3">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-controls={bodyId}
-        className="group hover:bg-osrs-bronze/10 -mx-2 flex w-full items-start gap-2 rounded-lg px-2 py-1 text-left transition-colors"
+    <div className={`relative ${className}`}>
+      <svg
+        viewBox="0 0 24 24"
+        className="text-osrs-parchment-dark/40 pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
       >
-        <svg
-          viewBox="0 0 24 24"
-          className={`text-osrs-parchment-dark/50 group-hover:text-osrs-gold mt-1 size-4 shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden
+        <circle cx="11" cy="11" r="7" />
+        <path d="m21 21-4.35-4.35" />
+      </svg>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 focus:ring-osrs-gold/60 w-full rounded border py-2 pl-8 pr-8 text-sm focus:outline-none focus:ring-1"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Clear search"
+          className="text-osrs-parchment-dark/50 hover:text-osrs-gold absolute right-2 top-1/2 -translate-y-1/2"
         >
-          <path d="m9 6 6 6-6 6" />
-        </svg>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-osrs-gold text-lg font-semibold">{title}</h2>
-            {typeof count === "number" && count > 0 && (
-              <span className="bg-osrs-bronze/20 text-osrs-parchment-dark/80 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums">
-                {count}
-              </span>
-            )}
-            {!open && <span className="text-osrs-parchment-dark/40 text-xs">Show</span>}
-          </div>
-          {hint && open && (
-            <p className="text-osrs-parchment-dark/70 mt-0.5 text-sm">{hint}</p>
-          )}
-        </div>
-      </button>
-      {open && (
-        <div id={bodyId} className="space-y-3">
-          {children}
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Prev/next pager (award-history style) with a result-count summary. */
+function Pager({
+  page,
+  totalPages,
+  onPage,
+  summary,
+}: {
+  page: number;
+  totalPages: number;
+  onPage: (p: number) => void;
+  summary: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <span className="text-osrs-parchment-dark/50 text-xs">{summary}</span>
+      {totalPages > 1 && (
+        <div className="flex items-center gap-3 text-sm">
+          <button
+            type="button"
+            onClick={() => onPage(page - 1)}
+            disabled={page <= 1}
+            className="text-osrs-gold-bright disabled:text-osrs-parchment-dark/30 hover:underline"
+          >
+            ← Prev
+          </button>
+          <span className="text-osrs-parchment-dark/60">
+            Page {page} of {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => onPage(page + 1)}
+            disabled={page >= totalPages}
+            className="text-osrs-gold-bright disabled:text-osrs-parchment-dark/30 hover:underline"
+          >
+            Next →
+          </button>
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -541,6 +584,8 @@ function ModsSection({
   const [divisor, setDivisor] = useState(1);
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [pending, startTransition] = useTransition();
 
   const add = () =>
@@ -583,88 +628,122 @@ function ModsSection({
       }
     });
 
+  const q = query.trim().toLowerCase();
+  const filtered = q ? mods.filter((m) => targetMatches(q, m)) : mods;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const current = Math.min(page, totalPages);
+  const pageRows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+
   return (
-    <CollapsibleSection
-      title="Item & boss overrides"
-      hint="Replace the default award for specific items and/or NPCs. For drops with a quantity, an override awards points per item; otherwise it's the divisor formula (or a flat award for non-drop types)."
-      count={mods.length}
-      defaultOpen={initial.length <= COLLAPSE_DEFAULT_THRESHOLD}
-    >
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <SectionHeading
+          title="Item & boss overrides"
+          hint="Replace the default award for specific items and/or NPCs. For drops with a quantity, an override awards points per item; otherwise it's the divisor formula (or a flat award for non-drop types)."
+        />
+        {mods.length > 0 && (
+          <SearchInput
+            value={query}
+            onChange={(v) => {
+              setQuery(v);
+              setPage(1);
+            }}
+            placeholder="Search overrides…"
+            className="w-full sm:w-72"
+          />
+        )}
+      </div>
+
       {mods.length === 0 ? (
         <EmptyState title="No overrides yet" hint="All submissions use the base award rules." />
-      ) : (
-        <Card padding="p-0" className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-osrs-bronze/25 text-osrs-parchment-dark/60 border-b text-left text-xs uppercase">
-                <th className="px-4 py-2.5">Target</th>
-                <th className="px-4 py-2.5">Applies to</th>
-                <th className="px-4 py-2.5">Award</th>
-                <th className="px-4 py-2.5">Divisor</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody>
-              {mods.map((m) => (
-                <tr key={m.id} className="border-osrs-bronze/15 border-b last:border-0">
-                  <td className="px-4 py-2">
-                    <TargetChip
-                      itemName={m.item_name}
-                      itemId={m.item_id}
-                      npcName={m.npc_name}
-                      npcId={m.npc_id}
-                    />
-                    {m.description && (
-                      <div className="text-osrs-parchment-dark/50 text-xs">{m.description}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-2">
-                    {EVENT_TYPE_OPTIONS.find((o) => o.value === m.event_type)?.label ?? m.event_type}
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="number"
-                      min={0}
-                      defaultValue={m.award}
-                      disabled={disabled}
-                      onBlur={(e) => {
-                        const v = Number(e.target.value);
-                        if (Number.isFinite(v) && v !== m.award) saveAward(m, { award: v });
-                      }}
-                      className={`${field} w-24`}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    <input
-                      type="number"
-                      min={1}
-                      defaultValue={m.divisor}
-                      disabled={disabled}
-                      onBlur={(e) => {
-                        const v = Number(e.target.value);
-                        if (Number.isFinite(v) && v !== m.divisor) saveAward(m, { divisor: v });
-                      }}
-                      className={`${field} w-28`}
-                    />
-                  </td>
-                  <td className="px-4 py-2 text-right">
-                    {m.can_modify && (
-                      <button
-                        type="button"
-                        onClick={() => remove(m.id)}
-                        disabled={disabled || pending}
-                        className="text-osrs-red/80 text-xs hover:underline disabled:opacity-50"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      ) : filtered.length === 0 ? (
+        <Card padding="p-6">
+          <p className="text-osrs-parchment-dark/50 text-center text-sm">
+            No overrides match “{query}”.
+          </p>
         </Card>
+      ) : (
+        <>
+          <Card padding="p-0" className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-osrs-bronze/25 text-osrs-parchment-dark/60 border-b text-left text-xs uppercase">
+                  <th className="px-4 py-2.5">Target</th>
+                  <th className="px-4 py-2.5">Applies to</th>
+                  <th className="px-4 py-2.5">Award</th>
+                  <th className="px-4 py-2.5">Divisor</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {pageRows.map((m) => (
+                  <tr key={m.id} className="border-osrs-bronze/15 border-b last:border-0">
+                    <td className="px-4 py-2">
+                      <TargetChip
+                        itemName={m.item_name}
+                        itemId={m.item_id}
+                        npcName={m.npc_name}
+                        npcId={m.npc_id}
+                      />
+                      {m.description && (
+                        <div className="text-osrs-parchment-dark/50 text-xs">{m.description}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      {EVENT_TYPE_OPTIONS.find((o) => o.value === m.event_type)?.label ?? m.event_type}
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={0}
+                        defaultValue={m.award}
+                        disabled={disabled}
+                        onBlur={(e) => {
+                          const v = Number(e.target.value);
+                          if (Number.isFinite(v) && v !== m.award) saveAward(m, { award: v });
+                        }}
+                        className={`${field} w-24`}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <input
+                        type="number"
+                        min={1}
+                        defaultValue={m.divisor}
+                        disabled={disabled}
+                        onBlur={(e) => {
+                          const v = Number(e.target.value);
+                          if (Number.isFinite(v) && v !== m.divisor) saveAward(m, { divisor: v });
+                        }}
+                        className={`${field} w-28`}
+                      />
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      {m.can_modify && (
+                        <button
+                          type="button"
+                          onClick={() => remove(m.id)}
+                          disabled={disabled || pending}
+                          className="text-osrs-red/80 text-xs hover:underline disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
+          <Pager
+            page={current}
+            totalPages={totalPages}
+            onPage={setPage}
+            summary={`${filtered.length}${q ? ` of ${mods.length}` : ""} override${mods.length === 1 ? "" : "s"}`}
+          />
+        </>
       )}
+
       <Card padding="p-4" className="space-y-3">
         <div className="text-osrs-parchment text-sm font-medium">Add an override</div>
         <TargetPicker groupId={groupId} target={target} setTarget={setTarget} disabled={disabled} />
@@ -721,11 +800,105 @@ function ModsSection({
         </div>
       </Card>
       {error && <Alert variant="error">{error}</Alert>}
-    </CollapsibleSection>
+    </section>
   );
 }
 
 /* --- Include / exclude lists --------------------------------------------------- */
+
+/** One include/exclude column (blacklist/whitelist/no-split) with its own
+ * search-aware pagination — a shared query from the parent narrows all three. */
+function ListCard({
+  type,
+  entries,
+  query,
+  onRemove,
+  disabled,
+  pending,
+}: {
+  type: PointListType;
+  entries: PointListEntry[];
+  query: string;
+  onRemove: (id: number) => void;
+  disabled: boolean;
+  pending: boolean;
+}) {
+  const items = entries.filter((e) => e.list_type === type);
+  const q = query.trim().toLowerCase();
+  const filtered = q ? items.filter((e) => targetMatches(q, e)) : items;
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / LIST_PAGE_SIZE));
+  const current = Math.min(page, totalPages);
+  const shown = filtered.slice((current - 1) * LIST_PAGE_SIZE, current * LIST_PAGE_SIZE);
+
+  // A search narrows every column at once — jump each back to its first page.
+  useEffect(() => {
+    setPage(1);
+  }, [q]);
+
+  return (
+    <Card padding="p-4">
+      <div className="text-osrs-parchment text-sm font-semibold capitalize">
+        {type.replace("_", " ")}
+        <span className="text-osrs-parchment-dark/40 ml-1.5 text-xs font-normal tabular-nums">
+          {items.length}
+        </span>
+      </div>
+      <p className="text-osrs-parchment-dark/60 mb-2 mt-0.5 text-xs">{LIST_TYPE_HELP[type]}</p>
+      {items.length === 0 ? (
+        <p className="text-osrs-parchment-dark/40 text-sm">Empty.</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-osrs-parchment-dark/40 text-sm">No matches.</p>
+      ) : (
+        <>
+          <ul className="space-y-1 text-sm">
+            {shown.map((e) => (
+              <li key={e.id} className="flex items-center justify-between gap-2">
+                <TargetChip
+                  itemName={e.item_name}
+                  itemId={e.item_id}
+                  npcName={e.npc_name}
+                  npcId={e.npc_id}
+                />
+                <button
+                  type="button"
+                  onClick={() => onRemove(e.id)}
+                  disabled={disabled || pending}
+                  className="text-osrs-red/80 text-xs hover:underline disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+          {totalPages > 1 && (
+            <div className="border-osrs-bronze/15 text-osrs-parchment-dark/60 mt-2 flex items-center justify-between border-t pt-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setPage(current - 1)}
+                disabled={current <= 1}
+                className="text-osrs-gold-bright disabled:text-osrs-parchment-dark/30 hover:underline"
+              >
+                ← Prev
+              </button>
+              <span className="tabular-nums">
+                {current}/{totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPage(current + 1)}
+                disabled={current >= totalPages}
+                className="text-osrs-gold-bright disabled:text-osrs-parchment-dark/30 hover:underline"
+              >
+                Next →
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
 
 function ListsSection({
   groupId,
@@ -739,6 +912,7 @@ function ListsSection({
   const [entries, setEntries] = useState(initial);
   const [listType, setListType] = useState<PointListType>("blacklist");
   const [target, setTarget] = useState<PickedTarget>({});
+  const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -768,47 +942,33 @@ function ListsSection({
       }
     });
 
-  const byType = (t: PointListType) => entries.filter((e) => e.list_type === t);
-
   return (
-    <CollapsibleSection
-      title="Include / exclude lists"
-      hint="Fine-grained gates evaluated before any award: blacklist blocks, whitelist restricts, no-split prevents teammate sharing."
-      count={entries.length}
-      defaultOpen={initial.length <= COLLAPSE_DEFAULT_THRESHOLD}
-    >
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <SectionHeading
+          title="Include / exclude lists"
+          hint="Fine-grained gates evaluated before any award: blacklist blocks, whitelist restricts, no-split prevents teammate sharing."
+        />
+        {entries.length > 0 && (
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Search entries…"
+            className="w-full sm:w-72"
+          />
+        )}
+      </div>
       <div className="grid gap-3 lg:grid-cols-3">
         {(["blacklist", "whitelist", "no_split"] as const).map((t) => (
-          <Card key={t} padding="p-4">
-            <div className="text-osrs-parchment text-sm font-semibold capitalize">
-              {t.replace("_", " ")}
-            </div>
-            <p className="text-osrs-parchment-dark/60 mb-2 mt-0.5 text-xs">{LIST_TYPE_HELP[t]}</p>
-            {byType(t).length === 0 ? (
-              <p className="text-osrs-parchment-dark/40 text-sm">Empty.</p>
-            ) : (
-              <ul className="space-y-1 text-sm">
-                {byType(t).map((e) => (
-                  <li key={e.id} className="flex items-center justify-between gap-2">
-                    <TargetChip
-                      itemName={e.item_name}
-                      itemId={e.item_id}
-                      npcName={e.npc_name}
-                      npcId={e.npc_id}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => remove(e.id)}
-                      disabled={disabled || pending}
-                      className="text-osrs-red/80 text-xs hover:underline disabled:opacity-50"
-                    >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
+          <ListCard
+            key={t}
+            type={t}
+            entries={entries}
+            query={query}
+            onRemove={remove}
+            disabled={disabled}
+            pending={pending}
+          />
         ))}
       </div>
       <Card padding="p-4" className="space-y-3">
@@ -838,7 +998,7 @@ function ListsSection({
         </div>
       </Card>
       {error && <Alert variant="error">{error}</Alert>}
-    </CollapsibleSection>
+    </section>
   );
 }
 
