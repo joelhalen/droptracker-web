@@ -777,8 +777,19 @@ export const ManualSubmissionSchema = z.object({
   player_id: z.number().int(),
   npc_name: z.string().optional(),
   item_name: z.string().optional(),
+  /** Game id from the item picker — lets the pipeline skip name resolution. */
+  item_id: z.number().int().optional(),
   value: z.number().int().nonnegative().optional(),
   quantity: z.number().int().positive().default(1),
+  /** Personal best: kill time in milliseconds (required for type "pb"). */
+  time_ms: z.number().int().positive().optional(),
+  /** Personal best: team size (defaults to solo). */
+  team_size: z.number().int().positive().optional(),
+  /** Combat achievement: task name + tier (required for type "ca"). */
+  task: z.string().max(120).optional(),
+  tier: z.enum(["easy", "medium", "hard", "elite", "master", "grandmaster"]).optional(),
+  /** Collection log / pet: kill count when the unlock happened. */
+  kc: z.number().int().nonnegative().optional(),
   proof_upload_key: z.string().optional(),
   notes: z.string().max(500).optional(),
 });
