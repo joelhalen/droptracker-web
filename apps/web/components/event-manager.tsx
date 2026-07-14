@@ -40,7 +40,6 @@ import {
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
-import { EventDiscord } from "@/components/event-discord";
 import { EventSignupTools } from "@/components/event-signup-tools";
 import { EventTaskForm } from "@/components/event-task-form";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
@@ -941,8 +940,23 @@ export function EventManager({
       {/* Self-service sign-ups: pool sorting + "post to Discord" */}
       <EventSignupTools groupId={groupId} event={event} teams={teams} />
 
-      {/* Per-event Discord destinations (Task 19) */}
-      <EventDiscord groupId={groupId} eventId={event.id} />
+      {/* Per-event Discord config lives on its own page (Task 19). */}
+      <section>
+        <h3 className="heading-rule text-osrs-gold mb-1 pb-1 text-lg font-semibold">Discord</h3>
+        <p className="text-osrs-parchment-dark/60 mb-3 text-sm">
+          Channels, verbosity and the live standings board have moved to their own page.
+        </p>
+        <Link
+          href={
+            (groupId == null
+              ? `/admin/events/${event.id}/discord`
+              : `/groups/${groupId}/events/${event.id}/discord`) as Route
+          }
+          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark inline-block rounded px-3 py-1.5 text-sm font-medium"
+        >
+          Open Discord settings
+        </Link>
+      </section>
 
       {/* Verification queue / ledger / manual awards (Task 18) */}
       <EventReview groupId={groupId} eventId={event.id} tasks={tasks} teams={teams} />

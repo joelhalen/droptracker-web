@@ -1900,6 +1900,23 @@ export function mockEventDiscord(_eventId: number): EventChannelConfig {
     pings: {
       event_created: ["888888888888888888"],
     },
+    // Mirrors the backend defaults (services/event_notifications.py).
+    messages: {
+      toggles: {
+        event_started: true,
+        event_ended: true,
+        event_completion: true,
+        event_task_progress: true,
+        event_cell: true,
+        event_line: true,
+        event_blackout: true,
+        event_lead_change: true,
+        event_pending: true,
+        event_activation_failed: true,
+      },
+      task_progress: "off",
+      leaderboard: { live: true, top_n: 10, show_tasks: true },
+    },
   };
 }
 

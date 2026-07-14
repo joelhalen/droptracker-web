@@ -1756,6 +1756,28 @@ export type EventDiscordPolicy = (typeof EVENT_DISCORD_POLICIES)[number];
 export const EVENT_PING_KEYS = ["event_created", "event_started", "event_ended"] as const;
 export type EventPingKey = (typeof EVENT_PING_KEYS)[number];
 
+/** Per-event message-verbosity toggles (web_events.message_config). Each key
+ * is one Discord notification type a group leader can silence for the event;
+ * the backend rejects unknown keys on PUT. */
+export const EVENT_MESSAGE_TOGGLE_KEYS = [
+  "event_started",
+  "event_ended",
+  "event_completion",
+  "event_task_progress",
+  "event_cell",
+  "event_line",
+  "event_blackout",
+  "event_lead_change",
+  "event_pending",
+  "event_activation_failed",
+] as const;
+export type EventMessageToggleKey = (typeof EVENT_MESSAGE_TOGGLE_KEYS)[number];
+
+/** How chatty task-progress updates are: silent, 25/50/75% milestones, or
+ * every qualifying update (gated by the event_task_progress toggle). */
+export const EVENT_TASK_PROGRESS_MODES = ["off", "milestones", "all"] as const;
+export type EventTaskProgressMode = (typeof EVENT_TASK_PROGRESS_MODES)[number];
+
 /** Square bingo boards only; 5×5 is the default. */
 export const EVENT_BOARD_SIZES = [3, 4, 5, 6, 7] as const;
 
@@ -2078,6 +2100,32 @@ export const EventScheduledEventStateSchema = z.object({
 });
 export type EventScheduledEventState = z.infer<typeof EventScheduledEventStateSchema>;
 
+/** Per-event message verbosity + live-leaderboard knobs
+ * (web_events.message_config). GET always returns this fully merged with the
+ * server defaults, so the UI never needs its own default table; the PUT body
+ * carries the same shape back. */
+export const EventMessageConfigSchema = z.object({
+  toggles: z.object({
+    event_started: z.boolean(),
+    event_ended: z.boolean(),
+    event_completion: z.boolean(),
+    event_task_progress: z.boolean(),
+    event_cell: z.boolean(),
+    event_line: z.boolean(),
+    event_blackout: z.boolean(),
+    event_lead_change: z.boolean(),
+    event_pending: z.boolean(),
+    event_activation_failed: z.boolean(),
+  }),
+  task_progress: z.enum(EVENT_TASK_PROGRESS_MODES),
+  leaderboard: z.object({
+    live: z.boolean(),
+    top_n: z.number().int().min(3).max(25),
+    show_tasks: z.boolean(),
+  }),
+});
+export type EventMessageConfig = z.infer<typeof EventMessageConfigSchema>;
+
 /** Per-event Discord destinations (events-prd.md D8). */
 export const EventChannelConfigSchema = z.object({
   guild_id: z.string().nullable(),
@@ -2086,6 +2134,7 @@ export const EventChannelConfigSchema = z.object({
   scheduled_event: EventScheduledEventStateSchema.nullable().optional(),
   discord_event_policy: z.enum(EVENT_DISCORD_POLICIES).default("on_activate"),
   pings: z.record(z.enum(EVENT_PING_KEYS), z.array(z.string())).default({}),
+  messages: EventMessageConfigSchema,
 });
 export type EventChannelConfig = z.infer<typeof EventChannelConfigSchema>;
 
@@ -2100,6 +2149,7 @@ export const EventChannelConfigInputSchema = z.object({
   /** Absent keys leave the stored value unchanged (backend contract). */
   discord_event_policy: z.enum(EVENT_DISCORD_POLICIES).optional(),
   pings: z.record(z.enum(EVENT_PING_KEYS), z.array(z.string().regex(/^\d+$/)).max(10)).optional(),
+  messages: EventMessageConfigSchema.optional(),
 });
 export type EventChannelConfigInput = z.infer<typeof EventChannelConfigInputSchema>;
 

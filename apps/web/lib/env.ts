@@ -39,6 +39,25 @@ export const env = {
   },
 
   siteUrl: process.env.NEXTAUTH_URL ?? "http://localhost:3000",
+
+  /**
+   * Discord Activity OAuth apps: "clientId:secret,clientId2:secret2".
+   *
+   * The activity iframe derives its client id from its own hostname
+   * (<client_id>.discordsays.com) and the BFF picks the matching secret here,
+   * so one deployment serves several Discord applications at once — the
+   * unverified webhook-bot app while testing and the verified primary app at
+   * launch. The primary OAuth app (discord.clientId/Secret above) is always
+   * accepted as a fallback without an entry.
+   */
+  activityAppSecrets: (() => {
+    const map = new Map<string, string>();
+    for (const pair of (process.env.ACTIVITY_APP_SECRETS ?? "").split(",")) {
+      const sep = pair.indexOf(":");
+      if (sep > 0) map.set(pair.slice(0, sep).trim(), pair.slice(sep + 1).trim());
+    }
+    return map;
+  })(),
 } as const;
 
 export const SESSION_COOKIE = "dt_session";

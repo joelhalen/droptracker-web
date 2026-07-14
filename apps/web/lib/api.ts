@@ -1303,6 +1303,8 @@ export const api = {
         channels: input.channels,
         discord_event_policy: input.discord_event_policy ?? "on_activate",
         pings: input.pings ?? {},
+        // Mirror the backend PUT contract: absent = leave unchanged (defaults).
+        messages: input.messages ?? mockEventDiscord(eventId).messages,
       }),
     );
   },

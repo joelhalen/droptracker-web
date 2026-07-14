@@ -484,7 +484,9 @@ export async function revokeEventCompletion(
 
 // --- Discord destinations (Task 19) ----------------------------------------
 
-/** The event's Discord destination config (guild + per-kind channels). */
+/** The event's Discord destination config (guild + per-kind channels), plus
+ * the `messages` verbosity/live-leaderboard knobs — always returned fully
+ * merged with the server defaults. */
 export async function getEventDiscord(groupId: EventGroupId, eventId: number) {
   await assertCanManageEvent(groupId);
   return api.eventDiscord(eventId);
@@ -510,7 +512,9 @@ export async function listEventDiscordRoles(groupId: EventGroupId, guildId: stri
   return api.eventDiscordRoles(guildId);
 }
 
-/** Replace the event's Discord destination; `guild_id: null` clears it. */
+/** Replace the event's Discord destination; `guild_id: null` clears it. An
+ * optional `messages` object (verbosity toggles, task-progress mode, live
+ * leaderboard) saves alongside; absent = stored value left unchanged. */
 export async function saveEventDiscord(
   groupId: EventGroupId,
   eventId: number,
@@ -520,6 +524,7 @@ export async function saveEventDiscord(
   const parsed = EventChannelConfigInputSchema.parse(input);
   const result = await api.updateEventDiscord(eventId, parsed);
   revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`${eventAdminPath(groupId, eventId)}/discord`);
   return result;
 }
 

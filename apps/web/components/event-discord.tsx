@@ -1,7 +1,9 @@
 "use client";
 
 /**
- * Per-event Discord destination config (Task 19, events-prd.md D8).
+ * Per-event Discord settings page body (Task 19, events-prd.md D8) — split out
+ * of the event manager onto its own page
+ * (`/groups/[id]/events/[eventId]/discord`).
  *
  * Guild select is scoped to servers the signed-in user may target — ones they
  * manage on Discord (owner / Manage Server) or whose DropTracker group they
@@ -12,20 +14,27 @@
  * Web API; when a cache is stale the UI falls back to manual-id entry and the
  * backend asks the bot to warm the cache for the next attempt. The dropdown is
  * only cosmetic — the Web API re-checks guild authority on save.
+ *
+ * Also edits the event's message-verbosity toggles and live-leaderboard knobs
+ * (`messages` on GET/PUT /events/{id}/discord — web_events.message_config).
+ * Everything saves through the ONE save button at the bottom.
  */
 import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   EVENT_CHANNEL_KINDS,
-  EVENT_PING_KEYS,
   type DiscordRole,
   type EventChannelKind,
   type EventDiscordPolicy,
+  type EventMessageConfig,
+  type EventMessageToggleKey,
   type EventPingKey,
   type EventScheduledEventState,
+  type EventTaskProgressMode,
 } from "@droptracker/api-types";
 import type { DiscordChannel, EventDiscordGuild } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
+import { CollapsibleSection } from "@/components/collapsible-section";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { DiscordRolePicker } from "@/components/discord-role-picker";
 import {
@@ -65,7 +74,7 @@ const KIND_META: Record<EventChannelKind, { label: string; hint: string }> = {
   },
   leaderboard: {
     label: "Leaderboard",
-    hint: "Lead changes with the top-3 standings.",
+    hint: "Lead changes with the top-3 standings. A live standings board is posted here when the event starts and kept up to date.",
   },
   admin: {
     label: "Admin",
@@ -73,7 +82,62 @@ const KIND_META: Record<EventChannelKind, { label: string; hint: string }> = {
   },
 };
 
-export function EventDiscord({ groupId, eventId }: { groupId: number | null; eventId: number }) {
+/** One verbosity toggle row — same switch styling as the group-config editor. */
+function ToggleRow({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="border-osrs-bronze/15 hover:border-osrs-gold/40 bg-osrs-surface-2/50 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors"
+    >
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{label}</span>
+        {hint && <span className="text-osrs-parchment-dark/60 mt-0.5 block text-xs">{hint}</span>}
+      </span>
+      <span
+        aria-hidden="true"
+        className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+          checked ? "bg-osrs-gold" : "bg-osrs-stone/50"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 size-5 transform rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </span>
+    </button>
+  );
+}
+
+/** Small muted group label inside the verbosity section. */
+function ToggleGroupLabel({ children }: { children: string }) {
+  return (
+    <p className="text-osrs-parchment-dark/50 text-xs font-medium tracking-wide uppercase">
+      {children}
+    </p>
+  );
+}
+
+export function EventDiscordSettings({
+  groupId,
+  eventId,
+}: {
+  groupId: number | null;
+  eventId: number;
+}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -95,6 +159,9 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
   const [policy, setPolicy] = useState<EventDiscordPolicy>("on_activate");
   const [pings, setPings] = useState<Partial<Record<EventPingKey, string[]>>>({});
   const [roleList, setRoleList] = useState<DiscordRole[] | null>(null);
+  // Message verbosity + live leaderboard (always fully merged with defaults
+  // by the backend; null only until the GET lands).
+  const [messages, setMessages] = useState<EventMessageConfig | null>(null);
 
   const loadChannels = useCallback(
     async (gid: string) => {
@@ -141,6 +208,7 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
         setScheduledEvent(config.scheduled_event ?? null);
         setPolicy(config.discord_event_policy ?? "on_activate");
         setPings(config.pings ?? {});
+        setMessages(config.messages);
         if (config.guild_id) void loadChannels(config.guild_id);
       } catch (err) {
         if (!cancelled) {
@@ -185,6 +253,25 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
     });
   };
 
+  const setToggle = (key: EventMessageToggleKey, value: boolean) => {
+    setSaved(false);
+    setMessages((prev) =>
+      prev ? { ...prev, toggles: { ...prev.toggles, [key]: value } } : prev,
+    );
+  };
+
+  const setTaskProgress = (mode: EventTaskProgressMode) => {
+    setSaved(false);
+    setMessages((prev) => (prev ? { ...prev, task_progress: mode } : prev));
+  };
+
+  const patchLeaderboard = (patch: Partial<EventMessageConfig["leaderboard"]>) => {
+    setSaved(false);
+    setMessages((prev) =>
+      prev ? { ...prev, leaderboard: { ...prev.leaderboard, ...patch } } : prev,
+    );
+  };
+
   const onSave = () => {
     setError(null);
     setSaved(false);
@@ -203,6 +290,9 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
           channels: guildId.trim() ? cleaned : {},
           discord_event_policy: policy,
           pings: guildId.trim() ? cleanedPings : {},
+          // Absent key = leave unchanged, so a failed initial GET can't
+          // clobber the stored verbosity config with nothing.
+          messages: messages ?? undefined,
         });
         setGuildId(result.guild_id ?? "");
         setGuildName(result.guild_name ?? null);
@@ -211,6 +301,7 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
         setScheduledEvent(result.scheduled_event ?? null);
         setPolicy(result.discord_event_policy ?? "on_activate");
         setPings(result.pings ?? {});
+        setMessages(result.messages);
         setSaved(true);
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't save the Discord config. Please try again."));
@@ -220,22 +311,22 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
 
   const guildIdValid = !guildId.trim() || /^\d+$/.test(guildId.trim());
   const useManualGuild = manualGuild ?? (guildsStale || guilds.length === 0);
+  const hasGuild = Boolean(guildId.trim());
+
+  if (loading) {
+    return <p className="text-osrs-parchment-dark/60 text-sm">Loading Discord config…</p>;
+  }
 
   return (
-    <section>
-      <h3 className="heading-rule text-osrs-gold mb-1 pb-1 text-lg font-semibold">Discord</h3>
-      <p className="text-osrs-parchment-dark/60 mb-4 text-sm">
-        Post this event&apos;s happenings to a Discord server you manage — including a dedicated
-        event server you&apos;ve added the bot to. Kinds without a channel fall back to
-        Announcements; with nothing set, nothing is posted.
-      </p>
+    <div className="space-y-6">
+      {error && <Alert variant="error">{error}</Alert>}
 
-      {loading ? (
-        <p className="text-osrs-parchment-dark/60 text-sm">Loading Discord config…</p>
-      ) : (
+      <CollapsibleSection
+        title="Server & channels"
+        hint="Post this event's happenings to a Discord server you manage — including a dedicated event server you've added the bot to. Kinds without a channel fall back to Announcements; with nothing set, nothing is posted."
+        defaultOpen
+      >
         <div className="space-y-4">
-          {error && <Alert variant="error">{error}</Alert>}
-
           <label className="block text-sm sm:max-w-md">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Server</span>
             {useManualGuild ? (
@@ -296,7 +387,42 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
             )}
           </label>
 
-          {guildId.trim() && (
+          {hasGuild && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {EVENT_CHANNEL_KINDS.map((kind) => (
+                <label key={kind} className="block text-sm">
+                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                    {KIND_META[kind].label}
+                  </span>
+                  <DiscordChannelPicker
+                    channels={channelList}
+                    value={channels[kind] ?? ""}
+                    onChange={(v) => setKind(kind, v)}
+                    placeholder={`${KIND_META[kind].label} channel id`}
+                  />
+                  <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
+                    {KIND_META[kind].hint}
+                  </span>
+                </label>
+              ))}
+              {channelsStale && (
+                <p className="text-osrs-parchment-dark/50 text-xs sm:col-span-2">
+                  This server&apos;s channel list isn&apos;t cached yet (the bot is fetching it) —
+                  paste channel ids manually or re-open this page shortly.
+                </p>
+              )}
+              <ChannelListDelayHint className="sm:col-span-2" />
+            </div>
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {hasGuild && (
+        <CollapsibleSection
+          title="Scheduled event"
+          hint="The bot mirrors this event as a native Discord scheduled event on the server."
+        >
+          <div className="space-y-4">
             <fieldset className="border-osrs-bronze/20 space-y-2 rounded border p-3 sm:max-w-md">
               <legend className="text-osrs-parchment-dark/70 px-1 text-xs">
                 Discord scheduled event
@@ -338,108 +464,236 @@ export function EventDiscord({ groupId, eventId }: { groupId: number | null; eve
                 </span>
               </label>
             </fieldset>
-          )}
 
-          {!scheduledEvent &&
-            savedGuildId &&
-            guildId.trim() === savedGuildId &&
-            policy === "on_activate" && (
-              <p className="text-osrs-parchment-dark/50 text-xs">
-                The Discord scheduled event will be created when this event goes live.
-              </p>
-            )}
-
-          {scheduledEvent && guildId.trim() === savedGuildId && savedGuildId && (
-            <>
-              {scheduledEvent.status === "failed" ? (
-                <Alert variant="error">
-                  The Discord scheduled event couldn&apos;t be created or updated in{" "}
-                  {guildName ?? "this server"} — make sure the bot has the{" "}
-                  <strong>Manage Events</strong> permission there, then save again.
-                  {scheduledEvent.last_error && (
-                    <span className="mt-1 block text-xs opacity-70">
-                      Last error: {scheduledEvent.last_error}
-                    </span>
-                  )}
-                </Alert>
-              ) : (
+            {!scheduledEvent &&
+              savedGuildId &&
+              guildId.trim() === savedGuildId &&
+              policy === "on_activate" && (
                 <p className="text-osrs-parchment-dark/50 text-xs">
-                  {scheduledEvent.status === "synced"
-                    ? "A Discord scheduled event for this event is live on the server — it tracks name, description and time edits automatically."
-                    : scheduledEvent.status === "pending"
-                      ? "The bot will create (or update) this server's Discord scheduled event within a minute — once the event has a start time in the future."
-                      : "This server's Discord scheduled event is being removed."}
+                  The Discord scheduled event will be created when this event goes live.
                 </p>
               )}
-            </>
-          )}
 
-          {guildId.trim() && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {EVENT_CHANNEL_KINDS.map((kind) => (
-                <label key={kind} className="block text-sm">
-                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-                    {KIND_META[kind].label}
-                  </span>
-                  <DiscordChannelPicker
-                    channels={channelList}
-                    value={channels[kind] ?? ""}
-                    onChange={(v) => setKind(kind, v)}
-                    placeholder={`${KIND_META[kind].label} channel id`}
-                  />
-                  <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
-                    {KIND_META[kind].hint}
-                  </span>
-                </label>
-              ))}
-              {channelsStale && (
-                <p className="text-osrs-parchment-dark/50 text-xs sm:col-span-2">
-                  This server&apos;s channel list isn&apos;t cached yet (the bot is fetching it) —
-                  paste channel ids manually or re-open this page shortly.
-                </p>
-              )}
-              <ChannelListDelayHint className="sm:col-span-2" />
-            </div>
-          )}
-
-          {guildId.trim() && (
-            <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-3">
-              <legend className="text-osrs-parchment-dark/70 px-1 text-xs">Role pings</legend>
-              <p className="text-osrs-parchment-dark/60 text-xs">
-                Mentioned as real pings on the matching post. Posts go to the channels configured
-                above (Announcements for all three).
-              </p>
-              {EVENT_PING_KEYS.map((key) => (
-                <div key={key}>
-                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-                    {PING_META[key].label}
-                    <span className="text-osrs-parchment-dark/40 ml-2">{PING_META[key].hint}</span>
-                  </span>
-                  <DiscordRolePicker
-                    roles={roleList}
-                    selected={pings[key] ?? []}
-                    onToggle={(id) => togglePingRole(key, id)}
-                  />
-                </div>
-              ))}
-            </fieldset>
-          )}
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onSave}
-              disabled={pending || !guildIdValid}
-              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-            >
-              {pending ? "Saving…" : "Save Discord config"}
-            </button>
-            {!guildIdValid && (
-              <span className="text-osrs-red text-xs">Server id must be numeric.</span>
+            {scheduledEvent && guildId.trim() === savedGuildId && savedGuildId && (
+              <>
+                {scheduledEvent.status === "failed" ? (
+                  <Alert variant="error">
+                    The Discord scheduled event couldn&apos;t be created or updated in{" "}
+                    {guildName ?? "this server"} — make sure the bot has the{" "}
+                    <strong>Manage Events</strong> permission there, then save again.
+                    {scheduledEvent.last_error && (
+                      <span className="mt-1 block text-xs opacity-70">
+                        Last error: {scheduledEvent.last_error}
+                      </span>
+                    )}
+                  </Alert>
+                ) : (
+                  <p className="text-osrs-parchment-dark/50 text-xs">
+                    {scheduledEvent.status === "synced"
+                      ? "A Discord scheduled event for this event is live on the server — it tracks name, description and time edits automatically."
+                      : scheduledEvent.status === "pending"
+                        ? "The bot will create (or update) this server's Discord scheduled event within a minute — once the event has a start time in the future."
+                        : "This server's Discord scheduled event is being removed."}
+                  </p>
+                )}
+              </>
             )}
-            {saved && <span className="text-osrs-gold-bright text-xs">Saved.</span>}
+
+            <div>
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                {PING_META.event_created.label}
+                <span className="text-osrs-parchment-dark/40 ml-2">
+                  {PING_META.event_created.hint}
+                </span>
+              </span>
+              <DiscordRolePicker
+                roles={roleList}
+                selected={pings.event_created ?? []}
+                onToggle={(id) => togglePingRole("event_created", id)}
+              />
+            </div>
           </div>
-        </div>
+        </CollapsibleSection>
       )}
-    </section>
+
+      {hasGuild && (
+        <CollapsibleSection
+          title="Announcements & pings"
+          hint="Roles mentioned as real pings on the start and final-standings announcements (posted to the Announcements channel)."
+        >
+          <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-3">
+            <legend className="text-osrs-parchment-dark/70 px-1 text-xs">Role pings</legend>
+            {(["event_started", "event_ended"] as const).map((key) => (
+              <div key={key}>
+                <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                  {PING_META[key].label}
+                  <span className="text-osrs-parchment-dark/40 ml-2">{PING_META[key].hint}</span>
+                </span>
+                <DiscordRolePicker
+                  roles={roleList}
+                  selected={pings[key] ?? []}
+                  onToggle={(id) => togglePingRole(key, id)}
+                />
+              </div>
+            ))}
+          </fieldset>
+        </CollapsibleSection>
+      )}
+
+      {messages && (
+        <CollapsibleSection
+          title="Message verbosity"
+          hint="Choose which notifications this event posts. Applies to this event. Messages post to the channels configured above."
+        >
+          <div className="space-y-4 sm:max-w-xl">
+            <div className="space-y-2">
+              <ToggleGroupLabel>Lifecycle</ToggleGroupLabel>
+              <ToggleRow
+                label="Event started announcement"
+                checked={messages.toggles.event_started}
+                onChange={(v) => setToggle("event_started", v)}
+              />
+              <ToggleRow
+                label="Event ended + final standings"
+                checked={messages.toggles.event_ended}
+                onChange={(v) => setToggle("event_ended", v)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <ToggleGroupLabel>Progress</ToggleGroupLabel>
+              <ToggleRow
+                label="Task completions"
+                hint="One post per completed task (Completions channel)."
+                checked={messages.toggles.event_completion}
+                onChange={(v) => setToggle("event_completion", v)}
+              />
+              <ToggleRow
+                label="Task progress updates"
+                hint="Posts while a task is still in progress — pick how often below."
+                checked={messages.toggles.event_task_progress}
+                onChange={(v) => setToggle("event_task_progress", v)}
+              />
+              <label className="block pl-4 text-sm sm:max-w-xs">
+                <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                  Progress update frequency
+                </span>
+                <select
+                  value={messages.task_progress}
+                  onChange={(e) => setTaskProgress(e.target.value as EventTaskProgressMode)}
+                  disabled={!messages.toggles.event_task_progress}
+                  className={`${field} w-full disabled:opacity-50`}
+                >
+                  <option value="off">Off</option>
+                  <option value="milestones">Milestones (25/50/75%)</option>
+                  <option value="all">Every update</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <ToggleGroupLabel>Bingo</ToggleGroupLabel>
+              <ToggleRow
+                label="Bingo cell marked"
+                checked={messages.toggles.event_cell}
+                onChange={(v) => setToggle("event_cell", v)}
+              />
+              <ToggleRow
+                label="Line bonuses"
+                checked={messages.toggles.event_line}
+                onChange={(v) => setToggle("event_line", v)}
+              />
+              <ToggleRow
+                label="Blackout"
+                checked={messages.toggles.event_blackout}
+                onChange={(v) => setToggle("event_blackout", v)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <ToggleGroupLabel>Leaderboard</ToggleGroupLabel>
+              <ToggleRow
+                label="Lead changes"
+                hint="Posted to the Leaderboard channel when a new team takes first place."
+                checked={messages.toggles.event_lead_change}
+                onChange={(v) => setToggle("event_lead_change", v)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <ToggleGroupLabel>Admin</ToggleGroupLabel>
+              <ToggleRow
+                label="Pending review alerts"
+                hint="Completions awaiting review, posted to the Admin channel."
+                checked={messages.toggles.event_pending}
+                onChange={(v) => setToggle("event_pending", v)}
+              />
+              <ToggleRow
+                label="Activation failure alerts"
+                checked={messages.toggles.event_activation_failed}
+                onChange={(v) => setToggle("event_activation_failed", v)}
+              />
+            </div>
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {messages && (
+        <CollapsibleSection
+          title="Live leaderboard"
+          hint="A standings board posted to the Leaderboard channel when the event starts and edited in place as scores change."
+        >
+          <div className="space-y-3 sm:max-w-xl">
+            <ToggleRow
+              label="Post a live standings board"
+              hint="Requires a Leaderboard channel above (falls back to Announcements)."
+              checked={messages.leaderboard.live}
+              onChange={(v) => patchLeaderboard({ live: v })}
+            />
+            {messages.leaderboard.live && !channels.leaderboard && (
+              <p className="text-osrs-gold-bright/80 text-xs">
+                {channels.announcements
+                  ? "No Leaderboard channel is set — the live board will post to Announcements instead."
+                  : "No Leaderboard (or Announcements) channel is set — the live board has nowhere to post."}
+              </p>
+            )}
+            <label className="block text-sm sm:max-w-xs">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Teams shown</span>
+              <select
+                value={messages.leaderboard.top_n}
+                onChange={(e) => patchLeaderboard({ top_n: Number(e.target.value) })}
+                className={`${field} w-full`}
+              >
+                {Array.from({ length: 23 }, (_, i) => i + 3).map((n) => (
+                  <option key={n} value={n}>
+                    Top {n}
+                  </option>
+                ))}
+              </select>
+              <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
+                How many teams the board lists (default 10).
+              </span>
+            </label>
+            <ToggleRow
+              label="Include task/bingo progress summary"
+              checked={messages.leaderboard.show_tasks}
+              onChange={(v) => patchLeaderboard({ show_tasks: v })}
+            />
+          </div>
+        </CollapsibleSection>
+      )}
+
+      <div className="border-osrs-bronze/20 flex items-center gap-3 border-t pt-4">
+        <button
+          onClick={onSave}
+          disabled={pending || !guildIdValid}
+          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+        >
+          {pending ? "Saving…" : "Save Discord config"}
+        </button>
+        {!guildIdValid && <span className="text-osrs-red text-xs">Server id must be numeric.</span>}
+        {saved && <span className="text-osrs-gold-bright text-xs">Saved.</span>}
+      </div>
+    </div>
   );
 }

@@ -6,12 +6,21 @@ import { useRouter } from "next/navigation";
 import type { EventDetail } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
-import { joinEvent, leaveEvent } from "@/app/(site)/(public)/events/[id]/actions";
+import {
+  joinEvent as joinEventAction,
+  leaveEvent as leaveEventAction,
+} from "@/app/(site)/(public)/events/[id]/actions";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
 
 type LinkedPlayer = { id: number; name: string };
+
+type JoinFn = (
+  eventId: number,
+  input: { player_id: number; team_id?: number; join_code?: string },
+) => Promise<unknown>;
+type LeaveFn = (eventId: number, playerId: number) => Promise<unknown>;
 
 /**
  * Public join panel (Task 16): lets a signed-in user put one of their linked
@@ -22,11 +31,20 @@ export function EventJoinPanel({
   event,
   players,
   viewerGroupIds = [],
+  join = joinEventAction,
+  leave = leaveEventAction,
+  onChanged,
 }: {
   event: EventDetail;
   players: LinkedPlayer[] | null;
   /** Group ids the signed-in viewer belongs to (from GET /me). */
   viewerGroupIds?: number[];
+  /** Transport overrides — the Discord Activity injects bearer-token BFF
+   * calls here; the site keeps the cookie-based server actions. */
+  join?: JoinFn;
+  leave?: LeaveFn;
+  /** Called after a successful join/leave; defaults to router.refresh(). */
+  onChanged?: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -121,12 +139,13 @@ export function EventJoinPanel({
     setError(null);
     startTransition(async () => {
       try {
-        await joinEvent(event.id, {
+        await join(event.id, {
           player_id: playerId,
           ...(selfJoin && teamId !== "" ? { team_id: teamId } : {}),
           ...(event.join_requires_code && joinCode ? { join_code: joinCode } : {}),
         });
-        router.refresh();
+        if (onChanged) onChanged();
+        else router.refresh();
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't join the event. Please try again."));
       }
@@ -137,8 +156,9 @@ export function EventJoinPanel({
     setError(null);
     startTransition(async () => {
       try {
-        await leaveEvent(event.id, pid);
-        router.refresh();
+        await leave(event.id, pid);
+        if (onChanged) onChanged();
+        else router.refresh();
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't leave the event. Please try again."));
       }

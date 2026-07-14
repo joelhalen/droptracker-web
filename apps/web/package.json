@@ -12,6 +12,7 @@
     "test": "node --import tsx --test test/*.test.ts"
   },
   "dependencies": {
+    "@discord/embedded-app-sdk": "^2.5.0",
     "@droptracker/api-types": "workspace:*",
     "@tanstack/react-query": "^5.62.0",
     "gray-matter": "^4.0.3",

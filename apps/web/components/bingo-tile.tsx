@@ -11,7 +11,10 @@
  */
 import type { EventTask, TaskTile, TaskTileIcon } from "@droptracker/api-types";
 
-const IMG_BASE = "https://www.droptracker.io/img";
+// Relative so tile art stays same-origin wherever the board renders — www and
+// the Discord Activity host (activity.droptracker.io) both map /img/ in nginx;
+// an absolute www URL would be blocked by the activity iframe's CSP.
+const IMG_BASE = "/img";
 
 /** Icon → image URL; null when unresolvable (unknown item/npc id). */
 export function tileIconUrl(icon: TaskTileIcon): string | null {
