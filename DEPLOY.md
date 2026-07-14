@@ -55,11 +55,15 @@ For live-reload development, use `USE_MOCK_API=true pnpm dev` instead.
 
 ## Production (droptracker.io)
 
-The live site runs on the DropTracker box as the systemd unit
-**`droptracker-node.service`** (unit file vendored in the backend repo at
-`deploy/systemd/`):
+The live site runs on the DropTracker box as **two** systemd units,
+`droptracker-node-blue.service` + `droptracker-node-green.service` (zero-downtime
+blue-green — see below; unit files vendored in the backend repo at
+`deploy/systemd/`). A third unit, `droptracker-node.service`, is a **deploy
+trigger** (oneshot): `sudo systemctl restart droptracker-node` runs the full
+deploy.
 
-- `next start` with `PORT=31380`, `WorkingDirectory=/store/droptracker/web/apps/web`
+- `next start` (two instances for zero-downtime deploys — see below),
+  `WorkingDirectory=/store/droptracker/web/apps/web`
 - Env comes from `apps/web/.env.local`, which is a **symlink** to the repo-root
   `.env` (real Discord OAuth, `USE_MOCK_API=false`,
   `WEB_API_INTERNAL_URL=http://127.0.0.1:31325`)
@@ -68,24 +72,45 @@ The live site runs on the DropTracker box as the systemd unit
   must stay `false` while the origin is plain HTTP behind Cloudflare Flexible
   SSL — Secure cookies get silently dropped and sign-in loops.
 
-To ship a change, run the deploy script (does all of the below, restarts the
-unit **immediately** after the build — a gap between build and restart once
-caused a ChunkLoadError outage via ISR writes into the fresh `.next` — then
-polls `:31380` until it returns 200):
+### Zero-downtime deploys (blue-green)
+
+The site runs **two** identical Next.js instances behind nginx, each building
+into its own output dir so a live instance's build is never overwritten while
+it serves:
+
+| Unit | Port | `NEXT_DIST_DIR` |
+|---|---|---|
+| `droptracker-node-blue.service` | 31380 | `.next-blue` |
+| `droptracker-node-green.service` | 31381 | `.next-green` |
+
+nginx routes to whichever colour is **primary** in
+`/etc/nginx/conf.d/droptracker-node-upstream.conf`; the other is `backup`
+(a runtime crash safety-net — no traffic in steady state). `droptracker-node`
+itself is **not a server** — it's the deploy trigger; never `systemctl restart`
+the blue/green units simultaneously (that would cause downtime).
+
+To ship a change, run the deploy script (or `sudo systemctl restart
+droptracker-node`, which runs exactly this via a systemd oneshot —
+`journalctl -u droptracker-node -f` to watch):
 
 ```bash
 cd /store/droptracker/web
 scripts/deploy.sh            # flags: --skip-install, --dry-run
 ```
 
-Manual equivalent (avoid — easy to forget the restart):
+It builds the current source into the **idle** colour, restarts that (unused)
+instance, polls `/api/health` on its port until it answers, then rewrites the
+upstream so the freshly-built colour is primary and `nginx -s reload`s. A reload
+never drops the listen socket and the new build is already warm, so **users see
+no interruption**. The previously-active colour keeps running its old build, so
+rollback is instant: **re-run `scripts/deploy.sh`** (it flips back), or swap the
+two `server` lines in the upstream conf and `sudo nginx -s reload`.
 
-```bash
-cd /store/droptracker/web
-pnpm install                 # if deps changed
-pnpm gen:api-types && pnpm build
-sudo systemctl restart droptracker-node
-```
+> **Do not** deploy with a bare `pnpm build && systemctl restart` anymore. A
+> plain `pnpm build` writes to `.next`, which *neither* instance serves (they
+> use `.next-blue` / `.next-green`), and a single-instance restart reintroduces
+> both the ~10-20s offline window and the 2026-07-07 in-place-`.next`
+> ChunkLoadError outage. Always deploy through `scripts/deploy.sh`.
 
 ## What works in mock mode
 

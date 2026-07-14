@@ -75,12 +75,23 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build   # what CI runs
 
 ## Production
 
-systemd `droptracker-node.service` (unit vendored in backend repo
-`deploy/systemd/`): `next start`, `PORT=31380`, cwd `apps/web`,
-`apps/web/.env.local → ../../.env` symlink. Deploy = `pnpm gen:api-types &&
-pnpm build && sudo systemctl restart droptracker-node`. Fronted by Cloudflare;
-`SESSION_COOKIE_SECURE=false` is REQUIRED while the origin is plain HTTP
-(Secure cookies get dropped → infinite sign-in loop).
+**Zero-downtime blue-green:** two `next start` instances run continuously behind
+nginx — `droptracker-node-blue.service` (:31380, `NEXT_DIST_DIR=.next-blue`) and
+`droptracker-node-green.service` (:31381, `.next-green`); units vendored in backend
+repo `deploy/systemd/`, cwd `apps/web`, `apps/web/.env.local → ../../.env` symlink.
+nginx routes to whichever colour is primary in
+`/etc/nginx/conf.d/droptracker-node-upstream.conf` (other = `backup`). **Deploy =
+`scripts/deploy.sh`** (or `sudo systemctl restart droptracker-node` — a oneshot
+that runs deploy.sh; watch `journalctl -u droptracker-node -f`). It builds the
+idle colour, health-checks it on `/api/health`, flips the upstream, `nginx -s
+reload` (graceful → no downtime); re-run to roll back. **`droptracker-node` is the
+deploy trigger, NOT a server** — the servers are `droptracker-node-{blue,green}`;
+don't restart those directly (simultaneous = downtime). Never deploy via a bare
+`pnpm build && systemctl restart`: a plain `pnpm build` writes to `.next`, which
+neither instance serves, and it brings back the offline window + the
+in-place-`.next` ChunkLoadError outage. Fronted by Cloudflare;
+`SESSION_COOKIE_SECURE=false` is REQUIRED while the origin is plain HTTP (Secure
+cookies get dropped → infinite sign-in loop).
 
 ## Gotchas
 

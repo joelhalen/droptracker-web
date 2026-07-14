@@ -5,6 +5,9 @@ node_modules/
 
 # Build outputs
 .next/
+# blue-green deploy output dirs (see scripts/deploy.sh)
+.next-blue/
+.next-green/
 out/
 dist/
 build/
