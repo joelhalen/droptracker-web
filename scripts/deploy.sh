@@ -91,6 +91,12 @@ run bash -c "cd '$REPO' && pnpm gen:api-types"
 log "Building source into $IDLE_DIST…"
 run bash -c "cd '$APP' && NEXT_DIST_DIR='$IDLE_DIST' ./node_modules/.bin/next build"
 
+# `next build` rewrites next-env.d.ts's typedRoutes reference to the colour it
+# just built (.next-blue/.next-green), which would leave the git tree perpetually
+# dirty and flip-flopping every deploy. That file is declaration-only (never read
+# at runtime), so normalise it back to the committed default (.next).
+run bash -c "sed -i 's#\\.next-[a-z]*/types/routes\\.d\\.ts#.next/types/routes.d.ts#' '$APP/next-env.d.ts'"
+
 # --- Restart idle instance & wait for readiness ------------------------------
 log "Restarting $IDLE_UNIT…"
 run sudo systemctl restart "$IDLE_UNIT"
