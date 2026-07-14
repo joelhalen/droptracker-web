@@ -860,6 +860,14 @@ export function EventManager({
       {/* Teams */}
       <section>
         <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Teams</h3>
+        {isClanVsClan && event.status === "draft" && (
+          <p className="text-osrs-parchment/70 mb-3 text-sm">
+            Teams are optional. Leave them empty and, when the event starts, it
+            runs whole clan vs whole clan — anyone in each clan competes for it.
+            Add teams only if you want to split a clan into named squads (then
+            every clan needs at least one).
+          </p>
+        )}
         <form onSubmit={onAddTeam} className="mb-4 flex flex-wrap gap-2">
           {isClanVsClan && (
             <select
