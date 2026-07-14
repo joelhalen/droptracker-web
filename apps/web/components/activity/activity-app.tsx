@@ -60,6 +60,16 @@ export function ActivityApp() {
     let cancelled = false;
 
     async function boot() {
+      // Dev-only escape hatch: `/activity?preview=1` renders the shell in a
+      // plain browser tab (anonymous, no guild) so layout work doesn't need a
+      // Discord launch. Compiled out of production builds.
+      if (
+        process.env.NODE_ENV !== "production" &&
+        new URLSearchParams(window.location.search).has("preview")
+      ) {
+        setStage({ kind: "ready" });
+        return;
+      }
       if (!inDiscordFrame()) {
         setStage({ kind: "outside" });
         return;

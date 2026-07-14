@@ -91,76 +91,83 @@ export function GroupView({ id }: { id: number }) {
         <StatTile label="Members" value={profile.member_count.toLocaleString()} />
       </div>
 
-      {profile.top_players && profile.top_players.length > 0 && (
+      {/* Two columns on desktop-width iframes: members & bosses | records & feed. */}
+      <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
         <div>
-          <SectionHeading>Top members this month</SectionHeading>
-          <Card padding="p-1.5">
-            {profile.top_players.slice(0, 6).map((p) => (
-              <button
-                key={p.id}
-                onClick={() => nav.push({ name: "player", id: p.id })}
-                className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left"
-              >
-                <RankMedal rank={p.rank} />
-                <NameTile name={p.name} size="sm" />
-                <span className="text-osrs-parchment min-w-0 flex-1 truncate text-[13px]">{p.name}</span>
-                <span className="text-osrs-gold-bright shrink-0 text-[12.5px] font-semibold tabular-nums">
-                  {gpText(p.loot)}
-                </span>
-              </button>
-            ))}
-          </Card>
-        </div>
-      )}
+          {profile.top_players && profile.top_players.length > 0 && (
+            <div>
+              <SectionHeading>Top members this month</SectionHeading>
+              <Card padding="p-1.5">
+                {profile.top_players.slice(0, 6).map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => nav.push({ name: "player", id: p.id })}
+                    className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left"
+                  >
+                    <RankMedal rank={p.rank} />
+                    <NameTile name={p.name} size="sm" />
+                    <span className="text-osrs-parchment min-w-0 flex-1 truncate text-[13px]">{p.name}</span>
+                    <span className="text-osrs-gold-bright shrink-0 text-[12.5px] font-semibold tabular-nums">
+                      {gpText(p.loot)}
+                    </span>
+                  </button>
+                ))}
+              </Card>
+            </div>
+          )}
 
-      {profile.top_bosses && profile.top_bosses.length > 0 && (
-        <div>
-          <SectionHeading>Boss activity</SectionHeading>
-          <Card padding="p-3.5">
-            <BossMeters bosses={profile.top_bosses} />
-          </Card>
+          {profile.top_bosses && profile.top_bosses.length > 0 && (
+            <div>
+              <SectionHeading>Boss activity</SectionHeading>
+              <Card padding="p-3.5">
+                <BossMeters bosses={profile.top_bosses} />
+              </Card>
+            </div>
+          )}
         </div>
-      )}
 
-      {profile.records && profile.records.length > 0 && (
         <div>
-          <SectionHeading>Records held</SectionHeading>
-          <Card padding="p-1.5">
-            {profile.records.slice(0, 6).map((r) => (
-              <button
-                key={`${r.npc_id}-${r.team_size}`}
-                onClick={() => nav.push({ name: "pb-board", npcId: r.npc_id, bossName: r.boss })}
-                className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left"
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="text-osrs-parchment block truncate text-[13px]">{r.boss}</span>
-                  <span className="text-osrs-parchment-dark/50 block truncate text-[10.5px]">
-                    {r.holder.name} · {r.team_size} · <LocalTime unix={r.date_ts} mode="date" />
-                  </span>
-                </span>
-                <span className="text-osrs-gold-bright shrink-0 text-[13px] font-semibold tabular-nums">
-                  {r.time_display}
-                </span>
-              </button>
-            ))}
-          </Card>
-        </div>
-      )}
+          {profile.records && profile.records.length > 0 && (
+            <div>
+              <SectionHeading>Records held</SectionHeading>
+              <Card padding="p-1.5">
+                {profile.records.slice(0, 6).map((r) => (
+                  <button
+                    key={`${r.npc_id}-${r.team_size}`}
+                    onClick={() => nav.push({ name: "pb-board", npcId: r.npc_id, bossName: r.boss })}
+                    className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="text-osrs-parchment block truncate text-[13px]">{r.boss}</span>
+                      <span className="text-osrs-parchment-dark/50 block truncate text-[10.5px]">
+                        {r.holder.name} · {r.team_size} · <LocalTime unix={r.date_ts} mode="date" />
+                      </span>
+                    </span>
+                    <span className="text-osrs-gold-bright shrink-0 text-[13px] font-semibold tabular-nums">
+                      {r.time_display}
+                    </span>
+                  </button>
+                ))}
+              </Card>
+            </div>
+          )}
 
-      {profile.recent_submissions.length > 0 && (
-        <div>
-          <SectionHeading>Recent activity</SectionHeading>
-          <Card padding="p-0">
-            {profile.recent_submissions.slice(0, 8).map((s) => (
-              <SubmissionRow
-                key={`${s.type}-${s.id}`}
-                submission={s}
-                onPlayer={(pid) => nav.push({ name: "player", id: pid })}
-              />
-            ))}
-          </Card>
+          {profile.recent_submissions.length > 0 && (
+            <div>
+              <SectionHeading>Recent activity</SectionHeading>
+              <Card padding="p-0">
+                {profile.recent_submissions.slice(0, 8).map((s) => (
+                  <SubmissionRow
+                    key={`${s.type}-${s.id}`}
+                    submission={s}
+                    onPlayer={(pid) => nav.push({ name: "player", id: pid })}
+                  />
+                ))}
+              </Card>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <ExternalButton href={`https://www.droptracker.io/groups/${profile.id}`}>
         Full group page & lootboard on droptracker.io

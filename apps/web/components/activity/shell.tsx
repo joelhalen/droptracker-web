@@ -2,9 +2,12 @@
 
 /**
  * The activity's chrome once boot/auth resolve: a compact header (brand +
- * live "who's here" presence from the SDK), the scrolling view area driven by
- * the nav stack, and a safe-area-aware bottom tab bar. Also keeps Discord
- * rich presence in sync with the current view.
+ * live "who's here" presence from the SDK) and the scrolling view area driven
+ * by the nav stack. Navigation is responsive to the iframe size — Discord
+ * desktop gives the activity a wide window, mobile a narrow one — so the same
+ * tabs render as a left sidebar rail on md+ and a safe-area-aware bottom tab
+ * bar below that. Also keeps Discord rich presence in sync with the current
+ * view.
  */
 import { useEffect, useState } from "react";
 import {
@@ -70,6 +73,26 @@ const TABS: { key: ActivityTab; label: string; root: ActivityView; icon: React.R
     ),
   },
 ];
+
+/**
+ * Per-view content width. The mini-app was designed thumb-first; lists read
+ * best in a column, while the hub/profile views grow into multi-column grids
+ * on desktop. Applied to the centered wrapper inside the scroll area.
+ */
+function viewMaxWidth(view: ActivityView): string {
+  switch (view.name) {
+    case "home":
+    case "me":
+      return "max-w-5xl";
+    case "player":
+    case "group":
+      return "max-w-4xl";
+    case "event":
+      return "max-w-3xl";
+    default:
+      return "max-w-2xl";
+  }
+}
 
 function presenceLabel(view: ActivityView): string {
   switch (view.name) {
@@ -158,17 +181,43 @@ export function ActivityShell() {
         )}
       </header>
 
-      {/* View area */}
-      <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3.5 py-3.5">
-        <div key={JSON.stringify(nav.view)} className="mx-auto w-full max-w-lg">
-          {renderView(nav.view, guildId, nav.canPop ? nav.pop : undefined)}
-        </div>
-      </main>
+      {/* Sidebar (md+) + view area */}
+      <div className="flex min-h-0 flex-1">
+        <nav
+          aria-label="Sections"
+          className="border-osrs-bronze/25 bg-osrs-surface-1/60 hidden w-48 shrink-0 flex-col gap-1 border-r p-3 md:flex"
+        >
+          {TABS.map((t) => {
+            const active = tabOf(nav.root) === t.key;
+            return (
+              <button
+                key={t.key}
+                aria-current={active ? "page" : undefined}
+                onClick={() => nav.setRoot(t.root)}
+                className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors ${
+                  active
+                    ? "bg-osrs-surface-3 text-osrs-gold-bright"
+                    : "text-osrs-parchment-dark/60 hover:bg-osrs-surface-2/60 hover:text-osrs-parchment"
+                }`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
 
-      {/* Bottom tab bar */}
+        <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3.5 py-3.5 md:px-6 md:py-5">
+          <div key={JSON.stringify(nav.view)} className={`mx-auto w-full ${viewMaxWidth(nav.view)}`}>
+            {renderView(nav.view, guildId, nav.canPop ? nav.pop : undefined)}
+          </div>
+        </main>
+      </div>
+
+      {/* Bottom tab bar (small screens) */}
       <nav
         aria-label="Sections"
-        className="border-osrs-bronze/25 bg-osrs-surface-1/95 grid shrink-0 grid-cols-4 border-t"
+        className="border-osrs-bronze/25 bg-osrs-surface-1/95 grid shrink-0 grid-cols-4 border-t md:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         {TABS.map((t) => {

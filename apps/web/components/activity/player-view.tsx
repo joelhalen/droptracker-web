@@ -98,55 +98,62 @@ export function PlayerView({ id }: { id: number }) {
         <StatTile label="Points" value={(profile.points ?? 0).toLocaleString()} />
       </div>
 
-      {profile.top_bosses && profile.top_bosses.length > 0 && (
+      {/* Two columns on desktop-width iframes: boss stats | achievement feed. */}
+      <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
         <div>
-          <SectionHeading>Top bosses this month</SectionHeading>
-          <Card padding="p-3.5">
-            <BossMeters bosses={profile.top_bosses} />
-          </Card>
-        </div>
-      )}
+          {profile.top_bosses && profile.top_bosses.length > 0 && (
+            <div>
+              <SectionHeading>Top bosses this month</SectionHeading>
+              <Card padding="p-3.5">
+                <BossMeters bosses={profile.top_bosses} />
+              </Card>
+            </div>
+          )}
 
-      {profile.personal_bests && profile.personal_bests.length > 0 && (
-        <div>
-          <SectionHeading>Personal bests</SectionHeading>
-          <Card padding="p-1.5">
-            {profile.personal_bests.slice(0, 6).map((pb) => (
-              <button
-                key={`${pb.npc_id}-${pb.team_size}`}
-                onClick={() => nav.push({ name: "pb-board", npcId: pb.npc_id, bossName: pb.boss })}
-                className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left"
-              >
-                <span className="text-osrs-parchment min-w-0 flex-1 truncate text-[13px]">{pb.boss}</span>
-                <span className="text-osrs-parchment-dark/50 shrink-0 text-[10.5px]">{pb.team_size}</span>
-                <span className="text-osrs-gold-bright shrink-0 text-[13px] font-semibold tabular-nums">
-                  {pb.time_display}
-                </span>
-              </button>
-            ))}
-          </Card>
+          {profile.personal_bests && profile.personal_bests.length > 0 && (
+            <div>
+              <SectionHeading>Personal bests</SectionHeading>
+              <Card padding="p-1.5">
+                {profile.personal_bests.slice(0, 6).map((pb) => (
+                  <button
+                    key={`${pb.npc_id}-${pb.team_size}`}
+                    onClick={() => nav.push({ name: "pb-board", npcId: pb.npc_id, bossName: pb.boss })}
+                    className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left"
+                  >
+                    <span className="text-osrs-parchment min-w-0 flex-1 truncate text-[13px]">{pb.boss}</span>
+                    <span className="text-osrs-parchment-dark/50 shrink-0 text-[10.5px]">{pb.team_size}</span>
+                    <span className="text-osrs-gold-bright shrink-0 text-[13px] font-semibold tabular-nums">
+                      {pb.time_display}
+                    </span>
+                  </button>
+                ))}
+              </Card>
+            </div>
+          )}
         </div>
-      )}
 
-      {profile.recent_submissions.length > 0 && (
         <div>
-          <SectionHeading>Recent</SectionHeading>
-          <Card padding="p-0">
-            {profile.recent_submissions.slice(0, 8).map((s) => (
-              <SubmissionRow key={`${s.type}-${s.id}`} submission={s} />
-            ))}
-          </Card>
-        </div>
-      )}
+          {profile.recent_submissions.length > 0 && (
+            <div>
+              <SectionHeading>Recent</SectionHeading>
+              <Card padding="p-0">
+                {profile.recent_submissions.slice(0, 8).map((s) => (
+                  <SubmissionRow key={`${s.type}-${s.id}`} submission={s} />
+                ))}
+              </Card>
+            </div>
+          )}
 
-      {profile.badges && profile.badges.length > 0 && (
-        <div>
-          <SectionHeading>Badges</SectionHeading>
-          <Card padding="p-3.5">
-            <PlayerBadgeList badges={profile.badges} />
-          </Card>
+          {profile.badges && profile.badges.length > 0 && (
+            <div>
+              <SectionHeading>Badges</SectionHeading>
+              <Card padding="p-3.5">
+                <PlayerBadgeList badges={profile.badges} />
+              </Card>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <ExternalButton href={`https://www.droptracker.io/players/${profile.id}`}>
         Full profile & loot tracker on droptracker.io
