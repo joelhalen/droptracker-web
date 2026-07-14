@@ -18,6 +18,22 @@ export async function searchUsers(
   }));
 }
 
+/** Server Action: grant/revoke moderator on a user (also toggles the
+ * profile badge server-side). Superadmin only. */
+export async function setUserModerator(
+  userId: number,
+  grant: boolean,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  await requireSuperadmin("/admin/users");
+  try {
+    await api.adminSetUserModerator(userId, grant);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || "Failed to update moderator access." };
+  }
+  revalidatePath("/admin/users");
+  return { ok: true };
+}
+
 /** Server Action: grant or revoke superadmin on a user. Superadmin only. */
 export async function setUserSuperadmin(
   userId: number,

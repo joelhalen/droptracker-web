@@ -202,7 +202,8 @@ export async function addEventTeam(groupId: EventGroupId, eventId: number, input
   return { ok: true as const, id: result.id };
 }
 
-/** Rename a team (fix a typo). Name only — a clan-vs-clan team's clan is fixed. */
+/** Edit team cosmetics — rename and/or set the accent color (null clears
+ * back to the palette default). A clan-vs-clan team's clan is fixed. */
 export async function updateEventTeam(
   groupId: EventGroupId,
   eventId: number,

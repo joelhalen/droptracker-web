@@ -185,6 +185,15 @@ export function SuperadminBadge({ className = "" }: { className?: string }) {
   );
 }
 
+export function ModeratorBadge({ className = "" }: { className?: string }) {
+  return (
+    <Badge tone="sky" className={className} title="Site moderator">
+      <span aria-hidden>🛡</span>
+      Moderator
+    </Badge>
+  );
+}
+
 /**
  * Subscription tier badge. Tone scales with the tier: free/none muted,
  * premium gold, top tiers ember — so paid groups stand out at a glance.

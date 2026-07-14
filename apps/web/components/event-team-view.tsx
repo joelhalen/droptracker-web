@@ -116,7 +116,16 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
           ← {event.name}
         </Link>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
-          <h1 className="text-osrs-gold text-3xl font-bold">{team.name}</h1>
+          <h1 className="text-osrs-gold flex items-center gap-2.5 text-3xl font-bold">
+            {team.color && (
+              <span
+                className="inline-block size-4 shrink-0 rounded-full"
+                style={{ backgroundColor: team.color }}
+                aria-hidden
+              />
+            )}
+            {team.name}
+          </h1>
           <div className="flex items-center gap-6 text-sm">
             <span className="text-osrs-parchment-dark/70">
               Rank{" "}
@@ -178,7 +187,7 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                           )}
                         </span>
                       </div>
-                      <TaskProgressBar task={t} cell={cell} />
+                      <TaskProgressBar task={t} cell={cell} color={team.color ?? undefined} />
                     </li>
                   );
                 })}

@@ -4,8 +4,8 @@ import type { Route } from "next";
 import { useState, useTransition } from "react";
 import type { AdminUserOverview } from "@/lib/api";
 import { formatDate, formatRelativeTime } from "@/lib/format";
-import { setUserSuperadmin } from "@/app/(admin)/admin/users/actions";
-import { Badge, EmptyState, EntityChip, RoleBadge, SuperadminBadge } from "@/components/ui";
+import { setUserModerator, setUserSuperadmin } from "@/app/(admin)/admin/users/actions";
+import { Badge, EmptyState, EntityChip, ModeratorBadge, RoleBadge, SuperadminBadge } from "@/components/ui";
 
 function actorLabel(actor: AdminUserOverview["recent_audit"][number]["actor"]): string {
   if (!actor) return "system";
@@ -21,6 +21,7 @@ export function UserOverviewPanel({
 }) {
   const { user, players, groups, recent_audit } = overview;
   const [isSuperadmin, setIsSuperadmin] = useState(user.is_superadmin);
+  const [isModerator, setIsModerator] = useState(user.is_moderator);
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
@@ -43,6 +44,24 @@ export function UserOverviewPanel({
       setConfirming(false);
     });
 
+  const onToggleModerator = () =>
+    startTransition(async () => {
+      setError(null);
+      setNotice(null);
+      const grant = !isModerator;
+      const result = await setUserModerator(user.user_id, grant);
+      if (result.ok) {
+        setIsModerator(grant);
+        setNotice(
+          grant
+            ? "Granted moderator. The moderator badge was added to their profiles."
+            : "Revoked moderator. The moderator badge was removed.",
+        );
+      } else {
+        setError(result.error);
+      }
+    });
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -54,6 +73,7 @@ export function UserOverviewPanel({
           <div className="text-osrs-gold flex flex-wrap items-center gap-2 text-2xl font-bold">
             {user.display_name ?? user.username ?? `User #${user.user_id}`}
             {isSuperadmin && <SuperadminBadge />}
+            {!isSuperadmin && isModerator && <ModeratorBadge />}
           </div>
           <div className="text-osrs-parchment-dark/60 mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <span>ID #{user.user_id}</span>
@@ -108,6 +128,34 @@ export function UserOverviewPanel({
               }
             >
               {isSuperadmin ? "Revoke superadmin" : "Grant superadmin"}
+            </button>
+          )}
+        </div>
+
+        <div className="border-osrs-bronze/20 flex flex-wrap items-center justify-between gap-4 border-t pt-3">
+          <div>
+            <div className="text-osrs-parchment-dark/70 text-xs uppercase tracking-wide">
+              Moderator
+            </div>
+            <div className="mt-1 text-sm">
+              {isSuperadmin
+                ? "Superadmins already have every moderator power."
+                : isModerator
+                  ? "Can manage PB blocks, item values, and the task library via /moderation. Actions are audit-logged."
+                  : "No moderator access."}
+            </div>
+          </div>
+          {!isSuperadmin && (
+            <button
+              onClick={onToggleModerator}
+              disabled={pending}
+              className={
+                isModerator
+                  ? "text-osrs-red hover:bg-osrs-red/10 rounded px-3 py-1.5 text-sm disabled:opacity-50"
+                  : "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+              }
+            >
+              {pending ? "Saving…" : isModerator ? "Revoke moderator" : "Grant moderator"}
             </button>
           )}
         </div>

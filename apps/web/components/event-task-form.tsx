@@ -45,7 +45,7 @@ import {
 const field =
   "bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-osrs-gold/60";
 
-type ItemMode = "single" | "any_of" | "all_of" | "point_collection" | "groups";
+type ItemMode = "single" | "any_of" | "all_of" | "point_collection" | "groups" | "any_path";
 
 const ITEM_MODE_LABELS: Record<ItemMode, string> = {
   single: "Single item",
@@ -53,6 +53,7 @@ const ITEM_MODE_LABELS: Record<ItemMode, string> = {
   all_of: "All items from a list",
   point_collection: "Points from a list",
   groups: "Combined requirements",
+  any_path: "Either-or (alternative paths)",
 };
 
 const ITEM_MODE_HELP: Record<ItemMode, string> = {
@@ -63,14 +64,20 @@ const ITEM_MODE_HELP: Record<ItemMode, string> = {
     "Each item is worth points — the team races to the points goal. Weight rare drops higher.",
   groups:
     "Combine lists: every group must be satisfied — e.g. ALL three godsword shards plus ANY one hilt.",
+  any_path:
+    "Dryness protection: completing ANY one path finishes the task — e.g. the full Justiciar " +
+    "set OR any 5 Justiciar items. The same item can appear in more than one path.",
 };
 
 /** One sub-requirement of a "Combined requirements" task. */
 type GroupDraft = { mode: "all_of" | "any_of"; need: number; items: PickerEntry[] };
 
-function groupsFromConfig(config: Record<string, unknown>): GroupDraft[] {
-  if (!Array.isArray(config.groups)) return [];
-  return (config.groups as { mode?: string; need?: number; items?: unknown[] }[]).map((g) => ({
+/** One alternative of an "Either-or" task — its own set of requirement groups. */
+type PathDraft = { label: string; groups: GroupDraft[] };
+
+function parseGroupDrafts(raw: unknown): GroupDraft[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as { mode?: string; need?: number; items?: unknown[] }[]).map((g) => ({
     mode: g.mode === "any_of" ? "any_of" : "all_of",
     need: typeof g.need === "number" && g.need >= 1 ? g.need : 1,
     items: (Array.isArray(g.items) ? g.items : []).flatMap((it): PickerEntry[] => {
@@ -79,6 +86,119 @@ function groupsFromConfig(config: Record<string, unknown>): GroupDraft[] {
       return name ? [{ name }] : [];
     }),
   }));
+}
+
+function groupsFromConfig(config: Record<string, unknown>): GroupDraft[] {
+  return parseGroupDrafts(config.groups);
+}
+
+function pathsFromConfig(config: Record<string, unknown>): PathDraft[] {
+  if (config.kind !== "any_path" || !Array.isArray(config.paths)) return [];
+  return (config.paths as { label?: unknown; groups?: unknown }[]).map((p) => ({
+    label: typeof p.label === "string" ? p.label : "",
+    groups: parseGroupDrafts(p.groups),
+  }));
+}
+
+function serializeGroups(groups: GroupDraft[]) {
+  return groups.map((g) =>
+    g.mode === "any_of"
+      ? { mode: "any_of", need: g.need, items: g.items.map((i) => i.name) }
+      : { mode: "all_of", items: g.items.map((i) => i.name) },
+  );
+}
+
+const groupsNeed = (groups: GroupDraft[]) =>
+  groups.reduce((n, g) => n + (g.mode === "all_of" ? g.items.length : g.need), 0);
+
+/** null ⇒ valid; the shared group-list checks for groups mode and each path. */
+function validateGroupDrafts(groups: GroupDraft[], where = ""): string | null {
+  for (const [i, g] of groups.entries()) {
+    if (!g.items.length) return `${where}Requirement ${i + 1}: add at least one item.`;
+    if (g.mode === "any_of" && g.need < 1)
+      return `${where}Requirement ${i + 1}: "how many" must be at least 1.`;
+  }
+  const names = groups.flatMap((g) => g.items.map((it) => it.name.toLowerCase()));
+  if (new Set(names).size !== names.length)
+    return `${where}An item can only appear in one requirement group.`;
+  return null;
+}
+
+/** Editable list of all-of / any-of requirement groups (shared between the
+ * "Combined requirements" mode and each path of an "Either-or" task). */
+function GroupListEditor({
+  groups,
+  onChange,
+  search,
+  resolve,
+}: {
+  groups: GroupDraft[];
+  onChange: (groups: GroupDraft[]) => void;
+  search: (q: string) => Promise<EventMetaEntry[]>;
+  resolve: (names: string[]) => Promise<EventMetaEntry[]>;
+}) {
+  const patch = (gi: number, p: Partial<GroupDraft>) =>
+    onChange(groups.map((g, i) => (i === gi ? { ...g, ...p } : g)));
+  return (
+    <div className="grid gap-3">
+      {groups.map((g, gi) => (
+        <div key={gi} className="border-osrs-bronze/25 grid gap-2 rounded-lg border p-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <span className="text-osrs-gold-bright/80 self-center text-xs font-semibold uppercase">
+              Requirement {gi + 1}
+            </span>
+            <span className="grow" />
+            <label className="grid gap-1 text-sm">
+              <span className="text-osrs-parchment-dark/70 text-xs">Mode</span>
+              <select
+                value={g.mode}
+                onChange={(e) => patch(gi, { mode: e.target.value as GroupDraft["mode"] })}
+                className={field}
+              >
+                <option value="all_of">All of these</option>
+                <option value="any_of">Any of these</option>
+              </select>
+            </label>
+            {g.mode === "any_of" && (
+              <label className="grid gap-1 text-sm">
+                <span className="text-osrs-parchment-dark/70 text-xs">How many</span>
+                <QuantityInput
+                  min={1}
+                  value={g.need}
+                  onChange={(need) => patch(gi, { need })}
+                  className={`${field} w-24`}
+                />
+              </label>
+            )}
+            {groups.length > 1 && (
+              <button
+                type="button"
+                onClick={() => onChange(groups.filter((_, i) => i !== gi))}
+                className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-red hover:text-osrs-red rounded border px-2 py-2 text-xs"
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <ItemNpcPicker
+            kind="item"
+            mode="list"
+            selected={g.items}
+            onChange={(items) => patch(gi, { items })}
+            search={search}
+            resolve={resolve}
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={() => onChange([...groups, { mode: "any_of", need: 1, items: [] }])}
+        className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright justify-self-start rounded border px-3 py-1.5 text-xs"
+      >
+        + Add requirement group
+      </button>
+    </div>
+  );
 }
 
 /** Debounced name autocomplete against the item/NPC databases.
@@ -213,12 +333,15 @@ export function EventTaskForm({
 
   // item_collection
   const initialGroups = groupsFromConfig(initialConfig);
+  const initialPaths = pathsFromConfig(initialConfig);
   const [itemMode, setItemMode] = useState<ItemMode>(
-    initialGroups.length
-      ? "groups"
-      : initialItems.length
-        ? ((initialConfig.kind as ItemMode) ?? "any_of")
-        : "single",
+    initialPaths.length
+      ? "any_path"
+      : initialGroups.length
+        ? "groups"
+        : initialItems.length
+          ? ((initialConfig.kind as ItemMode) ?? "any_of")
+          : "single",
   );
   const [singleItem, setSingleItem] = useState<PickerEntry[]>(
     initial?.type === "item_collection" && initial.target ? [{ name: initial.target }] : [],
@@ -245,8 +368,18 @@ export function EventTaskForm({
           { mode: "any_of", need: 1, items: [] },
         ],
   );
-  const patchGroup = (gi: number, patch: Partial<GroupDraft>) =>
-    setGroups((prev) => prev.map((g, i) => (i === gi ? { ...g, ...patch } : g)));
+  // Either-or starter mirrors the dryness-protection use case: a full set
+  // OR any N pieces (the same items usually fill both paths).
+  const [paths, setPaths] = useState<PathDraft[]>(
+    initialPaths.length
+      ? initialPaths
+      : [
+          { label: "", groups: [{ mode: "all_of", need: 1, items: [] }] },
+          { label: "", groups: [{ mode: "any_of", need: 1, items: [] }] },
+        ],
+  );
+  const patchPath = (pi: number, patch: Partial<PathDraft>) =>
+    setPaths((prev) => prev.map((p, i) => (i === pi ? { ...p, ...patch } : p)));
 
   // kc / pb / xp / skill / loot / ehp / ehb
   const [npcSel, setNpcSel] = useState<PickerEntry[]>(
@@ -300,14 +433,14 @@ export function EventTaskForm({
           if (listItems.length < 1) return "Add at least one item to the list.";
           if (pointsGoal < 1) return "Set a points goal.";
         } else if (itemMode === "groups") {
-          for (const [i, g] of groups.entries()) {
-            if (!g.items.length) return `Requirement ${i + 1}: add at least one item.`;
-            if (g.mode === "any_of" && g.need < 1)
-              return `Requirement ${i + 1}: "how many" must be at least 1.`;
+          const bad = validateGroupDrafts(groups);
+          if (bad) return bad;
+        } else if (itemMode === "any_path") {
+          if (paths.length < 2) return "Add at least two paths — either-or needs alternatives.";
+          for (const [pi, p] of paths.entries()) {
+            const bad = validateGroupDrafts(p.groups, `Path ${pi + 1}: `);
+            if (bad) return bad;
           }
-          const names = groups.flatMap((g) => g.items.map((it) => it.name.toLowerCase()));
-          if (new Set(names).size !== names.length)
-            return "An item can only appear in one requirement group.";
         } else {
           if (listItems.length < 2) return "Add at least two items to the list.";
           if (itemMode === "any_of" && anyOfQty < 1)
@@ -357,6 +490,21 @@ export function EventTaskForm({
               g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
             )
             .join(" + ")}`;
+        if (itemMode === "any_path")
+          return paths
+            .map(
+              (p, pi) =>
+                p.label.trim() ||
+                p.groups
+                  .map((g) =>
+                    g.mode === "all_of"
+                      ? `all ${g.items.length}`
+                      : `any ${g.need} of ${g.items.length}`,
+                  )
+                  .join(" + ") ||
+                `path ${pi + 1}`,
+            )
+            .join(" OR ");
         return `${pointsGoal.toLocaleString()} collection points`;
       case "kc_target":
         return `${numericGoal}× ${npcName}`;
@@ -388,17 +536,21 @@ export function EventTaskForm({
           return {
             ...base,
             // Display value; the API recomputes the threshold from the groups.
-            target_value: groups.reduce(
-              (n, g) => n + (g.mode === "all_of" ? g.items.length : g.need),
-              0,
-            ),
+            target_value: groupsNeed(groups),
+            config: JSON.stringify({ kind: "groups", groups: serializeGroups(groups) }),
+          };
+        if (itemMode === "any_path")
+          return {
+            ...base,
+            // Either-or progress is a percentage of the closest path; the
+            // API pins the threshold to 100 either way.
+            target_value: 100,
             config: JSON.stringify({
-              kind: "groups",
-              groups: groups.map((g) =>
-                g.mode === "any_of"
-                  ? { mode: "any_of", need: g.need, items: g.items.map((i) => i.name) }
-                  : { mode: "all_of", items: g.items.map((i) => i.name) },
-              ),
+              kind: "any_path",
+              paths: paths.map((p) => ({
+                ...(p.label.trim() ? { label: p.label.trim() } : {}),
+                groups: serializeGroups(p.groups),
+              })),
             }),
           };
         return {
@@ -583,67 +735,73 @@ export function EventTaskForm({
           </div>
           <p className="text-osrs-parchment-dark/50 text-xs">{ITEM_MODE_HELP[itemMode]}</p>
           {itemMode === "groups" ? (
-            <div className="grid gap-3">
-              {groups.map((g, gi) => (
-                <div key={gi} className="border-osrs-bronze/25 grid gap-2 rounded-lg border p-3">
-                  <div className="flex flex-wrap items-end gap-2">
-                    <span className="text-osrs-gold-bright/80 self-center text-xs font-semibold uppercase">
-                      Requirement {gi + 1}
-                    </span>
-                    <span className="grow" />
-                    <label className="grid gap-1 text-sm">
-                      <span className="text-osrs-parchment-dark/70 text-xs">Mode</span>
-                      <select
-                        value={g.mode}
-                        onChange={(e) =>
-                          patchGroup(gi, { mode: e.target.value as GroupDraft["mode"] })
-                        }
-                        className={field}
-                      >
-                        <option value="all_of">All of these</option>
-                        <option value="any_of">Any of these</option>
-                      </select>
-                    </label>
-                    {g.mode === "any_of" && (
-                      <label className="grid gap-1 text-sm">
-                        <span className="text-osrs-parchment-dark/70 text-xs">How many</span>
-                        <QuantityInput
-                          min={1}
-                          value={g.need}
-                          onChange={(need) => patchGroup(gi, { need })}
-                          className={`${field} w-24`}
+            <GroupListEditor
+              groups={groups}
+              onChange={setGroups}
+              search={searchItems}
+              resolve={resolveItems}
+            />
+          ) : itemMode === "any_path" ? (
+            <div className="grid gap-2">
+              {paths.map((p, pi) => (
+                <div key={pi} className="grid gap-2">
+                  {pi > 0 && (
+                    <div className="flex items-center gap-3">
+                      <span className="bg-osrs-bronze/25 h-px flex-1" />
+                      <span className="text-osrs-gold-bright text-xs font-bold uppercase">or</span>
+                      <span className="bg-osrs-bronze/25 h-px flex-1" />
+                    </div>
+                  )}
+                  <div className="border-osrs-gold/25 bg-osrs-brown-dark/20 grid gap-2 rounded-lg border p-3">
+                    <div className="flex flex-wrap items-end gap-2">
+                      <span className="text-osrs-gold-bright/80 self-center text-xs font-semibold uppercase">
+                        Path {pi + 1}
+                      </span>
+                      <label className="grid grow gap-1 text-sm">
+                        <span className="text-osrs-parchment-dark/70 text-xs">
+                          Path name (optional, shown to players)
+                        </span>
+                        <input
+                          value={p.label}
+                          onChange={(e) => patchPath(pi, { label: e.target.value })}
+                          placeholder={pi === 0 ? "e.g. Full set" : "e.g. Any 5 pieces"}
+                          maxLength={80}
+                          className={field}
                         />
                       </label>
-                    )}
-                    {groups.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setGroups((prev) => prev.filter((_, i) => i !== gi))}
-                        className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-red hover:text-osrs-red rounded border px-2 py-2 text-xs"
-                      >
-                        Remove
-                      </button>
-                    )}
+                      {paths.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setPaths((prev) => prev.filter((_, i) => i !== pi))}
+                          className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-red hover:text-osrs-red rounded border px-2 py-2 text-xs"
+                        >
+                          Remove path
+                        </button>
+                      )}
+                    </div>
+                    <GroupListEditor
+                      groups={p.groups}
+                      onChange={(gs) => patchPath(pi, { groups: gs })}
+                      search={searchItems}
+                      resolve={resolveItems}
+                    />
                   </div>
-                  <ItemNpcPicker
-                    kind="item"
-                    mode="list"
-                    selected={g.items}
-                    onChange={(items) => patchGroup(gi, { items })}
-                    search={searchItems}
-                    resolve={resolveItems}
-                  />
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={() =>
-                  setGroups((prev) => [...prev, { mode: "any_of", need: 1, items: [] }])
-                }
-                className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright justify-self-start rounded border px-3 py-1.5 text-xs"
-              >
-                + Add requirement group
-              </button>
+              {paths.length < 4 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPaths((prev) => [
+                      ...prev,
+                      { label: "", groups: [{ mode: "any_of", need: 1, items: [] }] },
+                    ])
+                  }
+                  className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright justify-self-start rounded border px-3 py-1.5 text-xs"
+                >
+                  + Add path
+                </button>
+              )}
             </div>
           ) : (
             <ItemNpcPicker

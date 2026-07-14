@@ -434,6 +434,13 @@ function PresetForm({
       }))
     : [];
   const initialConfig = initial ? taskConfig({ config: initial.config ?? null }) : {};
+  // Combined-requirement / either-or presets are authored in the event task
+  // form; this editor keeps their goal verbatim (metadata-only edits) so a
+  // save can't flatten the structured config into a plain item list.
+  const structuredKind =
+    initialConfig.kind === "groups" || initialConfig.kind === "any_path"
+      ? (initialConfig.kind as string)
+      : null;
 
   const [type, setType] = useState<EventTaskLibraryItem["type"]>(
     initial?.type ?? "item_collection",
@@ -505,6 +512,7 @@ function PresetForm({
     if (!name.trim()) return "Give the preset a name.";
     switch (type) {
       case "item_collection":
+        if (structuredKind) break; // goal kept verbatim — nothing to check
         if (itemMode === "single") {
           if (!itemName) return "Pick an item.";
           if (quantity < 1) return "Quantity must be at least 1.";
@@ -559,6 +567,13 @@ function PresetForm({
     };
     switch (type) {
       case "item_collection":
+        if (structuredKind)
+          return {
+            ...base,
+            target: initial?.target ?? null,
+            target_value: initial?.target_value ?? null,
+            config: initial?.config ?? null,
+          };
         if (itemMode === "single") return { ...base, target: itemName, target_value: quantity };
         return {
           ...base,
@@ -679,7 +694,15 @@ function PresetForm({
       </div>
       <p className="text-osrs-parchment-dark/60 text-xs">{TASK_TYPE_HELP[type]}</p>
 
-      {type === "item_collection" && (
+      {type === "item_collection" && structuredKind && (
+        <p className="text-osrs-parchment-dark/60 border-osrs-bronze/25 rounded border border-dashed p-3 text-xs">
+          This preset uses{" "}
+          {structuredKind === "any_path" ? "either-or paths" : "combined requirement groups"} —
+          its goal is kept as-is here. Edit the requirements from an event&apos;s task form and
+          re-save to the library.
+        </p>
+      )}
+      {type === "item_collection" && !structuredKind && (
         <div className="grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-sm">

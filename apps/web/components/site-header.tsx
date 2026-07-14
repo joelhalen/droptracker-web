@@ -20,7 +20,7 @@ import { usePathname } from "next/navigation";
 import type { Me } from "@droptracker/api-types";
 import { HeaderNav, type NavTab } from "@/components/tab-nav";
 import { ThemeMenu } from "@/components/theme";
-import { NameTile, SuperadminBadge } from "@/components/ui";
+import { ModeratorBadge, NameTile, SuperadminBadge } from "@/components/ui";
 
 function useMe(): Me | null | undefined {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
@@ -98,11 +98,20 @@ function AccountLinks({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
         </>
       )}
 
-      {me.is_superadmin && (
+      {(me.is_superadmin || me.is_moderator) && (
         <>
           <div className="border-osrs-bronze/25 mx-2 my-1.5 border-t" />
-          <Link href="/admin" className={`${MENU_ITEM_CLASS} text-osrs-red`} onClick={onNavigate}>
-            <span aria-hidden>⚔</span> Admin CP
+          {me.is_superadmin && (
+            <Link href="/admin" className={`${MENU_ITEM_CLASS} text-osrs-red`} onClick={onNavigate}>
+              <span aria-hidden>⚔</span> Admin CP
+            </Link>
+          )}
+          <Link
+            href={"/moderation" as Route}
+            className={`${MENU_ITEM_CLASS} text-sky-300`}
+            onClick={onNavigate}
+          >
+            <span aria-hidden>🛡</span> Moderation
           </Link>
         </>
       )}
@@ -190,7 +199,13 @@ function UserMenu({ me }: { me: Me }) {
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold">{me.display_name ?? "My account"}</div>
               <div className="text-osrs-parchment-dark/60 text-xs">
-                {me.is_superadmin ? <SuperadminBadge /> : "Signed in via Discord"}
+                {me.is_superadmin ? (
+                  <SuperadminBadge />
+                ) : me.is_moderator ? (
+                  <ModeratorBadge />
+                ) : (
+                  "Signed in via Discord"
+                )}
               </div>
             </div>
           </div>
@@ -308,6 +323,7 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
                   {me.display_name ?? "My account"}
                 </span>
                 {me.is_superadmin && <SuperadminBadge />}
+                {!me.is_superadmin && me.is_moderator && <ModeratorBadge />}
               </div>
               <AccountLinks me={me} onNavigate={() => setMobileOpen(false)} />
             </>

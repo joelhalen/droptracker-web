@@ -14,11 +14,10 @@
 import { useMemo, useState } from "react";
 import type { EventProgress, EventTask } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
-import { TASK_TYPE_LABELS, taskConfig, taskConfigGroups, taskConfigItems, taskGoal } from "@/lib/events";
+import { TASK_TYPE_LABELS, pathSummary, taskConfig, taskConfigGroups, taskConfigItems, taskConfigPaths, taskGoal, teamColorMap, type TaskConfigGroup } from "@/lib/events";
 import { formatGp } from "@/lib/format";
-import { TEAM_COLORS } from "@/components/bingo-board";
 
-type TeamRef = { id: number; name: string };
+type TeamRef = { id: number; name: string; color?: string | null };
 
 export type ProgressCell = { progress: number; completed: boolean; completed_at?: number | null };
 export type ProgressMap = Map<string, ProgressCell>;
@@ -118,6 +117,9 @@ export function TaskProgressBar({
   const value = Math.min(cell?.progress ?? 0, target);
   const pct = done ? 100 : Math.min(100, Math.floor((value / target) * 100));
   const binary = target === 1; // pb/skill/single-item style: done or not
+  // Either-or progress is already a percentage of the closest path —
+  // "62 / 100" would read as an item count, so show "62%" instead.
+  const anyPath = taskConfig(task).kind === "any_path";
   return (
     <div className="flex items-center gap-2 text-xs">
       {label && (
@@ -125,12 +127,18 @@ export function TaskProgressBar({
           {label}
         </span>
       )}
-      <div className="bg-osrs-brown-dark/70 border-osrs-bronze/20 h-2.5 min-w-0 flex-1 overflow-hidden rounded-full border">
+      {/* Completion keeps the team's color for the fill — the green lives in
+       * the track outline (and the ✓ text) instead of repainting the bar. */}
+      <div
+        className={`h-2.5 min-w-0 flex-1 overflow-hidden rounded-full border ${
+          done ? "border-osrs-green/70 bg-osrs-green/10" : "border-osrs-bronze/20 bg-osrs-brown-dark/70"
+        }`}
+      >
         <div
           className="h-full rounded-full transition-[width] duration-700"
           style={{
             width: `${pct}%`,
-            backgroundColor: done ? "#4cb96b" : (color ?? "#e0b34c"),
+            backgroundColor: color ?? "#e0b34c",
             opacity: done ? 1 : 0.85,
           }}
         />
@@ -142,7 +150,9 @@ export function TaskProgressBar({
           ? "✓ complete"
           : binary
             ? "not yet"
-            : `${formatProgressValue(task, cell?.progress ?? 0)} / ${formatProgressValue(task, target)}`}
+            : anyPath
+              ? `${pct}%`
+              : `${formatProgressValue(task, cell?.progress ?? 0)} / ${formatProgressValue(task, target)}`}
       </span>
     </div>
   );
@@ -157,23 +167,54 @@ function ItemChip({ name, suffix }: { name: string; suffix?: string }) {
   );
 }
 
+function GroupChipRows({ groups }: { groups: TaskConfigGroup[] }) {
+  return (
+    <>
+      {groups.map((g, gi) => (
+        <div key={gi} className="flex flex-wrap items-center gap-1.5">
+          <span className="text-osrs-gold-bright/70 text-[10px] font-semibold uppercase">
+            {g.mode === "all_of" ? "All of" : g.need > 1 ? `Any ${g.need} of` : "Any of"}
+          </span>
+          {g.items.map((name) => (
+            <ItemChip key={name} name={name} />
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
 /** Expandable "what counts" detail for list-based item tasks. */
 function TaskItemList({ task }: { task: EventTask }) {
+  const paths = taskConfigPaths(task);
+  if (paths.length) {
+    // Either-or: completing any one path completes the task.
+    return (
+      <div className="mt-2 grid gap-1.5">
+        {paths.map((p, pi) => (
+          <div key={pi} className="grid gap-1.5">
+            {pi > 0 && (
+              <span className="text-osrs-gold-bright text-[10px] font-bold uppercase">
+                — or —
+              </span>
+            )}
+            <div className="border-osrs-bronze/20 grid gap-1.5 rounded border-l-2 pl-2">
+              <span className="text-osrs-parchment-dark/70 text-[10px] font-semibold uppercase">
+                {pathSummary(p)}
+              </span>
+              <GroupChipRows groups={p.groups} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   const groups = taskConfigGroups(task);
   if (groups.length) {
     // Combined requirements: every group must be satisfied.
     return (
       <div className="mt-2 grid gap-1.5">
-        {groups.map((g, gi) => (
-          <div key={gi} className="flex flex-wrap items-center gap-1.5">
-            <span className="text-osrs-gold-bright/70 text-[10px] font-semibold uppercase">
-              {g.mode === "all_of" ? "All of" : g.need > 1 ? `Any ${g.need} of` : "Any of"}
-            </span>
-            {g.items.map((name) => (
-              <ItemChip key={name} name={name} />
-            ))}
-          </div>
-        ))}
+        <GroupChipRows groups={groups} />
       </div>
     );
   }
@@ -214,10 +255,7 @@ export function EventTaskBoard({
   const progressMap = useLiveProgress(eventId, live, progress);
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  const teamColor = useMemo(
-    () => new Map(teams.map((t, i) => [t.id, TEAM_COLORS[i % TEAM_COLORS.length]!])),
-    [teams],
-  );
+  const teamColor = useMemo(() => teamColorMap(teams), [teams]);
   const orderedTeams = useMemo(() => {
     if (viewerTeamId == null) return teams;
     return [...teams].sort((a, b) => Number(b.id === viewerTeamId) - Number(a.id === viewerTeamId));

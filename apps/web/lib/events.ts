@@ -1,5 +1,31 @@
 import type { EventDetail, EventTask } from "@droptracker/api-types";
 
+/** Default per-team accent palette, indexed by roster order — the fallback
+ * when a team has no admin-assigned `color`. Shared by the bingo board, task
+ * progress bars, and team pages so a team keeps one color across every event
+ * surface. */
+export const TEAM_COLORS = [
+  "#e05c4c", // red
+  "#4c8fe0", // blue
+  "#4cb96b", // green
+  "#e0b34c", // gold
+  "#a05ce0", // purple
+  "#e07f4c", // orange
+  "#4cc9c0", // teal
+  "#e05ca8", // pink
+];
+
+/** id → accent color for a roster: the team's assigned `color` when set,
+ * else the palette entry for its roster index. Pass the UNSORTED roster so
+ * fallback colors stay stable across re-ranks. */
+export function teamColorMap(
+  teams: { id: number; color?: string | null }[],
+): Map<number, string> {
+  return new Map(
+    teams.map((t, i) => [t.id, t.color ?? TEAM_COLORS[i % TEAM_COLORS.length]!]),
+  );
+}
+
 /** Formation modes (events-prd.md D4) as shown in the admin settings form. */
 export const FORMATION_MODE_LABELS: Record<EventDetail["formation_mode"], string> = {
   self_join: "Self sign-up — players pick their team",
@@ -107,11 +133,9 @@ export function taskConfig(task: Pick<EventTask, "config">): Record<string, unkn
 /** One sub-requirement of a `kind: "groups"` config. */
 export type TaskConfigGroup = { mode: "all_of" | "any_of"; need: number; items: string[] };
 
-/** Structured groups of a combined-requirements config, [] otherwise. */
-export function taskConfigGroups(task: Pick<EventTask, "config">): TaskConfigGroup[] {
-  const cfg = taskConfig(task);
-  if (cfg.kind !== "groups" || !Array.isArray(cfg.groups)) return [];
-  return (cfg.groups as { mode?: string; need?: number; items?: unknown[] }[]).map((g) => {
+function parseConfigGroups(raw: unknown): TaskConfigGroup[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as { mode?: string; need?: number; items?: unknown[] }[]).map((g) => {
     const items = (Array.isArray(g.items) ? g.items : []).flatMap((it) => {
       if (typeof it === "string") return [it];
       const name = (it as { item_name?: string } | null)?.item_name;
@@ -126,20 +150,64 @@ export function taskConfigGroups(task: Pick<EventTask, "config">): TaskConfigGro
   });
 }
 
-/** Items in an item-list config, for display chips (groups are flattened). */
+/** Structured groups of a combined-requirements config, [] otherwise. */
+export function taskConfigGroups(task: Pick<EventTask, "config">): TaskConfigGroup[] {
+  const cfg = taskConfig(task);
+  if (cfg.kind !== "groups") return [];
+  return parseConfigGroups(cfg.groups);
+}
+
+/** One alternative of a `kind: "any_path"` (either-or) config. */
+export type TaskConfigPath = { label: string | null; groups: TaskConfigGroup[] };
+
+/** Structured paths of an either-or config, [] otherwise. Completing ANY
+ * path completes the task ("dryness protection", suggestion #52). */
+export function taskConfigPaths(task: Pick<EventTask, "config">): TaskConfigPath[] {
+  const cfg = taskConfig(task);
+  if (cfg.kind !== "any_path" || !Array.isArray(cfg.paths)) return [];
+  return (cfg.paths as { label?: unknown; groups?: unknown }[]).map((p) => ({
+    label: typeof p.label === "string" && p.label.trim() ? p.label : null,
+    groups: parseConfigGroups(p.groups),
+  }));
+}
+
+/** Items in an item-list config, for display chips (groups and either-or
+ * paths are flattened; paths may share items, so names are de-duplicated). */
 export function taskConfigItems(
   task: Pick<EventTask, "config">,
 ): { item_name: string; points?: number }[] {
   const cfg = taskConfig(task);
   const items = Array.isArray(cfg.items)
     ? cfg.items
-    : taskConfigGroups(task).flatMap((g) => g.items);
+    : cfg.kind === "any_path"
+      ? taskConfigPaths(task).flatMap((p) => p.groups.flatMap((g) => g.items))
+      : taskConfigGroups(task).flatMap((g) => g.items);
   if (!Array.isArray(items)) return [];
+  const seen = new Set<string>();
   return items.flatMap((it) => {
-    if (typeof it === "string") return [{ item_name: it }];
+    if (typeof it === "string") {
+      const key = it.toLowerCase();
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ item_name: it }];
+    }
     const entry = it as { item_name?: string; points?: number };
-    return entry.item_name ? [{ item_name: entry.item_name, points: entry.points }] : [];
+    if (!entry.item_name) return [];
+    const key = entry.item_name.toLowerCase();
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ item_name: entry.item_name, points: entry.points }];
   });
+}
+
+/** Short human summary of one either-or path, e.g. "all 3 items" or its
+ * authored label. */
+export function pathSummary(p: TaskConfigPath): string {
+  if (p.label) return p.label;
+  const parts = p.groups.map((g) =>
+    g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
+  );
+  return `${parts.join(" + ")} items`;
 }
 
 /** Human-readable goal for a task, e.g. "Vorkath · 50 KC" or "Zulrah · sub 1:10".
@@ -165,6 +233,11 @@ export function taskGoal(
       return tv != null ? `${tv.toLocaleString()} GP${from}` : "";
     }
     case "item_collection": {
+      const paths = taskConfigPaths(task);
+      if (paths.length) {
+        // e.g. "Full set OR Any 5 pieces" (dryness protection).
+        return paths.map(pathSummary).join(" OR ");
+      }
       const groups = taskConfigGroups(task);
       if (groups.length) {
         // e.g. "all 3 + any 1 of 4 items" (godsword: shards + any hilt).

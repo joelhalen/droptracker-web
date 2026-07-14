@@ -4,10 +4,19 @@
  * Bingo board designer (Task 20, events-prd.md B1). Admin-only Board section
  * of the event manager: size picker (re-grids, confirms on shrink), click-a-
  * cell editor binding cells to existing tasks / library presets / inline
- * custom tasks / free cells, bonus point fields, one PUT on save. Read-only
- * with a notice once the event has started (the API answers 409 then too).
+ * custom tasks / free cells, bonus point fields. Read-only with a notice once
+ * the event has started (the API answers 409 then too).
+ *
+ * Saving is automatic: every change debounces into a PUT (which replaces the
+ * whole board), closing the cell editor flushes immediately, and a periodic
+ * sweep retries anything still dirty. A revision counter guards the
+ * post-save state refresh — the server response only replaces local cells
+ * when nothing changed while the save was in flight and no editor is open,
+ * so autosave never clobbers in-progress work. Re-saving un-refreshed state
+ * is safe: the PUT garbage-collects auto-created tasks the new board no
+ * longer references.
  */
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   EVENT_BOARD_SIZES,
@@ -131,11 +140,149 @@ export function EventBingoDesigner({
   const [selected, setSelected] = useState<number | null>(null);
   const [bonusLine, setBonusLine] = useState(String(event.bonus_line_points ?? 0));
   const [bonusBlackout, setBonusBlackout] = useState(String(event.bonus_blackout_points ?? 0));
-  const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "dirty" | "saving" | "saved" | "error">("idle");
+
+  // Autosave plumbing. `rev` bumps on every edit; `savedRev` is the last
+  // revision persisted. Timers and the interval always call the freshest
+  // flush via `flushRef` (assigned every render) so they never see stale
+  // state. `savingRef` serializes PUTs — the completion handler reschedules
+  // when edits arrived mid-flight.
+  const revRef = useRef(0);
+  const savedRevRef = useRef(0);
+  const savingRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushRef = useRef<() => void>(() => {});
+  const selectedRef = useRef<number | null>(null);
+  const saveStateRef = useRef(saveState);
 
   const selectedCell = selected != null ? cells[selected] : undefined;
+
+  const schedule = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => flushRef.current(), 1500);
+  };
+
+  const markDirty = () => {
+    revRef.current++;
+    setSaveState("dirty");
+    schedule();
+  };
+
+  const buildInput = (): BingoBoardInput => ({
+    size,
+    cells: cells.map((cell, idx): BingoCellInput => {
+      const out: BingoCellInput = { idx };
+      const label = cell.label.trim();
+      if (label) out.label = label;
+      if (cell.taskId != null) out.task_id = cell.taskId;
+      else if (cell.library) {
+        out.library_item_id = cell.library.id;
+        if (cell.points != null) out.points = cell.points;
+      } else if (cell.newTask) {
+        out.new_task = {
+          type: cell.newTask.type,
+          label: cell.newTask.label,
+          target: cell.newTask.target || undefined,
+          target_value: cell.newTask.target_value,
+          points: cell.newTask.points,
+        };
+      }
+      return out;
+    }),
+  });
+
+  const flush = async () => {
+    if (!editable || savingRef.current) return;
+    if (revRef.current === savedRevRef.current) return;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    savingRef.current = true;
+    setSaveState("saving");
+    const rev = revRef.current;
+    const line = Number(bonusLine);
+    const blackout = Number(bonusBlackout);
+    const bonusValid =
+      Number.isInteger(line) && line >= 0 && Number.isInteger(blackout) && blackout >= 0;
+    const input = buildInput();
+    try {
+      if (
+        bonusValid &&
+        (line !== (event.bonus_line_points ?? 0) || blackout !== (event.bonus_blackout_points ?? 0))
+      ) {
+        await updateGroupEvent(groupId, event.id, {
+          bonus_line_points: line,
+          bonus_blackout_points: blackout,
+        });
+      }
+      const detail = await saveEventBingo(groupId, event.id, input);
+      savedRevRef.current = rev;
+      setError(
+        bonusValid
+          ? null
+          : "Bonus points must be non-negative whole numbers — the board was saved without them.",
+      );
+      if (revRef.current === rev) {
+        // Only adopt the server's cells (library/custom picks become real
+        // task bindings) when nothing changed mid-flight and no cell editor
+        // is open — otherwise keep local state; a follow-up save converges.
+        if (selectedRef.current == null) {
+          setCells(cellsFromEvent(detail, detail.bingo?.size ?? size, detail.tasks));
+        }
+        setSaveState("saved");
+      } else {
+        setSaveState("dirty");
+        schedule();
+      }
+      onSaved(detail);
+    } catch (err) {
+      setError(getErrorMessage(err, "Autosave failed. Your changes are kept locally — edit again or press Save now to retry."));
+      setSaveState("error");
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  // Keep refs pointing at this render's values for timers/handlers.
+  useEffect(() => {
+    flushRef.current = flush;
+    selectedRef.current = selected;
+    saveStateRef.current = saveState;
+  });
+
+  // Periodic sweep: saves anything still dirty (e.g. a tab left idle with
+  // the cell editor open). Deliberately skips the error state — errors retry
+  // on the next edit or via the Save now button instead of looping.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (saveStateRef.current === "dirty" && !savingRef.current) flushRef.current();
+    }, 30_000);
+    return () => {
+      clearInterval(id);
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  // Warn before the browser unloads with unsaved work (autosave narrows the
+  // window to ~seconds, but a failed save could still be pending).
+  const hasUnsaved = saveState === "dirty" || saveState === "saving" || saveState === "error";
+  useEffect(() => {
+    if (!hasUnsaved) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsaved]);
+
+  /** Closing the tile editor flushes right away — finishing a tile is the
+   * natural "my edit is done" moment. */
+  const closeEditor = () => {
+    setSelected(null);
+    // selectedRef updates after the re-render; the flush only reads it at
+    // completion time, so kicking it off now is safe.
+    flushRef.current();
+  };
 
   const onSizeChange = (next: number) => {
     if (next === size) return;
@@ -156,62 +303,12 @@ export function EventBingoDesigner({
     setCells((prev) => regrid(prev, size, next));
     setSize(next);
     setSelected(null);
+    markDirty();
   };
 
   const updateCell = (idx: number, patch: Partial<DesignerCell>) => {
     setCells((prev) => prev.map((cell, i) => (i === idx ? { ...cell, ...patch } : cell)));
-    setSaved(false);
-  };
-
-  const onSave = () => {
-    setError(null);
-    const line = Number(bonusLine);
-    const blackout = Number(bonusBlackout);
-    if (!Number.isInteger(line) || line < 0 || !Number.isInteger(blackout) || blackout < 0) {
-      setError("Bonus points must be non-negative whole numbers.");
-      return;
-    }
-    const input: BingoBoardInput = {
-      size,
-      cells: cells.map((cell, idx): BingoCellInput => {
-        const out: BingoCellInput = { idx };
-        const label = cell.label.trim();
-        if (label) out.label = label;
-        if (cell.taskId != null) out.task_id = cell.taskId;
-        else if (cell.library) {
-          out.library_item_id = cell.library.id;
-          if (cell.points != null) out.points = cell.points;
-        } else if (cell.newTask) {
-          out.new_task = {
-            type: cell.newTask.type,
-            label: cell.newTask.label,
-            target: cell.newTask.target || undefined,
-            target_value: cell.newTask.target_value,
-            points: cell.newTask.points,
-          };
-        }
-        return out;
-      }),
-    };
-    startTransition(async () => {
-      try {
-        if (line !== (event.bonus_line_points ?? 0) || blackout !== (event.bonus_blackout_points ?? 0)) {
-          await updateGroupEvent(groupId, event.id, {
-            bonus_line_points: line,
-            bonus_blackout_points: blackout,
-          });
-        }
-        const detail = await saveEventBingo(groupId, event.id, input);
-        setSaved(true);
-        setSelected(null);
-        onSaved(detail);
-        // detail.tasks, not the tasks prop: the PUT may have just created the
-        // tasks the refreshed cells are bound to.
-        setCells(cellsFromEvent(detail, detail.bingo?.size ?? size, detail.tasks));
-      } catch (err) {
-        setError(getErrorMessage(err, "Couldn't save the board. Please try again."));
-      }
-    });
+    markDirty();
   };
 
   if (!editable) {
@@ -251,7 +348,6 @@ export function EventBingoDesigner({
             value={size}
             onChange={(e) => onSizeChange(Number(e.target.value))}
             className={field}
-            disabled={pending}
           >
             {EVENT_BOARD_SIZES.map((s) => (
               <option key={s} value={s}>
@@ -268,7 +364,7 @@ export function EventBingoDesigner({
             value={bonusLine}
             onChange={(e) => {
               setBonusLine(e.target.value);
-              setSaved(false);
+              markDirty();
             }}
             className={`${field} w-28`}
             title="Points a team earns for each completed row/column/diagonal. 0 disables."
@@ -282,20 +378,23 @@ export function EventBingoDesigner({
             value={bonusBlackout}
             onChange={(e) => {
               setBonusBlackout(e.target.value);
-              setSaved(false);
+              markDirty();
             }}
             className={`${field} w-28`}
             title="Points for completing the whole board. 0 disables."
           />
         </label>
-        <button
-          onClick={onSave}
-          disabled={pending}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
-        >
-          {pending ? "Saving…" : "Save board"}
-        </button>
-        {saved && !pending && <span className="text-osrs-green text-sm">Saved ✓</span>}
+        <div className="flex items-center gap-3 pb-2">
+          <button
+            onClick={() => flushRef.current()}
+            disabled={saveState === "saving" || saveState === "saved" || saveState === "idle"}
+            className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-2 text-sm disabled:opacity-50"
+            title="Changes save automatically — this forces an immediate save"
+          >
+            Save now
+          </button>
+          <SaveStatus state={saveState} />
+        </div>
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}
@@ -307,7 +406,7 @@ export function EventBingoDesigner({
           return (
             <button
               key={idx}
-              onClick={() => setSelected(isSelected ? null : idx)}
+              onClick={() => (isSelected ? closeEditor() : setSelected(idx))}
               title={cellBindingSummary(cell, tasks)}
               className={`flex aspect-square flex-col items-center justify-center rounded border p-1 text-center text-[11px] leading-tight transition-colors ${
                 isSelected
@@ -325,7 +424,7 @@ export function EventBingoDesigner({
       </div>
 
       {selected != null && selectedCell && (
-        <CellEditorModal onClose={() => setSelected(null)}>
+        <CellEditorModal onClose={closeEditor}>
           <CellEditor
             key={selected}
             groupId={groupId}
@@ -333,18 +432,33 @@ export function EventBingoDesigner({
             size={size}
             cell={selectedCell}
             tasks={tasks}
-            pending={pending}
             onChange={(patch) => updateCell(selected, patch)}
-            onClose={() => setSelected(null)}
+            onClose={closeEditor}
           />
         </CellEditorModal>
       )}
       <p className="text-osrs-parchment-dark/50 text-xs">
         Click a cell to bind it to a task, pick one from the library, or leave it free. Free cells
-        complete for every team the moment the event starts. Saving replaces the whole board.
+        complete for every team the moment the event starts. Changes save automatically.
       </p>
     </div>
   );
+}
+
+function SaveStatus({ state }: { state: "idle" | "dirty" | "saving" | "saved" | "error" }) {
+  if (state === "idle") {
+    return <span className="text-osrs-parchment-dark/50 text-xs">Autosaves as you edit</span>;
+  }
+  if (state === "saving") {
+    return <span className="text-osrs-parchment-dark/70 text-sm">Saving…</span>;
+  }
+  if (state === "saved") {
+    return <span className="text-osrs-green text-sm">All changes saved ✓</span>;
+  }
+  if (state === "error") {
+    return <span className="text-osrs-red text-sm">Autosave failed</span>;
+  }
+  return <span className="text-osrs-parchment-dark/70 text-sm">Unsaved changes…</span>;
 }
 
 /** Floating card for the cell editor, so configuring a tile doesn't require
@@ -386,7 +500,6 @@ function CellEditor({
   size,
   cell,
   tasks,
-  pending,
   onChange,
   onClose,
 }: {
@@ -395,7 +508,6 @@ function CellEditor({
   size: number;
   cell: DesignerCell;
   tasks: EventTask[];
-  pending: boolean;
   onChange: (patch: Partial<DesignerCell>) => void;
   onClose: () => void;
 }) {
@@ -498,8 +610,7 @@ function CellEditor({
         <span className="grow" />
         <button
           onClick={() => onChange({ taskId: null, library: null, newTask: null, points: null })}
-          disabled={pending}
-          className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-2 py-1 text-xs disabled:opacity-50"
+          className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-2 py-1 text-xs"
           title="Label-only cell that counts as completed for every team from the start"
         >
           Make free cell
@@ -546,8 +657,7 @@ function CellEditor({
                           points: item.default_points,
                         })
                       }
-                      disabled={pending}
-                      className={`hover:bg-osrs-bronze/10 flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm disabled:opacity-50 ${
+                      className={`hover:bg-osrs-bronze/10 flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-sm ${
                         cell.library?.id === item.id ? "bg-osrs-bronze/15" : ""
                       }`}
                     >
@@ -669,7 +779,7 @@ function CellEditor({
           />
           <button
             onClick={useCustom}
-            disabled={pending || !custom.label.trim()}
+            disabled={!custom.label.trim()}
             className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
           >
             Use task

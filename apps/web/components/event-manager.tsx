@@ -17,7 +17,9 @@ import {
   SUBMISSION_POLICY_HELP,
   SUBMISSION_POLICY_LABELS,
   TASK_TYPE_LABELS,
+  TEAM_COLORS,
   taskGoal,
+  teamColorMap,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, EmptyState } from "@/components/ui";
@@ -319,6 +321,21 @@ export function EventManager({
       } catch (err) {
         setTeams(prev);
         setError(getErrorMessage(err, "Couldn't rename the team. Please try again."));
+      }
+    });
+  };
+
+  /** Set (or clear) a team's accent color (optimistic; reverts on failure). */
+  const onColorTeam = (teamId: number, color: string | null) => {
+    const prev = teams;
+    setTeams((ts) => ts.map((t) => (t.id === teamId ? { ...t, color } : t)));
+    setError(null);
+    startTransition(async () => {
+      try {
+        await updateEventTeam(groupId, event.id, teamId, { color });
+      } catch (err) {
+        setTeams(prev);
+        setError(getErrorMessage(err, "Couldn't recolor the team. Please try again."));
       }
     });
   };
@@ -878,7 +895,9 @@ export function EventManager({
 
         {teams.length ? (
           <ul className="space-y-4">
-            {teams.map((team) => (
+            {(() => {
+              const accents = teamColorMap(teams);
+              return teams.map((team) => (
               <TeamRoster
                 key={team.id}
                 groupId={groupId}
@@ -887,14 +906,17 @@ export function EventManager({
                   isClanVsClan ? acceptedParticipantIds : groupId != null ? [groupId] : []
                 }
                 team={team}
+                accentColor={accents.get(team.id)!}
                 participants={participants}
                 pending={pending}
                 onAddMember={onAddMember}
                 onRemoveMember={onRemoveMember}
                 onRename={onRenameTeam}
+                onColor={onColorTeam}
                 onDelete={onDeleteTeam}
               />
-            ))}
+              ));
+            })()}
           </ul>
         ) : (
           <EmptyState title="No teams yet" />
@@ -935,22 +957,27 @@ function TeamRoster({
   eventId,
   participantGroupIds,
   team,
+  accentColor,
   participants,
   pending,
   onAddMember,
   onRemoveMember,
   onRename,
+  onColor,
   onDelete,
 }: {
   groupId: number | null;
   eventId: number;
   participantGroupIds: number[];
   team: EventTeam;
+  /** Effective accent (assigned color, else palette fallback) for the dot. */
+  accentColor: string;
   participants: EventParticipant[];
   pending: boolean;
   onAddMember: (teamId: number, player: { id: number; name: string }) => void;
   onRemoveMember: (teamId: number, playerId: number) => void;
   onRename: (teamId: number, name: string) => void;
+  onColor: (teamId: number, color: string | null) => void;
   onDelete: (teamId: number) => void;
 }) {
   const members = team.members ?? [];
@@ -961,6 +988,7 @@ function TeamRoster({
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(team.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pickingColor, setPickingColor] = useState(false);
 
   const clanLabel =
     team.group_id != null
@@ -1031,10 +1059,22 @@ function TeamRoster({
         </form>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-          <span className="font-medium">
+          <span className="flex items-center gap-2 font-medium">
+            <button
+              type="button"
+              onClick={() => {
+                setPickingColor((v) => !v);
+                setConfirmDelete(false);
+              }}
+              disabled={pending}
+              title="Team color"
+              aria-label={`Change ${team.name}'s color`}
+              className="border-osrs-bronze/40 hover:border-osrs-gold inline-block size-3.5 shrink-0 cursor-pointer rounded-full border disabled:opacity-50"
+              style={{ backgroundColor: accentColor }}
+            />
             {team.name}
             {clanLabel && (
-              <span className="text-osrs-parchment-dark/50 ml-2 text-xs">({clanLabel})</span>
+              <span className="text-osrs-parchment-dark/50 ml-1 text-xs">({clanLabel})</span>
             )}
           </span>
           <div className="flex items-center gap-1">
@@ -1062,6 +1102,57 @@ function TeamRoster({
               Delete
             </button>
           </div>
+        </div>
+      )}
+
+      {pickingColor && !editing && (
+        <div className="border-osrs-bronze/30 mt-2 flex flex-wrap items-center gap-1.5 rounded border p-2">
+          {TEAM_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => {
+                onColor(team.id, c);
+                setPickingColor(false);
+              }}
+              disabled={pending}
+              title={c}
+              aria-label={`Set color ${c}`}
+              className={`size-5 cursor-pointer rounded-full border transition-transform hover:scale-110 disabled:opacity-50 ${
+                team.color === c ? "border-osrs-gold border-2" : "border-osrs-bronze/40"
+              }`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+          <label
+            className="border-osrs-bronze/40 hover:border-osrs-gold relative size-5 cursor-pointer overflow-hidden rounded-full border bg-[conic-gradient(red,yellow,lime,cyan,blue,magenta,red)]"
+            title="Custom color"
+          >
+            <input
+              type="color"
+              value={team.color ?? accentColor}
+              onChange={(e) => {
+                onColor(team.id, e.target.value.toLowerCase());
+                setPickingColor(false);
+              }}
+              disabled={pending}
+              className="absolute inset-0 cursor-pointer opacity-0"
+              aria-label="Pick a custom color"
+            />
+          </label>
+          {team.color != null && (
+            <button
+              type="button"
+              onClick={() => {
+                onColor(team.id, null);
+                setPickingColor(false);
+              }}
+              disabled={pending}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-parchment ml-1 rounded px-2 py-0.5 text-xs disabled:opacity-50"
+            >
+              Reset to default
+            </button>
+          )}
         </div>
       )}
 

@@ -26,6 +26,13 @@ export async function requireSuperadmin(returnTo: string): Promise<Me> {
   return user;
 }
 
+/** Require moderator-or-superadmin; send others home. Gates /moderation. */
+export async function requireModerator(returnTo: string): Promise<Me> {
+  const user = await requireUser(returnTo);
+  if (!user.is_moderator && !user.is_superadmin) redirect("/");
+  return user;
+}
+
 /** Roles a user holds on a group, derived from the `/me` payload. */
 export function groupRole(user: Me, groupId: number): "owner" | "admin" | "member" | null {
   return user.groups.find((g) => g.id === groupId)?.role ?? null;

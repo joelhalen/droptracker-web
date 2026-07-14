@@ -6,6 +6,7 @@ import { entityPath } from "@/lib/slug";
 import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
 import { EventWindow, LocalTime } from "@/components/local-time";
+import { teamColorMap } from "@/lib/events";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventTaskBoard } from "@/components/event-task-progress";
@@ -41,6 +42,9 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   ]);
 
   const teams = [...event.teams].sort((a, b) => b.score - a.score);
+  // Accent colors resolve against the unsorted roster so palette fallbacks
+  // stay stable as standings change.
+  const teamColor = teamColorMap(event.teams);
   const players = user ? user.players.map((p) => ({ id: p.id, name: p.name })) : null;
 
   return (
@@ -77,10 +81,12 @@ export default async function EventDetailPage({ params }: { params: Params }) {
               </h2>
               <BingoBoard
                 board={event.bingo}
-                teams={event.teams.map((t) => ({ id: t.id, name: t.name }))}
+                teams={event.teams.map((t) => ({ id: t.id, name: t.name, color: t.color }))}
                 tasks={event.tasks}
                 eventId={event.id}
                 live={event.status === "active"}
+                progress={event.progress}
+                viewerTeamId={event.viewer?.team_id}
               />
             </div>
           )}
@@ -92,7 +98,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                 tasks={event.tasks}
                 // Original (unsorted) team order — keeps per-team colors in
                 // sync with the bingo board's index-based palette.
-                teams={event.teams.map((t) => ({ id: t.id, name: t.name }))}
+                teams={event.teams.map((t) => ({ id: t.id, name: t.name, color: t.color }))}
                 progress={event.progress}
                 eventId={event.id}
                 live={event.status === "active"}
@@ -130,6 +136,11 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                         <span className="text-osrs-parchment-dark/50 mr-2 tabular-nums">
                           {i + 1}
                         </span>
+                        <span
+                          className="mr-1.5 inline-block size-2 rounded-full align-baseline"
+                          style={{ backgroundColor: teamColor.get(team.id) }}
+                          aria-hidden
+                        />
                         <Link
                           href={`/events/${event.id}/teams/${team.id}`}
                           className="hover:text-osrs-gold-bright font-medium"
