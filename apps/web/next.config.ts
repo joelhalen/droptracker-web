@@ -21,22 +21,37 @@ const nextConfig: NextConfig = {
     // POSTing renewals there forever, so once this app serves the domain the
     // path must proxy to the Web API's IPN handler (web_api/routes/paypal_ipn.py).
     const webApiUrl = process.env.WEB_API_INTERNAL_URL ?? "http://localhost:31325";
-    return [
-      {
-        source: "/payment_callback.php",
-        destination: `${webApiUrl}/api/v1/webhooks/paypal-ipn`,
-      },
-      // Stripe billing webhook. web_api (:31325) is internal-only — nginx only
-      // exposes this app — so Stripe's dashboard-configured endpoint must be a
-      // public path on this domain, proxied straight through. This is a raw
-      // rewrite (not a Route Handler) so the exact request bytes reach
-      // web_api untouched; Stripe's signature is computed over those bytes
-      // (web_api/routes/subscriptions.py::billing_webhook / billing.py::verify_webhook).
-      {
-        source: "/api/webhooks/stripe",
-        destination: `${webApiUrl}/api/v1/webhooks/billing`,
-      },
-    ];
+    return {
+      // beforeFiles: must win over the filesystem route for `/` (the homepage).
+      beforeFiles: [
+        // Discord Activity host. The activity iframe always loads the ROOT
+        // path of <app-id>.discordsays.com, whose URL mapping targets
+        // activity.droptracker.io — so `/` on that host must serve the
+        // activity app, not the site homepage. Internal rewrite (URL stays /,
+        // frame_id & friends survive in the query string).
+        {
+          source: "/",
+          has: [{ type: "host", value: "activity.droptracker.io" }],
+          destination: "/activity",
+        },
+      ],
+      afterFiles: [
+        {
+          source: "/payment_callback.php",
+          destination: `${webApiUrl}/api/v1/webhooks/paypal-ipn`,
+        },
+        // Stripe billing webhook. web_api (:31325) is internal-only — nginx only
+        // exposes this app — so Stripe's dashboard-configured endpoint must be a
+        // public path on this domain, proxied straight through. This is a raw
+        // rewrite (not a Route Handler) so the exact request bytes reach
+        // web_api untouched; Stripe's signature is computed over those bytes
+        // (web_api/routes/subscriptions.py::billing_webhook / billing.py::verify_webhook).
+        {
+          source: "/api/webhooks/stripe",
+          destination: `${webApiUrl}/api/v1/webhooks/billing`,
+        },
+      ],
+    };
   },
   async redirects() {
     // 301 map from legacy XenForo URLs (FRONTEND_PLAN.md §14.2). Targets are the
