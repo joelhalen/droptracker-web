@@ -41,6 +41,8 @@ import {
   type EventRandomizeResult,
   EventTeamDetailSchema,
   type EventTeamDetail,
+  TaskBreakdownSchema,
+  type TaskBreakdown,
   EventSummarySchema,
   EventMetaEntrySchema,
   EventTaskLibraryItemSchema,
@@ -709,6 +711,38 @@ export const api = {
           await apiGet(`/events/${eventId}/teams/${teamId}`, { authed: true }),
         ),
       () => mockEventTeam(eventId, teamId),
+    );
+  },
+
+  /** Per-(task, team) item-level breakdown: which requirements a team has
+   * obtained vs still needs, plus who contributed. `teamId` selects the team;
+   * omit to default to the viewer's own team (resolved server-side). Authed so
+   * the viewer default + draft visibility work. Uncached (viewer-specific). */
+  async taskBreakdown(
+    eventId: number,
+    taskId: number,
+    teamId?: number,
+  ): Promise<TaskBreakdown> {
+    const q = teamId != null ? `?team_id=${teamId}` : "";
+    return withFallback(
+      async () =>
+        TaskBreakdownSchema.parse(
+          await apiGet(`/events/${eventId}/tasks/${taskId}/breakdown${q}`, { authed: true }),
+        ),
+      () => ({
+        task_id: taskId,
+        team_id: teamId ?? 0,
+        team_name: null,
+        type: "custom" as const,
+        kind: null,
+        progress: 0,
+        target: 1,
+        completed: false,
+        wildcard: 0,
+        structure: "meter" as const,
+        meter: { progress: 0, target: 1, unit: "", binary: false, label: null, target_value: null },
+        contributors: [],
+      }),
     );
   },
 

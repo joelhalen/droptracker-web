@@ -21,8 +21,10 @@ import {
   PendingReviewEventSchema,
   PlayerProfileSchema,
   SearchResultsSchema,
+  TaskBreakdownSchema,
   type EventCompletion,
   type EventDetail,
+  type TaskBreakdown,
   type EventSummary,
   type GroupProfile,
   type LeaderboardPage,
@@ -124,6 +126,20 @@ export async function eventDetail(
   sessionToken: string | null,
 ): Promise<EventDetail> {
   return EventDetailSchema.parse(await get(`/api/activity/events/${eventId}`, sessionToken));
+}
+
+/** Per-(task, team) item-level breakdown: what a team has obtained vs still
+ * needs, plus contributors. `teamId` omitted ⇒ the viewer's own team. */
+export async function taskBreakdown(
+  eventId: number,
+  taskId: number,
+  teamId: number | undefined,
+  sessionToken: string | null,
+): Promise<TaskBreakdown> {
+  const q = teamId != null ? `?team_id=${teamId}` : "";
+  return TaskBreakdownSchema.parse(
+    await get(`/api/activity/events/${eventId}/tasks/${taskId}/breakdown${q}`, sessionToken),
+  );
 }
 
 /** Signed-in profile (linked players + groups) — powers the join panel. */

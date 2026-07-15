@@ -2022,6 +2022,103 @@ export const EventTeamDetailSchema = z.object({
 });
 export type EventTeamDetail = z.infer<typeof EventTeamDetailSchema>;
 
+/* -------------------------------------------------------------------------- */
+/* Task detail breakdown — GET /events/{id}/tasks/{taskId}/breakdown          */
+/* Per-(task, team) item-level "what's obtained / what's left" view,          */
+/* reconstructed from the applied completion ledger (web_api/event_breakdown).*/
+/* -------------------------------------------------------------------------- */
+
+/** One item on a requirement's have/need checklist. `obtained ≥ required`
+ * ⇒ satisfied. `icon` reuses the resolved tile icon ref (compose the art with
+ * the same `/img/{itemdb|npcdb|metrics}` sources the tiles use). */
+export const TaskBreakdownItemSchema = z.object({
+  name: z.string(),
+  icon: TaskTileIconSchema.nullable().optional(),
+  required: z.number().int().default(1),
+  obtained: z.number().int().default(0),
+  satisfied: z.boolean().default(false),
+  /** point_collection weight, when the task scores by points. */
+  points: z.number().optional(),
+});
+export type TaskBreakdownItem = z.infer<typeof TaskBreakdownItemSchema>;
+
+/** One requirement bucket. `mode`: all_of (distinct items), any_of (N of a
+ * list), points (weighted), count (single-target running tally). */
+export const TaskBreakdownGroupSchema = z.object({
+  mode: z.enum(["all_of", "any_of", "points", "count"]),
+  need: z.number().int().default(0),
+  obtained: z.number().int().default(0),
+  satisfied: z.boolean().default(false),
+  /** Unit for the bucket total, e.g. "pts" for point_collection. */
+  unit: z.string().optional(),
+  items: z.array(TaskBreakdownItemSchema).default([]),
+});
+export type TaskBreakdownGroup = z.infer<typeof TaskBreakdownGroupSchema>;
+
+/** One either-or path of an `any_path` task. `closest` marks the path the team
+ * is furthest along (dryness-protection tasks complete when ANY path fills). */
+export const TaskBreakdownPathSchema = z.object({
+  label: z.string(),
+  closest: z.boolean().default(false),
+  pct: z.number().int().default(0),
+  need: z.number().int().default(0),
+  got: z.number().int().default(0),
+  groups: z.array(TaskBreakdownGroupSchema).default([]),
+});
+export type TaskBreakdownPath = z.infer<typeof TaskBreakdownPathSchema>;
+
+/** Single progress meter for non-item tasks (kc/xp/pb/skill/ehp/ehb/loot). */
+export const TaskBreakdownMeterSchema = z.object({
+  progress: z.number().int().default(0),
+  target: z.number().int().default(1),
+  unit: z.string().default(""),
+  /** pb/skill tasks are pass/fail — render as complete / not yet, not a bar. */
+  binary: z.boolean().default(false),
+  label: z.string().nullable().optional(),
+  target_value: z.number().int().nullable().optional(),
+});
+export type TaskBreakdownMeter = z.infer<typeof TaskBreakdownMeterSchema>;
+
+/** A contributor's applied contributions to this (task, team). `items` groups
+ * by credited item name (`null` = a wildcard/manual award with no item). */
+export const TaskBreakdownContributorSchema = z.object({
+  player_id: z.number().int().nullable(),
+  player_name: z.string().nullable().optional(),
+  quantity: z.number().int().default(0),
+  items: z
+    .array(
+      z.object({
+        name: z.string().nullable(),
+        quantity: z.number().int().default(1),
+      }),
+    )
+    .default([]),
+  last_at: z.number().int().nullable().optional(),
+});
+export type TaskBreakdownContributor = z.infer<typeof TaskBreakdownContributorSchema>;
+
+export const TaskBreakdownSchema = z.object({
+  task_id: z.number().int(),
+  team_id: z.number().int(),
+  team_name: z.string().nullable().optional(),
+  type: z.enum(EVENT_TASK_TYPES),
+  /** Requirement config kind (any_of/all_of/assembly/point_collection/groups/
+   * any_path), or null for single-target / non-item tasks. */
+  kind: z.string().nullable().optional(),
+  progress: z.number().int().default(0),
+  target: z.number().int().default(1),
+  completed: z.boolean().default(false),
+  /** Manual wildcard awards folded into progress (no specific item). */
+  wildcard: z.number().int().default(0),
+  /** Which shape to render: item checklist, either-or paths, or a lone meter. */
+  structure: z.enum(["checklist", "paths", "meter"]),
+  groups: z.array(TaskBreakdownGroupSchema).optional(),
+  paths: z.array(TaskBreakdownPathSchema).optional(),
+  meter: TaskBreakdownMeterSchema.nullable().optional(),
+  contributors: z.array(TaskBreakdownContributorSchema).default([]),
+});
+export type TaskBreakdown = z.infer<typeof TaskBreakdownSchema>;
+
 export const EventInputSchema = z.object({
   /** null ⇒ global event (superadmin only). */
   group_id: z.number().int().nullable(),

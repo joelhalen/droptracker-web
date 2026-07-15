@@ -2,14 +2,15 @@
 
 /**
  * Public bingo board (FRONTEND_PLAN.md §14.1, upgraded by Task 20 B3, tile
- * art + hover cards by the tile-resurrection pass).
+ * art + hover cards by the tile-resurrection pass, per-team item breakdown by
+ * the task-detail pass).
  *
  * Cells render rich tile art (`BingoTile` — item/npc/skill icon collages from
- * the backend's `task.tile` block, the successor of the legacy PNG tiles) and
- * every cell carries a portal hover card with the task's requirements
- * (per-item icons + quantities) and live per-team progress bars — the same
- * `useLiveProgress` map the task board uses, patched from the event SSE
- * channel alongside the cell/revoke completion frames.
+ * the backend's `task.tile` block) and each cell opens a task detail surface:
+ * on desktop an in-place hover card, on touch a bottom sheet. Both show the
+ * shared `TaskDetailContent` — the selected team's item-level "have / need"
+ * checklist, contributors, and an all-teams comparison — plus who has
+ * completed the cell. Completions patch live from the event SSE channel.
  */
 import { useMemo, useState } from "react";
 import type {
@@ -17,30 +18,29 @@ import type {
   BingoCell,
   BingoCellCompletion,
   EventTask,
-  TaskTileIcon,
 } from "@droptracker/api-types";
 import type { EventProgress } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
 import { LocalTime } from "@/components/local-time";
-import {
-  TASK_TYPE_LABELS,
-  TEAM_COLORS,
-  taskConfig,
-  taskConfigGroups,
-  taskConfigItems,
-  taskGoal,
-  teamColorMap,
-} from "@/lib/events";
-import { BingoTile, tileIconUrl } from "@/components/bingo-tile";
+import { TASK_TYPE_LABELS, TEAM_COLORS, taskGoal, teamColorMap } from "@/lib/events";
+import { BingoTile } from "@/components/bingo-tile";
 import { CARD_SECTION_CLASS, HoverCard } from "@/components/hover-card";
-import { TaskProgressBar, useLiveProgress } from "@/components/event-task-progress";
+import { useLiveProgress } from "@/components/event-task-progress";
+import {
+  TaskDetailContent,
+  TaskDetailSheet,
+  useCoarsePointer,
+  type BreakdownFetcher,
+} from "@/components/task-detail";
 
 // Re-export for existing importers; canonical home is lib/events.ts now.
 export { TEAM_COLORS };
 
 type TeamRef = { id: number; name: string; color?: string | null };
 
-const progressKey = (taskId: number, teamId: number) => `${taskId}:${teamId}`;
+/** Wider than the default hover card — the detail card holds a checklist,
+ * team switcher, and contributors. */
+const TASK_CARD_WIDTH = 340;
 
 function initialCompletions(board: BingoBoardData): Map<number, BingoCellCompletion[]> {
   const map = new Map<number, BingoCellCompletion[]>();
@@ -58,85 +58,49 @@ function initialCompletions(board: BingoBoardData): Map<number, BingoCellComplet
   return map;
 }
 
-/** Case-insensitive item-name → resolved tile icon, for requirement chips. */
-function iconByName(task: EventTask | undefined): Map<string, TaskTileIcon> {
-  const map = new Map<string, TaskTileIcon>();
-  for (const icon of task?.tile?.icons ?? []) {
-    if (icon.type === "item") map.set(icon.name.trim().toLowerCase(), icon);
-  }
-  return map;
-}
-
-function ItemChip({ icon, name, suffix }: { icon?: TaskTileIcon; name: string; suffix?: string }) {
-  const url = icon ? tileIconUrl(icon) : null;
+/** Who has completed this cell, and when. */
+function CompletedBy({
+  completions,
+  teamColor,
+}: {
+  completions: BingoCellCompletion[];
+  teamColor: Map<number, string>;
+}) {
   return (
-    <span className="bg-osrs-bronze/15 border-osrs-bronze/25 text-osrs-parchment-dark/85 inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px]">
-      {url && (
-        <img
-          src={url}
-          alt=""
-          className="size-4 object-contain"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = "none";
-          }}
-        />
-      )}
-      {name}
-      {suffix && <span className="text-osrs-gold/80">{suffix}</span>}
-    </span>
-  );
-}
-
-/** Requirement chips for item-list tasks: grouped configs render one row per
- * sub-requirement ("All of …", "Any 2 of …"), flat lists render chips with
- * per-item quantity / point suffixes. */
-function TaskRequirements({ task }: { task: EventTask }) {
-  const icons = iconByName(task);
-  const chip = (name: string, suffix?: string) => (
-    <ItemChip key={name} icon={icons.get(name.trim().toLowerCase())} name={name} suffix={suffix} />
-  );
-
-  const groups = taskConfigGroups(task);
-  if (groups.length) {
-    return (
-      <div className="grid gap-1.5">
-        {groups.map((g, gi) => (
-          <div key={gi} className="flex flex-wrap items-center gap-1">
-            <span className="text-osrs-gold-bright/70 text-[10px] font-semibold uppercase">
-              {g.mode === "all_of" ? "All of" : g.need > 1 ? `Any ${g.need} of` : "Any of"}
+    <div className={CARD_SECTION_CLASS}>
+      <p className="text-osrs-parchment-dark/50 mb-1.5 text-[10px] font-semibold tracking-wider uppercase">
+        Completed by
+      </p>
+      <ul className="space-y-0.5 text-xs">
+        {completions.map((c, i) => (
+          <li key={i} className="flex items-center justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-1.5">
+              {c.team_id != null && (
+                <span
+                  className="inline-block size-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: teamColor.get(c.team_id) ?? "#999" }}
+                  aria-hidden
+                />
+              )}
+              <span className="truncate">{c.team_name ?? c.player_name ?? "Unknown"}</span>
+              {c.player_name && c.team_name && (
+                <span className="text-osrs-parchment-dark/50 truncate">by {c.player_name}</span>
+              )}
             </span>
-            {g.items.map((name) => chip(name))}
-          </div>
+            {c.completed_at != null && (
+              <span className="text-osrs-parchment-dark/40 shrink-0">
+                <LocalTime unix={c.completed_at} mode="date" />
+              </span>
+            )}
+          </li>
         ))}
-      </div>
-    );
-  }
-
-  const items = taskConfigItems(task);
-  if (!items.length) return null;
-  const isPoints = taskConfig(task).kind === "point_collection";
-  const quantities = new Map(
-    (task.tile?.icons ?? []).map((icon) => [icon.name.trim().toLowerCase(), icon.quantity]),
-  );
-  return (
-    <div className="flex flex-wrap gap-1">
-      {items.map((it) => {
-        const qty = quantities.get(it.item_name.trim().toLowerCase());
-        const suffix = isPoints
-          ? ` ${it.points ?? 1} pt${(it.points ?? 1) === 1 ? "" : "s"}`
-          : qty != null && qty > 1
-            ? ` ×${qty.toLocaleString()}`
-            : undefined;
-        return chip(it.item_name, suffix);
-      })}
+      </ul>
     </div>
   );
 }
 
-const MAX_CARD_TEAMS = 6;
-
-/** Hover-card body for one cell: task summary, requirements, live per-team
- * progress, and who completed it when. */
+/** Hover-card / sheet body for one cell: task summary, the per-team item
+ * breakdown, and who has completed the cell. */
 function CellCard({
   cell,
   task,
@@ -145,6 +109,8 @@ function CellCard({
   progressMap,
   completions,
   viewerTeamId,
+  eventId,
+  fetchBreakdown,
 }: {
   cell: BingoCell;
   task?: EventTask;
@@ -153,21 +119,15 @@ function CellCard({
   progressMap: ReturnType<typeof useLiveProgress>;
   completions: BingoCellCompletion[];
   viewerTeamId?: number | null;
+  eventId?: number;
+  fetchBreakdown?: BreakdownFetcher;
 }) {
-  const orderedTeams =
-    viewerTeamId == null
-      ? teams
-      : [...teams].sort((a, b) => Number(b.id === viewerTeamId) - Number(a.id === viewerTeamId));
-  const shownTeams = orderedTeams.slice(0, MAX_CARD_TEAMS);
-
   return (
     <div className="p-3 text-sm">
       <div className="flex items-start justify-between gap-2">
         <span className="text-osrs-gold min-w-0 font-medium">{task?.label ?? cell.label}</span>
         {task != null && task.points > 0 && (
-          <span className="text-osrs-gold-bright shrink-0 text-xs tabular-nums">
-            {task.points} pts
-          </span>
+          <span className="text-osrs-gold-bright shrink-0 text-xs tabular-nums">{task.points} pts</span>
         )}
       </div>
 
@@ -184,67 +144,21 @@ function CellCard({
         </p>
       )}
 
-      {task && (taskConfigItems(task).length > 0 || taskConfigGroups(task).length > 0) && (
+      {task && eventId != null && (
         <div className={CARD_SECTION_CLASS}>
-          <TaskRequirements task={task} />
+          <TaskDetailContent
+            eventId={eventId}
+            task={task}
+            teams={teams}
+            teamColor={teamColor}
+            progressMap={progressMap}
+            viewerTeamId={viewerTeamId}
+            fetchBreakdown={fetchBreakdown}
+          />
         </div>
       )}
 
-      {task && teams.length > 0 && (
-        <div className={CARD_SECTION_CLASS}>
-          <p className="text-osrs-parchment-dark/50 mb-1.5 text-[10px] font-semibold tracking-wider uppercase">
-            Team progress
-          </p>
-          <div className="space-y-1">
-            {shownTeams.map((tm) => (
-              <TaskProgressBar
-                key={tm.id}
-                task={task}
-                cell={progressMap.get(progressKey(task.id, tm.id))}
-                color={teamColor.get(tm.id)}
-                label={tm.name + (tm.id === viewerTeamId ? " ★" : "")}
-              />
-            ))}
-            {orderedTeams.length > shownTeams.length && (
-              <p className="text-osrs-parchment-dark/40 text-[10px]">
-                +{orderedTeams.length - shownTeams.length} more teams
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {completions.length > 0 && (
-        <div className={CARD_SECTION_CLASS}>
-          <p className="text-osrs-parchment-dark/50 mb-1.5 text-[10px] font-semibold tracking-wider uppercase">
-            Completed by
-          </p>
-          <ul className="space-y-0.5 text-xs">
-            {completions.map((c, i) => (
-              <li key={i} className="flex items-center justify-between gap-2">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  {c.team_id != null && (
-                    <span
-                      className="inline-block size-2 shrink-0 rounded-full"
-                      style={{ backgroundColor: teamColor.get(c.team_id) ?? "#999" }}
-                      aria-hidden
-                    />
-                  )}
-                  <span className="truncate">{c.team_name ?? c.player_name ?? "Unknown"}</span>
-                  {c.player_name && c.team_name && (
-                    <span className="text-osrs-parchment-dark/50 truncate">by {c.player_name}</span>
-                  )}
-                </span>
-                {c.completed_at != null && (
-                  <span className="text-osrs-parchment-dark/40 shrink-0">
-                    <LocalTime unix={c.completed_at} mode="date" />
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {completions.length > 0 && <CompletedBy completions={completions} teamColor={teamColor} />}
     </div>
   );
 }
@@ -257,6 +171,7 @@ export function BingoBoard({
   live = false,
   progress,
   viewerTeamId,
+  fetchBreakdown,
 }: {
   board: BingoBoardData;
   teams?: TeamRef[];
@@ -267,11 +182,15 @@ export function BingoBoard({
   /** Per-(task, team) rollups from the event detail — powers the hover cards'
    * progress bars (patched live like the task board). */
   progress?: EventProgress[];
-  /** The signed-in viewer's team — pinned first in hover-card progress. */
+  /** The signed-in viewer's team — pinned first in the detail card. */
   viewerTeamId?: number | null;
+  /** Host transport for the per-team breakdown; omit for the site cookie BFF. */
+  fetchBreakdown?: BreakdownFetcher;
 }) {
   const [completions, setCompletions] = useState(() => initialCompletions(board));
   const [selectedTeam, setSelectedTeam] = useState<number | null>(null);
+  const [sheetIdx, setSheetIdx] = useState<number | null>(null);
+  const coarse = useCoarsePointer();
 
   const teamName = useMemo(() => new Map(teams.map((t) => [t.id, t.name])), [teams]);
   const teamColor = useMemo(() => teamColorMap(teams), [teams]);
@@ -340,6 +259,23 @@ export function BingoBoard({
     return list.some((c) => c.team_id === selectedTeam);
   };
 
+  /** Detail body for a cell — shared by the desktop hover card and the sheet. */
+  const cellCard = (cell: BingoCell) => (
+    <CellCard
+      cell={cell}
+      task={taskByCell.get(cell.index)}
+      teams={teams}
+      teamColor={teamColor}
+      progressMap={progressMap}
+      completions={completions.get(cell.index) ?? []}
+      viewerTeamId={viewerTeamId}
+      eventId={eventId}
+      fetchBreakdown={fetchBreakdown}
+    />
+  );
+
+  const sheetCell = sheetIdx != null ? board.cells.find((c) => c.index === sheetIdx) : undefined;
+
   return (
     <div className="space-y-3">
       {teams.length > 0 && (
@@ -384,59 +320,66 @@ export function BingoBoard({
           const done = cellDone(cell.index);
           const task = taskByCell.get(cell.index);
           const free = cell.task_id == null;
-          const doneTeams = list
-            .filter((c) => c.team_id != null)
-            .map((c) => c.team_id as number);
-          return (
-            <HoverCard
-              key={cell.index}
-              className="block min-w-0"
-              content={
-                <CellCard
-                  cell={cell}
-                  task={task}
-                  teams={teams}
-                  teamColor={teamColor}
-                  progressMap={progressMap}
-                  completions={list}
-                  viewerTeamId={viewerTeamId}
-                />
-              }
+          const doneTeams = list.filter((c) => c.team_id != null).map((c) => c.team_id as number);
+          const tile = (
+            <div
+              className={`relative flex aspect-square cursor-pointer flex-col rounded border transition-colors ${
+                done
+                  ? "border-osrs-green/60 bg-osrs-green/15 text-osrs-parchment"
+                  : "border-osrs-bronze/30 bg-osrs-brown-dark/40 text-osrs-parchment-dark/80 hover:border-osrs-bronze/60"
+              }`}
             >
-              <div
-                className={`relative flex aspect-square cursor-pointer flex-col rounded border transition-colors ${
-                  done
-                    ? "border-osrs-green/60 bg-osrs-green/15 text-osrs-parchment"
-                    : "border-osrs-bronze/30 bg-osrs-brown-dark/40 text-osrs-parchment-dark/80 hover:border-osrs-bronze/60"
-                }`}
+              <BingoTile label={cell.label} task={task} free={free} />
+              {done && (
+                <span
+                  className="text-osrs-green absolute top-0.5 left-1 text-[11px] font-bold"
+                  style={{ textShadow: "1px 1px 0 #000" }}
+                >
+                  ✓
+                </span>
+              )}
+              {selectedTeam == null && doneTeams.length > 0 && teams.length > 0 && (
+                <span className="absolute right-1 bottom-1 flex gap-0.5">
+                  {doneTeams.slice(0, 4).map((id) => (
+                    <span
+                      key={id}
+                      className="inline-block size-1.5 rounded-full"
+                      style={{ backgroundColor: teamColor.get(id) ?? "#999" }}
+                      title={teamName.get(id)}
+                      aria-hidden
+                    />
+                  ))}
+                </span>
+              )}
+            </div>
+          );
+
+          // Touch: tap opens a bottom sheet. Pointer: in-place hover card.
+          if (coarse) {
+            return (
+              <button
+                key={cell.index}
+                type="button"
+                className="block min-w-0 text-left"
+                onClick={() => setSheetIdx(cell.index)}
               >
-                <BingoTile label={cell.label} task={task} free={free} />
-                {done && (
-                  <span
-                    className="text-osrs-green absolute top-0.5 left-1 text-[11px] font-bold"
-                    style={{ textShadow: "1px 1px 0 #000" }}
-                  >
-                    ✓
-                  </span>
-                )}
-                {selectedTeam == null && doneTeams.length > 0 && teams.length > 0 && (
-                  <span className="absolute right-1 bottom-1 flex gap-0.5">
-                    {doneTeams.slice(0, 4).map((id) => (
-                      <span
-                        key={id}
-                        className="inline-block size-1.5 rounded-full"
-                        style={{ backgroundColor: teamColor.get(id) ?? "#999" }}
-                        title={teamName.get(id)}
-                        aria-hidden
-                      />
-                    ))}
-                  </span>
-                )}
-              </div>
+                {tile}
+              </button>
+            );
+          }
+          return (
+            <HoverCard key={cell.index} className="block min-w-0" width={TASK_CARD_WIDTH} content={cellCard(cell)}>
+              {tile}
             </HoverCard>
           );
         })}
       </div>
+
+      {coarse && (
+        <TaskDetailSheet open={sheetCell != null} onClose={() => setSheetIdx(null)}>
+          {sheetCell && cellCard(sheetCell)}
+        </TaskDetailSheet>
+      )}
     </div>
   );
 }

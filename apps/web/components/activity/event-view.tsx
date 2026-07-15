@@ -15,6 +15,7 @@ import type { EventDetail, Me } from "@droptracker/api-types";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventTaskBoard } from "@/components/event-task-progress";
+import type { BreakdownFetcher } from "@/components/task-detail";
 import { EventWindow } from "@/components/local-time";
 import { useEventStream } from "@/lib/use-event-stream";
 import { teamColorMap } from "@/lib/events";
@@ -26,6 +27,7 @@ import {
   eventPendingCompletions,
   joinEvent,
   leaveEvent,
+  taskBreakdown,
 } from "@/lib/activity/api";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -57,6 +59,13 @@ export function EventView({
   // Bumped on each poll refetch — remounts the board/task list so their
   // internal live-patched state reseeds from the fresh payload.
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Per-team task breakdown loads through the Activity BFF with the in-memory
+  // bearer (the site's cookie BFF isn't reachable inside the iframe).
+  const fetchBreakdown: BreakdownFetcher = useCallback(
+    (taskId, teamId) => taskBreakdown(eventId, taskId, teamId, sessionToken),
+    [eventId, sessionToken],
+  );
 
   const load = useCallback(
     async (isRefresh: boolean) => {
@@ -260,6 +269,7 @@ export function EventView({
           live={live}
           progress={event.progress}
           viewerTeamId={event.viewer?.team_id}
+          fetchBreakdown={fetchBreakdown}
         />
       )}
 
@@ -274,6 +284,7 @@ export function EventView({
             eventId={event.id}
             live={live}
             viewerTeamId={event.viewer?.team_id}
+            fetchBreakdown={fetchBreakdown}
           />
         </div>
       )}

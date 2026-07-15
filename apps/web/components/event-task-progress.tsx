@@ -14,8 +14,9 @@
 import { useMemo, useState } from "react";
 import type { EventProgress, EventTask } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
-import { TASK_TYPE_LABELS, pathSummary, taskConfig, taskConfigGroups, taskConfigItems, taskConfigPaths, taskGoal, teamColorMap, type TaskConfigGroup } from "@/lib/events";
+import { TASK_TYPE_LABELS, taskConfig, taskGoal, teamColorMap } from "@/lib/events";
 import { formatGp } from "@/lib/format";
+import { TaskDetailContent, type BreakdownFetcher } from "@/components/task-detail";
 
 type TeamRef = { id: number; name: string; color?: string | null };
 
@@ -158,84 +159,6 @@ export function TaskProgressBar({
   );
 }
 
-function ItemChip({ name, suffix }: { name: string; suffix?: string }) {
-  return (
-    <span className="bg-osrs-bronze/15 border-osrs-bronze/25 text-osrs-parchment-dark/80 rounded border px-2 py-0.5 text-xs">
-      {name}
-      {suffix && <span className="text-osrs-gold/80"> {suffix}</span>}
-    </span>
-  );
-}
-
-function GroupChipRows({ groups }: { groups: TaskConfigGroup[] }) {
-  return (
-    <>
-      {groups.map((g, gi) => (
-        <div key={gi} className="flex flex-wrap items-center gap-1.5">
-          <span className="text-osrs-gold-bright/70 text-[10px] font-semibold uppercase">
-            {g.mode === "all_of" ? "All of" : g.need > 1 ? `Any ${g.need} of` : "Any of"}
-          </span>
-          {g.items.map((name) => (
-            <ItemChip key={name} name={name} />
-          ))}
-        </div>
-      ))}
-    </>
-  );
-}
-
-/** Expandable "what counts" detail for list-based item tasks. */
-function TaskItemList({ task }: { task: EventTask }) {
-  const paths = taskConfigPaths(task);
-  if (paths.length) {
-    // Either-or: completing any one path completes the task.
-    return (
-      <div className="mt-2 grid gap-1.5">
-        {paths.map((p, pi) => (
-          <div key={pi} className="grid gap-1.5">
-            {pi > 0 && (
-              <span className="text-osrs-gold-bright text-[10px] font-bold uppercase">
-                — or —
-              </span>
-            )}
-            <div className="border-osrs-bronze/20 grid gap-1.5 rounded border-l-2 pl-2">
-              <span className="text-osrs-parchment-dark/70 text-[10px] font-semibold uppercase">
-                {pathSummary(p)}
-              </span>
-              <GroupChipRows groups={p.groups} />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  const groups = taskConfigGroups(task);
-  if (groups.length) {
-    // Combined requirements: every group must be satisfied.
-    return (
-      <div className="mt-2 grid gap-1.5">
-        <GroupChipRows groups={groups} />
-      </div>
-    );
-  }
-  const items = taskConfigItems(task);
-  if (!items.length) return null;
-  const isPoints = taskConfig(task).kind === "point_collection";
-  return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {items.map((it) => (
-        <ItemChip
-          key={it.item_name}
-          name={it.item_name}
-          suffix={
-            isPoints ? `(${it.points ?? 1} pt${(it.points ?? 1) === 1 ? "" : "s"})` : undefined
-          }
-        />
-      ))}
-    </div>
-  );
-}
-
 export function EventTaskBoard({
   tasks,
   teams,
@@ -243,6 +166,7 @@ export function EventTaskBoard({
   eventId,
   live = false,
   viewerTeamId,
+  fetchBreakdown,
 }: {
   tasks: EventTask[];
   teams: TeamRef[];
@@ -251,6 +175,8 @@ export function EventTaskBoard({
   live?: boolean;
   /** The signed-in viewer's team — pinned first and highlighted. */
   viewerTeamId?: number | null;
+  /** Host transport for the per-team breakdown; omit for the site cookie BFF. */
+  fetchBreakdown?: BreakdownFetcher;
 }) {
   const progressMap = useLiveProgress(eventId, live, progress);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -267,7 +193,6 @@ export function EventTaskBoard({
     <ul className="divide-osrs-bronze/20 divide-y">
       {tasks.map((t) => {
         const doneCount = teams.filter((tm) => progressMap.get(key(t.id, tm.id))?.completed).length;
-        const hasItems = taskConfigItems(t).length > 0;
         return (
           <li key={t.id} className="py-3">
             <div className="flex items-center justify-between gap-3 text-sm">
@@ -277,15 +202,13 @@ export function EventTaskBoard({
                 </span>
                 {t.label}
                 {taskGoal(t) && <span className="text-osrs-parchment-dark/60"> — {taskGoal(t)}</span>}
-                {hasItems && (
-                  <button
-                    type="button"
-                    onClick={() => setExpanded((cur) => (cur === t.id ? null : t.id))}
-                    className="text-osrs-gold/70 hover:text-osrs-gold-bright ml-2 text-xs"
-                  >
-                    {expanded === t.id ? "hide items" : "which items?"}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setExpanded((cur) => (cur === t.id ? null : t.id))}
+                  className="text-osrs-gold/70 hover:text-osrs-gold-bright ml-2 text-xs whitespace-nowrap"
+                >
+                  {expanded === t.id ? "hide details" : "details"}
+                </button>
               </span>
               <span className="flex shrink-0 items-center gap-3">
                 {teams.length > 0 && (
@@ -298,7 +221,20 @@ export function EventTaskBoard({
                 )}
               </span>
             </div>
-            {expanded === t.id && <TaskItemList task={t} />}
+            {expanded === t.id && (
+              <div className="border-osrs-bronze/20 bg-osrs-brown-dark/30 mt-2 rounded border p-2.5">
+                <TaskDetailContent
+                  eventId={eventId}
+                  task={t}
+                  teams={teams}
+                  teamColor={teamColor}
+                  progressMap={progressMap}
+                  viewerTeamId={viewerTeamId}
+                  fetchBreakdown={fetchBreakdown}
+                  showCompare={false}
+                />
+              </div>
+            )}
             {teams.length > 0 && (
               <div className="mt-2 space-y-1.5">
                 {orderedTeams.map((tm) => (

@@ -45,14 +45,19 @@ export function HoverCard({
   content,
   children,
   className = "",
+  width = CARD_WIDTH,
 }: {
   /** Card body; rendered inside a `card-pop` container. */
   content: ReactNode;
   /** Inline trigger contents. */
   children: ReactNode;
   className?: string;
+  /** Card width in px; wider cards (e.g. the task detail card) opt up from the
+   * default. Also used for the horizontal edge clamp. */
+  width?: number;
 }) {
   const anchorRef = useRef<HTMLSpanElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<Pos | null>(null);
   const openTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,7 +73,7 @@ export function HoverCard({
     if (!rect) return;
     const left = Math.min(
       Math.max(rect.left, EDGE_GAP),
-      Math.max(EDGE_GAP, window.innerWidth - CARD_WIDTH - EDGE_GAP),
+      Math.max(EDGE_GAP, window.innerWidth - width - EDGE_GAP),
     );
     if (window.innerHeight - rect.bottom < MIN_SPACE_BELOW) {
       setPos({ left, bottom: window.innerHeight - rect.top + ANCHOR_GAP });
@@ -96,12 +101,19 @@ export function HoverCard({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") close();
     };
+    // Scrolling the page closes the card, but scrolling INSIDE it (a tall,
+    // internally-scrollable body like the task detail card) must not.
+    const onScroll = (e: Event) => {
+      const t = e.target as Node | null;
+      if (t && cardRef.current?.contains(t)) return;
+      setPos(null);
+    };
     // capture: the scrolling element may be a nested overflow container.
-    window.addEventListener("scroll", close, { capture: true, passive: true });
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
     window.addEventListener("resize", close);
     document.addEventListener("keydown", onKey);
     return () => {
-      window.removeEventListener("scroll", close, { capture: true });
+      window.removeEventListener("scroll", onScroll, { capture: true });
       window.removeEventListener("resize", close);
       document.removeEventListener("keydown", onKey);
     };
@@ -133,8 +145,17 @@ export function HoverCard({
         typeof document !== "undefined" &&
         createPortal(
           <div
+            ref={cardRef}
             role="tooltip"
-            style={{ position: "fixed", left: pos.left, top: pos.top, bottom: pos.bottom, width: CARD_WIDTH }}
+            style={{
+              position: "fixed",
+              left: pos.left,
+              top: pos.top,
+              bottom: pos.bottom,
+              width,
+              maxHeight: "80vh",
+              overflowY: "auto",
+            }}
             className="card-pop menu-in z-[70]"
             onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}
