@@ -871,6 +871,26 @@ export const api = {
     return BoardDetailSchema.parse(await apiSend("PUT", `/events/${eventId}/board`, input));
   },
 
+  /** Procedurally generate a whole board (art + sequential tile track) in one
+   * shot. Draft-only. Returns the refreshed board (extra `generated` meta is
+   * ignored by BoardDetailSchema). */
+  async generateEventBoard(
+    eventId: number,
+    params: {
+      seed?: number | null;
+      regions?: number;
+      tiles?: number;
+      style?: "path" | "filled";
+      title?: string;
+      subtitle?: string;
+      watermark?: string | null;
+    },
+  ): Promise<BoardDetail> {
+    return BoardDetailSchema.parse(
+      await apiSend("POST", `/events/${eventId}/board/generate`, params),
+    );
+  },
+
   /** Merge a partial board-settings document (live-tunable mid-event). */
   async patchEventBoardSettings(
     eventId: number,

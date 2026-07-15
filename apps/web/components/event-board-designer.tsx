@@ -29,6 +29,7 @@ import type {
 import { EVENT_TASK_DIFFICULTIES } from "@droptracker/api-types";
 import {
   fetchEventBoard,
+  generateEventBoard,
   saveEventBoard,
   saveEventBoardSettings,
   updateEventTeam,
@@ -124,6 +125,16 @@ export function EventBoardDesigner({
   const [saveState, setSaveState] = useState<"idle" | "dirty" | "saving" | "saved" | "error">(
     "idle",
   );
+
+  // --- Procedural generator (web46a) ---------------------------------------
+  const [genOpen, setGenOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [gen, setGen] = useState<{
+    seed: string;
+    regions: number;
+    tiles: number;
+    style: "path" | "filled";
+  }>({ seed: "", regions: 8, tiles: 60, style: "path" });
 
   // --- Autosave plumbing (the bingo designer's block, verbatim pattern) ----
   const revRef = useRef(0);
@@ -357,6 +368,42 @@ export function EventBoardDesigner({
     markDirty();
   };
 
+  // Procedurally roll a whole board (art + sequential tile track) server-side.
+  // The result is already persisted, so we sync the autosave revision and
+  // adopt the returned board rather than marking dirty.
+  const generateBoard = async () => {
+    if (
+      tiles.length > 0 &&
+      !window.confirm(
+        `Replace the current ${tiles.length} tile(s) and background with a freshly ` +
+          "generated board?",
+      )
+    ) {
+      return;
+    }
+    setGenerating(true);
+    setError(null);
+    try {
+      const detail = await generateEventBoard(groupId, event.id, {
+        seed: gen.seed.trim() ? Number(gen.seed.trim()) : null,
+        regions: gen.regions,
+        tiles: gen.tiles,
+        style: gen.style,
+      });
+      setBoard(detail);
+      setTiles(tilesFromBoard(detail));
+      setSelected(null);
+      savedRevRef.current = revRef.current; // generation already saved server-side
+      setSaveState("saved");
+      setGenOpen(false);
+      onSaved?.(detail);
+    } catch (err) {
+      setError(getErrorMessage(err, "Board generation failed."));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   // --- Background upload -----------------------------------------------------
   const [uploading, setUploading] = useState(false);
   const onUpload = async (file: File) => {
@@ -413,6 +460,16 @@ export function EventBoardDesigner({
         </label>
         <button
           type="button"
+          onClick={() => setGenOpen((v) => !v)}
+          disabled={!editable}
+          className="border-osrs-gold/60 text-osrs-gold hover:bg-osrs-gold/10 rounded border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+          aria-expanded={genOpen}
+          title="Procedurally generate a whole board — art and the tile track"
+        >
+          ✨ Generate board
+        </button>
+        <button
+          type="button"
           onClick={seedZigzag}
           disabled={!editable}
           className="border-osrs-bronze/40 hover:border-osrs-gold rounded border px-3 py-1.5 text-sm disabled:opacity-50"
@@ -433,6 +490,87 @@ export function EventBoardDesigner({
         </span>
         <SaveStatus state={saveState} onSave={() => flushRef.current()} />
       </div>
+
+      {genOpen && editable && (
+        <div className="border-osrs-gold/30 bg-osrs-brown-dark/40 space-y-3 rounded border p-3">
+          <h4 className="text-osrs-gold text-sm font-semibold">Procedural board generator</h4>
+          <p className="text-osrs-parchment-dark/60 text-xs">
+            Rolls a full board — winding path art plus every tile placed in order (start → finish,
+            difficulty cycling air → water → earth → fire). Replaces the current layout and
+            background; you can still edit any tile afterward.
+          </p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Seed (blank = random)</span>
+              <input
+                type="number"
+                value={gen.seed}
+                placeholder="random"
+                onChange={(e) => setGen((g) => ({ ...g, seed: e.target.value }))}
+                className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Tiles (10–400)</span>
+              <input
+                type="number"
+                min={10}
+                max={400}
+                value={gen.tiles}
+                onChange={(e) =>
+                  setGen((g) => ({ ...g, tiles: Math.max(10, Math.min(400, Number(e.target.value) || 10)) }))
+                }
+                className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Regions (2–11)</span>
+              <input
+                type="number"
+                min={2}
+                max={11}
+                value={gen.regions}
+                onChange={(e) =>
+                  setGen((g) => ({ ...g, regions: Math.max(2, Math.min(11, Number(e.target.value) || 2)) }))
+                }
+                className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Style</span>
+              <select
+                value={gen.style}
+                onChange={(e) => setGen((g) => ({ ...g, style: e.target.value as "path" | "filled" }))}
+                className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
+              >
+                <option value="path">Path (winding track)</option>
+                <option value="filled">Filled (dense map)</option>
+              </select>
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={generateBoard}
+              disabled={generating}
+              className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold/90 rounded px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+            >
+              {generating ? "Generating…" : "Generate board"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setGenOpen(false)}
+              disabled={generating}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-gold text-xs disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <span className="text-osrs-parchment-dark/50 text-xs">
+              The exact tile count is approximate — it emerges from the path geometry.
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* The board surface */}
       <div

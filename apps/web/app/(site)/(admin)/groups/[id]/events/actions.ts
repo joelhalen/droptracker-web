@@ -419,6 +419,28 @@ export async function saveEventBoard(
   return board;
 }
 
+/** Procedurally generate a whole board (art + tile track) from the boardgen
+ * engine. Draft-only; replaces the current layout + background. */
+export async function generateEventBoard(
+  groupId: EventGroupId,
+  eventId: number,
+  params: {
+    seed?: number | null;
+    regions?: number;
+    tiles?: number;
+    style?: "path" | "filled";
+    title?: string;
+    subtitle?: string;
+    watermark?: string | null;
+  },
+) {
+  await assertCanManageEvent(groupId);
+  const board = await api.generateEventBoard(eventId, params);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return board;
+}
+
 /** Merge board settings (movement/dice, rendering, coins, mercy, shop…). */
 export async function saveEventBoardSettings(
   groupId: EventGroupId,
