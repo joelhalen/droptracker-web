@@ -2,14 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { entityPath } from "@/lib/slug";
 import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
-import { EventWindow, LocalTime } from "@/components/local-time";
-import { teamColorMap } from "@/lib/events";
+import { EventWindow } from "@/components/local-time";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventTaskBoard } from "@/components/event-task-progress";
+import { EventTeamsPanel } from "@/components/event-teams-panel";
 import { EmptyState } from "@/components/ui";
 
 export const revalidate = 30;
@@ -42,10 +41,6 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   // page) and includes the viewer block. Anonymous reads stay ISR-cached.
   const event = await orNotFound(user ? api.eventForAdmin(eventId) : api.event(eventId));
 
-  const teams = [...event.teams].sort((a, b) => b.score - a.score);
-  // Accent colors resolve against the unsorted roster so palette fallbacks
-  // stay stable as standings change.
-  const teamColor = teamColorMap(event.teams);
   const players = user ? user.players.map((p) => ({ id: p.id, name: p.name })) : null;
 
   return (
@@ -131,63 +126,14 @@ export default async function EventDetailPage({ params }: { params: Params }) {
 
           <div>
             <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Teams</h2>
-            {teams.length ? (
-              <ol className="space-y-2">
-                {teams.map((team, i) => (
-                  <li
-                    key={team.id}
-                    className="border-osrs-bronze/20 hover:border-osrs-bronze/50 rounded border px-3 py-2 text-sm transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span>
-                        <span className="text-osrs-parchment-dark/50 mr-2 tabular-nums">
-                          {i + 1}
-                        </span>
-                        <span
-                          className="mr-1.5 inline-block size-2 rounded-full align-baseline"
-                          style={{ backgroundColor: teamColor.get(team.id) }}
-                          aria-hidden
-                        />
-                        <Link
-                          href={`/events/${event.id}/teams/${team.id}`}
-                          className="hover:text-osrs-gold-bright font-medium"
-                        >
-                          {team.name}
-                        </Link>
-                        <span className="text-osrs-parchment-dark/50 ml-2 text-xs">
-                          {team.member_count} players
-                          {(() => {
-                            const done = (event.progress ?? []).filter(
-                              (p) => p.team_id === team.id && p.completed,
-                            ).length;
-                            return done > 0 ? ` · ${done}/${event.tasks.length} tasks` : "";
-                          })()}
-                        </span>
-                      </span>
-                      <span className="text-osrs-gold-bright tabular-nums">{team.score}</span>
-                    </div>
-                    {(team.members?.length ?? 0) > 0 && (
-                      <ul className="text-osrs-parchment-dark/70 mt-2 space-y-0.5 text-xs">
-                        {team.members!.map((m) => (
-                          <li key={m.player_id} className="flex items-center justify-between">
-                            <Link
-                              href={entityPath("players", m.player_id, m.player_name)}
-                              className="hover:text-osrs-gold-bright"
-                            >
-                              {m.player_name}
-                            </Link>
-                            {m.joined_at && (
-                              <span className="text-osrs-parchment-dark/40">
-                                joined <LocalTime unix={m.joined_at} mode="date" />
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                ))}
-              </ol>
+            {event.teams.length ? (
+              <EventTeamsPanel
+                eventId={event.id}
+                teams={event.teams}
+                progress={event.progress}
+                taskCount={event.tasks.length}
+                viewerTeamId={event.viewer?.team_id}
+              />
             ) : (
               <EmptyState title="No teams yet" />
             )}

@@ -16,6 +16,7 @@ import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/format";
 import { LocalTime } from "@/components/local-time";
 import { EmptyState } from "@/components/ui";
+import { EventMemberList } from "@/components/event-member-list";
 import {
   TaskProgressBar,
   formatProgressValue,
@@ -261,8 +262,12 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
             </span>
           </h2>
           {members.length ? (
-            <ul className="space-y-2">
-              {members.map((m) => (
+            <EventMemberList
+              members={members}
+              pageSize={10}
+              unit="member"
+              listClassName="space-y-2"
+              renderRow={(m) => (
                 <li
                   key={m.player_id}
                   className="border-osrs-bronze/20 rounded border px-3 py-2 text-sm"
@@ -287,8 +292,8 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                     </div>
                   )}
                 </li>
-              ))}
-            </ul>
+              )}
+            />
           ) : (
             <EmptyState title="No members yet" />
           )}

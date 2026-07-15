@@ -38,6 +38,7 @@ import {
   updateGroupEvent,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
+import { EventMemberList } from "@/components/event-member-list";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
 import { EventSignupTools } from "@/components/event-signup-tools";
@@ -1216,27 +1217,33 @@ function TeamRoster({
       )}
 
       {members.length > 0 && (
-        <ul className="divide-osrs-bronze/10 mt-2 divide-y">
-          {members.map((m) => (
-            <li key={m.player_id} className="flex items-center justify-between py-1.5 text-sm">
-              <span>
-                {m.player_name}
-                {m.joined_at && (
-                  <span className="text-osrs-parchment-dark/40 ml-2 text-xs">
-                    joined {new Date(m.joined_at * 1000).toLocaleDateString()}
-                  </span>
-                )}
-              </span>
-              <button
-                onClick={() => onRemoveMember(team.id, m.player_id)}
-                disabled={pending}
-                className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-2">
+          <EventMemberList
+            members={members}
+            pageSize={8}
+            unit="member"
+            listClassName="divide-osrs-bronze/10 divide-y"
+            renderRow={(m) => (
+              <li key={m.player_id} className="flex items-center justify-between py-1.5 text-sm">
+                <span>
+                  {m.player_name}
+                  {m.joined_at && (
+                    <span className="text-osrs-parchment-dark/40 ml-2 text-xs">
+                      joined {new Date(m.joined_at * 1000).toLocaleDateString()}
+                    </span>
+                  )}
+                </span>
+                <button
+                  onClick={() => onRemoveMember(team.id, m.player_id)}
+                  disabled={pending}
+                  className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              </li>
+            )}
+          />
+        </div>
       )}
 
       <form onSubmit={onSearch} className="mt-2 flex gap-2">
