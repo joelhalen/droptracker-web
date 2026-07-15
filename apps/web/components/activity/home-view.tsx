@@ -14,7 +14,7 @@ import { CountUp } from "@/components/count-up";
 import { HoverCard, CardStatLine, CARD_SECTION_CLASS } from "@/components/hover-card";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp, formatRelativeTime } from "@/lib/format";
-import { guildEvents, recentFeed, searchAll } from "@/lib/activity/api";
+import { guildEvents, myEvents, recentFeed, searchAll } from "@/lib/activity/api";
 import { toActivityFeedRow, type ActivityFeedRow } from "@/lib/activity/feed";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityData } from "@/lib/activity/data-context";
@@ -284,14 +284,15 @@ export function HomeView() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
 
-  // Active events power the Events card's live pill.
+  // Active events power the Events card's live pill. No guild context (an
+  // Activity Link opened from a DM) → the user's events across their groups.
   useEffect(() => {
-    if (!guildId) {
+    if (!guildId && !sessionToken) {
       setActiveEvents([]);
       return;
     }
     let cancelled = false;
-    guildEvents(guildId, "active", null)
+    (guildId ? guildEvents(guildId, "active", null) : myEvents("active", sessionToken!))
       .then((evs) => {
         if (!cancelled) setActiveEvents(evs);
       })
@@ -299,7 +300,7 @@ export function HomeView() {
     return () => {
       cancelled = true;
     };
-  }, [guildId]);
+  }, [guildId, sessionToken]);
 
   // Feed: seed from history, then prepend live frames.
   useEffect(() => {

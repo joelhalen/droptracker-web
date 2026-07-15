@@ -96,6 +96,22 @@ export async function guildEvents(
   );
 }
 
+/**
+ * The session user's events across every group they belong to. Powers the
+ * guild-less launch context (Activity Links opened from a DM), where there's
+ * no guildId to scope by but the user's identity finds their clans anyway.
+ */
+export async function myEvents(
+  status: "active" | "past" | undefined,
+  sessionToken: string,
+): Promise<EventSummary[]> {
+  const q = new URLSearchParams({ mine: "1" });
+  if (status) q.set("status", status);
+  return EventSummarySchema.array().parse(
+    await get(`/api/activity/events?${q.toString()}`, sessionToken),
+  );
+}
+
 /** Full event detail; includes the viewer block when a session is presented. */
 export async function eventDetail(
   eventId: number,

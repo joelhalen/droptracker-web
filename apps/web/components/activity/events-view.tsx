@@ -2,13 +2,15 @@
 
 /**
  * Events tab: the launch guild's active events (plus recent past ones),
- * pushing the full live event screen (board/tasks/join) on tap.
+ * pushing the full live event screen (board/tasks/join) on tap. Launched
+ * without a guild (an Activity Link opened from a DM), it falls back to the
+ * session user's events across every group they belong to.
  */
 import { useEffect, useState } from "react";
 import type { EventSummary } from "@droptracker/api-types";
 import { Card } from "@/components/ui";
 import { EventWindow } from "@/components/local-time";
-import { guildEvents } from "@/lib/activity/api";
+import { guildEvents, myEvents } from "@/lib/activity/api";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityData } from "@/lib/activity/data-context";
 import { useActivityNav } from "@/lib/activity/nav";
@@ -50,14 +52,16 @@ export function EventsView() {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (!guildId) {
+    if (!guildId && !sessionToken) {
       setActive([]);
       return;
     }
     let cancelled = false;
+    const load = (status: "active" | "past") =>
+      guildId ? guildEvents(guildId, status, sessionToken) : myEvents(status, sessionToken!);
     Promise.all([
-      guildEvents(guildId, "active", sessionToken),
-      guildEvents(guildId, "past", sessionToken).catch(() => [] as EventSummary[]),
+      load("active"),
+      load("past").catch(() => [] as EventSummary[]),
     ])
       .then(([a, p]) => {
         if (cancelled) return;
@@ -70,15 +74,15 @@ export function EventsView() {
     };
   }, [guildId, sessionToken]);
 
-  if (!guildId) {
+  if (!guildId && !sessionToken) {
     return (
       <ErrorNote>
-        Events belong to clan servers — launch the activity from your clan&apos;s Discord server to
-        see its boards.
+        Launch the activity from your clan&apos;s Discord server — or allow the Discord sign-in when
+        the app opens, so we can find your clans&apos; events.
       </ErrorNote>
     );
   }
-  if (failed) return <ErrorNote>Couldn&apos;t load this server&apos;s events.</ErrorNote>;
+  if (failed) return <ErrorNote>Couldn&apos;t load your events.</ErrorNote>;
   if (active == null) return <LoadingBlock rows={3} />;
 
   return (
