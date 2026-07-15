@@ -1743,6 +1743,11 @@ export const EVENT_SELF_SIGNUP_MODES = ["self_join", "auto_assign", "signup_pool
 /** Event ownership shape: one group (or global), or host-vs-invited-clans. */
 export const EVENT_MODES = ["standard", "clan_vs_clan"] as const;
 
+/** Task/tile difficulty tiers (legacy elements; air easiest → fire hardest).
+ * Board-game tiles roll their tasks from per-tier pools (web44a). */
+export const EVENT_TASK_DIFFICULTIES = ["air", "water", "earth", "fire"] as const;
+export type EventTaskDifficulty = (typeof EVENT_TASK_DIFFICULTIES)[number];
+
 /** Event game format (web43a) — orthogonal to `mode` (ownership). Which
  * kinds a non-superadmin may CREATE is governed site-wide by the
  * web_event_types registry (enabled/admin_only + test-group allowlist);
@@ -1876,6 +1881,8 @@ export const EventTaskSchema = z.object({
   requires_confirmation: z.boolean().default(false),
   /** Library-copy publicity: public (any clan can reuse) or private (this clan only). */
   visibility: z.enum(EVENT_TASK_VISIBILITIES).default("public"),
+  /** Board-game tier (web44a); null on tasks that never set one. */
+  difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
   /** JSON string: any_of/assembly/point_collection item lists etc. */
   config: z.string().nullable().optional(),
   /** Board-tile display metadata (absent on payloads from before the
@@ -1942,10 +1949,6 @@ export type BingoBoard = z.infer<typeof BingoBoardSchema>;
 // --------------------------------------------------------------------------
 // Board game (web44a)
 // --------------------------------------------------------------------------
-/** Task/tile difficulty tiers (legacy elements; air easiest → fire hardest). */
-export const EVENT_TASK_DIFFICULTIES = ["air", "water", "earth", "fire"] as const;
-export type EventTaskDifficulty = (typeof EVENT_TASK_DIFFICULTIES)[number];
-
 export const EVENT_BOARD_TILE_KINDS = ["start", "normal", "special", "finish"] as const;
 export const BOARD_TILE_RENDER_MODES = ["rune", "invisible", "outline"] as const;
 
@@ -2332,6 +2335,8 @@ export const EventTaskInputSchema = z.object({
   requires_confirmation: z.boolean().optional(),
   /** Library-copy publicity; the API defaults an absent value to "public". */
   visibility: z.enum(EVENT_TASK_VISIBILITIES).optional(),
+  /** Board-game tier (web44a): tags the task into difficulty-tile roll pools. */
+  difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
   /** JSON string: any_of/assembly/point_collection item lists etc. */
   config: z.string().nullable().optional(),
 });
@@ -2347,6 +2352,8 @@ export const EventTaskPatchSchema = z.object({
   /** When present, re-saves the task's library copy with this publicity;
    * absent ⇒ the library copy is left alone. */
   visibility: z.enum(EVENT_TASK_VISIBILITIES).optional(),
+  /** Board-game tier (web44a); explicit null clears it. */
+  difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
   /** JSON string — replaces the item-list / source-NPC config (revalidated
    * server-side). Explicit null switches an item_collection back to
    * single-item semantics; absent ⇒ unchanged. */
@@ -2483,7 +2490,8 @@ export const EventTaskLibraryItemSchema = z.object({
   target: z.string().nullable().optional(),
   target_value: z.number().int().nullable().optional(),
   default_points: z.number().int().default(0),
-  difficulty: z.string().nullable().optional(),
+  /** Board-game tier — the backend validates against the same four values. */
+  difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
   config: z.string().nullable().optional(),
   source: z.string().optional(),
   /** Owning group for group-saved rows; null = site-wide/curated. */

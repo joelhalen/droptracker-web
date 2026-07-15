@@ -327,6 +327,9 @@ export function EventTaskForm({
   const [label, setLabel] = useState(initial?.label ?? "");
   const [points, setPoints] = useState(initial?.points ?? 0);
   const [requiresReview, setRequiresReview] = useState(initial?.requires_confirmation ?? false);
+  const [difficulty, setDifficulty] = useState<"air" | "water" | "earth" | "fire" | null>(
+    initial?.difficulty ?? null,
+  );
   const [visibility, setVisibility] = useState<"public" | "private">(
     initial?.visibility ?? "public",
   );
@@ -528,6 +531,7 @@ export function EventTaskForm({
       points,
       requires_confirmation: requiresReview,
       visibility,
+      difficulty,
     };
     switch (type) {
       case "item_collection":
@@ -611,6 +615,7 @@ export function EventTaskForm({
             points: input.points,
             requires_confirmation: input.requires_confirmation,
             visibility: input.visibility,
+            difficulty: input.difficulty ?? null,
             // Explicit null clears a list config (e.g. back to single item);
             // the API revalidates the whole goal either way.
             config: input.config ?? null,
@@ -907,6 +912,23 @@ export function EventTaskForm({
         <label className="grid gap-1 text-sm">
           <span className="text-osrs-parchment-dark/80">Points</span>
           <QuantityInput min={0} value={points} onChange={setPoints} className={`${field} w-24`} />
+        </label>
+        <label className="grid gap-1 text-sm">
+          <span className="text-osrs-parchment-dark/80">Difficulty</span>
+          <select
+            value={difficulty ?? ""}
+            onChange={(e) =>
+              setDifficulty((e.target.value || null) as typeof difficulty)
+            }
+            className={field}
+            title="Board-game tier: difficulty tiles roll random tasks from this tier's pool"
+          >
+            <option value="">— none —</option>
+            <option value="air">Air (easy)</option>
+            <option value="water">Water</option>
+            <option value="earth">Earth</option>
+            <option value="fire">Fire (hard)</option>
+          </select>
         </label>
         <label className="grid gap-1 text-sm">
           <span className="text-osrs-parchment-dark/80">Task library</span>

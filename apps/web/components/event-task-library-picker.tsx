@@ -100,6 +100,9 @@ export function EventTaskLibraryPicker({
           target_value: item.target_value ?? undefined,
           points: item.default_points,
           config: item.config ?? undefined,
+          // Board-game tier rides along so difficulty-tile roll pools see
+          // the copied task (web44a).
+          ...(item.difficulty ? { difficulty: item.difficulty } : {}),
           // The copy is this event's own task. "public" is the sitewide
           // default; the API dedupes by requirements, so re-sharing a preset
           // that already exists never creates a second public library row.
