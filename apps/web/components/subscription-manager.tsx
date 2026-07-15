@@ -27,6 +27,7 @@ import {
 const fmtUsd = (cents: number) => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`;
 
 function legPayerLabel(leg: GroupSubscriptionLeg): string {
+  if (leg.provider === "nitro") return "Member Nitro boosts";
   if (leg.user_name) return leg.user_name;
   if (leg.provider === "manual") return "Comped (staff grant)";
   if (leg.provider === "paypal") return "Legacy PayPal agreement";
@@ -132,6 +133,12 @@ export function SubscriptionManager({
                   {liveLegs.length === 1 ? "" : "s"}
                 </span>
               )}
+              {sub.nitro && sub.nitro.booster_count > 0 && (
+                <span className="text-osrs-parchment-dark/80">
+                  incl. {fmtUsd(sub.nitro.monthly_cents)}/mo from {sub.nitro.booster_count} member
+                  {sub.nitro.booster_count === 1 ? "" : "s"} boosting Discord
+                </span>
+              )}
               {sub.current_period_end && (
                 <span className="text-osrs-parchment-dark/60">
                   {sub.cancel_at_period_end ? "ends" : "next renewal"}{" "}
@@ -215,6 +222,7 @@ export function SubscriptionManager({
                     <td className="px-3 py-2 text-right">
                       {(leg.status === "active" || leg.status === "trialing") &&
                         leg.provider !== "manual" &&
+                        leg.provider !== "nitro" &&
                         (leg.cancel_at_period_end ? (
                           <button
                             onClick={() => onResumeLeg(leg.id)}

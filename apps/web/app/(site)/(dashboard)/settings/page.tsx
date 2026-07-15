@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { SettingsForm } from "@/components/settings-form";
+import { NitroBoostCard } from "@/components/nitro-boost-card";
 import { ThemePicker } from "@/components/theme";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -9,7 +10,7 @@ export const metadata: Metadata = { title: "Settings" };
 export default async function SettingsPage() {
   // requireUser guarantees a non-null session even though the layout also gates.
   await requireUser("/settings");
-  const settings = await api.settings();
+  const [settings, nitro] = await Promise.all([api.settings(), api.myNitroBoost()]);
 
   return (
     <div className="max-w-2xl space-y-10">
@@ -27,6 +28,8 @@ export default async function SettingsPage() {
       <section className="max-w-xl">
         <SettingsForm initial={settings} />
       </section>
+
+      <NitroBoostCard initial={nitro} />
     </div>
   );
 }

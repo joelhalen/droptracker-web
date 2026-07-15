@@ -58,6 +58,7 @@ import {
   GroupEmbedSchema,
   GroupEmbedsResponseSchema,
   GroupSubscriptionSchema,
+  MyNitroBoostSchema,
   GroupSubscriptionSummarySchema,
   AdminSubscriptionsOverviewSchema,
   GuildStatusSchema,
@@ -151,6 +152,7 @@ import {
   type GroupProfile,
   type GroupSubscription,
   type GroupSubscriptionSummary,
+  type MyNitroBoost,
   type AdminSubscriptionsOverview,
   type GuildStatus,
   type LeaderboardPage,
@@ -1584,6 +1586,34 @@ export const api = {
     return withFallback(
       async () => AccountSettingsSchema.parse(await apiSend("PATCH", `/me`, patch)),
       () => ({ ...mockAccountSettings(), ...patch }),
+    );
+  },
+
+  /** Which of the user's groups a Nitro boost on the DropTracker Discord
+   * supports, plus the eligible groups and per-boost credit. */
+  async myNitroBoost(): Promise<MyNitroBoost> {
+    return withFallback(
+      async () => MyNitroBoostSchema.parse(await apiGet(`/me/nitro-boost`, { authed: true })),
+      () => ({
+        per_boost_cents: 500,
+        designated_group_id: null,
+        effective_group_id: null,
+        groups: [],
+      }),
+    );
+  },
+
+  /** Choose which group your Discord boost supports (null = auto-pick). */
+  async setMyNitroBoost(groupId: number | null): Promise<MyNitroBoost> {
+    return withFallback(
+      async () =>
+        MyNitroBoostSchema.parse(await apiSend("POST", `/me/nitro-boost`, { group_id: groupId })),
+      () => ({
+        per_boost_cents: 500,
+        designated_group_id: groupId,
+        effective_group_id: groupId,
+        groups: [],
+      }),
     );
   },
 

@@ -1036,7 +1036,7 @@ export const GroupSubscriptionLegSchema = z.object({
   tier_key: z.string().nullable(),
   /** Recurring charge in minor units; null on legacy rows (tier price applies). */
   amount_cents: z.number().int().nullable(),
-  provider: z.enum(["patreon", "stripe", "paypal", "manual"]).nullable(),
+  provider: z.enum(["patreon", "stripe", "paypal", "manual", "nitro"]).nullable(),
   status: z.enum(SubscriptionStatus),
   current_period_end: z.number().int().nullable(),
   cancel_at_period_end: z.boolean().default(false),
@@ -1045,13 +1045,23 @@ export const GroupSubscriptionLegSchema = z.object({
 });
 export type GroupSubscriptionLeg = z.infer<typeof GroupSubscriptionLegSchema>;
 
+/** Nitro-boost contribution summary attached to a group's subscription: how
+ * many of its members boost the DropTracker Discord and the resulting monthly
+ * pool credit (see services/nitro_attribution.py). */
+export const GroupSubscriptionNitroSchema = z.object({
+  booster_count: z.number().int(),
+  monthly_cents: z.number().int(),
+  per_boost_cents: z.number().int(),
+});
+export type GroupSubscriptionNitro = z.infer<typeof GroupSubscriptionNitroSchema>;
+
 export const GroupSubscriptionSchema = z.object({
   group_id: z.number().int(),
   /** EFFECTIVE tier key — what the live pool covers; null on the free plan. */
   tier_key: z.string().nullable(),
   status: z.enum(SubscriptionStatus),
   /** Single distinct live-leg provider, or null when mixed/none. */
-  provider: z.enum(["patreon", "stripe", "paypal", "manual"]).nullable(),
+  provider: z.enum(["patreon", "stripe", "paypal", "manual", "nitro"]).nullable(),
   /** Unix seconds when the soonest live leg ends (pool could shrink). */
   current_period_end: z.number().int().nullable(),
   /** True only when EVERY live leg is winding down. */
@@ -1062,8 +1072,22 @@ export const GroupSubscriptionSchema = z.object({
   legs: z.array(GroupSubscriptionLegSchema).optional(),
   /** Resolved capabilities for this group's effective tier (present on Web API reads). */
   entitlements: GroupEntitlementsSchema.optional(),
+  /** Nitro-boost contribution to the pool; null when no members are boosting. */
+  nitro: GroupSubscriptionNitroSchema.nullable().optional(),
 });
 export type GroupSubscription = z.infer<typeof GroupSubscriptionSchema>;
+
+/** GET/POST /api/v1/me/nitro-boost — which of the signed-in user's groups a
+ * Nitro boost they place on the DropTracker Discord supports. */
+export const MyNitroBoostSchema = z.object({
+  per_boost_cents: z.number().int(),
+  /** The group the user explicitly chose, or null (auto-pick applies). */
+  designated_group_id: z.number().int().nullable(),
+  /** The group the reconciler would credit right now. */
+  effective_group_id: z.number().int().nullable(),
+  groups: z.array(z.object({ id: z.number().int(), name: z.string() })),
+});
+export type MyNitroBoost = z.infer<typeof MyNitroBoostSchema>;
 
 /** Public pool summary (GET /groups/{id}/subscription/summary) — feeds the
  * member-facing "Support this clan" card; carries no personal data. */
@@ -1092,7 +1116,7 @@ export const UserSubscriptionSchema = z.object({
   user_id: z.number().int(),
   tier_key: z.string().nullable(),
   status: z.enum(SubscriptionStatus),
-  provider: z.enum(["patreon", "stripe", "paypal", "manual"]).nullable(),
+  provider: z.enum(["patreon", "stripe", "paypal", "manual", "nitro"]).nullable(),
   /** Pay-what-you-want: the chosen recurring amount in minor units
    * (the tier's price_cents is the minimum). Null on legacy rows. */
   amount_cents: z.number().int().nullable().optional(),
