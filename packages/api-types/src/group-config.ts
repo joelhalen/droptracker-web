@@ -186,6 +186,8 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "discord_url", label: "Discord invite URL", category: "integration", type: "string", help: "Public Discord invite shown on the group page.", default: "" },
   { key: "auto_provision_members", label: "Auto-add WiseOldMan members", category: "integration", type: "boolean", help: "Creates DropTracker profiles ahead of time for everyone in this group's linked WiseOldMan group, so members join this group automatically the moment they install the plugin — instead of waiting up to an hour for the next member sync.", default: false },
   { key: "export_api_key", label: "Export API key", category: "integration", type: "string", help: "Per-group key used for on-demand WOM sync. Treat as a secret.", default: null },
+  { key: "event_wom_reconciliation", label: "Event WiseOldMan tracking", category: "integration", type: "boolean", help: "During events, top up XP and boss KC task progress from WiseOldMan hiscores so members without the plugin still count. Never double-counts progress the plugin already tracked.", default: true },
+  { key: "wom_verification_code", label: "WiseOldMan verification code", category: "integration", type: "string", help: "Your WiseOldMan group's verification code. Optional — lets DropTracker queue a group-wide WOM update when events start and end, keeping hiscores-based event progress fresh. Treat as a secret.", default: null },
 ];
 
 export const SEASONAL_PREFIX = "seasonal_";
