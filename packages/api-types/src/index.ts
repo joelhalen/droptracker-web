@@ -2068,6 +2068,61 @@ export const BoardInputSchema = z.object({
 });
 export type BoardInput = z.infer<typeof BoardInputSchema>;
 
+/** One purchasable power-up as offered by an event's shop (web45a). */
+export const BoardShopItemSchema = z.object({
+  id: z.number().int(),
+  key: z.string(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  icon_item_id: z.number().int().nullable().optional(),
+  item_type: z.enum(["movement", "offensive", "defensive", "economy", "utility"]),
+  effect: z.string(),
+  cost_coins: z.number().int(),
+  type_cooldown_turns: z.number().int(),
+  stock: z.number().int().nullable().optional(),
+  usable_now: z.boolean().default(true),
+});
+export type BoardShopItem = z.infer<typeof BoardShopItemSchema>;
+
+export const BoardInventoryItemSchema = z.object({
+  inventory_id: z.number().int(),
+  shop_item_id: z.number().int(),
+  key: z.string(),
+  name: z.string(),
+  icon_item_id: z.number().int().nullable().optional(),
+  item_type: z.string(),
+  effect: z.string(),
+  status: z.enum(["owned", "used", "expired"]),
+  acquired_turn: z.number().int(),
+  used_turn: z.number().int().nullable().optional(),
+  cooldown_ready: z.boolean(),
+  cooldown_ready_turn: z.number().int().nullable().optional(),
+  usable_now: z.boolean().default(true),
+});
+export type BoardInventoryItem = z.infer<typeof BoardInventoryItemSchema>;
+
+export const BoardShopStateSchema = z.object({
+  items: z.array(BoardShopItemSchema),
+  team: z
+    .object({
+      team_id: z.number().int(),
+      coins: z.number().int(),
+      turns_completed: z.number().int(),
+      inventory: z.array(BoardInventoryItemSchema),
+    })
+    .nullable()
+    .optional(),
+});
+export type BoardShopState = z.infer<typeof BoardShopStateSchema>;
+
+/** Superadmin catalog row (/admin/boardgame-shop). */
+export const AdminShopItemSchema = BoardShopItemSchema.extend({
+  effect_config: z.string().nullable().optional(),
+  sort: z.number().int().default(0),
+  active: z.boolean(),
+}).omit({ stock: true, usable_now: true });
+export type AdminShopItem = z.infer<typeof AdminShopItemSchema>;
+
 export const BoardRollResultSchema = z.object({
   dice: z.array(z.number().int()),
   from: z.number().int(),

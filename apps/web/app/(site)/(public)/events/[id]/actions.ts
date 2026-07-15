@@ -46,3 +46,32 @@ export async function rollBoardAsMember(eventId: number, teamId?: number) {
   revalidatePath(`/events/${eventId}`);
   return result;
 }
+
+/** Shop catalog + the viewer's team wallet/inventory (web45a). */
+export async function fetchBoardShop(eventId: number, teamId?: number) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to browse the shop.");
+  return api.eventBoardShop(eventId, teamId);
+}
+
+/** Buy a power-up with the team's coins (ownership enforced server-side). */
+export async function buyBoardItem(eventId: number, shopItemId: number, teamId?: number) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to buy.");
+  const res = await api.buyEventBoardItem(eventId, shopItemId, teamId);
+  revalidatePath(`/events/${eventId}`);
+  return res;
+}
+
+/** Use an owned power-up. */
+export async function useBoardItem(
+  eventId: number,
+  inventoryId: number,
+  opts: { teamId?: number; targetTeamId?: number; targetTileIdx?: number } = {},
+) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to use items.");
+  const res = await api.useEventBoardItem(eventId, inventoryId, opts);
+  revalidatePath(`/events/${eventId}`);
+  return res;
+}

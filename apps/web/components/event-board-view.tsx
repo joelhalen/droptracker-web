@@ -10,16 +10,20 @@
  * simpler and safer than patching state client-side).
  */
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type {
   BoardDetail,
   BoardPosition,
+  BoardShopState,
   EventDetail,
   RealtimeEvent,
 } from "@droptracker/api-types";
 import {
+  buyBoardItem,
+  fetchBoardShop,
   fetchPublicEventBoard,
   rollBoardAsMember,
+  useBoardItem,
 } from "@/app/(site)/(public)/events/[id]/actions";
 import { RUNE_ITEM_IDS } from "@/components/event-board-designer";
 import { getErrorMessage } from "@/lib/errors";
@@ -277,6 +281,147 @@ export function EventBoardView({
             );
           })}
       </div>
+
+      {/* Shop + inventory (viewer's team only; web45a) */}
+      {viewerTeamId != null && board.settings.shop.enabled && event.status === "active" && (
+        <BoardShopPanel eventId={event.id} teamId={viewerTeamId} onChanged={refetch} />
+      )}
+    </div>
+  );
+}
+
+function BoardShopPanel({
+  eventId,
+  teamId,
+  onChanged,
+}: {
+  eventId: number;
+  teamId: number;
+  onChanged: () => void;
+}) {
+  const [shop, setShop] = useState<BoardShopState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, startBusy] = useTransition();
+
+  const load = useCallback(() => {
+    fetchBoardShop(eventId, teamId)
+      .then(setShop)
+      .catch(() => {});
+  }, [eventId, teamId]);
+  useEffect(load, [load]);
+
+  const buy = (shopItemId: number) => {
+    setError(null);
+    startBusy(async () => {
+      try {
+        await buyBoardItem(eventId, shopItemId, teamId);
+        load();
+        onChanged();
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't buy that."));
+      }
+    });
+  };
+
+  const use = (inventoryId: number) => {
+    setError(null);
+    startBusy(async () => {
+      try {
+        await useBoardItem(eventId, inventoryId, { teamId });
+        load();
+        onChanged();
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't use that."));
+      }
+    });
+  };
+
+  if (!shop) return null;
+  const owned = (shop.team?.inventory ?? []).filter((i) => i.status === "owned");
+
+  return (
+    <div className="border-osrs-bronze/25 bg-osrs-brown-dark/30 rounded border p-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-osrs-gold text-sm font-semibold">🛒 Power-up shop</h3>
+        {shop.team && (
+          <span className="text-osrs-parchment-dark/70 text-xs">
+            🪙 {shop.team.coins} coins · turn {shop.team.turns_completed}
+          </span>
+        )}
+      </div>
+      {error && (
+        <div className="mt-2">
+          <Alert variant="error">{error}</Alert>
+        </div>
+      )}
+
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {shop.items.map((item) => {
+          const affordable = (shop.team?.coins ?? 0) >= item.cost_coins;
+          return (
+            <div key={item.id} className="border-osrs-bronze/20 rounded border p-2">
+              <div className="flex items-center gap-1.5">
+                <ItemDbIcon itemId={item.icon_item_id} size={18} />
+                <span className="text-osrs-parchment truncate text-xs font-medium">
+                  {item.name}
+                </span>
+              </div>
+              {item.description && (
+                <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">
+                  {item.description}
+                </p>
+              )}
+              <p className="text-osrs-parchment-dark/50 mt-1 text-[10px] uppercase tracking-wide">
+                {item.item_type} · every {item.type_cooldown_turns} turns
+              </p>
+              <button
+                type="button"
+                disabled={busy || !affordable || !item.usable_now}
+                onClick={() => buy(item.id)}
+                className="bg-osrs-bronze/80 text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-1.5 w-full rounded px-2 py-1 text-xs font-medium disabled:opacity-40"
+                title={!affordable ? "Not enough coins" : undefined}
+              >
+                Buy · 🪙 {item.cost_coins}
+              </button>
+            </div>
+          );
+        })}
+        {shop.items.length === 0 && (
+          <p className="text-osrs-parchment-dark/60 text-xs sm:col-span-3">
+            The shop is empty right now.
+          </p>
+        )}
+      </div>
+
+      {owned.length > 0 && (
+        <div className="mt-3">
+          <h4 className="text-osrs-parchment text-xs font-semibold">Your bag</h4>
+          <ul className="mt-1.5 flex flex-wrap gap-2">
+            {owned.map((i) => (
+              <li
+                key={i.inventory_id}
+                className="border-osrs-bronze/25 flex items-center gap-1.5 rounded border px-2 py-1"
+              >
+                <ItemDbIcon itemId={i.icon_item_id} size={16} />
+                <span className="text-osrs-parchment text-xs">{i.name}</span>
+                <button
+                  type="button"
+                  disabled={busy || !i.cooldown_ready || !i.usable_now}
+                  onClick={() => use(i.inventory_id)}
+                  className="text-osrs-gold hover:text-osrs-gold-bright ml-1 text-xs font-medium disabled:opacity-40"
+                  title={
+                    !i.cooldown_ready && i.cooldown_ready_turn != null
+                      ? `${i.item_type} items ready from turn ${i.cooldown_ready_turn}`
+                      : undefined
+                  }
+                >
+                  Use
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

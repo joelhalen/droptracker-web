@@ -34,6 +34,10 @@ import {
   BoardSettingsSchema,
   type BoardSettings,
   type BoardInput,
+  BoardShopStateSchema,
+  type BoardShopState,
+  AdminShopItemSchema,
+  type AdminShopItem,
   AdminEventTypeSchema,
   type AdminEventType,
   EventChannelConfigSchema,
@@ -896,6 +900,60 @@ export const api = {
   async rollEventBoard(eventId: number, teamId?: number): Promise<BoardRollResult> {
     return BoardRollResultSchema.parse(
       await apiSend("POST", `/events/${eventId}/board/roll`, teamId ? { team_id: teamId } : {}),
+    );
+  },
+
+  /** The event's shop catalog + (when on a team) wallet/inventory/cooldowns. */
+  async eventBoardShop(eventId: number, teamId?: number): Promise<BoardShopState> {
+    const qs = teamId != null ? `?team_id=${teamId}` : "";
+    return BoardShopStateSchema.parse(
+      await apiGet(`/events/${eventId}/board/shop${qs}`, { authed: true }),
+    );
+  },
+
+  /** Buy a power-up with team coins. */
+  async buyEventBoardItem(
+    eventId: number,
+    shopItemId: number,
+    teamId?: number,
+  ): Promise<{ team_id: number; inventory_id: number; coins: number }> {
+    return z
+      .object({ team_id: z.number().int(), inventory_id: z.number().int(), coins: z.number().int() })
+      .parse(
+        await apiSend("POST", `/events/${eventId}/board/shop/buy`, {
+          shop_item_id: shopItemId,
+          ...(teamId != null ? { team_id: teamId } : {}),
+        }),
+      );
+  },
+
+  /** Use an owned power-up (skip / reroll / boost…). */
+  async useEventBoardItem(
+    eventId: number,
+    inventoryId: number,
+    opts: { teamId?: number; targetTeamId?: number; targetTileIdx?: number } = {},
+  ): Promise<Record<string, unknown>> {
+    return (await apiSend("POST", `/events/${eventId}/board/items/${inventoryId}/use`, {
+      ...(opts.teamId != null ? { team_id: opts.teamId } : {}),
+      ...(opts.targetTeamId != null ? { target_team_id: opts.targetTeamId } : {}),
+      ...(opts.targetTileIdx != null ? { target_tile_idx: opts.targetTileIdx } : {}),
+    })) as Record<string, unknown>;
+  },
+
+  /** Superadmin: the site-wide power-up catalog. */
+  async adminShopItems(): Promise<AdminShopItem[]> {
+    return AdminShopItemSchema.array().parse(
+      await apiGet(`/admin/boardgame-shop`, { authed: true }),
+    );
+  },
+
+  /** Superadmin: edit one catalog row. */
+  async adminPatchShopItem(
+    itemId: number,
+    patch: Record<string, unknown>,
+  ): Promise<AdminShopItem> {
+    return AdminShopItemSchema.parse(
+      await apiSend("PATCH", `/admin/boardgame-shop/${itemId}`, patch),
     );
   },
 
