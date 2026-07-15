@@ -1901,6 +1901,9 @@ export const EventTeamSchema = z.object({
   group_id: z.number().int().nullable().optional(),
   /** Admin-assigned accent color ("#rrggbb"); null = index-based palette. */
   color: z.string().nullable().optional(),
+  /** Board game (web44a): coin wallet + OSRS-item game piece. */
+  coins: z.number().int().default(0),
+  piece_item_id: z.number().int().nullable().optional(),
   /** Present on EventDetail reads (Task 16); absent on legacy payloads. */
   members: z.array(EventMemberSchema).optional(),
 });
@@ -1935,6 +1938,144 @@ export const BingoBoardSchema = z.object({
   cells: z.array(BingoCellSchema),
 });
 export type BingoBoard = z.infer<typeof BingoBoardSchema>;
+
+// --------------------------------------------------------------------------
+// Board game (web44a)
+// --------------------------------------------------------------------------
+/** Task/tile difficulty tiers (legacy elements; air easiest → fire hardest). */
+export const EVENT_TASK_DIFFICULTIES = ["air", "water", "earth", "fire"] as const;
+export type EventTaskDifficulty = (typeof EVENT_TASK_DIFFICULTIES)[number];
+
+export const EVENT_BOARD_TILE_KINDS = ["start", "normal", "special", "finish"] as const;
+export const BOARD_TILE_RENDER_MODES = ["rune", "invisible", "outline"] as const;
+
+/** The §2.5 board settings document — the backend always returns it fully
+ * defaulted, so every key is present on reads. */
+export const BoardSettingsSchema = z.object({
+  movement: z.object({
+    mode: z.enum(["dice", "fixed_step"]),
+    dice_count: z.number().int(),
+    dice_sides: z.number().int(),
+    fixed_step: z.number().int(),
+    trigger: z.enum(["auto", "manual"]),
+    manual_roller: z.enum(["team", "group_admin", "either"]),
+  }),
+  tile_render: z.object({
+    mode: z.enum(BOARD_TILE_RENDER_MODES),
+    outline_width: z.number().int(),
+    outline_color: z.string(),
+    show_labels: z.boolean(),
+  }),
+  coins: z.object({
+    enabled: z.boolean(),
+    per_difficulty: z.record(z.string(), z.number().int()),
+    default: z.number().int(),
+    starting: z.number().int(),
+  }),
+  shop: z.object({ enabled: z.boolean() }).passthrough(),
+  items: z.unknown().optional(),
+  mercy: z.object({
+    enabled: z.boolean(),
+    base_hours: z.number(),
+    step_hours: z.number(),
+  }),
+  win: z.object({ rule: z.string() }).passthrough(),
+});
+export type BoardSettings = z.infer<typeof BoardSettingsSchema>;
+
+export const BoardTileSchema = z.object({
+  idx: z.number().int(),
+  /** Fractional 0..1 position on the background image. */
+  x: z.number(),
+  y: z.number(),
+  label: z.string().nullable().optional(),
+  /** Difficulty-roll tile: draws a random pool task of this tier per landing. */
+  difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
+  /** Pinned tile: one specific event task. */
+  task_id: z.number().int().nullable().optional(),
+  task_label: z.string().nullable().optional(),
+  tile_kind: z.enum(EVENT_BOARD_TILE_KINDS).default("normal"),
+});
+export type BoardTile = z.infer<typeof BoardTileSchema>;
+
+export const BoardPositionSchema = z.object({
+  team_id: z.number().int(),
+  team_name: z.string(),
+  color: z.string().nullable().optional(),
+  piece_item_id: z.number().int().nullable().optional(),
+  piece_icon_url: z.string().nullable().optional(),
+  coins: z.number().int().default(0),
+  score: z.number().int().default(0),
+  tile_idx: z.number().int(),
+  status: z.enum(["active", "awaiting_roll", "blocked", "finished"]),
+  turns_completed: z.number().int().default(0),
+  current_task: z
+    .object({
+      id: z.number().int(),
+      label: z.string(),
+      type: z.string(),
+      difficulty: z.string().nullable().optional(),
+      progress: z.number().int(),
+      target: z.number().int(),
+    })
+    .nullable()
+    .optional(),
+  last_roll: z
+    .object({
+      dice: z.array(z.number().int()),
+      from: z.number().int(),
+      to: z.number().int(),
+      at: z.number().int(),
+    })
+    .nullable()
+    .optional(),
+  mercy_deadline: z.number().int().nullable().optional(),
+});
+export type BoardPosition = z.infer<typeof BoardPositionSchema>;
+
+export const BoardDetailSchema = z.object({
+  event_id: z.number().int(),
+  background_url: z.string().nullable().optional(),
+  bg_width: z.number().int().nullable().optional(),
+  bg_height: z.number().int().nullable().optional(),
+  settings: BoardSettingsSchema,
+  tiles: z.array(BoardTileSchema),
+  finish_idx: z.number().int().nullable().optional(),
+  positions: z.array(BoardPositionSchema),
+});
+export type BoardDetail = z.infer<typeof BoardDetailSchema>;
+
+/** PUT /events/{id}/board — the designer's autosave payload. Exactly one of
+ * difficulty / task_id / library_item_id per tile (or none = rest tile). */
+export const BoardTileInputSchema = z.object({
+  idx: z.number().int().nonnegative(),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  label: z.string().max(255).optional(),
+  difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
+  task_id: z.number().int().nullable().optional(),
+  library_item_id: z.number().int().nullable().optional(),
+  tile_kind: z.enum(EVENT_BOARD_TILE_KINDS).optional(),
+});
+export const BoardInputSchema = z.object({
+  background_url: z.string().max(255).nullable().optional(),
+  bg_width: z.number().int().nullable().optional(),
+  bg_height: z.number().int().nullable().optional(),
+  tiles: z.array(BoardTileInputSchema).max(512),
+});
+export type BoardInput = z.infer<typeof BoardInputSchema>;
+
+export const BoardRollResultSchema = z.object({
+  dice: z.array(z.number().int()),
+  from: z.number().int(),
+  to: z.number().int(),
+  turn: z.number().int(),
+  won: z.boolean(),
+  task_id: z.number().int().optional(),
+  task_label: z.string().optional(),
+  task_difficulty: z.string().nullable().optional(),
+});
+export type BoardRollResult = z.infer<typeof BoardRollResultSchema>;
 
 export const EVENT_STATUS = ["draft", "active", "past"] as const;
 
@@ -2361,9 +2502,6 @@ export const EventMetaEntrySchema = z.object({
 });
 export type EventMetaEntry = z.infer<typeof EventMetaEntrySchema>;
 
-/** Legacy BoardGame difficulty tiers still carried by curated presets. */
-export const EVENT_TASK_DIFFICULTIES = ["air", "water", "earth", "fire"] as const;
-
 /** POST /event-task-library — create a curated site-wide preset (superadmin).
  * Goal fields (target/target_value/config) are revalidated per type exactly
  * like an event task, so a preset that saves is a preset that instantiates. */
@@ -2562,10 +2700,13 @@ export const EventTeamPatchSchema = z
       .regex(/^#[0-9a-fA-F]{6}$/, 'Color must be "#rrggbb" hex')
       .nullable()
       .optional(),
+    /** Board-game piece: an OSRS item id (null clears it). */
+    piece_item_id: z.number().int().positive().nullable().optional(),
   })
-  .refine((p) => p.name !== undefined || p.color !== undefined, {
-    message: "Provide a name and/or a color",
-  });
+  .refine(
+    (p) => p.name !== undefined || p.color !== undefined || p.piece_item_id !== undefined,
+    { message: "Provide a name, color, and/or piece" },
+  );
 export type EventTeamPatch = z.infer<typeof EventTeamPatchSchema>;
 
 // --- Clan-vs-clan participants (Implementation Plan B) -----------------------

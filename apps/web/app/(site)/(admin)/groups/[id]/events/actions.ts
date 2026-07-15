@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import {
   BingoBoardInputSchema,
+  BoardInputSchema,
+  type BoardInput,
   EventAwardInputSchema,
   EventChannelConfigInputSchema,
   EventInputSchema,
@@ -393,6 +395,65 @@ export async function saveEventBingo(
   revalidatePath(eventAdminPath(groupId, eventId));
   revalidatePath(`/events/${eventId}`);
   return detail;
+}
+
+// --- Board game (web44a) -------------------------------------------------
+
+/** The whole board (tiles + settings + positions) for the designer/manager. */
+export async function fetchEventBoard(groupId: EventGroupId, eventId: number) {
+  await assertCanManageEvent(groupId);
+  return api.eventBoard(eventId);
+}
+
+/** Replace the tile layout (the board designer's autosave). */
+export async function saveEventBoard(
+  groupId: EventGroupId,
+  eventId: number,
+  input: BoardInput,
+) {
+  await assertCanManageEvent(groupId);
+  const parsed = BoardInputSchema.parse(input);
+  const board = await api.saveEventBoard(eventId, parsed);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return board;
+}
+
+/** Merge board settings (movement/dice, rendering, coins, mercy, shop…). */
+export async function saveEventBoardSettings(
+  groupId: EventGroupId,
+  eventId: number,
+  patch: Record<string, unknown>,
+) {
+  await assertCanManageEvent(groupId);
+  const settings = await api.patchEventBoardSettings(eventId, patch);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  return settings;
+}
+
+/** Upload a custom board background image. */
+export async function uploadEventBoardBackground(
+  groupId: EventGroupId,
+  eventId: number,
+  form: FormData,
+) {
+  await assertCanManageEvent(groupId);
+  const res = await api.uploadEventBoardBackground(eventId, form);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  return res;
+}
+
+/** Manual dice roll (admin rolling on a team's behalf from the manager). */
+export async function rollEventBoard(
+  groupId: EventGroupId,
+  eventId: number,
+  teamId?: number,
+) {
+  await assertCanManageEvent(groupId);
+  const res = await api.rollEventBoard(eventId, teamId);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return res;
 }
 
 /** Search the curated task-preset library for the designer picker. */

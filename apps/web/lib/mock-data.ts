@@ -1565,6 +1565,7 @@ export function mockEvent(id: number): EventDetail {
         id: 21,
         name: "Team Red",
         score: 120,
+        coins: 0,
         color: "#e05c4c",
         member_count: 3,
         members: [
@@ -1577,6 +1578,7 @@ export function mockEvent(id: number): EventDetail {
         id: 22,
         name: "Team Blue",
         score: 95,
+        coins: 0,
         color: "#38bdf8", // custom (not in the default palette)
         member_count: 2,
         members: [
@@ -1584,7 +1586,7 @@ export function mockEvent(id: number): EventDetail {
           { player_id: 2004, player_name: "Settled", joined_at: now - DAY },
         ],
       },
-      { id: 23, name: "Team Green", score: 60, member_count: 0, members: [] },
+      { id: 23, name: "Team Green", score: 60, coins: 0, member_count: 0, members: [] },
     ],
     progress: [
       { task_id: 11, team_id: 21, progress: 35, completed: false, completed_at: null },

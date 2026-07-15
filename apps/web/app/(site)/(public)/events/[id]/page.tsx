@@ -6,6 +6,7 @@ import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
 import { EventWindow } from "@/components/local-time";
 import { BingoBoard } from "@/components/bingo-board";
+import { EventBoardView } from "@/components/event-board-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import { EventTeamsPanel } from "@/components/event-teams-panel";
@@ -40,6 +41,10 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   // events to members of participating clans (the pre-publication landing
   // page) and includes the viewer block. Anonymous reads stay ISR-cached.
   const event = await orNotFound(user ? api.eventForAdmin(eventId) : api.event(eventId));
+
+  // Board-game events (web44a): the dice board replaces the bingo grid.
+  const board =
+    event.kind === "board_game" ? await api.eventBoard(eventId).catch(() => null) : null;
 
   const players = user ? user.players.map((p) => ({ id: p.id, name: p.name })) : null;
 
@@ -76,6 +81,19 @@ export default async function EventDetailPage({ params }: { params: Params }) {
 
       <div className="grid gap-8 lg:grid-cols-3">
         <section className="lg:col-span-2 space-y-8">
+          {board && (
+            <div>
+              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+                Game board
+              </h2>
+              <EventBoardView
+                event={event}
+                initialBoard={board}
+                viewerTeamId={event.viewer?.team_id ?? null}
+              />
+            </div>
+          )}
+
           {event.bingo && (
             <div>
               <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">

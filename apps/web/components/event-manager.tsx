@@ -38,6 +38,7 @@ import {
   updateGroupEvent,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
+import { EventBoardDesigner } from "@/components/event-board-designer";
 import { EventMemberList } from "@/components/event-member-list";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
@@ -296,6 +297,7 @@ export function EventManager({
             id,
             name: teamName.trim(),
             score: 0,
+            coins: 0,
             member_count: 0,
             ...(isClanVsClan && teamGroupId !== "" ? { group_id: teamGroupId } : {}),
           },
@@ -931,20 +933,30 @@ export function EventManager({
         )}
       </section>
 
-      {/* Bingo board designer (Task 20) */}
-      <section>
-        <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Board</h3>
-        <EventBingoDesigner
-          groupId={groupId}
-          event={event}
-          tasks={tasks}
-          onSaved={(detail) => {
-            // The board PUT can create/delete tasks — refresh the whole
-            // manager state from the returned detail.
-            applyDetail(detail);
-          }}
-        />
-      </section>
+      {/* Board designer: dice board for board_game events (web44a), the
+          bingo grid for everything else (Task 20). */}
+      {event.kind === "board_game" ? (
+        <section>
+          <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
+            Game board
+          </h3>
+          <EventBoardDesigner groupId={groupId} event={event} tasks={tasks} />
+        </section>
+      ) : (
+        <section>
+          <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Board</h3>
+          <EventBingoDesigner
+            groupId={groupId}
+            event={event}
+            tasks={tasks}
+            onSaved={(detail) => {
+              // The board PUT can create/delete tasks — refresh the whole
+              // manager state from the returned detail.
+              applyDetail(detail);
+            }}
+          />
+        </section>
+      )}
 
       {/* Self-service sign-ups: pool sorting + "post to Discord" */}
       <EventSignupTools groupId={groupId} event={event} teams={teams} />

@@ -28,3 +28,21 @@ export async function leaveEvent(eventId: number, playerId: number) {
   revalidatePath(`/events/${eventId}`);
   return { ok: true as const };
 }
+
+// --- Board game (web44a) ---------------------------------------------------
+
+/** The live board (tiles + positions). Draft visibility is enforced by the
+ * Web API; anonymous viewers see active/past boards. */
+export async function fetchPublicEventBoard(eventId: number) {
+  return api.eventBoard(eventId);
+}
+
+/** Player-facing dice roll: the caller must be on the team and the event's
+ * settings must allow team-triggered rolls — the Web API enforces both. */
+export async function rollBoardAsMember(eventId: number, teamId?: number) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to roll.");
+  const result = await api.rollEventBoard(eventId, teamId);
+  revalidatePath(`/events/${eventId}`);
+  return result;
+}

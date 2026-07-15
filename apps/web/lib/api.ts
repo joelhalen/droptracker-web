@@ -27,6 +27,13 @@ import {
   PbBlockSearchResponseSchema,
   PbBlockMutationSchema,
   BingoBoardSchema,
+  BoardDetailSchema,
+  type BoardDetail,
+  BoardRollResultSchema,
+  type BoardRollResult,
+  BoardSettingsSchema,
+  type BoardSettings,
+  type BoardInput,
   AdminEventTypeSchema,
   type AdminEventType,
   EventChannelConfigSchema,
@@ -846,6 +853,49 @@ export const api = {
             completions: [],
           })),
       }),
+    );
+  },
+
+  // --- Board game (web44a) ----------------------------------------------------
+  /** The whole board: tiles + settings + team positions (game view + designer). */
+  async eventBoard(eventId: number): Promise<BoardDetail> {
+    return BoardDetailSchema.parse(await apiGet(`/events/${eventId}/board`, { authed: true }));
+  },
+
+  /** Replace the tile layout (designer autosave). 409 once the event starts. */
+  async saveEventBoard(eventId: number, input: BoardInput): Promise<BoardDetail> {
+    return BoardDetailSchema.parse(await apiSend("PUT", `/events/${eventId}/board`, input));
+  },
+
+  /** Merge a partial board-settings document (live-tunable mid-event). */
+  async patchEventBoardSettings(
+    eventId: number,
+    patch: Record<string, unknown>,
+  ): Promise<BoardSettings> {
+    const res = z
+      .object({ settings: BoardSettingsSchema })
+      .parse(await apiSend("PATCH", `/events/${eventId}/board/settings`, patch));
+    return res.settings;
+  },
+
+  /** Upload the board background image (server-side B2 put). */
+  async uploadEventBoardBackground(
+    eventId: number,
+    form: FormData,
+  ): Promise<{ background_url: string; bg_width: number; bg_height: number }> {
+    return z
+      .object({
+        background_url: z.string(),
+        bg_width: z.number().int(),
+        bg_height: z.number().int(),
+      })
+      .parse(await apiSendForm("POST", `/events/${eventId}/board/background`, form));
+  },
+
+  /** Manual dice roll for the caller's team (admins may pass a team_id). */
+  async rollEventBoard(eventId: number, teamId?: number): Promise<BoardRollResult> {
+    return BoardRollResultSchema.parse(
+      await apiSend("POST", `/events/${eventId}/board/roll`, teamId ? { team_id: teamId } : {}),
     );
   },
 
