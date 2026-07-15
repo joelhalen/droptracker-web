@@ -2129,6 +2129,12 @@ export const BoardRollResultSchema = z.object({
   to: z.number().int(),
   turn: z.number().int(),
   won: z.boolean(),
+  /** An active freeze zeroed this roll's movement (P3). */
+  frozen: z.boolean().optional(),
+  /** Movement stopped short on a rival's trap (P3). */
+  roadblock: z
+    .object({ tile_idx: z.number().int(), placed_by_team_id: z.number().int() })
+    .optional(),
   task_id: z.number().int().optional(),
   task_label: z.string().optional(),
   task_difficulty: z.string().nullable().optional(),

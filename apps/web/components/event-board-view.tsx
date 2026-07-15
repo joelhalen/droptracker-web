@@ -88,12 +88,17 @@ export function EventBoardView({
 
   const tileAt = useMemo(() => new Map(board.tiles.map((t) => [t.idx, t])), [board.tiles]);
 
+  const [rollNote, setRollNote] = useState<string | null>(null);
   const doRoll = (teamId: number) => {
     setError(null);
+    setRollNote(null);
     startRoll(async () => {
       try {
         const res = await rollBoardAsMember(event.id, teamId);
         setLastDice(res.dice);
+        if (res.frozen) setRollNote("❄️ Frozen — the piece didn't move!");
+        else if (res.roadblock)
+          setRollNote(`🚧 Stopped short by a roadblock on tile ${res.roadblock.tile_idx}!`);
         refetch();
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't roll."));
@@ -183,6 +188,7 @@ export function EventBoardView({
         <p className="text-osrs-gold text-sm">
           🎲 Rolled {lastDice.join(" + ")}
           {lastDice.length > 1 ? ` = ${lastDice.reduce((a, b) => a + b, 0)}` : ""}!
+          {rollNote && <span className="text-osrs-parchment-dark/80 ml-2">{rollNote}</span>}
         </p>
       )}
 
@@ -284,7 +290,15 @@ export function EventBoardView({
 
       {/* Shop + inventory (viewer's team only; web45a) */}
       {viewerTeamId != null && board.settings.shop.enabled && event.status === "active" && (
-        <BoardShopPanel eventId={event.id} teamId={viewerTeamId} onChanged={refetch} />
+        <BoardShopPanel
+          eventId={event.id}
+          teamId={viewerTeamId}
+          otherTeams={board.positions
+            .filter((p) => p.team_id !== viewerTeamId && p.status !== "finished")
+            .map((p) => ({ id: p.team_id, name: p.team_name }))}
+          maxTile={board.finish_idx ?? 0}
+          onChanged={refetch}
+        />
       )}
     </div>
   );
@@ -293,15 +307,24 @@ export function EventBoardView({
 function BoardShopPanel({
   eventId,
   teamId,
+  otherTeams,
+  maxTile,
   onChanged,
 }: {
   eventId: number;
   teamId: number;
+  otherTeams: { id: number; name: string }[];
+  maxTile: number;
   onChanged: () => void;
 }) {
   const [shop, setShop] = useState<BoardShopState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, startBusy] = useTransition();
+  // Inline targeting state for interference items (freeze → a team,
+  // roadblock → a tile). Keyed by inventory_id.
+  const [targetTeam, setTargetTeam] = useState<Record<number, number>>({});
+  const [targetTile, setTargetTile] = useState<Record<number, string>>({});
 
   const load = useCallback(() => {
     fetchBoardShop(eventId, teamId)
@@ -312,6 +335,7 @@ function BoardShopPanel({
 
   const buy = (shopItemId: number) => {
     setError(null);
+    setNotice(null);
     startBusy(async () => {
       try {
         await buyBoardItem(eventId, shopItemId, teamId);
@@ -323,11 +347,33 @@ function BoardShopPanel({
     });
   };
 
-  const use = (inventoryId: number) => {
+  const use = (inventoryId: number, effect: string) => {
     setError(null);
+    setNotice(null);
+    const opts: { teamId: number; targetTeamId?: number; targetTileIdx?: number } = { teamId };
+    if (effect === "freeze_opponent") {
+      const t = targetTeam[inventoryId] ?? otherTeams[0]?.id;
+      if (t == null) {
+        setError("No other team to target.");
+        return;
+      }
+      opts.targetTeamId = t;
+    }
+    if (effect === "roadblock") {
+      const raw = (targetTile[inventoryId] ?? "").trim();
+      const tile = Number(raw);
+      if (!raw || !Number.isInteger(tile) || tile <= 0 || tile >= maxTile) {
+        setError(`Pick a tile between 1 and ${Math.max(1, maxTile - 1)}.`);
+        return;
+      }
+      opts.targetTileIdx = tile;
+    }
     startBusy(async () => {
       try {
-        await useBoardItem(eventId, inventoryId, { teamId });
+        const res = await useBoardItem(eventId, inventoryId, opts);
+        if (res && (res as { blocked_by_shield?: boolean }).blocked_by_shield) {
+          setNotice("Their shield absorbed it!");
+        }
         load();
         onChanged();
       } catch (err) {
@@ -354,6 +400,7 @@ function BoardShopPanel({
           <Alert variant="error">{error}</Alert>
         </div>
       )}
+      {notice && <p className="text-osrs-gold mt-2 text-xs">{notice}</p>}
 
       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {shop.items.map((item) => {
@@ -404,10 +451,46 @@ function BoardShopPanel({
               >
                 <ItemDbIcon itemId={i.icon_item_id} size={16} />
                 <span className="text-osrs-parchment text-xs">{i.name}</span>
+                {i.effect === "freeze_opponent" && otherTeams.length > 0 && (
+                  <select
+                    value={targetTeam[i.inventory_id] ?? otherTeams[0]?.id}
+                    onChange={(e) =>
+                      setTargetTeam((prev) => ({
+                        ...prev,
+                        [i.inventory_id]: Number(e.target.value),
+                      }))
+                    }
+                    className="border-osrs-bronze/40 bg-osrs-brown-dark/60 rounded border px-1 py-0.5 text-[11px]"
+                    aria-label="Freeze target"
+                  >
+                    {otherTeams.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {i.effect === "roadblock" && (
+                  <input
+                    type="number"
+                    min={1}
+                    max={Math.max(1, maxTile - 1)}
+                    placeholder="tile #"
+                    value={targetTile[i.inventory_id] ?? ""}
+                    onChange={(e) =>
+                      setTargetTile((prev) => ({
+                        ...prev,
+                        [i.inventory_id]: e.target.value,
+                      }))
+                    }
+                    className="border-osrs-bronze/40 bg-osrs-brown-dark/60 w-16 rounded border px-1 py-0.5 text-[11px]"
+                    aria-label="Roadblock tile"
+                  />
+                )}
                 <button
                   type="button"
                   disabled={busy || !i.cooldown_ready || !i.usable_now}
-                  onClick={() => use(i.inventory_id)}
+                  onClick={() => use(i.inventory_id, i.effect)}
                   className="text-osrs-gold hover:text-osrs-gold-bright ml-1 text-xs font-medium disabled:opacity-40"
                   title={
                     !i.cooldown_ready && i.cooldown_ready_turn != null
