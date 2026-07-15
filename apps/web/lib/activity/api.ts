@@ -10,6 +10,7 @@
  * contract guarantees as the rest of the site.
  */
 import {
+  EventCompletionSchema,
   EventDetailSchema,
   EventSummarySchema,
   GroupProfileSchema,
@@ -17,8 +18,10 @@ import {
   MeSchema,
   PbBossBoardSchema,
   PbBossIndexSchema,
+  PendingReviewEventSchema,
   PlayerProfileSchema,
   SearchResultsSchema,
+  type EventCompletion,
   type EventDetail,
   type EventSummary,
   type GroupProfile,
@@ -26,6 +29,7 @@ import {
   type Me,
   type PbBossBoard,
   type PbBossIndex,
+  type PendingReviewEvent,
   type PlayerProfile,
   type SearchResults,
 } from "@droptracker/api-types";
@@ -165,6 +169,42 @@ export async function leaveEvent(
   return send(`/api/activity/events/${eventId}/leave`, sessionToken, { player_id: playerId });
 }
 
+// --- Review queue (event admins only — the backend enforces authorization). --
+
+/** Active events the session user administers with completions awaiting
+ * review. Empty for non-admins/anonymous — powers the boot-time pop-up. */
+export async function pendingReviews(sessionToken: string): Promise<PendingReviewEvent[]> {
+  return PendingReviewEventSchema.array().parse(
+    await get("/api/activity/pending-reviews", sessionToken),
+  );
+}
+
+/** One event's pending completion queue (newest first). */
+export async function eventPendingCompletions(
+  eventId: number,
+  sessionToken: string,
+): Promise<EventCompletion[]> {
+  return EventCompletionSchema.array().parse(
+    await get(`/api/activity/events/${eventId}/completions`, sessionToken),
+  );
+}
+
+export async function confirmCompletion(
+  eventId: number,
+  completionId: number,
+  sessionToken: string,
+): Promise<unknown> {
+  return send(`/api/activity/events/${eventId}/completions/${completionId}/confirm`, sessionToken, {});
+}
+
+export async function rejectCompletion(
+  eventId: number,
+  completionId: number,
+  sessionToken: string,
+): Promise<unknown> {
+  return send(`/api/activity/events/${eventId}/completions/${completionId}/reject`, sessionToken, {});
+}
+
 // --- Expanded mini-app reads (all anonymous upstream; icons pre-rewritten to
 // --- same-origin /img by the BFF, so payloads are CSP-safe as-is). ----------
 
@@ -215,16 +255,22 @@ const GuildGroupSchema = z.object({
 });
 export type GuildGroup = z.infer<typeof GuildGroupSchema>;
 
-const LaunchTargetSchema = z.object({ event_id: z.number().int().nullable() });
+const LaunchTargetSchema = z.object({
+  event_id: z.number().int().nullable(),
+  view: z.string().nullable().optional(),
+});
+export type LaunchTarget = { eventId: number; view: "review" | null };
 
 /**
  * Deep-link target for this launch: the event the user tapped "Open in Discord"
- * to reach. One-shot claim keyed by their Discord id — returns null when there's
- * nothing pending (they opened the app some other way).
+ * (or "Review in app") to reach. One-shot claim keyed by their Discord id —
+ * returns null when there's nothing pending (they opened the app some other
+ * way). `view` names an in-app screen beyond the event page.
  */
-export async function launchIntent(sessionToken: string): Promise<number | null> {
+export async function launchIntent(sessionToken: string): Promise<LaunchTarget | null> {
   const data = LaunchTargetSchema.parse(await get("/api/activity/launch-intent", sessionToken));
-  return data.event_id;
+  if (data.event_id == null) return null;
+  return { eventId: data.event_id, view: data.view === "review" ? "review" : null };
 }
 
 /** Anonymous fallback: the event whose board/notifications live in this channel. */

@@ -19,7 +19,14 @@ import { EventWindow } from "@/components/local-time";
 import { useEventStream } from "@/lib/use-event-stream";
 import { teamColorMap } from "@/lib/events";
 import { useActivityAuth } from "@/lib/activity/auth-context";
-import { activityMe, eventDetail, joinEvent, leaveEvent } from "@/lib/activity/api";
+import { useActivityNav } from "@/lib/activity/nav";
+import {
+  activityMe,
+  eventDetail,
+  eventPendingCompletions,
+  joinEvent,
+  leaveEvent,
+} from "@/lib/activity/api";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "text-osrs-parchment-dark/60",
@@ -40,10 +47,13 @@ export function EventView({
   guildId: string | null;
   onBack?: (() => void) | null;
 }) {
+  const nav = useActivityNav();
   const { sessionToken, user } = useActivityAuth();
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Admin-only: how many completions sit in this event's review queue. */
+  const [pendingCount, setPendingCount] = useState(0);
   // Bumped on each poll refetch — remounts the board/task list so their
   // internal live-patched state reseeds from the fresh payload.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -79,6 +89,23 @@ export function EventView({
       cancelled = true;
     };
   }, [sessionToken]);
+
+  // Review-queue badge for event admins (can_manage comes from the detail
+  // payload). Refreshes with the event so acting in the review screen and
+  // popping back shows the updated count.
+  const canManage = Boolean(event?.can_manage);
+  useEffect(() => {
+    if (!canManage || !sessionToken) return;
+    let cancelled = false;
+    eventPendingCompletions(eventId, sessionToken)
+      .then((rows) => {
+        if (!cancelled) setPendingCount(rows.length);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [canManage, eventId, sessionToken, refreshKey]);
 
   const live = event?.status === "active";
 
@@ -179,6 +206,28 @@ export function EventView({
             </span>
           ))}
         </div>
+      )}
+
+      {canManage && pendingCount > 0 && (
+        <button
+          onClick={() => nav.push({ name: "event-review", id: eventId })}
+          className="border-osrs-gold/40 bg-osrs-surface-1/70 hover:border-osrs-gold flex w-full items-center gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors"
+        >
+          <span aria-hidden className="text-lg">
+            🔍
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="text-osrs-parchment block text-[13px] font-semibold">
+              {pendingCount} completion{pendingCount === 1 ? "" : "s"} awaiting review
+            </span>
+            <span className="text-osrs-parchment-dark/55 block text-[11.5px]">
+              Confirm or reject them before they count toward scores.
+            </span>
+          </span>
+          <span className="bg-osrs-red/80 text-osrs-parchment shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums">
+            {pendingCount}
+          </span>
+        </button>
       )}
 
       {event.status !== "past" && (

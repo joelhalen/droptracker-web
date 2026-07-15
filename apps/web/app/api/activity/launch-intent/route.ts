@@ -10,11 +10,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { bearerFrom, upstreamGet } from "../_lib";
 
-const LaunchTargetSchema = z.object({ event_id: z.number().int().nullable() });
+const LaunchTargetSchema = z.object({
+  event_id: z.number().int().nullable(),
+  /** In-app screen to open beyond the event page ("review" = pending queue). */
+  view: z.string().nullable().optional(),
+});
 
 export async function GET(req: NextRequest) {
   const bearer = bearerFrom(req);
-  if (!bearer) return NextResponse.json({ event_id: null });
+  if (!bearer) return NextResponse.json({ event_id: null, view: null });
   try {
     const data = LaunchTargetSchema.parse(
       await upstreamGet("/events/launch-intent", { bearer }),
@@ -22,6 +26,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data);
   } catch (err) {
     console.error("[activity/launch-intent]", err);
-    return NextResponse.json({ event_id: null });
+    return NextResponse.json({ event_id: null, view: null });
   }
 }

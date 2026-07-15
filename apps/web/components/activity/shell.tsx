@@ -26,6 +26,8 @@ import { PlayerView } from "@/components/activity/player-view";
 import { GroupView } from "@/components/activity/group-view";
 import { PbBoardView } from "@/components/activity/pb-board-view";
 import { EventView } from "@/components/activity/event-view";
+import { EventReviewView } from "@/components/activity/review-view";
+import { PendingReviewPrompt } from "@/components/activity/pending-review-prompt";
 
 const TABS: { key: ActivityTab; label: string; root: ActivityView; icon: React.ReactNode }[] = [
   {
@@ -88,6 +90,7 @@ function viewMaxWidth(view: ActivityView): string {
     case "group":
       return "max-w-4xl";
     case "event":
+    case "event-review":
       return "max-w-3xl";
     default:
       return "max-w-2xl";
@@ -101,6 +104,8 @@ function presenceLabel(view: ActivityView): string {
     case "events":
     case "event":
       return "Watching a clan event";
+    case "event-review":
+      return "Reviewing event completions";
     case "player":
       return "Viewing a player profile";
     case "group":
@@ -130,6 +135,8 @@ function renderView(
       return <MeView />;
     case "event":
       return <EventView eventId={view.id} guildId={guildId} onBack={onBack} />;
+    case "event-review":
+      return <EventReviewView eventId={view.id} />;
     case "player":
       return <PlayerView id={view.id} />;
     case "group":
@@ -154,6 +161,9 @@ export function ActivityShell() {
 
   return (
     <div className="flex h-dvh flex-col">
+      {/* Event admins with completions awaiting confirmation get one prompt
+          per launch (renders null for everyone else). */}
+      <PendingReviewPrompt />
       {/* Header */}
       <header
         className="border-osrs-bronze/25 bg-osrs-surface-1/80 flex shrink-0 items-center gap-2 border-b px-3.5 py-2"

@@ -113,16 +113,26 @@ export function ActivityApp() {
         }
 
         // --- Deep-link: open straight to the event a launch button targeted.
-        // Activity Link custom_id first (`e:<event_id>`, carried by the URL
-        // buttons rendered where LAUNCH_ACTIVITY is refused — threads etc.),
-        // then the claimed intent (needs a session), then the anonymous
-        // channel fallback. All best-effort — a miss just lands on the hub.
+        // Activity Link custom_id first (`e:<event_id>[:review]`, carried by
+        // the URL buttons rendered where LAUNCH_ACTIVITY is refused — threads
+        // etc.), then the claimed intent (needs a session), then the anonymous
+        // channel fallback. A `review` view opens the event's pending-
+        // completions queue (the "Review in app" button on event_pending
+        // messages). All best-effort — a miss just lands on the hub.
         let target: ActivityView | undefined;
-        const customEvent = /^e:(\d+)$/.exec(sdk.customId ?? "")?.[1];
-        if (customEvent) target = { name: "event", id: Number(customEvent) };
+        const customEvent = /^e:(\d+)(?::(review))?$/.exec(sdk.customId ?? "");
+        if (customEvent) {
+          const id = Number(customEvent[1]);
+          target = customEvent[2] === "review" ? { name: "event-review", id } : { name: "event", id };
+        }
         if (!target && nextAuth.sessionToken) {
-          const eid = await launchIntent(nextAuth.sessionToken).catch(() => null);
-          if (eid) target = { name: "event", id: eid };
+          const intent = await launchIntent(nextAuth.sessionToken).catch(() => null);
+          if (intent) {
+            target =
+              intent.view === "review"
+                ? { name: "event-review", id: intent.eventId }
+                : { name: "event", id: intent.eventId };
+          }
         }
         if (!target && sdk.channelId) {
           const eid = await eventByChannel(sdk.channelId).catch(() => null);

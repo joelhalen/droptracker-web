@@ -31,6 +31,15 @@ export function ErrorNote({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** All-clear placeholder for a list that's legitimately empty. */
+export function EmptyNote({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-osrs-parchment-dark/55 border-osrs-bronze/25 bg-osrs-surface-1/40 rounded-xl border px-4 py-6 text-center text-sm">
+      {children}
+    </p>
+  );
+}
+
 /** Pushed-view header: back chevron + title, sticky above the content. */
 export function BackBar({ title, onBack }: { title: string; onBack: () => void }) {
   return (

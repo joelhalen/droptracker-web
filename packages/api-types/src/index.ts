@@ -1939,6 +1939,10 @@ export const EventDetailSchema = EventSummarySchema.extend({
   /** True when self-join requires a join code (the code itself never appears
    * on public reads). */
   join_requires_code: z.boolean().default(false),
+  /** Whether the requester administers this event (group owner/admin or
+   * superadmin) — drives review affordances in the Activity. Absent on
+   * payloads from before the Activity review pass. */
+  can_manage: z.boolean().optional(),
   /** Admin-only: present only when the requester administers the event. */
   join_code: z.string().nullable().optional(),
   discord_guild_id: z.string().nullable().optional(),
@@ -2088,6 +2092,19 @@ export const EventCompletionSchema = z.object({
   created_at: z.number().int(),
 });
 export type EventCompletion = z.infer<typeof EventCompletionSchema>;
+
+/** GET /events/pending-review — one active event the session user administers
+ * that has completions awaiting confirmation. `completions` is a newest-first
+ * preview (capped upstream); `pending_count` is the true total. Powers the
+ * Discord Activity's review pop-up and badges. */
+export const PendingReviewEventSchema = z.object({
+  event_id: z.number().int(),
+  event_name: z.string(),
+  group_id: z.number().int().nullable(),
+  pending_count: z.number().int(),
+  completions: z.array(EventCompletionSchema).default([]),
+});
+export type PendingReviewEvent = z.infer<typeof PendingReviewEventSchema>;
 
 /** Discord scheduled-event mirror state for the event's target guild
  * (web_event_guilds; the bot creates/edits the real Discord event and writes
