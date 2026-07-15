@@ -113,11 +113,14 @@ export function ActivityApp() {
         }
 
         // --- Deep-link: open straight to the event a launch button targeted.
-        // Precise path first (claimed intent, needs a session), then the
-        // anonymous channel fallback. Both best-effort — a miss just lands on
-        // the home hub.
+        // Activity Link custom_id first (`e:<event_id>`, carried by the URL
+        // buttons rendered where LAUNCH_ACTIVITY is refused — threads etc.),
+        // then the claimed intent (needs a session), then the anonymous
+        // channel fallback. All best-effort — a miss just lands on the hub.
         let target: ActivityView | undefined;
-        if (nextAuth.sessionToken) {
+        const customEvent = /^e:(\d+)$/.exec(sdk.customId ?? "")?.[1];
+        if (customEvent) target = { name: "event", id: Number(customEvent) };
+        if (!target && nextAuth.sessionToken) {
           const eid = await launchIntent(nextAuth.sessionToken).catch(() => null);
           if (eid) target = { name: "event", id: eid };
         }
