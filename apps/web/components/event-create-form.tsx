@@ -3,8 +3,14 @@
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { EVENT_MODES, type DiscordRole, type EventDiscordPolicy } from "@droptracker/api-types";
-import { createGroupEvent } from "@/app/(site)/(admin)/groups/[id]/events/actions";
+import {
+  EVENT_MODES,
+  type DiscordRole,
+  type EventDiscordPolicy,
+  type EventKind,
+  type EventKindMeta,
+} from "@droptracker/api-types";
+import { createGroupEvent, fetchEventKinds } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { fetchDiscordRoles } from "@/app/(site)/(admin)/groups/[id]/announcements/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { EVENT_MODE_LABELS } from "@/lib/events";
@@ -28,6 +34,11 @@ export function EventCreateForm({ groupId }: { groupId: number | null }) {
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [mode, setMode] = useState<(typeof EVENT_MODES)[number]>("standard");
+  // Game format (web43a). The registry annotates each kind with `creatable`
+  // for this viewer + group; restricted kinds render disabled with a
+  // "staff testing" note instead of vanishing.
+  const [kind, setKind] = useState<EventKind>("standard");
+  const [kinds, setKinds] = useState<EventKindMeta[] | null>(null);
   // When the Discord scheduled event is created: with the default the draft
   // stays invisible on Discord until it's activated.
   const [discordPolicy, setDiscordPolicy] = useState<EventDiscordPolicy>("on_activate");
@@ -60,6 +71,18 @@ export function EventCreateForm({ groupId }: { groupId: number | null }) {
     };
   }, [groupId]);
 
+  // Load the kind registry once; falls back to standard-only on error so the
+  // form stays usable.
+  useEffect(() => {
+    let cancelled = false;
+    fetchEventKinds(groupId)
+      .then((rows) => !cancelled && setKinds(rows))
+      .catch(() => !cancelled && setKinds(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId]);
+
   const toggleRole = (id: string) =>
     setPingRoleIds((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
 
@@ -78,6 +101,7 @@ export function EventCreateForm({ groupId }: { groupId: number | null }) {
           starts_at: toUnix(startsAt),
           ends_at: toUnix(endsAt),
           ...(groupId != null ? { mode } : {}),
+          kind,
           discord_event_policy: discordPolicy,
           ...(pingRoleIds.length ? { pings: { event_created: pingRoleIds } } : {}),
         });
@@ -140,9 +164,52 @@ export function EventCreateForm({ groupId }: { groupId: number | null }) {
             rows={2}
             className={field}
           />
+          {kinds && kinds.length > 0 && (
+            <div className="text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Format</span>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="radiogroup">
+                {kinds.map((k) => {
+                  const selected = kind === k.key;
+                  return (
+                    <button
+                      key={k.key}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      disabled={!k.creatable}
+                      onClick={() => k.creatable && setKind(k.key)}
+                      className={`rounded border p-2.5 text-left ${
+                        selected
+                          ? "border-osrs-gold bg-osrs-brown-dark/60"
+                          : "border-osrs-bronze/30 bg-osrs-brown-dark/30"
+                      } ${
+                        k.creatable
+                          ? "hover:border-osrs-gold/70 cursor-pointer"
+                          : "cursor-not-allowed opacity-50"
+                      }`}
+                    >
+                      <span className="text-osrs-parchment block text-sm font-medium">
+                        {k.label}
+                        {!k.creatable && (
+                          <span className="text-osrs-parchment-dark/60 ml-1.5 text-[10px] uppercase tracking-wide">
+                            {k.admin_only ? "staff testing" : "unavailable"}
+                          </span>
+                        )}
+                      </span>
+                      {k.description && (
+                        <span className="text-osrs-parchment-dark/60 mt-0.5 block text-xs">
+                          {k.description}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {groupId != null && (
             <label className="block text-sm">
-              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Event type</span>
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Ownership</span>
               <select
                 value={mode}
                 onChange={(e) => setMode(e.target.value as (typeof EVENT_MODES)[number])}

@@ -1743,6 +1743,41 @@ export const EVENT_SELF_SIGNUP_MODES = ["self_join", "auto_assign", "signup_pool
 /** Event ownership shape: one group (or global), or host-vs-invited-clans. */
 export const EVENT_MODES = ["standard", "clan_vs_clan"] as const;
 
+/** Event game format (web43a) — orthogonal to `mode` (ownership). Which
+ * kinds a non-superadmin may CREATE is governed site-wide by the
+ * web_event_types registry (enabled/admin_only + test-group allowlist);
+ * existing events of a disabled kind keep running. */
+export const EVENT_KINDS = ["standard", "bingo", "board_game"] as const;
+export type EventKind = (typeof EVENT_KINDS)[number];
+
+/** One row of GET /events/meta/types — the create form's kind picker.
+ * Every registry row is returned; `creatable` is resolved for the current
+ * viewer + group. */
+export const EventKindMetaSchema = z.object({
+  key: z.enum(EVENT_KINDS),
+  label: z.string(),
+  description: z.string().nullable().optional(),
+  enabled: z.boolean(),
+  admin_only: z.boolean(),
+  creatable: z.boolean(),
+});
+export type EventKindMeta = z.infer<typeof EventKindMetaSchema>;
+
+/** Admin registry row (GET/PATCH /admin/event-types) with the per-kind
+ * test-group allowlist. */
+export const AdminEventTypeSchema = z.object({
+  key: z.enum(EVENT_KINDS),
+  label: z.string(),
+  description: z.string().nullable().optional(),
+  enabled: z.boolean(),
+  admin_only: z.boolean(),
+  sort: z.number().int().default(0),
+  test_groups: z
+    .array(z.object({ group_id: z.number().int(), group_name: z.string() }))
+    .default([]),
+});
+export type AdminEventType = z.infer<typeof AdminEventTypeSchema>;
+
 /** Clan-vs-clan participant roster (web_event_groups). */
 export const EVENT_PARTICIPANT_ROLES = ["host", "opponent"] as const;
 export const EVENT_PARTICIPANT_STATUSES = ["invited", "accepted", "declined"] as const;
@@ -1918,6 +1953,9 @@ export const EventSummarySchema = z.object({
   /** clan_vs_clan events keep `group_id` = the HOST clan; opponents live in
    * the participants roster (GET /events/{id}/participants). */
   mode: z.enum(EVENT_MODES).default("standard"),
+  /** Game format (web43a): standard | bingo | board_game. Defaulted for
+   * payloads predating the kind column. */
+  kind: z.enum(EVENT_KINDS).default("standard"),
   formation_mode: z.enum(EVENT_FORMATION_MODES).default("admin_assign"),
   /** Event-level force: all completions queue for admin review. */
   requires_confirmation: z.boolean().default(false),
@@ -2124,6 +2162,8 @@ export const EventInputSchema = z.object({
   group_id: z.number().int().nullable(),
   /** clan_vs_clan requires a non-null group_id (the host clan). */
   mode: z.enum(EVENT_MODES).optional(),
+  /** Game format; the backend gates restricted kinds at create time. */
+  kind: z.enum(EVENT_KINDS).optional(),
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional(),
   starts_at: z.number().int().nullable().optional(),

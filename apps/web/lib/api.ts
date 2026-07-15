@@ -27,9 +27,13 @@ import {
   PbBlockSearchResponseSchema,
   PbBlockMutationSchema,
   BingoBoardSchema,
+  AdminEventTypeSchema,
+  type AdminEventType,
   EventChannelConfigSchema,
   EventCompletionSchema,
   EventDetailSchema,
+  EventKindMetaSchema,
+  type EventKindMeta,
   EventInvitationSchema,
   EventParticipantSchema,
   EventRecruitingItemSchema,
@@ -762,6 +766,23 @@ export const api = {
     );
   },
 
+  /** Event kinds for the create form: every registry row, each annotated
+   * with `creatable` for the current viewer + group (web43a). */
+  async eventKinds(groupId: number | null): Promise<EventKindMeta[]> {
+    const qs = groupId != null ? `?group_id=${groupId}` : "";
+    return withFallback(
+      async () =>
+        EventKindMetaSchema.array().parse(
+          await apiGet(`/events/meta/types${qs}`, { authed: true }),
+        ),
+      () => [
+        { key: "standard", label: "Standard", description: null, enabled: true, admin_only: false, creatable: true },
+        { key: "bingo", label: "Bingo", description: null, enabled: true, admin_only: false, creatable: true },
+        { key: "board_game", label: "Board game", description: null, enabled: true, admin_only: true, creatable: false },
+      ],
+    );
+  },
+
   async updateEvent(
     eventId: number,
     patch: Partial<
@@ -778,6 +799,7 @@ export const api = {
         | "bonus_line_points"
         | "bonus_blackout_points"
         | "mode"
+        | "kind"
       >
     >,
   ): Promise<EventDetail> {
@@ -2452,6 +2474,48 @@ export const api = {
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,
+    );
+  },
+
+  // --- Event types (web43a) ----------------------------------------------
+  /** The site-wide event-type registry with per-kind test-group allowlists. */
+  async adminEventTypes(): Promise<AdminEventType[]> {
+    return withFallback(
+      async () =>
+        AdminEventTypeSchema.array().parse(
+          await apiGet(`/admin/event-types`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
+  /** Toggle a kind's enabled / admin_only flags; returns the updated row. */
+  async adminPatchEventType(
+    key: string,
+    patch: { enabled?: boolean; admin_only?: boolean },
+  ): Promise<AdminEventType> {
+    return AdminEventTypeSchema.parse(
+      await apiSend("PATCH", `/admin/event-types/${encodeURIComponent(key)}`, patch),
+    );
+  },
+
+  /** Add a group to a kind's test allowlist; returns the updated row. */
+  async adminAddEventTypeTestGroup(key: string, groupId: number): Promise<AdminEventType> {
+    return AdminEventTypeSchema.parse(
+      await apiSend("POST", `/admin/event-types/${encodeURIComponent(key)}/test-groups`, {
+        group_id: groupId,
+      }),
+    );
+  },
+
+  /** Remove a group from a kind's test allowlist; returns the updated row. */
+  async adminRemoveEventTypeTestGroup(key: string, groupId: number): Promise<AdminEventType> {
+    return AdminEventTypeSchema.parse(
+      await apiSend(
+        "DELETE",
+        `/admin/event-types/${encodeURIComponent(key)}/test-groups/${groupId}`,
+        {},
+      ),
     );
   },
 

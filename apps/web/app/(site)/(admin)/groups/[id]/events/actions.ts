@@ -104,6 +104,13 @@ export async function createGroupEvent(groupId: EventGroupId, input: Omit<EventI
   return { ok: true as const, id: result.id };
 }
 
+/** Event kinds annotated with `creatable` for the viewer + group — powers
+ * the create form's format picker (web43a). */
+export async function fetchEventKinds(groupId: EventGroupId) {
+  await assertCanManageEvent(groupId);
+  return api.eventKinds(groupId);
+}
+
 export async function updateGroupEvent(
   groupId: EventGroupId,
   eventId: number,
@@ -121,6 +128,7 @@ export async function updateGroupEvent(
       | "bonus_line_points"
       | "bonus_blackout_points"
       | "mode"
+      | "kind"
     >
   >,
 ) {

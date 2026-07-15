@@ -30,6 +30,7 @@ export const ADMIN_SECTIONS: AdminNavSection[] = [
     label: "Events",
     items: [
       { href: "/admin/events", label: "Events", desc: "Oversee every event; create and run global events.", matchPrefix: true },
+      { href: "/admin/event-types", label: "Event types", desc: "Enable or disable event formats site-wide; manage test groups." },
       { href: "/admin/task-library", label: "Task library", desc: "Curate the shared pool of event tasks." },
     ],
   },
