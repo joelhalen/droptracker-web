@@ -140,7 +140,7 @@ export function EventView({
           )}
           <h1 className="text-osrs-gold text-xl font-bold">{event.name}</h1>
           <span className={`text-xs capitalize ${STATUS_STYLES[event.status] ?? ""}`}>
-            ● {event.status}
+            ● {event.status === "draft" ? "upcoming" : event.status}
           </span>
         </div>
         <p className="text-osrs-parchment-dark/60 text-xs">

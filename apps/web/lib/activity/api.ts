@@ -83,10 +83,12 @@ export async function exchangeAuthCode(
   return (await res.json()) as ActivityAuthResult;
 }
 
-/** Active (or otherwise) events for the guild the activity was launched in. */
+/** Active (or otherwise) events for the guild the activity was launched in.
+ * "draft" surfaces upcoming (pre-publication) events — the backend only
+ * returns those the session user may see. */
 export async function guildEvents(
   guildId: string,
-  status: "active" | "past" | undefined,
+  status: "draft" | "active" | "past" | undefined,
   sessionToken: string | null,
 ): Promise<EventSummary[]> {
   const q = new URLSearchParams({ guildId });
@@ -102,7 +104,7 @@ export async function guildEvents(
  * no guildId to scope by but the user's identity finds their clans anyway.
  */
 export async function myEvents(
-  status: "active" | "past" | undefined,
+  status: "draft" | "active" | "past" | undefined,
   sessionToken: string,
 ): Promise<EventSummary[]> {
   const q = new URLSearchParams({ mine: "1" });

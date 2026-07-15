@@ -36,10 +36,11 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   const { id } = await params;
   const eventId = Number(id);
   if (!Number.isFinite(eventId)) notFound();
-  const [event, user] = await Promise.all([
-    orNotFound(api.event(eventId)),
-    getUser().catch(() => null),
-  ]);
+  const user = await getUser().catch(() => null);
+  // Signed-in viewers read with their session: the backend then serves draft
+  // events to members of participating clans (the pre-publication landing
+  // page) and includes the viewer block. Anonymous reads stay ISR-cached.
+  const event = await orNotFound(user ? api.eventForAdmin(eventId) : api.event(eventId));
 
   const teams = [...event.teams].sort((a, b) => b.score - a.score);
   // Accent colors resolve against the unsorted roster so palette fallbacks
@@ -61,7 +62,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <h1 className="text-osrs-gold text-3xl font-bold">{event.name}</h1>
           <span className={`text-sm capitalize ${STATUS_STYLES[event.status] ?? ""}`}>
-            ● {event.status}
+            ● {event.status === "draft" ? "upcoming" : event.status}
           </span>
         </div>
         <p className="text-osrs-parchment-dark/60 mt-1 text-sm">
@@ -69,6 +70,12 @@ export default async function EventDetailPage({ params }: { params: Params }) {
         </p>
         {event.description && (
           <p className="text-osrs-parchment-dark/80 mt-3 max-w-2xl">{event.description}</p>
+        )}
+        {event.status === "draft" && (
+          <p className="border-osrs-gold/30 bg-osrs-gold/10 text-osrs-parchment-dark/90 mt-3 max-w-2xl rounded border px-3 py-2 text-sm">
+            This event hasn&apos;t started yet — you can preview it because you&apos;re part of a
+            participating clan. Sign up now and you&apos;ll be ready when it goes live.
+          </p>
         )}
       </header>
 

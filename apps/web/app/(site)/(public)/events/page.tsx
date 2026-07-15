@@ -15,9 +15,12 @@ export const metadata: Metadata = {
 
 export default async function EventsPage() {
   const user = await getUser().catch(() => null);
-  const [active, past, recruiting] = await Promise.all([
+  const [active, past, upcoming, recruiting] = await Promise.all([
     api.events({ status: "active" }),
     api.events({ status: "past" }),
+    // Drafts the signed-in viewer may see: events of clans they belong to
+    // (pre-publication landing) plus drafts they administer.
+    user ? api.eventsForAdmin({ status: "draft" }).catch(() => []) : Promise.resolve([]),
     user ? api.eventRecruiting().catch(() => []) : Promise.resolve([]),
   ]);
 
@@ -25,6 +28,9 @@ export default async function EventsPage() {
     <div className="space-y-10">
       <h1 className="text-osrs-gold text-3xl font-bold">Events</h1>
       {recruiting.length > 0 && <EventRecruitingBanner items={recruiting} />}
+      {upcoming.length > 0 && (
+        <EventSection title="Upcoming" events={upcoming} empty="" />
+      )}
       <EventSection title="Active" events={active} empty="No active events right now." />
       <EventSection title="Past" events={past} empty="No past events yet." />
     </div>
@@ -53,6 +59,11 @@ function EventSection({
               >
                 <div className="flex items-center gap-2">
                   <span className="text-osrs-gold-bright font-medium">{e.name}</span>
+                  {e.status === "draft" && (
+                    <span className="bg-osrs-green/15 text-osrs-green rounded px-1.5 py-0.5 text-xs">
+                      Upcoming
+                    </span>
+                  )}
                   {e.has_bingo && (
                     <span className="bg-osrs-gold/20 text-osrs-gold rounded px-1.5 py-0.5 text-xs">
                       Bingo

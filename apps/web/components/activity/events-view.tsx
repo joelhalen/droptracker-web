@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * Events tab: the launch guild's active events (plus recent past ones),
- * pushing the full live event screen (board/tasks/join) on tap. Launched
- * without a guild (an Activity Link opened from a DM), it falls back to the
- * session user's events across every group they belong to.
+ * Events tab: the launch guild's upcoming + active events (plus recent past
+ * ones), pushing the full live event screen (board/tasks/join) on tap.
+ * Launched without a guild (an Activity Link opened from a DM), it falls
+ * back to the session user's events across every group they belong to.
+ * Upcoming (draft) events only come back for signed-in members of a
+ * participating clan — the pre-publication landing page.
  */
 import { useEffect, useState } from "react";
 import type { EventSummary } from "@droptracker/api-types";
@@ -16,7 +18,7 @@ import { useActivityData } from "@/lib/activity/data-context";
 import { useActivityNav } from "@/lib/activity/nav";
 import { ErrorNote, LoadingBlock, SectionHeading } from "@/components/activity/bits";
 
-function EventRow({ event, live }: { event: EventSummary; live: boolean }) {
+function EventRow({ event, phase }: { event: EventSummary; phase: "upcoming" | "live" | "past" }) {
   const nav = useActivityNav();
   return (
     <button
@@ -25,9 +27,13 @@ function EventRow({ event, live }: { event: EventSummary; live: boolean }) {
     >
       <span className="flex items-center justify-between gap-2">
         <span className="text-osrs-gold truncate font-serif text-[15px] font-semibold">{event.name}</span>
-        {live ? (
+        {phase === "live" && (
           <span className="text-osrs-green shrink-0 text-[10px] font-bold tracking-wider uppercase">● Live</span>
-        ) : (
+        )}
+        {phase === "upcoming" && (
+          <span className="text-osrs-gold-bright shrink-0 text-[10px] font-bold tracking-wider uppercase">Upcoming</span>
+        )}
+        {phase === "past" && (
           <span className="text-osrs-parchment-dark/45 shrink-0 text-[10px] uppercase">Ended</span>
         )}
       </span>
@@ -48,6 +54,7 @@ export function EventsView() {
   const { guildId } = useActivityData();
   const { sessionToken } = useActivityAuth();
   const [active, setActive] = useState<EventSummary[] | null>(null);
+  const [upcoming, setUpcoming] = useState<EventSummary[]>([]);
   const [past, setPast] = useState<EventSummary[]>([]);
   const [failed, setFailed] = useState(false);
 
@@ -57,16 +64,21 @@ export function EventsView() {
       return;
     }
     let cancelled = false;
-    const load = (status: "active" | "past") =>
+    const load = (status: "draft" | "active" | "past") =>
       guildId ? guildEvents(guildId, status, sessionToken) : myEvents(status, sessionToken!);
     Promise.all([
       load("active"),
       load("past").catch(() => [] as EventSummary[]),
+      // Drafts require a session (member visibility) — quietly empty without.
+      sessionToken
+        ? load("draft").catch(() => [] as EventSummary[])
+        : Promise.resolve([] as EventSummary[]),
     ])
-      .then(([a, p]) => {
+      .then(([a, p, u]) => {
         if (cancelled) return;
         setActive(a);
         setPast(p.slice(0, 5));
+        setUpcoming(u);
       })
       .catch(() => setFailed(true));
     return () => {
@@ -87,7 +99,7 @@ export function EventsView() {
 
   return (
     <div>
-      {active.length === 0 && past.length === 0 && (
+      {active.length === 0 && upcoming.length === 0 && past.length === 0 && (
         <Card padding="p-6">
           <p className="text-osrs-gold text-center font-serif text-lg font-semibold">No events yet</p>
           <p className="text-osrs-parchment-dark/60 mt-1 text-center text-sm">
@@ -97,10 +109,21 @@ export function EventsView() {
         </Card>
       )}
 
+      {upcoming.length > 0 && (
+        <div className="mb-4">
+          <SectionHeading>Upcoming</SectionHeading>
+          <div className="space-y-2.5">
+            {upcoming.map((ev) => (
+              <EventRow key={ev.id} event={ev} phase="upcoming" />
+            ))}
+          </div>
+        </div>
+      )}
+
       {active.length > 0 && (
         <div className="space-y-2.5">
           {active.map((ev) => (
-            <EventRow key={ev.id} event={ev} live />
+            <EventRow key={ev.id} event={ev} phase="live" />
           ))}
         </div>
       )}
@@ -110,7 +133,7 @@ export function EventsView() {
           <SectionHeading>Past events</SectionHeading>
           <div className="space-y-2.5">
             {past.map((ev) => (
-              <EventRow key={ev.id} event={ev} live={false} />
+              <EventRow key={ev.id} event={ev} phase="past" />
             ))}
           </div>
         </div>

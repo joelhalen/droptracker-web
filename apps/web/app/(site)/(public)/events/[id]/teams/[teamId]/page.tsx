@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { getUser } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
 import { EventTeamView } from "@/components/event-team-view";
 
@@ -26,6 +27,11 @@ export default async function EventTeamPage({ params }: { params: Params }) {
   const eventId = Number(id);
   const teamIdNum = Number(teamId);
   if (!Number.isFinite(eventId) || !Number.isFinite(teamIdNum)) notFound();
-  const detail = await orNotFound(api.eventTeam(eventId, teamIdNum));
+  // Signed-in reads carry the session so draft (pre-publication) events stay
+  // visible to members of participating clans; anonymous reads stay cached.
+  const user = await getUser().catch(() => null);
+  const detail = await orNotFound(
+    user ? api.eventTeamAuthed(eventId, teamIdNum) : api.eventTeam(eventId, teamIdNum),
+  );
   return <EventTeamView detail={detail} live={detail.event.status === "active"} />;
 }

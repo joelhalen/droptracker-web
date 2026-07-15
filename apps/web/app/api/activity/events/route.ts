@@ -26,16 +26,21 @@ export async function GET(req: NextRequest) {
   }
 
   const q = new URLSearchParams(mine ? { mine: "1" } : { guildId });
-  if (status === "active" || status === "past") q.set("status", status);
+  if (status === "draft" || status === "active" || status === "past") q.set("status", status);
 
+  // Guild-scoped requests also forward the session when one is presented:
+  // the backend then includes draft events visible to the viewer (member of
+  // a participating clan — the pre-publication landing page). Any request
+  // carrying a session is viewer-specific and must never be cached across
+  // users.
+  const authed = mine || Boolean(bearer);
   try {
     const res = await fetch(`${env.webApiInternalUrl}/api/v1/events?${q.toString()}`, {
       headers: {
         accept: "application/json",
-        ...(mine ? { cookie: `${SESSION_COOKIE}=${bearer}` } : {}),
+        ...(authed ? { cookie: `${SESSION_COOKIE}=${bearer}` } : {}),
       },
-      // Per-user lists must never be cached across users.
-      ...(mine ? { cache: "no-store" as const } : { next: { revalidate: 30 } }),
+      ...(authed ? { cache: "no-store" as const } : { next: { revalidate: 30 } }),
     });
     if (!res.ok) {
       return NextResponse.json({ error: "upstream error" }, { status: 502 });
@@ -43,7 +48,7 @@ export async function GET(req: NextRequest) {
     const events = EventSummarySchema.array().parse(await res.json());
     return NextResponse.json(
       events,
-      mine ? { headers: { "cache-control": "private, no-store" } } : undefined,
+      authed ? { headers: { "cache-control": "private, no-store" } } : undefined,
     );
   } catch (err) {
     console.error("[activity/events]", err);

@@ -697,6 +697,19 @@ export const api = {
     );
   },
 
+  /** Authed team read: same payload, but with the session cookie so members
+   * of participating clans can view teams on draft (pre-publication) events.
+   * Uncached (viewer-specific). */
+  async eventTeamAuthed(eventId: number, teamId: number): Promise<EventTeamDetail> {
+    return withFallback(
+      async () =>
+        EventTeamDetailSchema.parse(
+          await apiGet(`/events/${eventId}/teams/${teamId}`, { authed: true }),
+        ),
+      () => mockEventTeam(eventId, teamId),
+    );
+  },
+
   /** Authed event read: includes the viewer block and, for event admins, the
    * join code. Uncached (viewer-specific). */
   async eventForAdmin(id: number): Promise<EventDetail> {
