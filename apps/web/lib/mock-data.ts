@@ -1911,7 +1911,6 @@ export function mockEventDiscord(_eventId: number): EventChannelConfig {
         event_ended: true,
         event_completion: true,
         event_task_progress: true,
-        event_cell: true,
         event_line: true,
         event_blackout: true,
         event_lead_change: true,

@@ -564,7 +564,7 @@ export function EventDiscordSettings({
               <ToggleGroupLabel>Progress</ToggleGroupLabel>
               <ToggleRow
                 label="Task completions"
-                hint="One post per completed task (Completions channel)."
+                hint="One post per completed task, including which bingo tile it marked (Completions channel)."
                 checked={messages.toggles.event_completion}
                 onChange={(v) => setToggle("event_completion", v)}
               />
@@ -593,11 +593,6 @@ export function EventDiscordSettings({
 
             <div className="space-y-2">
               <ToggleGroupLabel>Bingo</ToggleGroupLabel>
-              <ToggleRow
-                label="Bingo cell marked"
-                checked={messages.toggles.event_cell}
-                onChange={(v) => setToggle("event_cell", v)}
-              />
               <ToggleRow
                 label="Line bonuses"
                 checked={messages.toggles.event_line}
