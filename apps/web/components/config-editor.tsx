@@ -532,6 +532,12 @@ function InputField({
           onChange={(v) => onChange(v)}
           disabled={disabled}
         />
+      ) : field.type === "password" ? (
+        <PasswordInput
+          value={String(value ?? "")}
+          onChange={(v) => onChange(v)}
+          disabled={disabled}
+        />
       ) : (
         <input
           type="text"
@@ -543,6 +549,42 @@ function InputField({
         />
       )}
     </label>
+  );
+}
+
+/** Masked input for secret config values (e.g. the WOM verification code),
+ * with a reveal toggle. Autocomplete is disabled so browsers don't offer to
+ * save it as a login password. */
+function PasswordInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        type={revealed ? "text" : "password"}
+        autoComplete="off"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={`${fieldInputClass} w-full pr-16 disabled:cursor-not-allowed`}
+      />
+      <button
+        type="button"
+        onClick={() => setRevealed((r) => !r)}
+        disabled={disabled}
+        className="text-osrs-parchment-dark/60 hover:text-osrs-parchment-dark absolute inset-y-0 right-2 my-auto text-xs disabled:cursor-not-allowed"
+        aria-label={revealed ? "Hide value" : "Show value"}
+      >
+        {revealed ? "Hide" : "Show"}
+      </button>
+    </div>
   );
 }
 
