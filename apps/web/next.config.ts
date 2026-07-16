@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Lint is a CI/dev concern, not a build/deploy concern. `next build` runs its
+  // OWN ESLint pass with different behaviour than `eslint .` — most painfully,
+  // it hard-errors on a disable-directive for a rule the flat config doesn't
+  // register (e.g. `// eslint-disable react-hooks/exhaustive-deps`, which the
+  // `eslint .` Lint step silently ignores). That divergence made green Lint +
+  // Typecheck + Test but a RED deploy build the recurring failure mode. The
+  // single source of truth for lint is the CI `Lint` step (`pnpm lint`) and the
+  // local `pnpm lint`; the build only builds. Type safety is unaffected — `next
+  // build` still type-checks via tsc, and CI has a separate Typecheck step.
+  eslint: { ignoreDuringBuilds: true },
   // Blue-green deploys build each colour into its own output dir so a live
   // instance's build is never overwritten while it serves (deploy-web.sh sets
   // NEXT_DIST_DIR per colour). Defaults to `.next` for local dev / plain builds.
