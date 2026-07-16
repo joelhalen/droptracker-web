@@ -2,6 +2,7 @@
 
 import type { Route } from "next";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useTransition, useEffect } from "react";
 import type { EventParticipant } from "@droptracker/api-types";
 import {
@@ -32,6 +33,7 @@ import {
   addEventTeamMember,
   bulkAddEventTeamMembers,
   deleteEventTeam,
+  deleteGroupEvent,
   endEvent,
   listEventParticipants,
   populateEventRandom,
@@ -188,6 +190,10 @@ export function EventManager({
   const [error, setError] = useState<string | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [tab, setTab] = useState<ManagerTab>("tasks");
+  const router = useRouter();
+  // Delete flow: the type-to-confirm modal is open when non-null; the string
+  // is what the admin has typed so far (must match the event name to enable).
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const applyDetail = (detail: EventDetail) => {
     setEvent(detail);
@@ -254,6 +260,23 @@ export function EventManager({
     });
   };
 
+  /** Permanently delete the event (type-to-confirm modal). On success, leave
+   * the now-gone event page for the events index. The backend re-checks the
+   * name and refuses live events, so a failure surfaces the real message. */
+  const onDeleteEvent = () => {
+    setError(null);
+    startTransition(async () => {
+      const res = await deleteGroupEvent(groupId, event.id, deleteConfirm ?? "");
+      if (res.ok) {
+        setDeleteConfirm(null);
+        router.push((groupId == null ? "/admin/events" : `/groups/${groupId}/events`) as Route);
+        router.refresh();
+      } else {
+        setError(res.message);
+      }
+    });
+  };
+
   const [editingEvent, setEditingEvent] = useState(false);
   const [eventDraft, setEventDraft] = useState({
     name: event.name,
@@ -262,6 +285,7 @@ export function EventManager({
     endsAt: fromUnix(event.ends_at),
     formationMode: event.formation_mode,
     joinCode: event.join_code ?? "",
+    isPrivate: event.visibility === "private",
     requiresConfirmation: event.requires_confirmation,
     submissionPolicy: event.submission_policy,
     leadershipEnabled: event.leadership.enabled,
@@ -278,6 +302,7 @@ export function EventManager({
       endsAt: fromUnix(event.ends_at),
       formationMode: event.formation_mode,
       joinCode: event.join_code ?? "",
+      isPrivate: event.visibility === "private",
       requiresConfirmation: event.requires_confirmation,
       submissionPolicy: event.submission_policy,
       leadershipEnabled: event.leadership.enabled,
@@ -299,6 +324,7 @@ export function EventManager({
           ends_at: toUnix(eventDraft.endsAt),
           formation_mode: eventDraft.formationMode,
           join_code: eventDraft.joinCode.trim() || null,
+          visibility: eventDraft.isPrivate ? "private" : "public",
           requires_confirmation: eventDraft.requiresConfirmation,
           submission_policy: eventDraft.submissionPolicy,
           leadership: {
@@ -664,6 +690,21 @@ export function EventManager({
               </span>
             </span>
           </label>
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={eventDraft.isPrivate}
+              onChange={(e) => setEventDraft((d) => ({ ...d, isPrivate: e.target.checked }))}
+              className="mt-0.5 size-4"
+            />
+            <span>
+              Keep this event private
+              <span className="text-osrs-parchment-dark/60 block text-xs">
+                Hidden from the public events list and search — only members of the
+                {isClanVsClan ? " participating clans" : " group"} and event admins can see it.
+              </span>
+            </span>
+          </label>
 
           {/* Team leadership (web48a): leaders hold executive authority — on
               board-game events they trigger the rolls and run the shop. */}
@@ -765,6 +806,14 @@ export function EventManager({
                 {isClanVsClan && (
                   <span className="bg-osrs-gold/15 text-osrs-gold rounded px-1.5 py-0.5 text-xs">
                     {EVENT_MODE_LABELS.clan_vs_clan}
+                  </span>
+                )}
+                {event.visibility === "private" && (
+                  <span
+                    className="bg-osrs-bronze/25 text-osrs-parchment-dark/80 rounded px-1.5 py-0.5 text-xs"
+                    title="Only participating members and admins can see this event"
+                  >
+                    Private
                   </span>
                 )}
               </div>
@@ -914,10 +963,86 @@ export function EventManager({
           <div className="flex justify-end">
             <EventTemplateSaver groupId={groupId} eventId={event.id} eventName={event.name} />
           </div>
+
+          {/* Danger zone: permanently delete the event (drafts + ended only; a
+              live event must be ended first, enforced by the backend too). */}
+          <div className="border-osrs-red/30 flex flex-wrap items-center justify-between gap-2 rounded border border-dashed p-3">
+            <div className="text-osrs-parchment-dark/70 text-xs">
+              <span className="text-osrs-red/90 font-medium">Danger zone</span> — permanently
+              delete this event and all of its tasks, teams, rosters and history.
+              {event.status === "active" && " End the event before it can be deleted."}
+            </div>
+            <button
+              type="button"
+              onClick={() => setDeleteConfirm("")}
+              disabled={pending || event.status === "active"}
+              title={
+                event.status === "active"
+                  ? "End the event before deleting it"
+                  : "Permanently delete this event"
+              }
+              className="border-osrs-red/50 text-osrs-red hover:bg-osrs-red/10 rounded border px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Delete event
+            </button>
+          </div>
         </div>
       )}
 
       {error && <Alert variant="error">{error}</Alert>}
+
+      {/* Type-to-confirm delete modal (explicit confirmation). */}
+      {deleteConfirm !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm event deletion"
+        >
+          <div className="bg-osrs-brown border-osrs-bronze/40 w-full max-w-md space-y-3 rounded-lg border p-5 shadow-xl">
+            <h3 className="text-osrs-gold text-lg font-bold">Delete this event?</h3>
+            <p className="text-osrs-parchment-dark/80 text-sm">
+              This permanently removes{" "}
+              <strong className="text-osrs-parchment">{event.name}</strong> and everything in it
+              — tasks, teams, rosters, and all progress &amp; completion history. This{" "}
+              <em>cannot be undone</em>.
+            </p>
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                Type the event name to confirm
+              </span>
+              <input
+                autoFocus
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                placeholder={event.name}
+                className={`${field} w-full`}
+              />
+            </label>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                disabled={pending}
+                className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onDeleteEvent}
+                disabled={
+                  pending ||
+                  deleteConfirm.trim().toLowerCase() !== event.name.trim().toLowerCase()
+                }
+                className="bg-osrs-red/80 text-osrs-parchment hover:bg-osrs-red rounded px-3 py-1.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {pending ? "Deleting…" : "Delete permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabbed sections (web48a): one bar instead of an endless scroll. */}
       <div

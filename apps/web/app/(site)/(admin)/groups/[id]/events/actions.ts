@@ -144,6 +144,7 @@ export async function updateGroupEvent(
       | "mode"
       | "kind"
       | "leadership"
+      | "visibility"
     >
   >,
 ) {
@@ -153,6 +154,29 @@ export async function updateGroupEvent(
   revalidatePath(eventsIndexPath(groupId));
   revalidatePath(eventAdminPath(groupId, eventId));
   return result;
+}
+
+/** Permanently delete a draft or ended event (creator/superadmin). Returns a
+ * discriminated result rather than throwing: Next redacts thrown Server Action
+ * errors in production, which would turn the API's descriptive 409/422 message
+ * ("end the event first", "type the name to confirm") into an opaque string. */
+export async function deleteGroupEvent(
+  groupId: EventGroupId,
+  eventId: number,
+  confirmName: string,
+): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+  await assertCanManageEvent(groupId);
+  try {
+    await api.deleteEvent(eventId, confirmName);
+    revalidatePath(eventsIndexPath(groupId));
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      return { ok: false, status: err.status, message: err.message };
+    }
+    throw err;
+  }
 }
 
 // --- Lifecycle (Task 21) -----------------------------------------------------

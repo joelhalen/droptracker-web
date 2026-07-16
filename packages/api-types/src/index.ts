@@ -1791,6 +1791,12 @@ export const EVENT_PARTICIPANT_STATUSES = ["invited", "accepted", "declined"] as
  * queued for admin confirmation, or plugin-API ones only. */
 export const EVENT_SUBMISSION_POLICIES = ["all", "confirm_non_api", "api_only"] as const;
 
+/** Event-level audience (web_events.visibility): "public" — anyone can see it
+ * (default); "private" — only participating-group members + event admins ever
+ * see it, at any lifecycle status. Distinct from EVENT_TASK_VISIBILITIES,
+ * which only governs task-library reuse. */
+export const EVENT_VISIBILITIES = ["public", "private"] as const;
+
 /** Ledger row lifecycle for event completions (events-prd.md D3). */
 export const EVENT_COMPLETION_STATUSES = [
   "auto",
@@ -2258,6 +2264,10 @@ export const EventSummarySchema = z.object({
   // the whole list parse throw once any event lacked a description.
   description: z.string().nullable().optional(),
   status: z.enum(EVENT_STATUS),
+  /** "private" hides the event from the public site/lists — only
+   * participating-group members + event admins see it. Defaulted for payloads
+   * predating the visibility column. */
+  visibility: z.enum(EVENT_VISIBILITIES).default("public"),
   starts_at: z.number().int().nullable(),
   ends_at: z.number().int().nullable(),
   has_bingo: z.boolean().default(false),
@@ -2524,6 +2534,8 @@ export const EventInputSchema = z.object({
   kind: z.enum(EVENT_KINDS).optional(),
   name: z.string().min(1).max(120),
   description: z.string().max(2000).optional(),
+  /** Keep the event private (participating-group members + admins only). */
+  visibility: z.enum(EVENT_VISIBILITIES).optional(),
   starts_at: z.number().int().nullable().optional(),
   ends_at: z.number().int().nullable().optional(),
   formation_mode: z.enum(EVENT_FORMATION_MODES).optional(),

@@ -1397,6 +1397,7 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
   const now = Math.floor(Date.now() / 1000);
   const eventDefaults = {
     mode: "standard" as const,
+    visibility: "public" as const,
     formation_mode: "self_join" as const,
     requires_confirmation: false,
     submission_policy: "all" as const,

@@ -820,6 +820,7 @@ export const api = {
         | "bonus_blackout_points"
         | "mode"
         | "kind"
+        | "visibility"
       >
     > & {
       /** Team-leadership knobs (web48a); partial objects merge server-side. */
@@ -894,6 +895,19 @@ export const api = {
     return withFallback(
       async () => EventDetailSchema.parse(await apiSend("POST", `/events/${eventId}/end`, {})),
       () => ({ ...mockEvent(eventId), status: "past" as const }),
+    );
+  },
+
+  /** Permanently delete a draft or ended event and everything scoped to it.
+   * The backend requires `confirm_name` to exactly match the event's name
+   * (422 otherwise) and refuses to delete a live event (409 — end it first). */
+  async deleteEvent(eventId: number, confirmName: string): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/events/${eventId}`, { confirm_name: confirmName });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
     );
   },
 
