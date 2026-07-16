@@ -23,6 +23,11 @@ import {
   type ProgressCell,
 } from "@/components/event-task-progress";
 
+/** Contribution points, 2-dp max with trailing zeros stripped ("2.5", "12"). */
+function formatContributionPoints(p: number): string {
+  return (Math.round(p * 100) / 100).toString();
+}
+
 export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live: boolean }) {
   const { event, team, members, tasks } = detail;
 
@@ -39,6 +44,19 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
   );
 
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+
+  // Roster doubles as a contribution leaderboard: most points first, then
+  // most applied contributions, then name for a stable tail.
+  const rosterMembers = useMemo(
+    () =>
+      [...members].sort(
+        (a, b) =>
+          b.points - a.points ||
+          b.completions - a.completions ||
+          a.player_name.localeCompare(b.player_name),
+      ),
+    [members],
+  );
 
   useEventStream(live ? [`event:${event.id}`] : [], (frame) => {
     if (frame.type !== "event_update") return;
@@ -263,7 +281,7 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
           </h2>
           {members.length ? (
             <EventMemberList
-              members={members}
+              members={rosterMembers}
               pageSize={10}
               unit="member"
               listClassName="space-y-2"
@@ -272,18 +290,28 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                   key={m.player_id}
                   className="border-osrs-bronze/20 rounded border px-3 py-2 text-sm"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <Link
                       href={entityPath("players", m.player_id, m.player_name)}
                       className="hover:text-osrs-gold-bright font-medium"
                     >
                       {m.player_name}
                     </Link>
-                    <span
-                      className="text-osrs-gold-bright text-xs tabular-nums"
-                      title="Applied contributions from this player"
-                    >
-                      {m.completions} contribution{m.completions === 1 ? "" : "s"}
+                    <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums">
+                      {m.points > 0 && (
+                        <span
+                          className="text-osrs-gold-bright font-semibold"
+                          title="Contribution points — each completed task's points split by this player's share of the work"
+                        >
+                          {formatContributionPoints(m.points)} pts
+                        </span>
+                      )}
+                      <span
+                        className="text-osrs-parchment-dark/60"
+                        title="Applied contributions from this player"
+                      >
+                        {m.completions} contribution{m.completions === 1 ? "" : "s"}
+                      </span>
                     </span>
                   </div>
                   {m.joined_at && (

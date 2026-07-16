@@ -2227,6 +2227,8 @@ export type EventTeamTask = z.infer<typeof EventTeamTaskSchema>;
 export const EventTeamMemberStatsSchema = EventMemberSchema.extend({
   completions: z.number().int().default(0),
   quantity: z.number().int().default(0),
+  /** Contribution points: sum of (task points × net share) over completed tasks. */
+  points: z.number().default(0),
 });
 export type EventTeamMemberStats = z.infer<typeof EventTeamMemberStatsSchema>;
 

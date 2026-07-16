@@ -1626,6 +1626,7 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
       ...m,
       completions: 3 - (i % 3),
       quantity: 40 - i * 12,
+      points: [7.5, 2.33, 0][i % 3]!,
     })),
     tasks: event.tasks.map((t, i) => ({
       ...t,
