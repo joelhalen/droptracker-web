@@ -2665,6 +2665,9 @@ export const EventMessageConfigSchema = z.object({
     event_activation_failed: z.boolean(),
   }),
   task_progress: z.enum(EVENT_TASK_PROGRESS_MODES),
+  /** Verbose completion detail: include the item that finished the task and
+   * how much of the requirement it filled on completion posts. Default on. */
+  item_details: z.boolean(),
   leaderboard: z.object({
     live: z.boolean(),
     top_n: z.number().int().min(3).max(25),

@@ -89,19 +89,22 @@ function ToggleRow({
   hint,
   checked,
   onChange,
+  disabled = false,
 }: {
   label: string;
   hint?: string;
   checked: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="border-osrs-bronze/15 hover:border-osrs-gold/40 bg-osrs-surface-2/50 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors"
+      className="border-osrs-bronze/15 hover:border-osrs-gold/40 bg-osrs-surface-2/50 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-osrs-bronze/15"
     >
       <span className="min-w-0">
         <span className="block text-sm font-medium">{label}</span>
@@ -329,6 +332,11 @@ export function EventDiscordSettings({
   const setTaskProgress = (mode: EventTaskProgressMode) => {
     setSaved(false);
     setMessages((prev) => (prev ? { ...prev, task_progress: mode } : prev));
+  };
+
+  const setItemDetails = (value: boolean) => {
+    setSaved(false);
+    setMessages((prev) => (prev ? { ...prev, item_details: value } : prev));
   };
 
   const patchLeaderboard = (patch: Partial<EventMessageConfig["leaderboard"]>) => {
@@ -725,6 +733,13 @@ export function EventDiscordSettings({
                 hint="One post per completed task, including which bingo tile it marked (Completions channel)."
                 checked={messages.toggles.event_completion}
                 onChange={(v) => setToggle("event_completion", v)}
+              />
+              <ToggleRow
+                label="Item & contribution details"
+                hint="On completion posts, name the item that finished the task and how much of the requirement it filled. Contributors are always listed."
+                checked={messages.item_details}
+                onChange={setItemDetails}
+                disabled={!messages.toggles.event_completion}
               />
               <ToggleRow
                 label="Task progress updates"
