@@ -67,6 +67,8 @@ export function EventBoardView({
       if (
         kind === "board_roll" ||
         kind === "board_task_complete" ||
+        kind === "board_item_used" ||
+        kind === "board_blocked" ||
         kind === "completion" ||
         kind === "progress"
       ) {
@@ -79,8 +81,16 @@ export function EventBoardView({
 
   const colors = useMemo(() => teamColorMap(event.teams ?? []), [event.teams]);
   const render = board.settings.tile_render;
+  const iconSize = render.icon_size ?? 20;
   const aspect =
     board.bg_width && board.bg_height ? board.bg_width / board.bg_height : 16 / 10;
+
+  // Live standings for the bottom-right banner: leading team first (furthest
+  // along the track, coins break ties). Same ordering as the panel below.
+  const standings = useMemo(
+    () => [...board.positions].sort((a, b) => b.tile_idx - a.tile_idx || b.coins - a.coins),
+    [board.positions],
+  );
 
   // Pieces stacked per tile so co-located teams fan out.
   const byTile = useMemo(() => {
@@ -143,9 +153,15 @@ export function EventBoardView({
         {board.tiles.map((t) => {
           const isEndpoint = t.tile_kind === "start" || t.tile_kind === "finish";
           if (render.mode === "invisible" && !isEndpoint) return null;
+          // The rune-icon tiles grow with the configured icon size; every
+          // other tile keeps the fixed 28px circle.
+          const showsRune = render.mode === "rune" && !!t.difficulty;
+          const dim = showsRune ? iconSize + 12 : 28;
           const style: React.CSSProperties = {
             left: `${t.x * 100}%`,
             top: `${t.y * 100}%`,
+            width: dim,
+            height: dim,
           };
           if (render.mode === "outline" || isEndpoint) {
             style.border = `${render.outline_width}px solid ${
@@ -155,17 +171,48 @@ export function EventBoardView({
           return (
             <div
               key={t.idx}
-              className="absolute flex size-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-[9px] text-white/90"
+              className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-[9px] text-white/90"
               style={style}
               title={t.label ?? (t.difficulty ? `${t.difficulty} tile` : `Tile ${t.idx}`)}
             >
               {render.mode === "rune" && t.difficulty ? (
-                <ItemDbIcon itemId={RUNE_ITEM_IDS[t.difficulty]} size={16} />
+                <ItemDbIcon itemId={RUNE_ITEM_IDS[t.difficulty]} size={iconSize} />
               ) : (
                 <span>
                   {t.tile_kind === "start" ? "S" : t.tile_kind === "finish" ? "F" : t.idx}
                 </span>
               )}
+            </div>
+          );
+        })}
+
+        {/* Placed tile effects (web49a): roadblocks/bulwarks shown to
+            everyone so the board reflects live obstacles. */}
+        {(board.effects ?? []).map((eff) => {
+          const tile = tileAt.get(eff.target_tile_idx);
+          if (!tile) return null;
+          const placedBy = board.positions.find(
+            (p) => p.team_id === eff.placed_by_team_id,
+          )?.team_name;
+          return (
+            <div
+              key={`eff-${eff.id}`}
+              className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+              style={{
+                left: `${tile.x * 100}%`,
+                top: `calc(${tile.y * 100}% + 15px)`,
+              }}
+              title={`${eff.name ?? "Roadblock"}${
+                placedBy ? ` — placed by ${placedBy}` : ""
+              }`}
+            >
+              <div className="flex items-center justify-center rounded-full border-2 border-red-500/80 bg-black/70 p-0.5 shadow">
+                {eff.icon_item_id ? (
+                  <ItemDbIcon itemId={eff.icon_item_id} size={18} />
+                ) : (
+                  <span className="text-xs leading-none">⛔</span>
+                )}
+              </div>
             </div>
           );
         })}
@@ -195,6 +242,83 @@ export function EventBoardView({
             </div>
           ));
         })}
+
+        {/* Live standings banner — parchment scroll styled to match the
+            server-side title scroll baked into the Discord board export.
+            Hidden on the smallest screens; the standings grid below covers
+            those. */}
+        {standings.length > 0 && (
+          <div
+            className="absolute bottom-2 right-2 z-30 hidden w-[200px] max-w-[45%] overflow-hidden rounded-sm sm:block"
+            style={{
+              background: "linear-gradient(180deg, #efe0bd 0%, #d8c194 100%)",
+              border: "1px solid #7c6132",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.45)",
+              fontFamily: "Georgia, 'Palatino Linotype', 'Times New Roman', serif",
+              color: "#3a2c14",
+              opacity: 0.96,
+            }}
+          >
+            {/* Roller bars */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 left-0"
+              style={{ width: 6, background: "#b8965a", borderRight: "1px solid #7c6132" }}
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 right-0"
+              style={{ width: 6, background: "#b8965a", borderLeft: "1px solid #7c6132" }}
+            />
+            <div className="px-3 py-1.5">
+              <div
+                className="text-center text-xs font-bold uppercase"
+                style={{ letterSpacing: "0.09em" }}
+              >
+                Standings
+              </div>
+              <ol className="mt-1 space-y-0.5 overflow-y-auto pr-0.5" style={{ maxHeight: 168 }}>
+                {standings.map((p, i) => (
+                  <li
+                    key={p.team_id}
+                    className="flex items-center gap-1.5 text-[11px] leading-tight"
+                    title={`${p.team_name} — ${
+                      p.status === "finished" ? "finished" : `tile ${p.tile_idx}`
+                    }`}
+                  >
+                    <span className="w-3.5 shrink-0 text-right font-bold tabular-nums">
+                      {i + 1}
+                    </span>
+                    {p.piece_item_id ? (
+                      <ItemDbIcon itemId={p.piece_item_id} size={14} />
+                    ) : p.piece_icon_url ? (
+                      <img
+                        src={p.piece_icon_url}
+                        alt=""
+                        width={14}
+                        height={14}
+                        className="inline-block shrink-0 object-contain"
+                      />
+                    ) : (
+                      <span
+                        className="inline-block size-2.5 shrink-0 rounded-full"
+                        style={{
+                          backgroundColor: p.color ?? colors.get(p.team_id) ?? "#c8a25a",
+                        }}
+                      />
+                    )}
+                    <span className="flex-1 truncate">{p.team_name}</span>
+                    <span className="shrink-0 font-semibold tabular-nums">
+                      {p.status === "finished"
+                        ? "🏁"
+                        : `#${p.tile_idx}${board.finish_idx != null ? `/${board.finish_idx}` : ""}`}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        )}
       </div>
 
       {lastDice && (

@@ -159,6 +159,56 @@ export function EventBoardDesigner({
     schedule();
   };
 
+  // --- Undo / redo over the tiles array ------------------------------------
+  // Explicit snapshots taken BEFORE each user mutation (add / drag / edit /
+  // delete / auto-set / seed / remove-all). Non-user replacements (initial
+  // load, post-flush server adoption, generate) never push here, so the stack
+  // can't be corrupted; generate + initial load also reset it outright.
+  const HISTORY_CAP = 50;
+  const undoStack = useRef<DesignerTile[][]>([]);
+  const redoStack = useRef<DesignerTile[][]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const syncHistoryFlags = () => {
+    setCanUndo(undoStack.current.length > 0);
+    setCanRedo(redoStack.current.length > 0);
+  };
+  /** Push the pre-mutation tiles onto the undo stack. Defaults to the current
+   * tiles; pass an explicit snapshot for drags (captured on mousedown). */
+  const pushHistory = (snapshot: DesignerTile[] = tilesRef.current) => {
+    undoStack.current.push(snapshot);
+    if (undoStack.current.length > HISTORY_CAP) undoStack.current.shift();
+    redoStack.current = [];
+    syncHistoryFlags();
+  };
+  const clearHistory = () => {
+    undoStack.current = [];
+    redoStack.current = [];
+    syncHistoryFlags();
+  };
+  const undo = () => {
+    if (!editable || undoStack.current.length === 0) return;
+    const prev = undoStack.current.pop();
+    if (!prev) return;
+    redoStack.current.push(tilesRef.current);
+    setTiles(prev);
+    setSelected(null);
+    // CRITICAL: bump revRef via markDirty or the autosave guard no-ops the
+    // undo (flush() early-returns when revRef === savedRevRef).
+    markDirty();
+    syncHistoryFlags();
+  };
+  const redo = () => {
+    if (!editable || redoStack.current.length === 0) return;
+    const next = redoStack.current.pop();
+    if (!next) return;
+    undoStack.current.push(tilesRef.current);
+    setTiles(next);
+    setSelected(null);
+    markDirty();
+    syncHistoryFlags();
+  };
+
   const buildInput = (): BoardInput => ({
     // Background rides along so "use the sample board" persists with the
     // same autosave that persists the tiles it seeded.
@@ -235,6 +285,7 @@ export function EventBoardDesigner({
         if (cancelled) return;
         setBoard(b);
         setTiles(tilesFromBoard(b));
+        clearHistory(); // fresh board load starts with an empty undo stack
       })
       .catch((err) => !cancelled && setError(getErrorMessage(err, "Couldn't load the board.")));
     return () => {
@@ -261,6 +312,7 @@ export function EventBoardDesigner({
     if (dragIdx.current != null) return; // drag end, not a place
     const pos = fractionAt(e);
     if (!pos) return;
+    pushHistory();
     setTiles((prev) => {
       const next = [
         ...prev,
@@ -282,6 +334,9 @@ export function EventBoardDesigner({
     if (!editable) return;
     e.stopPropagation();
     dragIdx.current = null;
+    // Snapshot the layout BEFORE any drag movement; pushed once on mouseup if
+    // the pointer actually moved (a plain click never mutates tiles).
+    const beforeDrag = tilesRef.current;
     const start = { x: e.clientX, y: e.clientY };
     const move = (ev: MouseEvent) => {
       if (Math.abs(ev.clientX - start.x) + Math.abs(ev.clientY - start.y) < 4) return;
@@ -297,6 +352,7 @@ export function EventBoardDesigner({
       window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", up);
       if (dragIdx.current != null) {
+        pushHistory(beforeDrag);
         markDirty();
         // Let the click handler see "this was a drag" then clear.
         setTimeout(() => {
@@ -309,11 +365,13 @@ export function EventBoardDesigner({
   };
 
   const updateTile = (idx: number, patch: Partial<DesignerTile>) => {
+    pushHistory();
     setTiles((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
     markDirty();
   };
 
   const deleteTile = (idx: number) => {
+    pushHistory();
     setTiles((prev) => prev.filter((_, i) => i !== idx));
     setSelected(null);
     markDirty();
@@ -338,6 +396,7 @@ export function EventBoardDesigner({
     ) {
       return;
     }
+    pushHistory();
     setTiles((prev) =>
       prev.map((t, i) => ({ ...t, difficulty: cycleDifficulty(i), taskId: null })),
     );
@@ -351,6 +410,7 @@ export function EventBoardDesigner({
     ) {
       return;
     }
+    pushHistory();
     // No custom art yet → drop in the bundled sample board (its printed
     // tiles line up with this exact layout).
     setBoard((prev) =>
@@ -367,6 +427,49 @@ export function EventBoardDesigner({
     setSelected(null);
     markDirty();
   };
+
+  const removeAll = () => {
+    if (!editable || tiles.length === 0) return;
+    if (
+      !window.confirm(
+        `Remove all ${tiles.length} tiles from this board? This cannot be undone except via Undo.`,
+      )
+    ) {
+      return;
+    }
+    pushHistory();
+    setTiles([]);
+    setSelected(null);
+    markDirty();
+  };
+
+  // Keyboard: Ctrl/Cmd+Z = undo, Ctrl+Y or Ctrl/Cmd+Shift+Z = redo. Ignored
+  // while typing in the tile editor (or any editable field) and mid-drag.
+  useEffect(() => {
+    if (!editable) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const el = e.target as HTMLElement | null;
+      if (el) {
+        const tag = el.tagName;
+        if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || el.isContentEditable)
+          return;
+      }
+      if (dragIdx.current != null) return; // don't fight an in-progress drag
+      const key = e.key.toLowerCase();
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (key === "y" || (key === "z" && e.shiftKey)) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // undo/redo only touch refs + stable setters, so the mount-time closures
+    // stay correct; re-subscribe only when editability flips.
+  }, [editable]);
 
   // Procedurally roll a whole board (art + sequential tile track) server-side.
   // The result is already persisted, so we sync the autosave revision and
@@ -393,6 +496,7 @@ export function EventBoardDesigner({
       setBoard(detail);
       setTiles(tilesFromBoard(detail));
       setSelected(null);
+      clearHistory(); // a freshly generated board is a clean slate for undo
       savedRevRef.current = revRef.current; // generation already saved server-side
       setSaveState("saved");
       setGenOpen(false);
@@ -484,6 +588,35 @@ export function EventBoardDesigner({
           title="Cycle air → water → earth → fire across every tile in order"
         >
           Auto-set tile type
+        </button>
+        <button
+          type="button"
+          onClick={undo}
+          disabled={!editable || !canUndo}
+          className="border-osrs-bronze/40 hover:border-osrs-gold rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+          title="Undo (Ctrl+Z)"
+          aria-label="Undo"
+        >
+          ↶ Undo
+        </button>
+        <button
+          type="button"
+          onClick={redo}
+          disabled={!editable || !canRedo}
+          className="border-osrs-bronze/40 hover:border-osrs-gold rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+          title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
+          aria-label="Redo"
+        >
+          ↷ Redo
+        </button>
+        <button
+          type="button"
+          onClick={removeAll}
+          disabled={!editable || tiles.length === 0}
+          className="border-osrs-red/40 text-osrs-red/90 hover:border-osrs-red hover:bg-osrs-red/10 rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+          title="Remove every tile from the board (undoable)"
+        >
+          Remove all
         </button>
         <span className="text-osrs-parchment-dark/60 ml-auto text-xs">
           {tiles.length} tile{tiles.length === 1 ? "" : "s"}
@@ -601,6 +734,7 @@ export function EventBoardDesigner({
             renderMode={render?.mode ?? "rune"}
             outlineWidth={render?.outline_width ?? 2}
             outlineColor={render?.outline_color ?? "#ffcc33"}
+            iconSize={render?.icon_size ?? 20}
             selected={selected === i}
             editable={editable}
             onMouseDown={onTileMouseDown(i)}
@@ -670,6 +804,7 @@ function TileMarker({
   renderMode,
   outlineWidth,
   outlineColor,
+  iconSize,
   selected,
   editable,
   onMouseDown,
@@ -680,19 +815,27 @@ function TileMarker({
   renderMode: "rune" | "invisible" | "outline";
   outlineWidth: number;
   outlineColor: string;
+  iconSize: number;
   selected: boolean;
   editable: boolean;
   onMouseDown: (e: React.MouseEvent) => void;
   onClick: (e: React.MouseEvent) => void;
 }) {
   const isEndpoint = tile.tileKind === "start" || tile.tileKind === "finish";
+  // Only difficulty tiles in "rune" mode actually render a rune icon; the
+  // circle grows with the icon so the ring stays proportional. Everything
+  // else (endpoints, invisible/outline hotspots) keeps the fixed 32px circle.
+  const showsRune = renderMode === "rune" && !!tile.difficulty && tile.taskId == null;
+  const dim = showsRune ? iconSize + 12 : 32;
   const base =
-    "absolute z-10 flex size-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold";
+    "absolute z-10 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[10px] font-bold";
   // In the designer, invisible tiles still show a faint hotspot so they can
   // be selected — players see nothing (event-board-view renders them empty).
   const style: React.CSSProperties = {
     left: `${tile.x * 100}%`,
     top: `${tile.y * 100}%`,
+    width: dim,
+    height: dim,
     cursor: editable ? "grab" : "pointer",
   };
   if (renderMode === "outline" || isEndpoint) {
@@ -711,8 +854,8 @@ function TileMarker({
       onClick={onClick}
       title={`Tile ${idx}${tile.label ? ` — ${tile.label}` : ""}`}
     >
-      {renderMode === "rune" && tile.difficulty && tile.taskId == null ? (
-        <ItemDbIcon itemId={RUNE_ITEM_IDS[tile.difficulty]} size={20} />
+      {showsRune ? (
+        <ItemDbIcon itemId={RUNE_ITEM_IDS[tile.difficulty!]} size={iconSize} />
       ) : (
         <span>{tile.tileKind === "start" ? "S" : tile.tileKind === "finish" ? "F" : idx}</span>
       )}
@@ -897,6 +1040,12 @@ function BoardSettingsSection({
   const m = settings.movement;
   const r = settings.tile_render;
   const c = settings.coins;
+  // Per-event power-up tuning (web45a+): kept permissive on the read side —
+  // the backend owns the defaults and deep-merges patches.
+  const roadblock = (settings.items?.behaviors?.roadblock ?? {}) as {
+    break_on?: "pass" | "land" | "both";
+    stall_turns?: number;
+  };
 
   return (
     <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-3" disabled={busy}>
@@ -1027,6 +1176,45 @@ function BoardSettingsSection({
             </span>
           </label>
         )}
+        {r.mode === "rune" && (
+          <label className="block text-sm">
+            <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+              Rune icon size ({r.icon_size ?? 20}px)
+            </span>
+            <span className="flex items-center gap-2">
+              <input
+                type="range"
+                min={8}
+                max={64}
+                defaultValue={r.icon_size ?? 20}
+                key={r.icon_size ?? 20}
+                onPointerUp={(e) => {
+                  const v = Number((e.target as HTMLInputElement).value);
+                  if (v >= 8 && v <= 64 && v !== (r.icon_size ?? 20))
+                    patch({ tile_render: { ...r, icon_size: v } });
+                }}
+                onKeyUp={(e) => {
+                  const v = Number((e.target as HTMLInputElement).value);
+                  if (v >= 8 && v <= 64 && v !== (r.icon_size ?? 20))
+                    patch({ tile_render: { ...r, icon_size: v } });
+                }}
+                className="flex-1"
+              />
+              <input
+                type="number"
+                min={8}
+                max={64}
+                defaultValue={r.icon_size ?? 20}
+                key={`n-${r.icon_size ?? 20}`}
+                onBlur={(e) => {
+                  const v = Math.max(8, Math.min(64, Number(e.target.value) || 20));
+                  if (v !== (r.icon_size ?? 20)) patch({ tile_render: { ...r, icon_size: v } });
+                }}
+                className={`${field} w-16`}
+              />
+            </span>
+          </label>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1099,6 +1287,48 @@ function BoardSettingsSection({
           Shop enabled <span className="text-osrs-parchment-dark/50 text-xs">(coming soon)</span>
         </label>
       </div>
+
+      {settings.shop.enabled && (
+        <div className="border-osrs-bronze/20 space-y-2 rounded border p-3">
+          <h4 className="text-osrs-gold text-xs font-semibold">Power-up behavior</h4>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                Dinh&apos;s Bulwark (roadblock) — when does it break?
+              </span>
+              <select
+                value={roadblock.break_on ?? "pass"}
+                onChange={(e) =>
+                  patch({ items: { behaviors: { roadblock: { break_on: e.target.value } } } })
+                }
+                className={`${field} w-full`}
+              >
+                <option value="pass">Breaks when a team is stopped passing through it</option>
+                <option value="land">Breaks only when a team lands exactly on it</option>
+                <option value="both">Breaks on either</option>
+              </select>
+            </label>
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                Turns the blocked team loses
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={3}
+                defaultValue={roadblock.stall_turns ?? 1}
+                key={`stall-${roadblock.stall_turns ?? 1}`}
+                onBlur={(e) => {
+                  const v = Math.max(0, Math.min(3, Number(e.target.value) || 0));
+                  if (v !== (roadblock.stall_turns ?? 1))
+                    patch({ items: { behaviors: { roadblock: { stall_turns: v } } } });
+                }}
+                className={`${field} w-20`}
+              />
+            </label>
+          </div>
+        </div>
+      )}
     </fieldset>
   );
 }

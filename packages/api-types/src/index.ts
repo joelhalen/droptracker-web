@@ -1973,6 +1973,9 @@ export const BoardSettingsSchema = z.object({
     outline_width: z.number().int(),
     outline_color: z.string(),
     show_labels: z.boolean(),
+    /** Rune-icon px size (rune render mode only). Backend returns this
+     * fully-defaulted; older payloads without it fall back to 20. */
+    icon_size: z.number().int().min(8).max(64).default(20),
   }),
   coins: z.object({
     enabled: z.boolean(),
@@ -1981,7 +1984,18 @@ export const BoardSettingsSchema = z.object({
     starting: z.number().int(),
   }),
   shop: z.object({ enabled: z.boolean() }).passthrough(),
-  items: z.unknown().optional(),
+  /** Item/power-up config (web45a+). Kept permissive so older/newer backend
+   * payloads still parse; the backend always returns fully-defaulted values.
+   * `behaviors.roadblock` (Dinh's Bulwark tuning) lives under `behaviors`. */
+  items: z
+    .object({
+      enabled_item_ids: z.array(z.number().int()).nullable().optional(),
+      disabled_effects: z.array(z.string()).optional(),
+      behaviors: z.record(z.string(), z.any()).optional(),
+    })
+    .partial()
+    .passthrough()
+    .optional(),
   mercy: z.object({
     enabled: z.boolean(),
     base_hours: z.number(),
@@ -2041,6 +2055,20 @@ export const BoardPositionSchema = z.object({
 });
 export type BoardPosition = z.infer<typeof BoardPositionSchema>;
 
+/** A live tile-bound effect (web49a) — e.g. a placed Dinh's Bulwark roadblock.
+ * Surfaced to every viewer so the board shows current obstacles. */
+export const BoardEffectSchema = z.object({
+  id: z.number().int(),
+  effect_type: z.string(),
+  target_tile_idx: z.number().int(),
+  placed_by_team_id: z.number().int().nullable().optional(),
+  /** OSRS item id for the marker icon (resolved from the shop catalog). */
+  icon_item_id: z.number().int().nullable().optional(),
+  name: z.string().nullable().optional(),
+  visible_to_all: z.boolean().optional().default(true),
+});
+export type BoardEffect = z.infer<typeof BoardEffectSchema>;
+
 export const BoardDetailSchema = z.object({
   event_id: z.number().int(),
   background_url: z.string().nullable().optional(),
@@ -2050,6 +2078,7 @@ export const BoardDetailSchema = z.object({
   tiles: z.array(BoardTileSchema),
   finish_idx: z.number().int().nullable().optional(),
   positions: z.array(BoardPositionSchema),
+  effects: z.array(BoardEffectSchema).optional().default([]),
 });
 export type BoardDetail = z.infer<typeof BoardDetailSchema>;
 
