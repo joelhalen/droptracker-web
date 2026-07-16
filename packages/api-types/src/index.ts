@@ -2335,6 +2335,27 @@ export const EventDetailSchema = EventSummarySchema.extend({
 });
 export type EventDetail = z.infer<typeof EventDetailSchema>;
 
+/** One reason an event can't activate yet. `target` names the manager section
+ * to fix it in (teams / board / tasks / dates) so the UI can link there. */
+export const EventReadinessBlockerSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  /** Manager section to fix it in: teams / board / tasks / dates. */
+  target: z.string(),
+});
+export type EventReadinessBlocker = z.infer<typeof EventReadinessBlockerSchema>;
+
+/** GET /events/{id}/readiness — pre-flight of the activation checks. */
+export const EventReadinessSchema = z.object({
+  status: z.string(),
+  ready: z.boolean(),
+  blockers: z.array(EventReadinessBlockerSchema),
+  starts_at: z.number().int().nullable().optional(),
+  auto_start: z.boolean().default(false),
+  already_active: z.boolean().default(false),
+});
+export type EventReadiness = z.infer<typeof EventReadinessSchema>;
+
 /** GET /events/{id}/teams/{teamId} — public team page payload. */
 export const EventTeamTaskSchema = EventTaskSchema.extend({
   progress: z.number().int().default(0),

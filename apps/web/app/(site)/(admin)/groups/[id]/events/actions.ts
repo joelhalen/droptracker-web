@@ -21,7 +21,10 @@ import {
   type BingoBoardInput,
   type EventAwardInput,
   type EventChannelConfigInput,
+  type EventDetail,
   type EventInput,
+  type EventReadiness,
+  type EventReadinessBlocker,
   type EventRevokeInput,
   type EventTaskInput,
   type EventTaskPatch,
@@ -147,15 +150,53 @@ export async function updateGroupEvent(
 
 // --- Lifecycle (Task 21) -----------------------------------------------------
 
-/** Explicit activation (draft -> active). Surfaces the API's pre-flight
- * validation (422) and tier concurrency (409) messages to the UI. */
-export async function activateEvent(groupId: EventGroupId, eventId: number) {
+/** Pre-flight the activation checks without activating (the "Check readiness"
+ * button). Returns the structured blockers so the UI can list them and link to
+ * the section that fixes each. */
+export async function checkEventReadiness(
+  groupId: EventGroupId,
+  eventId: number,
+): Promise<EventReadiness> {
   await assertCanManageEvent(groupId);
-  const detail = await api.activateEvent(eventId);
-  revalidatePath(eventsIndexPath(groupId));
-  revalidatePath(eventAdminPath(groupId, eventId));
-  revalidatePath(`/events/${eventId}`);
-  return detail;
+  return api.eventReadiness(eventId);
+}
+
+/** Explicit activation (draft -> active). Returns a discriminated result rather
+ * than throwing: Next redacts thrown Server Action errors in production, which
+ * would turn the API's descriptive 422/409 message into an opaque string. On
+ * failure we surface the real message AND (for a 422) the structured blockers
+ * so the UI can show exactly what to fix and where. */
+export async function activateEvent(
+  groupId: EventGroupId,
+  eventId: number,
+): Promise<
+  | { ok: true; detail: EventDetail }
+  | { ok: false; status: number; message: string; blockers: EventReadinessBlocker[] }
+> {
+  await assertCanManageEvent(groupId);
+  try {
+    const detail = await api.activateEvent(eventId);
+    revalidatePath(eventsIndexPath(groupId));
+    revalidatePath(eventAdminPath(groupId, eventId));
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true, detail };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      // 422 = not ready: fetch the structured blockers so the UI can link to
+      // each fix. Other statuses (e.g. 409 active-event limit) just carry the
+      // message.
+      let blockers: EventReadinessBlocker[] = [];
+      if (err.status === 422) {
+        try {
+          blockers = (await api.eventReadiness(eventId)).blockers;
+        } catch {
+          /* readiness is best-effort; the message still explains it */
+        }
+      }
+      return { ok: false, status: err.status, message: err.message, blockers };
+    }
+    throw err;
+  }
 }
 
 /** Explicit end (active -> past). Final standings are announced to Discord. */

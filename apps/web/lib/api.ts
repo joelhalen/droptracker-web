@@ -46,6 +46,7 @@ import {
   EventChannelConfigSchema,
   EventCompletionSchema,
   EventDetailSchema,
+  EventReadinessSchema,
   EventKindMetaSchema,
   type EventKindMeta,
   EventInvitationSchema,
@@ -147,6 +148,7 @@ import {
   type EventChannelConfigInput,
   type EventCompletion,
   type EventDetail,
+  type EventReadiness,
   type EventInput,
   type EventInvitation,
   type EventJoinInput,
@@ -871,6 +873,15 @@ export const api = {
     return withFallback(
       async () => EventDetailSchema.parse(await apiSend("POST", `/events/${eventId}/activate`, {})),
       () => ({ ...mockEvent(eventId), status: "active" as const }),
+    );
+  },
+
+  /** Pre-flight the activation checks without activating — powers the manager's
+   * "Check readiness" button. Read-only. */
+  async eventReadiness(eventId: number): Promise<EventReadiness> {
+    return withFallback(
+      async () => EventReadinessSchema.parse(await apiGet(`/events/${eventId}/readiness`, { authed: true })),
+      () => ({ status: "draft", ready: true, blockers: [], starts_at: null, auto_start: false, already_active: false }),
     );
   },
 

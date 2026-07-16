@@ -8,6 +8,7 @@ import {
   EVENT_FORMATION_MODES,
   EVENT_SUBMISSION_POLICIES,
   type EventDetail,
+  type EventReadiness,
   type EventTask,
   type EventTeam,
 } from "@droptracker/api-types";
@@ -25,6 +26,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { Alert, EmptyState } from "@/components/ui";
 import {
   activateEvent,
+  checkEventReadiness,
   addEventTeam,
   addEventTeamMember,
   deleteEventTeam,
@@ -92,6 +94,80 @@ const MANAGER_TABS = [
 ] as const;
 type ManagerTab = (typeof MANAGER_TABS)[number]["key"];
 
+/** Maps a readiness blocker's `target` to the manager tab that fixes it, so
+ * the "Fix →" link jumps straight there. `dates` has no tab (the schedule is
+ * edited from the header form), so it gets no jump. */
+const READINESS_TARGET_TAB: Record<string, ManagerTab | undefined> = {
+  teams: "teams",
+  board: "board",
+  tasks: "tasks",
+};
+
+/** The activation pre-flight result: a green "ready" note, or the list of
+ * blockers each with a "Fix →" link to the manager section that resolves it. */
+function ReadinessPanel({
+  readiness,
+  onGoto,
+  onDismiss,
+}: {
+  readiness: EventReadiness;
+  onGoto: (target: string) => void;
+  onDismiss: () => void;
+}) {
+  if (readiness.ready) {
+    return (
+      <div className="rounded border border-green-600/40 bg-green-900/10 p-3 text-sm">
+        <p className="font-semibold text-green-400">✓ Ready to start</p>
+        <p className="text-osrs-parchment-dark/70">
+          {readiness.auto_start && readiness.starts_at != null ? (
+            <>
+              All checks pass — this event will auto-activate at{" "}
+              <LocalTime unix={readiness.starts_at} />.
+            </>
+          ) : (
+            "All checks pass — you can activate it now."
+          )}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="border-osrs-red/40 bg-osrs-red/5 space-y-2 rounded border p-3 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-osrs-red font-semibold">
+          Not ready yet — {readiness.blockers.length}{" "}
+          {readiness.blockers.length === 1 ? "thing" : "things"} to fix
+          {readiness.auto_start && readiness.starts_at != null
+            ? " before it's due to start"
+            : ""}
+          :
+        </p>
+        <button
+          onClick={onDismiss}
+          className="text-osrs-parchment-dark/50 hover:text-osrs-gold-bright shrink-0 text-xs"
+        >
+          Dismiss
+        </button>
+      </div>
+      <ul className="space-y-1.5">
+        {readiness.blockers.map((b) => (
+          <li key={b.code} className="flex items-start justify-between gap-3">
+            <span className="text-osrs-parchment-dark/80">• {b.message}</span>
+            {READINESS_TARGET_TAB[b.target] && (
+              <button
+                onClick={() => onGoto(b.target)}
+                className="text-osrs-gold-bright shrink-0 whitespace-nowrap text-xs hover:underline"
+              >
+                Fix in {READINESS_TARGET_TAB[b.target]} →
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** `groupId` is null for global events (superadmin-managed from /admin/events). */
 export function EventManager({
   groupId,
@@ -114,15 +190,49 @@ export function EventManager({
     setTeams(detail.teams);
   };
 
+  // The readiness pre-flight result (the "Check readiness" button, or the
+  // structured blockers a failed activation returns). null = not shown.
+  const [readiness, setReadiness] = useState<EventReadiness | null>(null);
+
   /** Explicit activation — the API pre-flights readiness (teams/board/dates)
-   * and the tier's active-event limit; its 422/409 messages surface here. */
+   * and the tier's active-event limit. On failure we surface the API's real
+   * message plus the structured blockers (Next redacts thrown Server Action
+   * errors, so the action returns a result instead of throwing). */
   const onActivate = () => {
     setError(null);
     startTransition(async () => {
+      const res = await activateEvent(groupId, event.id);
+      if (res.ok) {
+        applyDetail(res.detail);
+        setReadiness(null);
+        return;
+      }
+      setError(res.message);
+      setReadiness(
+        res.blockers.length
+          ? {
+              status: event.status,
+              ready: false,
+              blockers: res.blockers,
+              starts_at: event.starts_at ?? null,
+              auto_start: event.starts_at != null && event.status === "draft",
+              already_active: event.status !== "draft",
+            }
+          : null,
+      );
+    });
+  };
+
+  /** Pre-flight readiness without activating — lists what still needs fixing
+   * (and links there) so a leader can confirm the event will be ready by its
+   * start time. */
+  const onCheckReadiness = () => {
+    setError(null);
+    startTransition(async () => {
       try {
-        applyDetail(await activateEvent(groupId, event.id));
+        setReadiness(await checkEventReadiness(groupId, event.id));
       } catch (err) {
-        setError(getErrorMessage(err, "Couldn't activate the event. Please try again."));
+        setError(getErrorMessage(err, "Couldn't check readiness. Please try again."));
       }
     });
   };
@@ -667,13 +777,22 @@ export function EventManager({
             </span>
             <span className="ml-auto flex items-center gap-2">
               {event.status === "draft" && (
-                <button
-                  onClick={onActivate}
-                  disabled={pending}
-                  className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold-bright rounded px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
-                >
-                  {pending ? "Activating…" : "Activate"}
-                </button>
+                <>
+                  <button
+                    onClick={onCheckReadiness}
+                    disabled={pending}
+                    className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:text-osrs-gold-bright hover:border-osrs-gold/40 rounded border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                  >
+                    {pending ? "Checking…" : "Check readiness"}
+                  </button>
+                  <button
+                    onClick={onActivate}
+                    disabled={pending}
+                    className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold-bright rounded px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
+                  >
+                    {pending ? "Activating…" : "Activate"}
+                  </button>
+                </>
               )}
               {event.status === "active" &&
                 (confirmingEnd ? (
@@ -707,6 +826,17 @@ export function EventManager({
                 ))}
             </span>
           </div>
+
+          {readiness && (
+            <ReadinessPanel
+              readiness={readiness}
+              onGoto={(target) => {
+                const t = READINESS_TARGET_TAB[target];
+                if (t) setTab(t);
+              }}
+              onDismiss={() => setReadiness(null)}
+            />
+          )}
 
           {/* Save the event's structure for re-use ("Saving/Rerunning Events"). */}
           <div className="flex justify-end">
