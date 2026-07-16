@@ -39,6 +39,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
+import { EventDiscordSettings } from "@/components/event-discord";
 import { EventMemberList } from "@/components/event-member-list";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
@@ -78,6 +79,18 @@ function StatusChip({ status }: { status: EventDetail["status"] }) {
   );
 }
 
+/** The manager's tabbed sections (web48a UX pass): everything that used to be
+ * one endless scroll — including the Discord settings that lived on their own
+ * page — now sits behind one tab bar under the always-visible header. */
+const MANAGER_TABS = [
+  { key: "tasks", label: "Tasks" },
+  { key: "teams", label: "Teams" },
+  { key: "board", label: "Board" },
+  { key: "discord", label: "Discord" },
+  { key: "review", label: "Review" },
+] as const;
+type ManagerTab = (typeof MANAGER_TABS)[number]["key"];
+
 /** `groupId` is null for global events (superadmin-managed from /admin/events). */
 export function EventManager({
   groupId,
@@ -92,6 +105,7 @@ export function EventManager({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
+  const [tab, setTab] = useState<ManagerTab>("tasks");
 
   const applyDetail = (detail: EventDetail) => {
     setEvent(detail);
@@ -134,6 +148,9 @@ export function EventManager({
     joinCode: event.join_code ?? "",
     requiresConfirmation: event.requires_confirmation,
     submissionPolicy: event.submission_policy,
+    leadershipEnabled: event.leadership.enabled,
+    coLeaders: event.leadership.co_leaders,
+    leaderSelection: event.leadership.selection,
   });
 
   const startEditEvent = () => {
@@ -147,6 +164,9 @@ export function EventManager({
       joinCode: event.join_code ?? "",
       requiresConfirmation: event.requires_confirmation,
       submissionPolicy: event.submission_policy,
+      leadershipEnabled: event.leadership.enabled,
+      coLeaders: event.leadership.co_leaders,
+      leaderSelection: event.leadership.selection,
     });
     setEditingEvent(true);
   };
@@ -165,6 +185,11 @@ export function EventManager({
           join_code: eventDraft.joinCode.trim() || null,
           requires_confirmation: eventDraft.requiresConfirmation,
           submission_policy: eventDraft.submissionPolicy,
+          leadership: {
+            enabled: eventDraft.leadershipEnabled,
+            co_leaders: eventDraft.coLeaders,
+            selection: eventDraft.leaderSelection,
+          },
         });
         setEvent(updated);
         setTasks(updated.tasks);
@@ -469,6 +494,69 @@ export function EventManager({
               </span>
             </span>
           </label>
+
+          {/* Team leadership (web48a): leaders hold executive authority — on
+              board-game events they trigger the rolls and run the shop. */}
+          <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-3">
+            <legend className="text-osrs-parchment-dark/70 px-1 text-xs">Team leadership</legend>
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={eventDraft.leadershipEnabled}
+                onChange={(e) =>
+                  setEventDraft((d) => ({ ...d, leadershipEnabled: e.target.checked }))
+                }
+                className="mt-0.5 size-4"
+              />
+              <span>
+                Teams have a leader
+                <span className="text-osrs-parchment-dark/60 block text-xs">
+                  The leader makes the executive calls for their team — on board-game events
+                  only they can trigger dice rolls and buy or use shop items.
+                </span>
+              </span>
+            </label>
+            {eventDraft.leadershipEnabled && (
+              <>
+                <label className="flex cursor-pointer items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={eventDraft.coLeaders}
+                    onChange={(e) => setEventDraft((d) => ({ ...d, coLeaders: e.target.checked }))}
+                    className="mt-0.5 size-4"
+                  />
+                  <span>
+                    Allow a co-leader
+                    <span className="text-osrs-parchment-dark/60 block text-xs">
+                      Shares the leader&apos;s authority; the leader can appoint their own.
+                    </span>
+                  </span>
+                </label>
+                <label className="block text-sm sm:max-w-xs">
+                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                    How leaders are chosen
+                  </span>
+                  <select
+                    value={eventDraft.leaderSelection}
+                    onChange={(e) =>
+                      setEventDraft((d) => ({
+                        ...d,
+                        leaderSelection: e.target.value as "admin" | "election",
+                      }))
+                    }
+                    className={`${field} w-full`}
+                  >
+                    <option value="admin">Admins assign leaders</option>
+                    <option value="election">Teams elect their leader (majority vote)</option>
+                  </select>
+                  <span className="text-osrs-parchment-dark/60 mt-1 block text-xs">
+                    Admin assignment always works as an override, either way. Members vote on
+                    their team&apos;s page.
+                  </span>
+                </label>
+              </>
+            )}
+          </fieldset>
           <div className="flex items-center gap-2">
             <button
               onClick={saveEditEvent}
@@ -628,8 +716,32 @@ export function EventManager({
 
       {error && <Alert variant="error">{error}</Alert>}
 
+      {/* Tabbed sections (web48a): one bar instead of an endless scroll. */}
+      <div
+        className="border-osrs-bronze/25 flex flex-wrap gap-1 border-b pb-px"
+        role="tablist"
+        aria-label="Event settings sections"
+      >
+        {MANAGER_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={`-mb-px rounded-t px-3 py-2 text-sm font-medium ${
+              tab === t.key
+                ? "border-osrs-bronze/25 bg-osrs-brown-dark/40 text-osrs-gold border border-b-transparent"
+                : "text-osrs-parchment-dark/60 hover:text-osrs-gold-bright"
+            }`}
+          >
+            {t.key === "board" && event.kind === "board_game" ? "Game board" : t.label}
+          </button>
+        ))}
+      </div>
+
       {/* Tasks */}
-      <section>
+      <section className={tab === "tasks" ? "" : "hidden"}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="heading-rule text-osrs-gold pb-1 text-lg font-semibold">Tasks</h3>
           <span className="flex items-center gap-2">
@@ -794,7 +906,7 @@ export function EventManager({
       {/* Progress matrix — the admin transparency view: every task × team
           rollup at a glance (same numbers the public pages render live). */}
       {tasks.length > 0 && teams.length > 0 && (
-        <section>
+        <section className={tab === "tasks" ? "" : "hidden"}>
           <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Progress</h3>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[28rem] text-sm">
@@ -853,15 +965,17 @@ export function EventManager({
 
       {/* Clan-vs-clan participant roster */}
       {isClanVsClan && groupId != null && (
-        <EventParticipantsPanel
-          groupId={groupId}
-          eventId={event.id}
-          isHost={event.group_id === groupId}
-        />
+        <div className={tab === "teams" ? "" : "hidden"}>
+          <EventParticipantsPanel
+            groupId={groupId}
+            eventId={event.id}
+            isHost={event.group_id === groupId}
+          />
+        </div>
       )}
 
       {/* Teams */}
-      <section>
+      <section className={tab === "teams" ? "" : "hidden"}>
         <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Teams</h3>
         {isClanVsClan && event.status === "draft" && (
           <p className="text-osrs-parchment/70 mb-3 text-sm">
@@ -936,14 +1050,14 @@ export function EventManager({
       {/* Board designer: dice board for board_game events (web44a), the
           bingo grid for everything else (Task 20). */}
       {event.kind === "board_game" ? (
-        <section>
+        <section className={tab === "board" ? "" : "hidden"}>
           <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
             Game board
           </h3>
           <EventBoardDesigner groupId={groupId} event={event} tasks={tasks} />
         </section>
       ) : (
-        <section>
+        <section className={tab === "board" ? "" : "hidden"}>
           <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Board</h3>
           <EventBingoDesigner
             groupId={groupId}
@@ -959,28 +1073,21 @@ export function EventManager({
       )}
 
       {/* Self-service sign-ups: pool sorting + "post to Discord" */}
-      <EventSignupTools groupId={groupId} event={event} teams={teams} />
+      <div className={tab === "teams" ? "" : "hidden"}>
+        <EventSignupTools groupId={groupId} event={event} teams={teams} />
+      </div>
 
-      {/* Per-event Discord config lives on its own page (Task 19). */}
-      <section>
-        <h3 className="heading-rule text-osrs-gold mb-1 pb-1 text-lg font-semibold">Discord</h3>
-        <p className="text-osrs-parchment-dark/60 mb-3 text-sm">
-          Channels, verbosity and the live standings board have moved to their own page.
-        </p>
-        <Link
-          href={
-            (groupId == null
-              ? `/admin/events/${event.id}/discord`
-              : `/groups/${groupId}/events/${event.id}/discord`) as Route
-          }
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark inline-block rounded px-3 py-1.5 text-sm font-medium"
-        >
-          Open Discord settings
-        </Link>
+      {/* Per-event Discord config, inline (web48a — used to be its own page;
+          the standalone /discord route still works for old links). */}
+      <section className={tab === "discord" ? "" : "hidden"}>
+        <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Discord</h3>
+        <EventDiscordSettings groupId={groupId} eventId={event.id} />
       </section>
 
       {/* Verification queue / ledger / manual awards (Task 18) */}
-      <EventReview groupId={groupId} eventId={event.id} tasks={tasks} teams={teams} />
+      <div className={tab === "review" ? "" : "hidden"}>
+        <EventReview groupId={groupId} eventId={event.id} tasks={tasks} teams={teams} />
+      </div>
     </div>
   );
 }

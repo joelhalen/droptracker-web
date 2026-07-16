@@ -1403,6 +1403,8 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
     board_size: 5,
     bonus_line_points: 10,
     bonus_blackout_points: 100,
+    leadership: { enabled: false, co_leaders: false, selection: "admin" as const },
+    per_group_discord: false,
   };
   const all: EventSummary[] = [
     {
@@ -1921,6 +1923,8 @@ export function mockEventDiscord(_eventId: number): EventChannelConfig {
       task_progress: "off",
       leaderboard: { live: true, top_n: 10, show_tasks: true },
     },
+    per_group_discord: false,
+    group_id: null,
   };
 }
 

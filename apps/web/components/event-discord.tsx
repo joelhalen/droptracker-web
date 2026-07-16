@@ -23,6 +23,7 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import {
   EVENT_CHANNEL_KINDS,
   type DiscordRole,
+  type EventChannelConfig,
   type EventChannelKind,
   type EventDiscordPolicy,
   type EventMessageConfig,
@@ -163,6 +164,17 @@ export function EventDiscordSettings({
   // by the backend; null only until the GET lands).
   const [messages, setMessages] = useState<EventMessageConfig | null>(null);
 
+  // ── per-group scoping (web48a, clan-vs-clan) ──────────────────────────
+  // scope null = the shared/host config; a group id = that clan's own
+  // channels + verbosity. `meta` comes from the shared-scope GET.
+  const [scope, setScope] = useState<number | null>(null);
+  const [perGroup, setPerGroup] = useState(false);
+  const [meta, setMeta] = useState<{
+    isHostAdmin: boolean;
+    myGroupIds: number[];
+    groups: { group_id: number; name?: string | null; configured: boolean }[];
+  } | null>(null);
+
   const loadChannels = useCallback(
     async (gid: string) => {
       if (!gid) {
@@ -190,6 +202,26 @@ export function EventDiscordSettings({
     [groupId],
   );
 
+  const applyConfig = useCallback(
+    (config: EventChannelConfig) => {
+      setGuildId(config.guild_id ?? "");
+      setGuildName(config.guild_name ?? null);
+      setChannels(config.channels ?? {});
+      setSavedGuildId(config.guild_id ?? "");
+      setScheduledEvent(config.scheduled_event ?? null);
+      setPolicy(config.discord_event_policy ?? "on_activate");
+      setPings(config.pings ?? {});
+      setMessages(config.messages);
+      if (config.guild_id) void loadChannels(config.guild_id);
+      else {
+        setChannelList([]);
+        setChannelsStale(false);
+        setRoleList([]);
+      }
+    },
+    [loadChannels],
+  );
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -201,15 +233,32 @@ export function EventDiscordSettings({
         if (cancelled) return;
         setGuilds(guildList.guilds);
         setGuildsStale(guildList.stale);
-        setGuildId(config.guild_id ?? "");
-        setGuildName(config.guild_name ?? null);
-        setChannels(config.channels ?? {});
-        setSavedGuildId(config.guild_id ?? "");
-        setScheduledEvent(config.scheduled_event ?? null);
-        setPolicy(config.discord_event_policy ?? "on_activate");
-        setPings(config.pings ?? {});
-        setMessages(config.messages);
-        if (config.guild_id) void loadChannels(config.guild_id);
+        setPerGroup(config.per_group_discord ?? false);
+        const myGroupIds = config.my_group_ids ?? [];
+        setMeta(
+          config.groups
+            ? {
+                isHostAdmin: config.is_host_admin ?? false,
+                myGroupIds,
+                groups: config.groups,
+              }
+            : null,
+        );
+        // A participating clan's admin (not host) lands on their OWN scope
+        // when per-group mode is on — that's the only config they should
+        // be editing day-to-day.
+        if (
+          config.per_group_discord &&
+          config.is_host_admin === false &&
+          myGroupIds.length > 0
+        ) {
+          const own = await getEventDiscord(groupId, eventId, myGroupIds[0]);
+          if (cancelled) return;
+          setScope(myGroupIds[0]!);
+          applyConfig(own);
+        } else {
+          applyConfig(config);
+        }
       } catch (err) {
         if (!cancelled) {
           setError(getErrorMessage(err, "Couldn't load the Discord config."));
@@ -221,7 +270,24 @@ export function EventDiscordSettings({
     return () => {
       cancelled = true;
     };
-  }, [groupId, eventId, loadChannels]);
+  }, [groupId, eventId, loadChannels, applyConfig]);
+
+  /** Swap the whole form to another scope (shared or one of my clans). */
+  const switchScope = (next: number | null) => {
+    if (next === scope) return;
+    setError(null);
+    setSaved(false);
+    startTransition(async () => {
+      try {
+        const config = await getEventDiscord(groupId, eventId, next);
+        setScope(next);
+        applyConfig(config);
+        if (next === null) setPerGroup(config.per_group_discord ?? false);
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't load that clan's Discord config."));
+      }
+    });
+  };
 
   const onPickGuild = (gid: string) => {
     setGuildId(gid);
@@ -288,20 +354,32 @@ export function EventDiscordSettings({
         const result = await saveEventDiscord(groupId, eventId, {
           guild_id: guildId.trim() || null,
           channels: guildId.trim() ? cleaned : {},
-          discord_event_policy: policy,
-          pings: guildId.trim() ? cleanedPings : {},
+          // Event-level knobs only exist in the shared scope; a per-group
+          // save carries the clan's own channels + verbosity.
+          ...(scope === null
+            ? {
+                discord_event_policy: policy,
+                pings: guildId.trim() ? cleanedPings : {},
+                ...(meta?.isHostAdmin ? { per_group_discord: perGroup } : {}),
+              }
+            : { group_id: scope }),
           // Absent key = leave unchanged, so a failed initial GET can't
           // clobber the stored verbosity config with nothing.
           messages: messages ?? undefined,
         });
-        setGuildId(result.guild_id ?? "");
-        setGuildName(result.guild_name ?? null);
-        setChannels(result.channels ?? {});
-        setSavedGuildId(result.guild_id ?? "");
-        setScheduledEvent(result.scheduled_event ?? null);
-        setPolicy(result.discord_event_policy ?? "on_activate");
-        setPings(result.pings ?? {});
-        setMessages(result.messages);
+        applyConfig(result);
+        if (scope === null) setPerGroup(result.per_group_discord ?? false);
+        if (scope !== null && meta) {
+          // Reflect "configured" on the scope pill without a refetch.
+          setMeta({
+            ...meta,
+            groups: meta.groups.map((g) =>
+              g.group_id === scope
+                ? { ...g, configured: Object.keys(result.channels ?? {}).length > 0 }
+                : g,
+            ),
+          });
+        }
         setSaved(true);
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't save the Discord config. Please try again."));
@@ -317,9 +395,89 @@ export function EventDiscordSettings({
     return <p className="text-osrs-parchment-dark/60 text-sm">Loading Discord config…</p>;
   }
 
+  const scopePills =
+    meta && perGroup
+      ? [
+          { id: null as number | null, label: "Shared (host)", configured: true },
+          ...meta.groups
+            .filter((g) => meta.myGroupIds.includes(g.group_id))
+            .map((g) => ({
+              id: g.group_id as number | null,
+              label: g.name ?? `Clan ${g.group_id}`,
+              configured: g.configured,
+            })),
+        ]
+      : null;
+
   return (
     <div className="space-y-6">
       {error && <Alert variant="error">{error}</Alert>}
+
+      {/* Per-group clan-vs-clan mode (web48a): the host decides whether each
+          clan runs its own channels; admins then pick which scope to edit. */}
+      {meta && (meta.isHostAdmin || perGroup) && (
+        <div className="border-osrs-bronze/20 space-y-3 rounded border p-3">
+          {meta.isHostAdmin && (
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={perGroup}
+                disabled={scope !== null}
+                onChange={(e) => {
+                  setPerGroup(e.target.checked);
+                  setSaved(false);
+                }}
+                className="mt-0.5 size-4"
+              />
+              <span>
+                Each clan configures its own Discord
+                <span className="text-osrs-parchment-dark/60 block text-xs">
+                  Every participating clan&apos;s admins get their own server, channels and
+                  message-verbosity settings for this event — notifications post to every
+                  configured clan. Clans without their own config fall back to the shared
+                  channels below. Saves with the button at the bottom.
+                </span>
+              </span>
+            </label>
+          )}
+          {scopePills && (
+            <div className="flex flex-wrap items-center gap-1" role="tablist">
+              <span className="text-osrs-parchment-dark/60 mr-1 text-xs">Configuring:</span>
+              {scopePills.map((pill) => (
+                <button
+                  key={pill.id ?? "shared"}
+                  type="button"
+                  role="tab"
+                  aria-selected={scope === pill.id}
+                  onClick={() => switchScope(pill.id)}
+                  disabled={pending}
+                  className={`rounded px-2.5 py-1 text-xs font-medium ${
+                    scope === pill.id
+                      ? "bg-osrs-gold text-osrs-brown-dark"
+                      : "text-osrs-parchment-dark/70 hover:text-osrs-gold-bright border-osrs-bronze/30 border"
+                  }`}
+                >
+                  {pill.label}
+                  {pill.id !== null && !pill.configured && (
+                    <span
+                      className="ml-1 opacity-70"
+                      title="No channels configured yet — falls back to the shared config"
+                    >
+                      ○
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+          {scope !== null && (
+            <p className="text-osrs-parchment-dark/60 text-xs">
+              You&apos;re editing this clan&apos;s own destinations and verbosity. Scheduled-event
+              and ping settings stay on the shared (host) scope.
+            </p>
+          )}
+        </div>
+      )}
 
       <CollapsibleSection
         title="Server & channels"
@@ -417,7 +575,7 @@ export function EventDiscordSettings({
         </div>
       </CollapsibleSection>
 
-      {hasGuild && (
+      {hasGuild && scope === null && (
         <CollapsibleSection
           title="Scheduled event"
           hint="The bot mirrors this event as a native Discord scheduled event on the server."
@@ -516,7 +674,7 @@ export function EventDiscordSettings({
         </CollapsibleSection>
       )}
 
-      {hasGuild && (
+      {hasGuild && scope === null && (
         <CollapsibleSection
           title="Announcements & pings"
           hint="Roles mentioned as real pings on the start and final-standings announcements (posted to the Announcements channel)."

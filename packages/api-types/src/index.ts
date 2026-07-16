@@ -1891,10 +1891,16 @@ export const EventTaskSchema = z.object({
 export type EventTask = z.infer<typeof EventTaskSchema>;
 
 /** Roster entry. `joined_at` (unix) is the credit cutoff (events-prd.md D10). */
+/** Leadership roles a roster row may carry (web48a); null = plain member. */
+export const EVENT_TEAM_ROLES = ["leader", "co_leader"] as const;
+export type EventTeamRole = (typeof EVENT_TEAM_ROLES)[number];
+
 export const EventMemberSchema = z.object({
   player_id: z.number().int(),
   player_name: z.string(),
   joined_at: z.number().int().nullable(),
+  /** "leader" / "co_leader" when the event runs team leadership (web48a). */
+  role: z.enum(EVENT_TEAM_ROLES).nullable().optional(),
 });
 export type EventMember = z.infer<typeof EventMemberSchema>;
 
@@ -2167,6 +2173,16 @@ export const EventSummarySchema = z.object({
   board_size: z.number().int().default(5),
   bonus_line_points: z.number().int().default(0),
   bonus_blackout_points: z.number().int().default(0),
+  /** Team-leadership knobs (web48a); defaulted for pre-web48a payloads. */
+  leadership: z
+    .object({
+      enabled: z.boolean().default(false),
+      co_leaders: z.boolean().default(false),
+      selection: z.enum(["admin", "election"]).default("admin"),
+    })
+    .default({ enabled: false, co_leaders: false, selection: "admin" }),
+  /** clan_vs_clan: each accepted clan runs its own Discord config (web48a). */
+  per_group_discord: z.boolean().default(false),
   activated_at: z.number().int().nullable().optional(),
   ended_at: z.number().int().nullable().optional(),
 });
@@ -2180,6 +2196,9 @@ export const EventViewerSchema = z.object({
   team_id: z.number().int().nullable().optional(),
   /** Viewer's players in the sign-up pool but not yet placed (signup_pool). */
   signed_up_player_ids: z.array(z.number().int()).default([]),
+  /** Leadership role any of the viewer's players holds on their team
+   * (web48a) — gates board roll/shop buttons client-side. */
+  team_role: z.enum(EVENT_TEAM_ROLES).nullable().optional(),
 });
 export type EventViewer = z.infer<typeof EventViewerSchema>;
 
@@ -2263,6 +2282,17 @@ export const EventTeamDetailSchema = z.object({
   members: z.array(EventTeamMemberStatsSchema).default([]),
   tasks: z.array(EventTeamTaskSchema).default([]),
   activity: z.array(EventTeamActivitySchema).default([]),
+  /** Signed-in roster context (web48a): the viewer's player on THIS team,
+   * their leadership role, their live election vote, and admin standing. */
+  viewer: z
+    .object({
+      player_id: z.number().int().nullable(),
+      role: z.enum(EVENT_TEAM_ROLES).nullable().optional(),
+      vote: z.number().int().nullable().optional(),
+      is_admin: z.boolean().default(false),
+    })
+    .nullable()
+    .optional(),
 });
 export type EventTeamDetail = z.infer<typeof EventTeamDetailSchema>;
 
@@ -2385,6 +2415,14 @@ export const EventInputSchema = z.object({
   discord_event_policy: z.enum(EVENT_DISCORD_POLICIES).optional(),
   /** Role ids to ping per slot (max 10 each). */
   pings: z.record(z.enum(EVENT_PING_KEYS), z.array(z.string().regex(/^\d+$/)).max(10)).optional(),
+  /** Team-leadership knobs (web48a); partial objects merge server-side. */
+  leadership: z
+    .object({
+      enabled: z.boolean().optional(),
+      co_leaders: z.boolean().optional(),
+      selection: z.enum(["admin", "election"]).optional(),
+    })
+    .optional(),
 });
 export type EventInput = z.infer<typeof EventInputSchema>;
 
@@ -2522,6 +2560,25 @@ export const EventChannelConfigSchema = z.object({
   discord_event_policy: z.enum(EVENT_DISCORD_POLICIES).default("on_activate"),
   pings: z.record(z.enum(EVENT_PING_KEYS), z.array(z.string())).default({}),
   messages: EventMessageConfigSchema,
+  /** web48a: whether each clan runs its own Discord config, and which scope
+   * this payload is (null = the shared/host scope). */
+  per_group_discord: z.boolean().default(false),
+  group_id: z.number().int().nullable().optional(),
+  /** Shared scope of a clan-vs-clan event only: participating-clan scopes. */
+  groups: z
+    .array(
+      z.object({
+        group_id: z.number().int(),
+        name: z.string().nullable().optional(),
+        role: z.string().optional(),
+        configured: z.boolean().default(false),
+        guild_id: z.string().nullable().optional(),
+      }),
+    )
+    .optional(),
+  /** Participating clans the viewer administers (shared scope only). */
+  my_group_ids: z.array(z.number().int()).optional(),
+  is_host_admin: z.boolean().optional(),
 });
 export type EventChannelConfig = z.infer<typeof EventChannelConfigSchema>;
 
@@ -2537,6 +2594,11 @@ export const EventChannelConfigInputSchema = z.object({
   discord_event_policy: z.enum(EVENT_DISCORD_POLICIES).optional(),
   pings: z.record(z.enum(EVENT_PING_KEYS), z.array(z.string().regex(/^\d+$/)).max(10)).optional(),
   messages: EventMessageConfigSchema.optional(),
+  /** web48a: write a clan's own scope instead of the shared one. Event-level
+   * fields (policy/pings/per_group_discord) are rejected with a group_id. */
+  group_id: z.number().int().nullable().optional(),
+  /** Host admins only, shared scope only. */
+  per_group_discord: z.boolean().optional(),
 });
 export type EventChannelConfigInput = z.infer<typeof EventChannelConfigInputSchema>;
 

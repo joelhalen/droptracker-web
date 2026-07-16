@@ -131,6 +131,7 @@ export async function updateGroupEvent(
       | "bonus_blackout_points"
       | "mode"
       | "kind"
+      | "leadership"
     >
   >,
 ) {
@@ -578,9 +579,13 @@ export async function revokeEventCompletion(
 /** The event's Discord destination config (guild + per-kind channels), plus
  * the `messages` verbosity/live-leaderboard knobs — always returned fully
  * merged with the server defaults. */
-export async function getEventDiscord(groupId: EventGroupId, eventId: number) {
+export async function getEventDiscord(
+  groupId: EventGroupId,
+  eventId: number,
+  scopeGroupId?: number | null,
+) {
   await assertCanManageEvent(groupId);
-  return api.eventDiscord(eventId);
+  return api.eventDiscord(eventId, scopeGroupId ?? null);
 }
 
 /** Every guild the bot is in, for the guild picker (bot Redis cache). */

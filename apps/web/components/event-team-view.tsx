@@ -7,10 +7,16 @@
  * event is active — progress/completion frames move the bars, bump the
  * score, and prepend feed rows in place.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { entityPath } from "@/lib/slug";
-import type { EventTeamActivity, EventTeamDetail } from "@droptracker/api-types";
+import type { EventTeamActivity, EventTeamDetail, EventTeamRole } from "@droptracker/api-types";
+import {
+  assignTeamLeadership,
+  removeTeamLeadership,
+  voteForTeamLeader,
+} from "@/app/(site)/(public)/events/[id]/actions";
+import { getErrorMessage } from "@/lib/errors";
 import { useEventStream } from "@/lib/use-event-stream";
 import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/format";
@@ -44,6 +50,85 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
   );
 
   const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+
+  // ── team leadership (web48a) ──────────────────────────────────────────
+  // Roles live in local state so appoint/remove/vote update the roster
+  // in place — the server actions revalidate, but the client shouldn't
+  // need a reload to see the crown move.
+  const leadership = event.leadership;
+  const viewer = detail.viewer ?? null;
+  const [roles, setRoles] = useState<Map<number, EventTeamRole | null>>(
+    () => new Map(members.map((m) => [m.player_id, m.role ?? null])),
+  );
+  const [myVote, setMyVote] = useState<number | null>(viewer?.vote ?? null);
+  const [leadershipError, setLeadershipError] = useState<string | null>(null);
+  const [leadershipBusy, startLeadership] = useTransition();
+
+  // Derived from local roles so a self-demotion immediately drops the
+  // viewer's leader-only controls.
+  const viewerRole = viewer?.player_id != null ? (roles.get(viewer.player_id) ?? null) : null;
+  const isAdmin = viewer?.is_admin === true;
+  const canVote =
+    leadership.enabled &&
+    leadership.selection === "election" &&
+    viewer?.player_id != null &&
+    event.status !== "past";
+
+  /** Assign leader/co-leader; on success the same role is cleared off any
+   * previous holder locally (one crown per team). */
+  const assignRole = (playerId: number, role: EventTeamRole) => {
+    setLeadershipError(null);
+    startLeadership(async () => {
+      try {
+        await assignTeamLeadership(event.id, team.id, playerId, role);
+        setRoles((prev) => {
+          const next = new Map(prev);
+          for (const [pid, r] of next) if (r === role) next.set(pid, null);
+          next.set(playerId, role);
+          return next;
+        });
+      } catch (err) {
+        setLeadershipError(getErrorMessage(err, "Couldn't update leadership."));
+      }
+    });
+  };
+
+  const removeRole = (playerId: number) => {
+    setLeadershipError(null);
+    startLeadership(async () => {
+      try {
+        await removeTeamLeadership(event.id, team.id, playerId);
+        setRoles((prev) => {
+          const next = new Map(prev);
+          next.set(playerId, null);
+          return next;
+        });
+      } catch (err) {
+        setLeadershipError(getErrorMessage(err, "Couldn't remove that role."));
+      }
+    });
+  };
+
+  const castVote = (candidateId: number) => {
+    setLeadershipError(null);
+    startLeadership(async () => {
+      try {
+        const res = await voteForTeamLeader(event.id, team.id, candidateId);
+        setMyVote(candidateId);
+        // The election may have flipped the leader — sync local roles.
+        setRoles((prev) => {
+          const next = new Map(prev);
+          for (const [pid, r] of next) {
+            if (r === "leader" && pid !== res.leader_player_id) next.set(pid, null);
+          }
+          if (res.leader_player_id != null) next.set(res.leader_player_id, "leader");
+          return next;
+        });
+      } catch (err) {
+        setLeadershipError(getErrorMessage(err, "Couldn't cast your vote."));
+      }
+    });
+  };
 
   // Roster doubles as a contribution leaderboard: most points first, then
   // most applied contributions, then name for a stable tail.
@@ -279,48 +364,132 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
               {members.length}
             </span>
           </h2>
+          {leadershipError && (
+            <p className="text-osrs-red mb-2 text-xs" role="alert">
+              {leadershipError}
+            </p>
+          )}
           {members.length ? (
             <EventMemberList
               members={rosterMembers}
               pageSize={10}
               unit="member"
               listClassName="space-y-2"
-              renderRow={(m) => (
-                <li
-                  key={m.player_id}
-                  className="border-osrs-bronze/20 rounded border px-3 py-2 text-sm"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <Link
-                      href={entityPath("players", m.player_id, m.player_name)}
-                      className="hover:text-osrs-gold-bright font-medium"
-                    >
-                      {m.player_name}
-                    </Link>
-                    <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums">
-                      {m.points > 0 && (
-                        <span
-                          className="text-osrs-gold-bright font-semibold"
-                          title="Contribution points — each completed task's points split by this player's share of the work"
+              renderRow={(m) => {
+                const role = roles.get(m.player_id) ?? null;
+                const isSelf = viewer?.player_id === m.player_id;
+                // Per-row leadership controls (web48a) — the Web API is the
+                // real gatekeeper; these mirror its rules so we only show
+                // buttons that can succeed.
+                const canMakeLeader = leadership.enabled && isAdmin && role !== "leader";
+                const canMakeCoLeader =
+                  leadership.enabled &&
+                  leadership.co_leaders &&
+                  (isAdmin || viewerRole === "leader") &&
+                  role !== "co_leader";
+                const canRemoveRole =
+                  leadership.enabled &&
+                  role != null &&
+                  (isAdmin || (viewerRole === "leader" && role === "co_leader") || isSelf);
+                const showVote = canVote;
+                const hasControls = canMakeLeader || canMakeCoLeader || canRemoveRole || showVote;
+                return (
+                  <li
+                    key={m.player_id}
+                    className="border-osrs-bronze/20 rounded border px-3 py-2 text-sm"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <Link
+                          href={entityPath("players", m.player_id, m.player_name)}
+                          className="hover:text-osrs-gold-bright truncate font-medium"
                         >
-                          {formatContributionPoints(m.points)} pts
-                        </span>
-                      )}
-                      <span
-                        className="text-osrs-parchment-dark/60"
-                        title="Applied contributions from this player"
-                      >
-                        {m.completions} contribution{m.completions === 1 ? "" : "s"}
+                          {m.player_name}
+                        </Link>
+                        {leadership.enabled && role === "leader" && (
+                          <span className="border-osrs-gold/40 bg-osrs-gold/15 text-osrs-gold shrink-0 rounded border px-1.5 py-px text-[10px] font-semibold">
+                            👑 Leader
+                          </span>
+                        )}
+                        {leadership.enabled && role === "co_leader" && (
+                          <span className="border-osrs-bronze/40 bg-osrs-bronze/15 text-osrs-parchment-dark/80 shrink-0 rounded border px-1.5 py-px text-[10px] font-semibold">
+                            ⭐ Co-leader
+                          </span>
+                        )}
                       </span>
-                    </span>
-                  </div>
-                  {m.joined_at && (
-                    <div className="text-osrs-parchment-dark/50 mt-0.5 text-xs">
-                      joined <LocalTime unix={m.joined_at} mode="date" />
+                      <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums">
+                        {m.points > 0 && (
+                          <span
+                            className="text-osrs-gold-bright font-semibold"
+                            title="Contribution points — each completed task's points split by this player's share of the work"
+                          >
+                            {formatContributionPoints(m.points)} pts
+                          </span>
+                        )}
+                        <span
+                          className="text-osrs-parchment-dark/60"
+                          title="Applied contributions from this player"
+                        >
+                          {m.completions} contribution{m.completions === 1 ? "" : "s"}
+                        </span>
+                      </span>
                     </div>
-                  )}
-                </li>
-              )}
+                    {m.joined_at && (
+                      <div className="text-osrs-parchment-dark/50 mt-0.5 text-xs">
+                        joined <LocalTime unix={m.joined_at} mode="date" />
+                      </div>
+                    )}
+                    {hasControls && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        {showVote &&
+                          (myVote === m.player_id ? (
+                            <span className="text-osrs-gold font-medium">Voted ✓</span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={leadershipBusy}
+                              onClick={() => castVote(m.player_id)}
+                              className="text-osrs-gold-bright hover:underline disabled:opacity-50"
+                              title="Vote for this player as team leader"
+                            >
+                              Vote
+                            </button>
+                          ))}
+                        {canMakeLeader && (
+                          <button
+                            type="button"
+                            disabled={leadershipBusy}
+                            onClick={() => assignRole(m.player_id, "leader")}
+                            className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright hover:underline disabled:opacity-50"
+                          >
+                            Make leader
+                          </button>
+                        )}
+                        {canMakeCoLeader && (
+                          <button
+                            type="button"
+                            disabled={leadershipBusy}
+                            onClick={() => assignRole(m.player_id, "co_leader")}
+                            className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright hover:underline disabled:opacity-50"
+                          >
+                            Make co-leader
+                          </button>
+                        )}
+                        {canRemoveRole && (
+                          <button
+                            type="button"
+                            disabled={leadershipBusy}
+                            onClick={() => removeRole(m.player_id)}
+                            className="text-osrs-parchment-dark/50 hover:text-osrs-red hover:underline disabled:opacity-50"
+                          >
+                            {isSelf && !isAdmin ? "Step down" : "Remove role"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              }}
             />
           ) : (
             <EmptyState title="No members yet" />

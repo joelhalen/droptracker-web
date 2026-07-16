@@ -90,6 +90,8 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                 event={event}
                 initialBoard={board}
                 viewerTeamId={event.viewer?.team_id ?? null}
+                leadership={event.leadership}
+                viewerRole={event.viewer?.team_role ?? null}
               />
             </div>
           )}

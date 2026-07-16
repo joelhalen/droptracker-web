@@ -36,10 +36,17 @@ export function EventBoardView({
   event,
   initialBoard,
   viewerTeamId,
+  leadership,
+  viewerRole,
 }: {
   event: EventDetail;
   initialBoard: BoardDetail;
   viewerTeamId: number | null;
+  /** Team-leadership knobs (web48a); when enabled, plain members can't roll
+   * or shop — their team's leader acts for them. */
+  leadership?: { enabled: boolean; co_leaders: boolean; selection: string } | null;
+  /** The viewer's leadership role on their team, if any. */
+  viewerRole?: "leader" | "co_leader" | null;
 }) {
   const [board, setBoard] = useState<BoardDetail>(initialBoard);
   const [error, setError] = useState<string | null>(null);
@@ -108,6 +115,12 @@ export function EventBoardView({
 
   const manual = board.settings.movement.trigger === "manual";
   const rollerRule = board.settings.movement.manual_roller;
+
+  // web48a: with team leadership on, only the team's leader/co-leader (or an
+  // event admin — `event.can_manage`) may roll and shop for the team.
+  const leaderGated =
+    (leadership?.enabled ?? false) && event.can_manage !== true && viewerRole == null;
+  const leaderNoun = leadership?.co_leaders ? "leader or co-leader" : "leader";
 
   return (
     <div className="space-y-3">
@@ -198,12 +211,14 @@ export function EventBoardView({
           .sort((a, b) => b.tile_idx - a.tile_idx || b.coins - a.coins)
           .map((p) => {
             const mine = viewerTeamId === p.team_id;
-            const canRoll =
+            // The roll button's slot: everything but the leadership gate.
+            const couldRoll =
               event.status === "active" &&
               manual &&
               p.status === "awaiting_roll" &&
               mine &&
               (rollerRule === "team" || rollerRule === "either");
+            const canRoll = couldRoll && !leaderGated;
             return (
               <div
                 key={p.team_id}
@@ -273,15 +288,22 @@ export function EventBoardView({
                   <p className="text-osrs-parchment-dark/60 mt-2 text-xs">No active task.</p>
                 )}
 
-                {canRoll && (
-                  <button
-                    type="button"
-                    disabled={rolling}
-                    onClick={() => doRoll(p.team_id)}
-                    className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-2 w-full rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-                  >
-                    {rolling ? "Rolling…" : "🎲 Roll the dice"}
-                  </button>
+                {couldRoll && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={rolling || !canRoll}
+                      onClick={() => doRoll(p.team_id)}
+                      className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-2 w-full rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                    >
+                      {rolling ? "Rolling…" : "🎲 Roll the dice"}
+                    </button>
+                    {!canRoll && (
+                      <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">
+                        Your team&apos;s {leaderNoun} rolls for you
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             );
@@ -298,6 +320,7 @@ export function EventBoardView({
             .map((p) => ({ id: p.team_id, name: p.team_name }))}
           maxTile={board.finish_idx ?? 0}
           onChanged={refetch}
+          leaderGated={leaderGated}
         />
       )}
     </div>
@@ -310,12 +333,16 @@ function BoardShopPanel({
   otherTeams,
   maxTile,
   onChanged,
+  leaderGated = false,
 }: {
   eventId: number;
   teamId: number;
   otherTeams: { id: number; name: string }[];
   maxTile: number;
   onChanged: () => void;
+  /** web48a: team leadership is on and the viewer holds no role — buy/use
+   * stay visible but disabled. */
+  leaderGated?: boolean;
 }) {
   const [shop, setShop] = useState<BoardShopState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -395,6 +422,11 @@ function BoardShopPanel({
           </span>
         )}
       </div>
+      {leaderGated && (
+        <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">
+          Leaders only — your team&apos;s leader buys and uses power-ups.
+        </p>
+      )}
       {error && (
         <div className="mt-2">
           <Alert variant="error">{error}</Alert>
@@ -423,10 +455,12 @@ function BoardShopPanel({
               </p>
               <button
                 type="button"
-                disabled={busy || !affordable || !item.usable_now}
+                disabled={busy || leaderGated || !affordable || !item.usable_now}
                 onClick={() => buy(item.id)}
                 className="bg-osrs-bronze/80 text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-1.5 w-full rounded px-2 py-1 text-xs font-medium disabled:opacity-40"
-                title={!affordable ? "Not enough coins" : undefined}
+                title={
+                  leaderGated ? "Leaders only" : !affordable ? "Not enough coins" : undefined
+                }
               >
                 Buy · 🪙 {item.cost_coins}
               </button>
@@ -489,13 +523,15 @@ function BoardShopPanel({
                 )}
                 <button
                   type="button"
-                  disabled={busy || !i.cooldown_ready || !i.usable_now}
+                  disabled={busy || leaderGated || !i.cooldown_ready || !i.usable_now}
                   onClick={() => use(i.inventory_id, i.effect)}
                   className="text-osrs-gold hover:text-osrs-gold-bright ml-1 text-xs font-medium disabled:opacity-40"
                   title={
-                    !i.cooldown_ready && i.cooldown_ready_turn != null
-                      ? `${i.item_type} items ready from turn ${i.cooldown_ready_turn}`
-                      : undefined
+                    leaderGated
+                      ? "Leaders only"
+                      : !i.cooldown_ready && i.cooldown_ready_turn != null
+                        ? `${i.item_type} items ready from turn ${i.cooldown_ready_turn}`
+                        : undefined
                   }
                 >
                   Use

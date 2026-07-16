@@ -29,6 +29,44 @@ export async function leaveEvent(eventId: number, playerId: number) {
   return { ok: true as const };
 }
 
+// --- Team leadership (web48a) ------------------------------------------------
+
+/** Assign a leader/co-leader (event admins; a leader may appoint their own
+ * co-leader — the Web API enforces exactly that). */
+export async function assignTeamLeadership(
+  eventId: number,
+  teamId: number,
+  playerId: number,
+  role: "leader" | "co_leader",
+) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to manage leadership.");
+  await api.setTeamLeadership(eventId, teamId, playerId, role);
+  revalidatePath(`/events/${eventId}`);
+  revalidatePath(`/events/${eventId}/teams/${teamId}`);
+  return { ok: true as const };
+}
+
+/** Remove a leadership role (admin / leader demoting a co-leader / the
+ * holder stepping down — enforced server-side). */
+export async function removeTeamLeadership(eventId: number, teamId: number, playerId: number) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to manage leadership.");
+  await api.clearTeamLeadership(eventId, teamId, playerId);
+  revalidatePath(`/events/${eventId}`);
+  revalidatePath(`/events/${eventId}/teams/${teamId}`);
+  return { ok: true as const };
+}
+
+/** Cast/replace the viewer's leader vote (election mode). */
+export async function voteForTeamLeader(eventId: number, teamId: number, candidateId: number) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to vote.");
+  const result = await api.castLeaderVote(eventId, teamId, candidateId);
+  revalidatePath(`/events/${eventId}/teams/${teamId}`);
+  return { ok: true as const, leader_player_id: result.leader_player_id };
+}
+
 // --- Board game (web44a) ---------------------------------------------------
 
 /** The live board (tiles + positions). Draft visibility is enforced by the

@@ -812,12 +812,52 @@ export const api = {
         | "mode"
         | "kind"
       >
-    >,
+    > & {
+      /** Team-leadership knobs (web48a); partial objects merge server-side. */
+      leadership?: {
+        enabled?: boolean;
+        co_leaders?: boolean;
+        selection?: "admin" | "election";
+      };
+    },
   ): Promise<EventDetail> {
     return withFallback(
       async () => EventDetailSchema.parse(await apiSend("PATCH", `/events/${eventId}`, patch)),
       () => mockEvent(eventId),
     );
+  },
+
+  // --- Team leadership (web48a) ------------------------------------------------
+  /** Assign a team's leader or co-leader (event admin; a leader may appoint
+   * their own co-leader). */
+  async setTeamLeadership(
+    eventId: number,
+    teamId: number,
+    playerId: number,
+    role: "leader" | "co_leader",
+  ): Promise<void> {
+    await apiSend("PUT", `/events/${eventId}/teams/${teamId}/leadership`, {
+      player_id: playerId,
+      role,
+    });
+  },
+
+  /** Remove a leadership role (admin, the leader for a co-leader, or the
+   * holder stepping down). */
+  async clearTeamLeadership(eventId: number, teamId: number, playerId: number): Promise<void> {
+    await apiSend("DELETE", `/events/${eventId}/teams/${teamId}/leadership/${playerId}`, {});
+  },
+
+  /** Cast/replace the viewer's vote for their team's leader (election mode). */
+  async castLeaderVote(
+    eventId: number,
+    teamId: number,
+    candidatePlayerId: number,
+  ): Promise<{ leader_player_id: number | null }> {
+    const res = (await apiSend("POST", `/events/${eventId}/teams/${teamId}/leader-vote`, {
+      candidate_player_id: candidatePlayerId,
+    })) as { leader_player_id?: number | null };
+    return { leader_player_id: res?.leader_player_id ?? null };
   },
 
   // --- Event lifecycle (Task 21) ---------------------------------------------
@@ -1478,17 +1518,19 @@ export const api = {
 
   // --- Event Discord destinations (Task 19) --------------------------------
   /** The event's Discord destination config (admin-only). */
-  async eventDiscord(eventId: number): Promise<EventChannelConfig> {
+  async eventDiscord(eventId: number, groupId?: number | null): Promise<EventChannelConfig> {
+    const suffix = groupId != null ? `?group_id=${groupId}` : "";
     return withFallback(
       async () =>
         EventChannelConfigSchema.parse(
-          await apiGet(`/events/${eventId}/discord`, { authed: true }),
+          await apiGet(`/events/${eventId}/discord${suffix}`, { authed: true }),
         ),
       () => mockEventDiscord(eventId),
     );
   },
 
-  /** Replace the event's Discord destination (guild + per-kind channels). */
+  /** Replace the event's Discord destination (guild + per-kind channels).
+   * With `input.group_id`, writes that clan's own per-group scope (web48a). */
   async updateEventDiscord(
     eventId: number,
     input: EventChannelConfigInput,
@@ -1504,6 +1546,8 @@ export const api = {
         pings: input.pings ?? {},
         // Mirror the backend PUT contract: absent = leave unchanged (defaults).
         messages: input.messages ?? mockEventDiscord(eventId).messages,
+        per_group_discord: input.per_group_discord ?? false,
+        group_id: input.group_id ?? null,
       }),
     );
   },
