@@ -10,9 +10,10 @@
  * stream's connection state and, if it can't stay open, silently re-fetches
  * the event every 30s and remounts the board with fresh completions.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { EventDetail, Me } from "@droptracker/api-types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { BoardDetail, EventDetail, Me } from "@droptracker/api-types";
 import { BingoBoard } from "@/components/bingo-board";
+import { EventBoardView, type BoardActions } from "@/components/event-board-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import type { BreakdownFetcher } from "@/components/task-detail";
@@ -23,6 +24,12 @@ import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityNav } from "@/lib/activity/nav";
 import {
   activityMe,
+  boardBuy,
+  boardChoice,
+  boardDetail,
+  boardRoll,
+  boardShop,
+  boardUse,
   eventDetail,
   eventPendingCompletions,
   joinEvent,
@@ -67,6 +74,26 @@ export function EventView({
     [eventId, sessionToken],
   );
 
+  // Board-game events: the dice board replaces the bingo grid. Fetched
+  // separately (EventBoardView needs an initialBoard) and reseeded on refresh.
+  const [board, setBoard] = useState<BoardDetail | null>(null);
+  const isBoardGame = event?.kind === "board_game";
+
+  // Bearer-token transport for the shared board view — the exact `BoardActions`
+  // shape the site fills with cookie server actions, wired here to the
+  // /api/activity/* BFF twins so the same component renders inside the iframe.
+  const boardActions: BoardActions = useMemo(
+    () => ({
+      fetchBoard: (id) => boardDetail(id, sessionToken),
+      roll: (id, teamId) => boardRoll(id, teamId, sessionToken ?? ""),
+      fetchShop: (id, teamId) => boardShop(id, teamId, sessionToken ?? ""),
+      buy: (id, shopItemId, teamId) => boardBuy(id, shopItemId, teamId, sessionToken ?? ""),
+      use: (id, inventoryId, opts) => boardUse(id, inventoryId, opts, sessionToken ?? ""),
+      resolveChoice: (id, choiceIndex) => boardChoice(id, choiceIndex, sessionToken ?? ""),
+    }),
+    [sessionToken],
+  );
+
   const load = useCallback(
     async (isRefresh: boolean) => {
       try {
@@ -80,6 +107,21 @@ export function EventView({
     },
     [eventId, sessionToken],
   );
+
+  // Load the board once the event is known to be a board-game event, and
+  // reseed it on each poll refresh (the board view also self-refetches on SSE).
+  useEffect(() => {
+    if (!isBoardGame) return;
+    let cancelled = false;
+    boardDetail(eventId, sessionToken)
+      .then((b) => {
+        if (!cancelled) setBoard(b);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isBoardGame, eventId, sessionToken, refreshKey]);
 
   useEffect(() => {
     void load(false);
@@ -256,6 +298,23 @@ export function EventView({
               Approve the Discord sign-in prompt when launching the activity to join this event.
             </p>
           )}
+        </div>
+      )}
+
+      {isBoardGame && board && (
+        <div>
+          <h2 className="heading-rule text-osrs-gold mb-2 pb-1 text-base font-semibold">
+            Game board
+          </h2>
+          <EventBoardView
+            key={`gameboard-${refreshKey}`}
+            event={event}
+            initialBoard={board}
+            viewerTeamId={event.viewer?.team_id ?? null}
+            leadership={event.leadership}
+            viewerRole={event.viewer?.team_role ?? null}
+            actions={boardActions}
+          />
         </div>
       )}
 

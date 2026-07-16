@@ -10,6 +10,9 @@
  * contract guarantees as the rest of the site.
  */
 import {
+  BoardDetailSchema,
+  BoardRollResultSchema,
+  BoardShopStateSchema,
   EventCompletionSchema,
   EventDetailSchema,
   EventSummarySchema,
@@ -22,6 +25,9 @@ import {
   PlayerProfileSchema,
   SearchResultsSchema,
   TaskBreakdownSchema,
+  type BoardDetail,
+  type BoardRollResult,
+  type BoardShopState,
   type EventCompletion,
   type EventDetail,
   type TaskBreakdown,
@@ -183,6 +189,87 @@ export async function leaveEvent(
   sessionToken: string,
 ): Promise<unknown> {
   return send(`/api/activity/events/${eventId}/leave`, sessionToken, { player_id: playerId });
+}
+
+// --- Board game (board_game events) — bearer twins of the site server actions,
+// --- shaped to satisfy the shared EventBoardView `BoardActions` transport. ---
+
+/** The live board (tiles + positions). Anonymous viewers see active/past
+ * boards; the background is proxied to same-origin by the BFF. */
+export async function boardDetail(
+  eventId: number,
+  sessionToken: string | null,
+): Promise<BoardDetail> {
+  return BoardDetailSchema.parse(await get(`/api/activity/events/${eventId}/board`, sessionToken));
+}
+
+export async function boardRoll(
+  eventId: number,
+  teamId: number | undefined,
+  sessionToken: string,
+): Promise<BoardRollResult> {
+  return BoardRollResultSchema.parse(
+    await send(
+      `/api/activity/events/${eventId}/board/roll`,
+      sessionToken,
+      teamId ? { team_id: teamId } : {},
+    ),
+  );
+}
+
+export async function boardShop(
+  eventId: number,
+  teamId: number | undefined,
+  sessionToken: string,
+): Promise<BoardShopState> {
+  const q = teamId != null ? `?team_id=${teamId}` : "";
+  return BoardShopStateSchema.parse(
+    await get(`/api/activity/events/${eventId}/board/shop${q}`, sessionToken),
+  );
+}
+
+export async function boardBuy(
+  eventId: number,
+  shopItemId: number,
+  teamId: number | undefined,
+  sessionToken: string,
+): Promise<{ team_id: number; inventory_id: number; coins: number }> {
+  return z
+    .object({ team_id: z.number().int(), inventory_id: z.number().int(), coins: z.number().int() })
+    .parse(
+      await send(`/api/activity/events/${eventId}/board/shop/buy`, sessionToken, {
+        shop_item_id: shopItemId,
+        ...(teamId != null ? { team_id: teamId } : {}),
+      }),
+    );
+}
+
+export async function boardUse(
+  eventId: number,
+  inventoryId: number,
+  opts: { teamId?: number; targetTeamId?: number; targetTileIdx?: number; value?: number },
+  sessionToken: string,
+): Promise<Record<string, unknown>> {
+  return (await send(
+    `/api/activity/events/${eventId}/board/items/${inventoryId}/use`,
+    sessionToken,
+    {
+      ...(opts.teamId != null ? { team_id: opts.teamId } : {}),
+      ...(opts.targetTeamId != null ? { target_team_id: opts.targetTeamId } : {}),
+      ...(opts.targetTileIdx != null ? { target_tile_idx: opts.targetTileIdx } : {}),
+      ...(opts.value != null ? { value: opts.value } : {}),
+    },
+  )) as Record<string, unknown>;
+}
+
+export async function boardChoice(
+  eventId: number,
+  choiceIndex: number,
+  sessionToken: string,
+): Promise<Record<string, unknown>> {
+  return (await send(`/api/activity/events/${eventId}/board/choice`, sessionToken, {
+    choice_index: choiceIndex,
+  })) as Record<string, unknown>;
 }
 
 // --- Review queue (event admins only — the backend enforces authorization). --

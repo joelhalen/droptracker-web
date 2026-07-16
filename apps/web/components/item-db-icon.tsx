@@ -1,6 +1,10 @@
 "use client";
 
-const IMG_BASE = "https://www.droptracker.io/img";
+// Relative so the icon is same-origin on BOTH the website (www) and the Discord
+// Activity host (activity.droptracker.io) — both map `/img/` in nginx. An
+// absolute www URL would be blocked by the activity iframe's CSP (which is why
+// bingo-tile also uses a relative base).
+const IMG_BASE = "/img";
 
 /** OSRS item icon from droptracker.io static assets (`/img/itemdb/{id}.png`). */
 export function ItemDbIcon({

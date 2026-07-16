@@ -14,7 +14,9 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import type {
   BoardDetail,
   BoardPosition,
+  BoardRollResult,
   BoardShopState,
+  BoardTile,
   EventDetail,
   RealtimeEvent,
 } from "@droptracker/api-types";
@@ -27,6 +29,61 @@ import {
   useBoardItem,
 } from "@/app/(site)/(public)/events/[id]/actions";
 import { RUNE_ITEM_IDS } from "@/components/event-board-designer";
+
+/** Options accepted by the "use an item" transport (numeric + targeted effects). */
+export type UseBoardItemOpts = {
+  teamId?: number;
+  targetTeamId?: number;
+  targetTileIdx?: number;
+  value?: number;
+};
+
+/**
+ * The board view's data transport. Defaults to the site's cookie-backed server
+ * actions; the Discord Activity injects bearer-token twins so the same
+ * component renders identically inside the iframe (rule #1: browser → BFF).
+ */
+export type BoardActions = {
+  fetchBoard: (eventId: number) => Promise<BoardDetail>;
+  roll: (eventId: number, teamId?: number) => Promise<BoardRollResult>;
+  fetchShop: (eventId: number, teamId?: number) => Promise<BoardShopState>;
+  buy: (
+    eventId: number,
+    shopItemId: number,
+    teamId?: number,
+  ) => Promise<{ team_id: number; inventory_id: number; coins: number }>;
+  use: (
+    eventId: number,
+    inventoryId: number,
+    opts: UseBoardItemOpts,
+  ) => Promise<Record<string, unknown>>;
+  resolveChoice: (eventId: number, choiceIndex: number) => Promise<Record<string, unknown>>;
+};
+
+/** Site default: the cookie-session server actions. */
+const SITE_BOARD_ACTIONS: BoardActions = {
+  fetchBoard: fetchPublicEventBoard,
+  roll: rollBoardAsMember,
+  fetchShop: fetchBoardShop,
+  buy: buyBoardItem,
+  use: useBoardItem,
+  resolveChoice: resolveBoardChoice,
+};
+
+/** The elemental rune name + the difficulty tier it stands for (mirrors the
+ * board designer's air→easy … fire→elite convention). */
+const RUNE_ELEMENT: Record<string, string> = {
+  air: "Air",
+  water: "Water",
+  earth: "Earth",
+  fire: "Fire",
+};
+const RUNE_TIER: Record<string, string> = {
+  air: "easy",
+  water: "medium",
+  earth: "hard",
+  fire: "elite",
+};
 
 /** Effects whose USE targets a rival team (reuse the team picker). */
 const TEAM_TARGET_EFFECTS = new Set([
@@ -62,6 +119,8 @@ import { teamColorMap } from "@/lib/events";
 import { useEventStream } from "@/lib/use-event-stream";
 import { Alert } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
+import { HoverCard } from "@/components/hover-card";
+import { TaskDetailSheet, useCoarsePointer } from "@/components/task-detail";
 
 export function EventBoardView({
   event,
@@ -69,6 +128,7 @@ export function EventBoardView({
   viewerTeamId,
   leadership,
   viewerRole,
+  actions = SITE_BOARD_ACTIONS,
 }: {
   event: EventDetail;
   initialBoard: BoardDetail;
@@ -78,17 +138,24 @@ export function EventBoardView({
   leadership?: { enabled: boolean; co_leaders: boolean; selection: string } | null;
   /** The viewer's leadership role on their team, if any. */
   viewerRole?: "leader" | "co_leader" | null;
+  /** Data transport — defaults to the site server actions; the Activity passes
+   * bearer-token BFF fetchers so the same component works inside the iframe. */
+  actions?: BoardActions;
 }) {
   const [board, setBoard] = useState<BoardDetail>(initialBoard);
   const [error, setError] = useState<string | null>(null);
   const [rolling, startRoll] = useTransition();
   const [lastDice, setLastDice] = useState<number[] | null>(null);
+  // Touch: tapping a tile opens a bottom sheet with its detail card.
+  const [sheetTileIdx, setSheetTileIdx] = useState<number | null>(null);
+  const coarse = useCoarsePointer();
 
   const refetch = useCallback(() => {
-    fetchPublicEventBoard(event.id)
+    actions
+      .fetchBoard(event.id)
       .then(setBoard)
       .catch(() => {});
-  }, [event.id]);
+  }, [actions, event.id]);
 
   // SSE: any board/completion frame → refetch (cheap, always consistent).
   const onFrame = useCallback(
@@ -144,13 +211,25 @@ export function EventBoardView({
 
   const tileAt = useMemo(() => new Map(board.tiles.map((t) => [t.idx, t])), [board.tiles]);
 
+  // Placed tile-bound effects (roadblocks/bulwarks) grouped by their tile so a
+  // tile's detail card can note obstacles sitting on it.
+  const effectsByTile = useMemo(() => {
+    const m = new Map<number, BoardDetail["effects"]>();
+    for (const eff of board.effects ?? []) {
+      const list = m.get(eff.target_tile_idx) ?? [];
+      list.push(eff);
+      m.set(eff.target_tile_idx, list);
+    }
+    return m;
+  }, [board.effects]);
+
   const [rollNote, setRollNote] = useState<string | null>(null);
   const doRoll = (teamId: number) => {
     setError(null);
     setRollNote(null);
     startRoll(async () => {
       try {
-        const res = await rollBoardAsMember(event.id, teamId);
+        const res = await actions.roll(event.id, teamId);
         setLastDice(res.dice);
         if (res.frozen) setRollNote("❄️ Frozen — the piece didn't move!");
         else if (res.roadblock)
@@ -196,23 +275,25 @@ export function EventBoardView({
           // other tile keeps the fixed 28px circle.
           const showsRune = render.mode === "rune" && !!t.difficulty;
           const dim = showsRune ? iconSize + 12 : 28;
-          const style: React.CSSProperties = {
+          // Positioning lives on the interactive anchor; the visual circle
+          // fills it. `z-10` keeps the hit target above the background image.
+          const anchorStyle: React.CSSProperties = {
+            position: "absolute",
             left: `${t.x * 100}%`,
             top: `${t.y * 100}%`,
             width: dim,
             height: dim,
           };
+          const circleStyle: React.CSSProperties = {};
           if (render.mode === "outline" || isEndpoint) {
-            style.border = `${render.outline_width}px solid ${
+            circleStyle.border = `${render.outline_width}px solid ${
               isEndpoint ? "#ffd700" : render.outline_color
             }`;
           }
-          return (
+          const circle = (
             <div
-              key={t.idx}
-              className="absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-[9px] text-white/90"
-              style={style}
-              title={t.label ?? (t.difficulty ? `${t.difficulty} tile` : `Tile ${t.idx}`)}
+              className="flex size-full cursor-pointer items-center justify-center rounded-full bg-black/35 text-[9px] text-white/90"
+              style={circleStyle}
             >
               {render.mode === "rune" && t.difficulty ? (
                 <ItemDbIcon itemId={RUNE_ITEM_IDS[t.difficulty]} size={iconSize} />
@@ -222,6 +303,41 @@ export function EventBoardView({
                 </span>
               )}
             </div>
+          );
+          const card = (
+            <TileCard
+              tile={t}
+              teamsHere={byTile.get(t.idx) ?? []}
+              effectsHere={effectsByTile.get(t.idx) ?? []}
+              finishIdx={board.finish_idx ?? null}
+              colors={colors}
+            />
+          );
+          // Touch: tap opens a bottom sheet. Pointer: in-place hover card.
+          if (coarse) {
+            return (
+              <button
+                key={t.idx}
+                type="button"
+                className="z-10 -translate-x-1/2 -translate-y-1/2"
+                style={anchorStyle}
+                onClick={() => setSheetTileIdx(t.idx)}
+                aria-label={t.label ?? `Tile ${t.idx}`}
+              >
+                {circle}
+              </button>
+            );
+          }
+          return (
+            <HoverCard
+              key={t.idx}
+              className="z-10 -translate-x-1/2 -translate-y-1/2"
+              style={anchorStyle}
+              width={280}
+              content={card}
+            >
+              {circle}
+            </HoverCard>
           );
         })}
 
@@ -485,6 +601,7 @@ export function EventBoardView({
             choices={myPosition.pending_choice}
             onResolved={refetch}
             leaderGated={leaderGated}
+            resolveChoice={actions.resolveChoice}
           />
         )}
 
@@ -500,9 +617,195 @@ export function EventBoardView({
           diceMax={diceMax}
           onChanged={refetch}
           leaderGated={leaderGated}
+          actions={actions}
         />
       )}
+
+      {/* Touch: the tapped tile's detail card in a bottom sheet. */}
+      {coarse && (
+        <TaskDetailSheet open={sheetTileIdx != null} onClose={() => setSheetTileIdx(null)}>
+          {sheetTileIdx != null &&
+            tileAt.get(sheetTileIdx) &&
+            (() => {
+              const t = tileAt.get(sheetTileIdx)!;
+              return (
+                <TileCard
+                  tile={t}
+                  teamsHere={byTile.get(t.idx) ?? []}
+                  effectsHere={effectsByTile.get(t.idx) ?? []}
+                  finishIdx={board.finish_idx ?? null}
+                  colors={colors}
+                />
+              );
+            })()}
+        </TaskDetailSheet>
+      )}
     </div>
+  );
+}
+
+/** Tile detail card (hover on desktop / bottom sheet on touch): the tile's rune
+ * tier explained as its task difficulty, plus every team currently parked on
+ * it with their assigned task, live progress, and status. */
+function TileCard({
+  tile,
+  teamsHere,
+  effectsHere,
+  finishIdx,
+  colors,
+}: {
+  tile: BoardTile;
+  teamsHere: BoardPosition[];
+  effectsHere: NonNullable<BoardDetail["effects"]>;
+  finishIdx: number | null;
+  colors: Map<number, string>;
+}) {
+  const title =
+    tile.label ??
+    (tile.tile_kind === "start"
+      ? "Start"
+      : tile.tile_kind === "finish"
+        ? "Finish"
+        : `Tile ${tile.idx}`);
+  const diff = tile.difficulty ?? null;
+
+  return (
+    <div className="p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-osrs-gold font-medium">{title}</span>
+        <span className="text-osrs-parchment-dark/50 text-xs tabular-nums">
+          #{tile.idx}
+          {finishIdx != null ? ` / ${finishIdx}` : ""}
+        </span>
+      </div>
+
+      {/* Rune / difficulty tier */}
+      {diff ? (
+        <div className="border-osrs-bronze/25 mt-2 flex items-center gap-2 border-t pt-2">
+          <ItemDbIcon itemId={RUNE_ITEM_IDS[diff]} size={20} />
+          <span className="min-w-0">
+            <span className="text-osrs-parchment block text-xs font-medium">
+              {RUNE_ELEMENT[diff] ?? diff} rune · {RUNE_TIER[diff] ?? ""} difficulty
+            </span>
+            <span className="text-osrs-parchment-dark/55 block text-[11px]">
+              Landing here draws a random {RUNE_TIER[diff] ?? diff} task.
+            </span>
+          </span>
+        </div>
+      ) : tile.task_id != null ? (
+        <p className="text-osrs-parchment-dark/60 mt-2 text-xs">
+          Pinned task{tile.task_label ? `: ${tile.task_label}` : ""}.
+        </p>
+      ) : tile.tile_kind === "normal" ? (
+        <p className="text-osrs-parchment-dark/50 mt-2 text-xs">Rest tile — no task.</p>
+      ) : null}
+
+      {/* Placed obstacles on this tile */}
+      {effectsHere.length > 0 && (
+        <ul className="border-osrs-bronze/25 mt-2 space-y-1 border-t pt-2">
+          {effectsHere.map((eff) => (
+            <li key={eff.id} className="flex items-center gap-1.5 text-[11px] text-red-300/90">
+              {eff.icon_item_id ? (
+                <ItemDbIcon itemId={eff.icon_item_id} size={14} />
+              ) : (
+                <span aria-hidden>⛔</span>
+              )}
+              <span>{eff.name ?? "Roadblock"}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Teams parked on this tile */}
+      <div className="border-osrs-bronze/25 mt-2 border-t pt-2">
+        <p className="text-osrs-parchment-dark/50 mb-1.5 text-[10px] font-semibold tracking-wider uppercase">
+          {teamsHere.length > 0
+            ? `Team${teamsHere.length === 1 ? "" : "s"} here`
+            : "No teams here"}
+        </p>
+        {teamsHere.length === 0 ? (
+          <p className="text-osrs-parchment-dark/50 text-[11px]">
+            No pieces are on this tile right now.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {teamsHere.map((p) => (
+              <TileTeamRow key={p.team_id} p={p} color={colors.get(p.team_id)} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** One team's line inside a tile card: color, name, status, and the task it's
+ * working on with a live progress bar (or the reason it's idle). */
+function TileTeamRow({ p, color }: { p: BoardPosition; color?: string }) {
+  const dot = p.color ?? color ?? "#c8a25a";
+  const choosing = (p.pending_choice?.length ?? 0) > 0;
+  const status = choosing
+    ? "🔮 Choosing a task"
+    : p.status === "finished"
+      ? "🏁 Finished"
+      : p.status === "awaiting_roll"
+        ? "🎲 Awaiting roll"
+        : p.status === "blocked"
+          ? "🚧 Blocked"
+          : null;
+
+  return (
+    <li>
+      <div className="flex items-center gap-1.5">
+        {p.piece_item_id ? (
+          <ItemDbIcon itemId={p.piece_item_id} size={16} />
+        ) : (
+          <span
+            className="inline-block size-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: dot }}
+            aria-hidden
+          />
+        )}
+        <span className="text-osrs-parchment min-w-0 flex-1 truncate text-xs font-medium">
+          {p.team_name}
+        </span>
+        {status && (
+          <span className="text-osrs-parchment-dark/60 shrink-0 text-[10px]">{status}</span>
+        )}
+      </div>
+
+      {p.current_task ? (
+        <div className="mt-1 pl-[22px]">
+          <p className="text-osrs-parchment-dark/80 flex items-center gap-1.5 text-[11px]">
+            {p.current_task.difficulty &&
+              RUNE_ITEM_IDS[p.current_task.difficulty as keyof typeof RUNE_ITEM_IDS] != null && (
+                <ItemDbIcon
+                  itemId={RUNE_ITEM_IDS[p.current_task.difficulty as keyof typeof RUNE_ITEM_IDS]}
+                  size={12}
+                />
+              )}
+            <span className="min-w-0 truncate">{p.current_task.label}</span>
+          </p>
+          <div className="bg-osrs-brown-dark/60 mt-1 h-1.5 w-full overflow-hidden rounded">
+            <div
+              className="h-full rounded transition-all"
+              style={{
+                width: `${Math.min(
+                  100,
+                  (p.current_task.progress / Math.max(1, p.current_task.target)) * 100,
+                )}%`,
+                backgroundColor: dot,
+              }}
+            />
+          </div>
+          <p className="text-osrs-parchment-dark/50 mt-0.5 text-[10px] tabular-nums">
+            {p.current_task.progress} / {p.current_task.target}
+          </p>
+        </div>
+      ) : !status ? (
+        <p className="text-osrs-parchment-dark/50 mt-0.5 pl-[22px] text-[10px]">No active task.</p>
+      ) : null}
+    </li>
   );
 }
 
@@ -515,12 +818,14 @@ function BoardChoicePanel({
   choices,
   onResolved,
   leaderGated = false,
+  resolveChoice,
 }: {
   eventId: number;
   teamName: string;
   choices: NonNullable<BoardPosition["pending_choice"]>;
   onResolved: () => void;
   leaderGated?: boolean;
+  resolveChoice: BoardActions["resolveChoice"];
 }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, startBusy] = useTransition();
@@ -529,7 +834,7 @@ function BoardChoicePanel({
     setError(null);
     startBusy(async () => {
       try {
-        await resolveBoardChoice(eventId, choiceIndex);
+        await resolveChoice(eventId, choiceIndex);
         onResolved();
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't lock in that choice."));
@@ -591,6 +896,7 @@ function BoardShopPanel({
   diceMax,
   onChanged,
   leaderGated = false,
+  actions,
 }: {
   eventId: number;
   teamId: number;
@@ -602,6 +908,8 @@ function BoardShopPanel({
   /** web48a: team leadership is on and the viewer holds no role — buy/use
    * stay visible but disabled. */
   leaderGated?: boolean;
+  /** Data transport (site server actions or Activity BFF fetchers). */
+  actions: BoardActions;
 }) {
   const [shop, setShop] = useState<BoardShopState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -614,10 +922,11 @@ function BoardShopPanel({
   const [targetValue, setTargetValue] = useState<Record<number, string>>({});
 
   const load = useCallback(() => {
-    fetchBoardShop(eventId, teamId)
+    actions
+      .fetchShop(eventId, teamId)
       .then(setShop)
       .catch(() => {});
-  }, [eventId, teamId]);
+  }, [actions, eventId, teamId]);
   useEffect(load, [load]);
 
   const buy = (shopItemId: number) => {
@@ -625,7 +934,7 @@ function BoardShopPanel({
     setNotice(null);
     startBusy(async () => {
       try {
-        await buyBoardItem(eventId, shopItemId, teamId);
+        await actions.buy(eventId, shopItemId, teamId);
         load();
         onChanged();
       } catch (err) {
@@ -674,7 +983,7 @@ function BoardShopPanel({
     }
     startBusy(async () => {
       try {
-        const res = await useBoardItem(eventId, inventoryId, opts);
+        const res = await actions.use(eventId, inventoryId, opts);
         if (res && (res as { blocked_by_shield?: boolean }).blocked_by_shield) {
           setNotice("Their shield absorbed it!");
         }

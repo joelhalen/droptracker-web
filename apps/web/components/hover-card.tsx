@@ -45,6 +45,7 @@ export function HoverCard({
   content,
   children,
   className = "",
+  style,
   width = CARD_WIDTH,
 }: {
   /** Card body; rendered inside a `card-pop` container. */
@@ -52,6 +53,10 @@ export function HoverCard({
   /** Inline trigger contents. */
   children: ReactNode;
   className?: string;
+  /** Inline style for the trigger anchor — lets absolutely-positioned triggers
+   * (e.g. board tiles laid out on a background image) carry their own
+   * left/top/size without a wrapping element. */
+  style?: React.CSSProperties;
   /** Card width in px; wider cards (e.g. the task detail card) opt up from the
    * default. Also used for the horizontal edge clamp. */
   width?: number;
@@ -135,6 +140,7 @@ export function HoverCard({
       <span
         ref={anchorRef}
         className={className}
+        style={style}
         onMouseEnter={scheduleOpen}
         onMouseLeave={scheduleClose}
         onClick={onTriggerClick}
