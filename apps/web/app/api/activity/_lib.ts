@@ -21,9 +21,12 @@ export function rewriteImgUrls<T>(payload: T): T {
 }
 
 /** Hosts the same-origin board-img proxy is allowed to fetch from. Board
- * backgrounds live on the B2 CDN (videos.droptracker.io); the sample art on
- * www — both cross-origin to the activity host and blocked by its CSP. */
+ * backgrounds live on the B2 CDN — prod `B2_CDN_BASE_URL` is
+ * `https://video.droptracker.io` (SINGULAR); the plural is kept for the code
+ * default / other envs. Sample art is on www. All are cross-origin to the
+ * activity host and blocked by its CSP, so they must be proxied. */
 export const BOARD_IMG_HOSTS = new Set([
+  "video.droptracker.io",
   "videos.droptracker.io",
   "www.droptracker.io",
   "droptracker.io",
