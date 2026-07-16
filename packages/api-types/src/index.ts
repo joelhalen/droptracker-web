@@ -3028,6 +3028,22 @@ export const EventRandomizeResultSchema = z.object({
 });
 export type EventRandomizeResult = z.infer<typeof EventRandomizeResultSchema>;
 
+/** POST /events/{id}/populate-random response — admin scale/testing tool that
+ * bulk-fills teams with random active members (balanced, clan-aware). */
+export const EventPopulateResultSchema = z.object({
+  added: z.number().int(),
+  source: z.enum(["group", "global"]),
+  teams: z.array(
+    z.object({
+      team_id: z.number().int(),
+      team_name: z.string(),
+      added: z.number().int(),
+      member_count: z.number().int(),
+    }),
+  ),
+});
+export type EventPopulateResult = z.infer<typeof EventPopulateResultSchema>;
+
 /** POST /events/{id}/join (Task 16). `team_id` is required for self_join
  * events with more than one team and forbidden for auto_assign. */
 export const EventJoinInputSchema = z.object({

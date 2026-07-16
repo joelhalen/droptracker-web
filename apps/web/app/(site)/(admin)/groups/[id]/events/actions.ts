@@ -118,6 +118,13 @@ export async function fetchEventKinds(groupId: EventGroupId) {
   return api.eventKinds(groupId);
 }
 
+/** Re-read the full event detail (admin view) — used to refresh manager state
+ * after a bulk change like random-populate. */
+export async function reloadGroupEvent(groupId: EventGroupId, eventId: number) {
+  await assertCanManageEvent(groupId);
+  return api.eventForAdmin(eventId);
+}
+
 export async function updateGroupEvent(
   groupId: EventGroupId,
   eventId: number,
@@ -801,6 +808,21 @@ export async function randomizeEventSignups(
 ) {
   await assertCanManageEvent(groupId);
   const result = await api.randomizeEventSignups(eventId, clanGroupId);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return result;
+}
+
+/** Admin scale/testing tool: bulk-fill this event's teams with random active
+ * members (balanced, clan-aware). Never moves or removes existing members. */
+export async function populateEventRandom(
+  groupId: EventGroupId,
+  eventId: number,
+  source: "group" | "global",
+  count?: number,
+) {
+  await assertCanManageEvent(groupId);
+  const result = await api.populateEventRandom(eventId, source, count);
   revalidatePath(eventAdminPath(groupId, eventId));
   revalidatePath(`/events/${eventId}`);
   return result;

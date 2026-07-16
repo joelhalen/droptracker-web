@@ -55,9 +55,11 @@ import {
   EventSignupSchema,
   EventJoinResultSchema,
   EventRandomizeResultSchema,
+  EventPopulateResultSchema,
   type EventSignup,
   type EventJoinResult,
   type EventRandomizeResult,
+  type EventPopulateResult,
   EventTeamDetailSchema,
   type EventTeamDetail,
   TaskBreakdownSchema,
@@ -1543,6 +1545,24 @@ export const api = {
           ),
         ),
       () => ({ assigned: 0, unassigned: 0 }),
+    );
+  },
+
+  /** Admin scale/testing tool: bulk-fill teams with random active members. */
+  async populateEventRandom(
+    eventId: number,
+    source: "group" | "global",
+    count?: number,
+  ): Promise<EventPopulateResult> {
+    return withFallback(
+      async () =>
+        EventPopulateResultSchema.parse(
+          await apiSend("POST", `/events/${eventId}/populate-random`, {
+            source,
+            ...(count != null ? { count } : {}),
+          }),
+        ),
+      () => ({ added: 0, source, teams: [] }),
     );
   },
 

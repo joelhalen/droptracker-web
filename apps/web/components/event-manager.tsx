@@ -32,6 +32,8 @@ import {
   deleteEventTeam,
   endEvent,
   listEventParticipants,
+  populateEventRandom,
+  reloadGroupEvent,
   removeEventTask,
   removeEventTeamMember,
   searchParticipantPlayers,
@@ -360,6 +362,33 @@ export function EventManager({
   const [teamName, setTeamName] = useState("");
   const [teamGroupId, setTeamGroupId] = useState<number | "">("");
   const [participants, setParticipants] = useState<EventParticipant[]>([]);
+
+  /** Admin scale/testing tool: bulk-fill teams with random active members. */
+  const [populateSource, setPopulateSource] = useState<"group" | "global">(
+    groupId == null ? "global" : "group",
+  );
+  const [populateCount, setPopulateCount] = useState("");
+  const [populateResult, setPopulateResult] = useState<{ added: number } | null>(null);
+
+  const onPopulateRandom = () => {
+    setError(null);
+    setPopulateResult(null);
+    const n = populateCount.trim() ? Number(populateCount.trim()) : undefined;
+    if (n !== undefined && (!Number.isInteger(n) || n <= 0)) {
+      setError("Count must be a positive whole number.");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const res = await populateEventRandom(groupId, event.id, populateSource, n);
+        setPopulateResult({ added: res.added });
+        // Refresh the whole manager state so team rosters/counts reflect the adds.
+        applyDetail(await reloadGroupEvent(groupId, event.id));
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't populate the event. Please try again."));
+      }
+    });
+  };
 
   const isClanVsClan = event.mode === "clan_vs_clan";
   const acceptedParticipantIds = participants
@@ -1147,6 +1176,50 @@ export function EventManager({
             Add team
           </button>
         </form>
+
+        {/* Admin scale/testing tool: bulk-fill teams with random ACTIVE
+            members, balanced across teams. Never moves or removes anyone. */}
+        {teams.length > 0 && (
+          <div className="border-osrs-bronze/20 bg-osrs-brown-dark/20 mb-4 rounded border border-dashed p-3">
+            <p className="text-osrs-gold-bright text-sm font-medium">Randomly populate (testing)</p>
+            <p className="text-osrs-parchment-dark/60 mt-0.5 mb-2 text-xs">
+              Fills the teams above with randomly chosen active members, spread evenly. For
+              quickly loading an event before a large-scale test.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={populateSource}
+                onChange={(e) => setPopulateSource(e.target.value as "group" | "global")}
+                className={`${field} min-w-[11rem]`}
+                aria-label="Member source"
+              >
+                {groupId != null && <option value="group">This event&apos;s group members</option>}
+                <option value="global">All members (global)</option>
+              </select>
+              <input
+                value={populateCount}
+                onChange={(e) => setPopulateCount(e.target.value)}
+                inputMode="numeric"
+                placeholder="Max to add (optional)"
+                className={`${field} w-40`}
+                aria-label="Maximum members to add"
+              />
+              <button
+                type="button"
+                onClick={onPopulateRandom}
+                disabled={pending}
+                className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-2 text-sm disabled:opacity-50"
+              >
+                {pending ? "Populating…" : "Populate"}
+              </button>
+              {populateResult && (
+                <span className="text-osrs-green text-xs">
+                  Added {populateResult.added} member{populateResult.added === 1 ? "" : "s"}.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {teams.length ? (
           <ul className="space-y-4">
