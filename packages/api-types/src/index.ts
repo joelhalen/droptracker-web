@@ -2965,6 +2965,15 @@ export const EventTeamPatchSchema = z
   );
 export type EventTeamPatch = z.infer<typeof EventTeamPatchSchema>;
 
+/** Per-name outcomes of the bulk "paste a list of names" roster add. Skipped
+ * rows carry a human-readable reason (not tracked / wrong clan / already
+ * placed); the endpoint never moves a player between teams. */
+export const EventTeamBulkAddResultSchema = z.object({
+  added: z.array(z.object({ id: z.number().int(), name: z.string() })),
+  skipped: z.array(z.object({ name: z.string(), reason: z.string() })),
+});
+export type EventTeamBulkAddResult = z.infer<typeof EventTeamBulkAddResultSchema>;
+
 // --- Clan-vs-clan participants (Implementation Plan B) -----------------------
 
 /** One clan on a clan-vs-clan event's roster (GET /events/{id}/participants). */

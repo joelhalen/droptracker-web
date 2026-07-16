@@ -3,7 +3,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import { EventCreateForm } from "@/components/event-create-form";
 import { EventInvitationsInbox } from "@/components/event-invitations-inbox";
 import { EventTemplatesManager } from "@/components/event-templates-manager";
 import { FeatureGate } from "@/components/feature-gate";
@@ -85,10 +84,22 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
       <div className="grid gap-10 lg:grid-cols-2">
         <section>
           <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">New event</h2>
-          <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
-            New events start as drafts — add tasks, teams, and a board, then activate.
+          <p className="text-osrs-parchment-dark/60 mb-3 text-sm">
+            Guided setup walks through everything one step at a time — name and format, schedule,
+            joining rules, tasks, teams, Discord — with nothing required up front. Stop anywhere
+            and your draft is saved; nothing goes live until you launch it.
           </p>
-          <EventCreateForm groupId={groupId} />
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={`/groups/${groupId}/events/new` as Route}
+              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium"
+            >
+              Create event →
+            </Link>
+            <span className="text-osrs-parchment-dark/50 text-xs">
+              Re-running a past event? Templates live there too.
+            </span>
+          </div>
         </section>
 
         <section>
@@ -104,17 +115,27 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
           {ownEvents.length ? (
             <ul className="divide-osrs-bronze/20 divide-y">
               {ownEvents.map((e) => (
-                <li key={e.id} className="flex items-center justify-between py-3">
+                <li key={e.id} className="flex items-center justify-between gap-2 py-3">
                   <Link
                     href={`/groups/${groupId}/events/${e.id}` as Route}
-                    className="hover:text-osrs-gold-bright font-medium"
+                    className="hover:text-osrs-gold-bright min-w-0 truncate font-medium"
                   >
                     {e.name}
                   </Link>
-                  <span
-                    className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
-                  >
-                    {e.status}
+                  <span className="flex shrink-0 items-center gap-2">
+                    {e.status === "draft" && (
+                      <Link
+                        href={`/groups/${groupId}/events/new?event=${e.id}` as Route}
+                        className="text-osrs-gold-bright text-xs hover:underline"
+                      >
+                        Continue setup →
+                      </Link>
+                    )}
+                    <span
+                      className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
+                    >
+                      {e.status}
+                    </span>
                   </span>
                 </li>
               ))}

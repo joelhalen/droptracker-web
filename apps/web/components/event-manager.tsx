@@ -11,6 +11,7 @@ import {
   type EventReadiness,
   type EventTask,
   type EventTeam,
+  type EventTeamBulkAddResult,
 } from "@droptracker/api-types";
 import {
   FORMATION_MODE_LABELS,
@@ -29,6 +30,7 @@ import {
   checkEventReadiness,
   addEventTeam,
   addEventTeamMember,
+  bulkAddEventTeamMembers,
   deleteEventTeam,
   endEvent,
   listEventParticipants,
@@ -41,6 +43,7 @@ import {
   updateEventTeam,
   updateGroupEvent,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
+import { PlayerAddInput } from "@/components/player-add-input";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
 import { EventBoardShopConfig } from "@/components/event-board-shop-config";
@@ -335,6 +338,33 @@ export function EventManager({
         setError(getErrorMessage(err, "Couldn't add the player. Please try again."));
       }
     });
+  };
+
+  /** Bulk roster add from a pasted list of names — merges the added rows
+   * into team state and returns the full per-name result so the input can
+   * show what was skipped and why. */
+  const onBulkAddMembers = async (
+    teamId: number,
+    names: string[],
+  ): Promise<EventTeamBulkAddResult> => {
+    setError(null);
+    const result = await bulkAddEventTeamMembers(groupId, event.id, teamId, names);
+    if (result.added.length) {
+      const joinedAt = Math.floor(Date.now() / 1000);
+      setTeams((prev) =>
+        prev.map((t) => {
+          if (t.id !== teamId) return t;
+          const members = [...(t.members ?? [])];
+          for (const p of result.added) {
+            if (!members.some((m) => m.player_id === p.id)) {
+              members.push({ player_id: p.id, player_name: p.name, joined_at: joinedAt });
+            }
+          }
+          return { ...t, members, member_count: members.length };
+        }),
+      );
+    }
+    return result;
   };
 
   const onRemoveMember = (teamId: number, playerId: number) => {
@@ -746,6 +776,19 @@ export function EventManager({
               </span>
             </div>
             <div className="flex items-center gap-4">
+              {event.status === "draft" && (
+                <Link
+                  href={
+                    (groupId == null
+                      ? `/admin/events/new?event=${event.id}`
+                      : `/groups/${groupId}/events/new?event=${event.id}`) as Route
+                  }
+                  className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright text-sm"
+                  title="Walk through the remaining setup step by step"
+                >
+                  Guided setup
+                </Link>
+              )}
               <button
                 onClick={startEditEvent}
                 className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright text-sm"
@@ -1238,6 +1281,7 @@ export function EventManager({
                 participants={participants}
                 pending={pending}
                 onAddMember={onAddMember}
+                onBulkAdd={onBulkAddMembers}
                 onRemoveMember={onRemoveMember}
                 onRename={onRenameTeam}
                 onColor={onColorTeam}
@@ -1299,8 +1343,9 @@ export function EventManager({
   );
 }
 
-/** One team's roster: member list with remove, plus an add-player search over
- * the group's members (or all participant clans on clan-vs-clan events). */
+/** One team's roster: member list with remove, plus an add-player box with
+ * live search results and pasted-list bulk add (over the group's members, or
+ * all participant clans on clan-vs-clan events). */
 function TeamRoster({
   groupId,
   eventId,
@@ -1310,6 +1355,7 @@ function TeamRoster({
   participants,
   pending,
   onAddMember,
+  onBulkAdd,
   onRemoveMember,
   onRename,
   onColor,
@@ -1324,16 +1370,13 @@ function TeamRoster({
   participants: EventParticipant[];
   pending: boolean;
   onAddMember: (teamId: number, player: { id: number; name: string }) => void;
+  onBulkAdd: (teamId: number, names: string[]) => Promise<EventTeamBulkAddResult>;
   onRemoveMember: (teamId: number, playerId: number) => void;
   onRename: (teamId: number, name: string) => void;
   onColor: (teamId: number, color: string | null) => void;
   onDelete: (teamId: number) => void;
 }) {
   const members = team.members ?? [];
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<{ id: number; name: string }[] | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(team.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -1345,27 +1388,9 @@ function TeamRoster({
         `Clan ${team.group_id}`)
       : null;
 
-  const onSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const q = query.trim();
-    if (!q) return;
-    setSearching(true);
-    setSearchError(null);
-    try {
-      const searchGids = team.group_id != null ? [team.group_id] : participantGroupIds;
-      const found = await searchParticipantPlayers(groupId, eventId, searchGids, q);
-      setResults(found.filter((p) => !members.some((m) => m.player_id === p.id)));
-    } catch (err) {
-      setSearchError(getErrorMessage(err, "Search failed. Please try again."));
-    } finally {
-      setSearching(false);
-    }
-  };
-
-  const pickPlayer = (player: { id: number; name: string }) => {
-    setResults(null);
-    setQuery("");
-    onAddMember(team.id, player);
+  const searchPlayers = (q: string) => {
+    const searchGids = team.group_id != null ? [team.group_id] : participantGroupIds;
+    return searchParticipantPlayers(groupId, eventId, searchGids, q);
   };
 
   return (
@@ -1572,48 +1597,22 @@ function TeamRoster({
         </div>
       )}
 
-      <form onSubmit={onSearch} className="mt-2 flex gap-2">
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+      <div className="mt-2">
+        <PlayerAddInput
           placeholder={
             groupId == null
-              ? "Search players…"
+              ? "Add players — type a name, or paste a list…"
               : participantGroupIds.length > 1
-                ? "Search participant clan members…"
-                : "Search group members…"
+                ? "Add participant clan members — type a name, or paste a list…"
+                : "Add group members — type a name, or paste a list…"
           }
-          className={`${field} flex-1`}
+          existingIds={members.map((m) => m.player_id)}
+          disabled={pending}
+          search={searchPlayers}
+          onPick={(p) => onAddMember(team.id, p)}
+          onBulkAdd={(names) => onBulkAdd(team.id, names)}
         />
-        <button
-          type="submit"
-          disabled={searching || !query.trim()}
-          className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-2 text-sm disabled:opacity-50"
-        >
-          {searching ? "Searching…" : "Search"}
-        </button>
-      </form>
-      {searchError && <p className="text-osrs-red mt-1 text-xs">{searchError}</p>}
-      {results && (
-        <ul className="border-osrs-bronze/20 mt-2 max-h-48 overflow-y-auto rounded border">
-          {results.length ? (
-            results.map((p) => (
-              <li key={p.id}>
-                <button
-                  onClick={() => pickPlayer(p)}
-                  disabled={pending}
-                  className="hover:bg-osrs-bronze/10 flex w-full items-center justify-between px-3 py-1.5 text-left text-sm disabled:opacity-50"
-                >
-                  <span>{p.name}</span>
-                  <span className="text-osrs-gold-bright text-xs">Add</span>
-                </button>
-              </li>
-            ))
-          ) : (
-            <li className="text-osrs-parchment-dark/50 px-3 py-2 text-xs">No matches.</li>
-          )}
-        </ul>
-      )}
+      </div>
     </li>
   );
 }

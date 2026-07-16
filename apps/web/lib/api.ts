@@ -166,6 +166,8 @@ import {
   type EventTaskPatch,
   type EventTeamInput,
   type EventTeamPatch,
+  EventTeamBulkAddResultSchema,
+  type EventTeamBulkAddResult,
   type EmbedType,
   type GroupConfigPatch,
   type GroupDiagnostics,
@@ -1410,6 +1412,24 @@ export const api = {
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Bulk roster add from a pasted list of RSNs; returns per-name outcomes. */
+  async bulkAddEventTeamMembers(
+    eventId: number,
+    teamId: number,
+    names: string[],
+  ): Promise<EventTeamBulkAddResult> {
+    return withFallback(
+      async () =>
+        EventTeamBulkAddResultSchema.parse(
+          await apiSend("POST", `/events/${eventId}/teams/${teamId}/members/bulk`, { names }),
+        ),
+      () => ({
+        added: names.map((name, i) => ({ id: 9000 + i, name })),
+        skipped: [],
+      }),
     );
   },
 

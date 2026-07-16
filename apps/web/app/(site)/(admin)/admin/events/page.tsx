@@ -1,7 +1,6 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { EventCreateForm } from "@/components/event-create-form";
 import { EventTemplatesManager } from "@/components/event-templates-manager";
 import { EmptyState } from "@/components/ui";
 
@@ -34,11 +33,17 @@ export default async function AdminEventsPage() {
             New global event
           </h2>
           <p className="text-osrs-parchment-dark/70 mb-3 text-sm">
-            Global events belong to no group — any player with a linked account can join. They start
-            as drafts: add tasks, teams, and a board, then activate. Group events are created from
-            each group&apos;s own Events tab.
+            Global events belong to no group — any player with a linked account can join. They
+            start as drafts: guided setup walks through schedule, rules, tasks, and teams, and
+            nothing goes live until you launch it. Group events are created from each group&apos;s
+            own Events tab.
           </p>
-          <EventCreateForm groupId={null} />
+          <Link
+            href={"/admin/events/new" as Route}
+            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark inline-block rounded px-4 py-2 text-sm font-medium"
+          >
+            Create global event →
+          </Link>
         </section>
 
         <section>
@@ -71,6 +76,18 @@ export default async function AdminEventsPage() {
                     >
                       {e.status}
                     </span>
+                    {e.status === "draft" && (
+                      <Link
+                        href={
+                          (e.group_id == null
+                            ? `/admin/events/new?event=${e.id}`
+                            : `/groups/${e.group_id}/events/new?event=${e.id}`) as Route
+                        }
+                        className="text-osrs-gold-bright text-xs hover:underline"
+                      >
+                        Continue setup →
+                      </Link>
+                    )}
                     <Link
                       href={
                         (e.group_id == null

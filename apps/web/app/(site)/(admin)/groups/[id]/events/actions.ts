@@ -304,6 +304,24 @@ export async function addEventTeamMember(
   return { ok: true as const };
 }
 
+/** Bulk roster add — "paste your team": a list of RSNs resolved server-side
+ * against tracked players; returns per-name outcomes (added / skipped with a
+ * reason). Never moves a player already placed on a team in this event. */
+export async function bulkAddEventTeamMembers(
+  groupId: EventGroupId,
+  eventId: number,
+  teamId: number,
+  names: string[],
+) {
+  await assertCanManageEvent(groupId);
+  const result = await api.bulkAddEventTeamMembers(eventId, teamId, names);
+  if (result.added.length) {
+    revalidatePath(eventAdminPath(groupId, eventId));
+    revalidatePath(`/events/${eventId}`);
+  }
+  return result;
+}
+
 export async function removeEventTeamMember(
   groupId: EventGroupId,
   eventId: number,
