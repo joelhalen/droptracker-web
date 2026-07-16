@@ -1983,7 +1983,15 @@ export const BoardSettingsSchema = z.object({
     default: z.number().int(),
     starting: z.number().int(),
   }),
-  shop: z.object({ enabled: z.boolean() }).passthrough(),
+  shop: z
+    .object({
+      enabled: z.boolean(),
+      /** Shop restock cadence (web50a): "none" never refreshes; "turns"/"hours"
+       * restock every `refresh_interval` turns/hours. Defaulted for back-compat. */
+      refresh_mode: z.enum(["none", "turns", "hours"]).default("none"),
+      refresh_interval: z.number().default(0),
+    })
+    .passthrough(),
   /** Item/power-up config (web45a+). Kept permissive so older/newer backend
    * payloads still parse; the backend always returns fully-defaulted values.
    * `behaviors.roadblock` (Dinh's Bulwark tuning) lives under `behaviors`. */
@@ -2052,6 +2060,20 @@ export const BoardPositionSchema = z.object({
     .nullable()
     .optional(),
   mercy_deadline: z.number().int().nullable().optional(),
+  /** Pending task choice (web50a — choose_task items like Cache of Runes):
+   * the backend rolled N candidate tasks and parked them on the position; the
+   * team picks one via POST /events/{id}/board/choice before it can proceed. */
+  pending_choice: z
+    .array(
+      z.object({
+        index: z.number().int(),
+        label: z.string(),
+        task_id: z.number().int().nullable().optional(),
+        difficulty: z.string().nullable().optional(),
+      }),
+    )
+    .nullable()
+    .optional(),
 });
 export type BoardPosition = z.infer<typeof BoardPositionSchema>;
 
@@ -2115,6 +2137,13 @@ export const BoardShopItemSchema = z.object({
   type_cooldown_turns: z.number().int(),
   stock: z.number().int().nullable().optional(),
   usable_now: z.boolean().default(true),
+  /** Per-event purchase limits (web50a). All backward-compatible defaults so
+   * older shop payloads still parse. */
+  per_team_cap: z.number().int().nullable().optional(),
+  // null when the shop is fetched without a team context (no purchases to count).
+  bought_by_team: z.number().int().nullable().default(0),
+  stock_per_refresh: z.number().int().nullable().optional(),
+  enabled: z.boolean().optional(),
 });
 export type BoardShopItem = z.infer<typeof BoardShopItemSchema>;
 
@@ -2156,6 +2185,49 @@ export const AdminShopItemSchema = BoardShopItemSchema.extend({
   active: z.boolean(),
 }).omit({ stock: true, usable_now: true });
 export type AdminShopItem = z.infer<typeof AdminShopItemSchema>;
+
+/** One row of the per-event shop-config editor (web50a): the catalog item's
+ * display fields plus this event's overrides. Blank/null override = fall back
+ * to the catalog default (price), unlimited (stock) or uncapped (per-team). */
+export const BoardShopConfigItemSchema = z.object({
+  shop_item_id: z.number().int(),
+  key: z.string(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  icon_item_id: z.number().int().nullable().optional(),
+  item_type: z.string(),
+  effect: z.string(),
+  /** Catalog default price — shown as the price input's placeholder. */
+  default_cost_coins: z.number().int(),
+  enabled: z.boolean().default(true),
+  price_override: z.number().int().nullable().optional(),
+  stock_per_refresh: z.number().int().nullable().optional(),
+  per_team_cap: z.number().int().nullable().optional(),
+});
+export type BoardShopConfigItem = z.infer<typeof BoardShopConfigItemSchema>;
+
+/** GET /events/{id}/board/shop/config — the refresh cadence (mirrored from
+ * settings.shop) plus a row per active catalog item. */
+export const BoardShopConfigSchema = z.object({
+  refresh_mode: z.enum(["none", "turns", "hours"]).default("none"),
+  refresh_interval: z.number().int().default(0),
+  items: z.array(BoardShopConfigItemSchema),
+});
+export type BoardShopConfig = z.infer<typeof BoardShopConfigSchema>;
+
+/** PUT /events/{id}/board/shop/config body — per-item overrides only. */
+export const BoardShopConfigInputSchema = z.object({
+  items: z.array(
+    z.object({
+      shop_item_id: z.number().int(),
+      enabled: z.boolean().optional(),
+      price_override: z.number().int().nullable().optional(),
+      stock_per_refresh: z.number().int().nullable().optional(),
+      per_team_cap: z.number().int().nullable().optional(),
+    }),
+  ),
+});
+export type BoardShopConfigInput = z.infer<typeof BoardShopConfigInputSchema>;
 
 export const BoardRollResultSchema = z.object({
   dice: z.array(z.number().int()),

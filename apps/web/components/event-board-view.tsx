@@ -22,10 +22,41 @@ import {
   buyBoardItem,
   fetchBoardShop,
   fetchPublicEventBoard,
+  resolveBoardChoice,
   rollBoardAsMember,
   useBoardItem,
 } from "@/app/(site)/(public)/events/[id]/actions";
 import { RUNE_ITEM_IDS } from "@/components/event-board-designer";
+
+/** Effects whose USE targets a rival team (reuse the team picker). */
+const TEAM_TARGET_EFFECTS = new Set([
+  "steal_item",
+  "reroll_opponent_task",
+  "knockback",
+  "freeze_opponent",
+]);
+/** Effects whose USE takes a numeric value (choose_roll — pick your move). */
+const VALUE_EFFECTS = new Set(["choose_roll"]);
+
+/** Short, human descriptions per effect key so players understand each item.
+ * Falls back to the catalog `description` when the backend sends one. */
+const EFFECT_DESCRIPTIONS: Record<string, string> = {
+  extra_dice: "Adds an extra die to your next roll.",
+  reroll_move: "Reroll your last dice roll and move again.",
+  choose_roll: "Choose exactly how many tiles to advance on your next move.",
+  ward: "Shields your team from the next offensive item aimed at you.",
+  cleanse: "Clears a freeze or debuff currently on your team.",
+  coin_toll: "Charges rivals a coin toll when they pass your piece.",
+  reroll_task: "Swap your current task for a fresh one of the same tier.",
+  boost_coins: "Boosts the coins you earn from your next completed task.",
+  skip_task: "Instantly completes your current task.",
+  choose_task: "Draw several candidate tasks, then pick which one to attempt.",
+  steal_item: "Steal a random power-up from a rival team.",
+  reroll_opponent_task: "Force a rival team to reroll their current task.",
+  knockback: "Knock a rival team back several tiles.",
+  freeze_opponent: "Freeze a rival so their next roll doesn't move them.",
+  roadblock: "Drop a roadblock on a tile to stall whoever hits it.",
+};
 import { getErrorMessage } from "@/lib/errors";
 import { teamColorMap } from "@/lib/events";
 import { useEventStream } from "@/lib/use-event-stream";
@@ -82,6 +113,14 @@ export function EventBoardView({
   const colors = useMemo(() => teamColorMap(event.teams ?? []), [event.teams]);
   const render = board.settings.tile_render;
   const iconSize = render.icon_size ?? 20;
+  // Highest a choose_roll (Wizard's Mind Bomb) may pick.
+  const diceMax =
+    board.settings.movement.dice_count * board.settings.movement.dice_sides;
+  // The viewer's own team position — drives the pending task-choice picker.
+  const myPosition =
+    viewerTeamId != null
+      ? (board.positions.find((p) => p.team_id === viewerTeamId) ?? null)
+      : null;
   const aspect =
     board.bg_width && board.bg_height ? board.bg_width / board.bg_height : 16 / 10;
 
@@ -434,6 +473,21 @@ export function EventBoardView({
           })}
       </div>
 
+      {/* Pending task choice (web50a — choose_task items): the team must pick
+          one of the drawn candidates before it can proceed. */}
+      {viewerTeamId != null &&
+        event.status === "active" &&
+        myPosition?.pending_choice &&
+        myPosition.pending_choice.length > 0 && (
+          <BoardChoicePanel
+            eventId={event.id}
+            teamName={myPosition.team_name}
+            choices={myPosition.pending_choice}
+            onResolved={refetch}
+            leaderGated={leaderGated}
+          />
+        )}
+
       {/* Shop + inventory (viewer's team only; web45a) */}
       {viewerTeamId != null && board.settings.shop.enabled && event.status === "active" && (
         <BoardShopPanel
@@ -443,10 +497,88 @@ export function EventBoardView({
             .filter((p) => p.team_id !== viewerTeamId && p.status !== "finished")
             .map((p) => ({ id: p.team_id, name: p.team_name }))}
           maxTile={board.finish_idx ?? 0}
+          diceMax={diceMax}
           onChanged={refetch}
           leaderGated={leaderGated}
         />
       )}
+    </div>
+  );
+}
+
+/** The drawn-candidate picker for a choose_task item (Cache of Runes / Binding
+ * Necklace): the team chooses which task to attempt; the pick is committed
+ * server-side and the board refetched. */
+function BoardChoicePanel({
+  eventId,
+  teamName,
+  choices,
+  onResolved,
+  leaderGated = false,
+}: {
+  eventId: number;
+  teamName: string;
+  choices: NonNullable<BoardPosition["pending_choice"]>;
+  onResolved: () => void;
+  leaderGated?: boolean;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [busy, startBusy] = useTransition();
+
+  const choose = (choiceIndex: number) => {
+    setError(null);
+    startBusy(async () => {
+      try {
+        await resolveBoardChoice(eventId, choiceIndex);
+        onResolved();
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't lock in that choice."));
+      }
+    });
+  };
+
+  return (
+    <div className="border-osrs-gold/40 bg-osrs-brown-dark/40 rounded border p-3">
+      <h3 className="text-osrs-gold text-sm font-semibold">🔮 Choose your next task</h3>
+      <p className="text-osrs-parchment-dark/70 mt-1 text-xs">
+        {teamName} drew {choices.length} candidate task{choices.length === 1 ? "" : "s"} — pick
+        the one to attempt.
+      </p>
+      {leaderGated && (
+        <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">
+          Leaders only — your team&apos;s leader makes the pick.
+        </p>
+      )}
+      {error && (
+        <div className="mt-2">
+          <Alert variant="error">{error}</Alert>
+        </div>
+      )}
+      <ul className="mt-2 space-y-2">
+        {choices.map((c) => (
+          <li
+            key={c.index}
+            className="border-osrs-bronze/25 flex items-center gap-2 rounded border p-2"
+          >
+            {c.difficulty && RUNE_ITEM_IDS[c.difficulty as keyof typeof RUNE_ITEM_IDS] != null && (
+              <ItemDbIcon
+                itemId={RUNE_ITEM_IDS[c.difficulty as keyof typeof RUNE_ITEM_IDS]}
+                size={16}
+              />
+            )}
+            <span className="text-osrs-parchment flex-1 text-sm">{c.label}</span>
+            <button
+              type="button"
+              disabled={busy || leaderGated}
+              onClick={() => choose(c.index)}
+              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1 text-xs font-medium disabled:opacity-40"
+              title={leaderGated ? "Leaders only" : undefined}
+            >
+              Choose
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -456,6 +588,7 @@ function BoardShopPanel({
   teamId,
   otherTeams,
   maxTile,
+  diceMax,
   onChanged,
   leaderGated = false,
 }: {
@@ -463,6 +596,8 @@ function BoardShopPanel({
   teamId: number;
   otherTeams: { id: number; name: string }[];
   maxTile: number;
+  /** Highest tiles a choose_roll may pick (dice_count × dice_sides). */
+  diceMax: number;
   onChanged: () => void;
   /** web48a: team leadership is on and the viewer holds no role — buy/use
    * stay visible but disabled. */
@@ -472,10 +607,11 @@ function BoardShopPanel({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, startBusy] = useTransition();
-  // Inline targeting state for interference items (freeze → a team,
-  // roadblock → a tile). Keyed by inventory_id.
+  // Inline targeting state for interference items (offensive → a team,
+  // roadblock → a tile, choose_roll → a number). Keyed by inventory_id.
   const [targetTeam, setTargetTeam] = useState<Record<number, number>>({});
   const [targetTile, setTargetTile] = useState<Record<number, string>>({});
+  const [targetValue, setTargetValue] = useState<Record<number, string>>({});
 
   const load = useCallback(() => {
     fetchBoardShop(eventId, teamId)
@@ -501,8 +637,13 @@ function BoardShopPanel({
   const use = (inventoryId: number, effect: string) => {
     setError(null);
     setNotice(null);
-    const opts: { teamId: number; targetTeamId?: number; targetTileIdx?: number } = { teamId };
-    if (effect === "freeze_opponent") {
+    const opts: {
+      teamId: number;
+      targetTeamId?: number;
+      targetTileIdx?: number;
+      value?: number;
+    } = { teamId };
+    if (TEAM_TARGET_EFFECTS.has(effect)) {
       const t = targetTeam[inventoryId] ?? otherTeams[0]?.id;
       if (t == null) {
         setError("No other team to target.");
@@ -511,13 +652,25 @@ function BoardShopPanel({
       opts.targetTeamId = t;
     }
     if (effect === "roadblock") {
+      // Optional now — omit to default to the team's current tile server-side.
       const raw = (targetTile[inventoryId] ?? "").trim();
-      const tile = Number(raw);
-      if (!raw || !Number.isInteger(tile) || tile <= 0 || tile >= maxTile) {
-        setError(`Pick a tile between 1 and ${Math.max(1, maxTile - 1)}.`);
+      if (raw) {
+        const tile = Number(raw);
+        if (!Number.isInteger(tile) || tile <= 0 || tile >= maxTile) {
+          setError(`Pick a tile between 1 and ${Math.max(1, maxTile - 1)}.`);
+          return;
+        }
+        opts.targetTileIdx = tile;
+      }
+    }
+    if (VALUE_EFFECTS.has(effect)) {
+      const raw = (targetValue[inventoryId] ?? "").trim();
+      const v = Number(raw);
+      if (!raw || !Number.isInteger(v) || v < 1 || v > diceMax) {
+        setError(`Pick a number between 1 and ${diceMax}.`);
         return;
       }
-      opts.targetTileIdx = tile;
+      opts.value = v;
     }
     startBusy(async () => {
       try {
@@ -561,6 +714,12 @@ function BoardShopPanel({
       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
         {shop.items.map((item) => {
           const affordable = (shop.team?.coins ?? 0) >= item.cost_coins;
+          const cap = item.per_team_cap ?? null;
+          const bought = item.bought_by_team ?? 0;
+          const capReached = cap != null && bought >= cap;
+          const soldOut = item.stock === 0;
+          const canBuy = affordable && item.usable_now && !capReached && !soldOut;
+          const desc = item.description ?? EFFECT_DESCRIPTIONS[item.effect];
           return (
             <div key={item.id} className="border-osrs-bronze/20 rounded border p-2">
               <div className="flex items-center gap-1.5">
@@ -569,24 +728,47 @@ function BoardShopPanel({
                   {item.name}
                 </span>
               </div>
-              {item.description && (
-                <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">
-                  {item.description}
-                </p>
+              {desc && (
+                <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">{desc}</p>
               )}
               <p className="text-osrs-parchment-dark/50 mt-1 text-[10px] uppercase tracking-wide">
                 {item.item_type} · every {item.type_cooldown_turns} turns
               </p>
+              {(item.stock != null || cap != null) && (
+                <p className="text-osrs-parchment-dark/50 mt-0.5 text-[10px]">
+                  {item.stock != null && (
+                    <span>{item.stock} in stock</span>
+                  )}
+                  {item.stock != null && cap != null && " · "}
+                  {cap != null && (
+                    <span>
+                      {bought}/{cap} per team
+                    </span>
+                  )}
+                </p>
+              )}
               <button
                 type="button"
-                disabled={busy || leaderGated || !affordable || !item.usable_now}
+                disabled={busy || leaderGated || !canBuy}
                 onClick={() => buy(item.id)}
                 className="bg-osrs-bronze/80 text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-1.5 w-full rounded px-2 py-1 text-xs font-medium disabled:opacity-40"
                 title={
-                  leaderGated ? "Leaders only" : !affordable ? "Not enough coins" : undefined
+                  leaderGated
+                    ? "Leaders only"
+                    : soldOut
+                      ? "Sold out"
+                      : capReached
+                        ? "Your team's limit is reached"
+                        : !affordable
+                          ? "Not enough coins"
+                          : undefined
                 }
               >
-                Buy · 🪙 {item.cost_coins}
+                {soldOut
+                  ? "Sold out"
+                  : capReached
+                    ? `Limit reached (${bought}/${cap})`
+                    : `Buy · 🪙 ${item.cost_coins}`}
               </button>
             </div>
           );
@@ -606,10 +788,11 @@ function BoardShopPanel({
               <li
                 key={i.inventory_id}
                 className="border-osrs-bronze/25 flex items-center gap-1.5 rounded border px-2 py-1"
+                title={EFFECT_DESCRIPTIONS[i.effect]}
               >
                 <ItemDbIcon itemId={i.icon_item_id} size={16} />
                 <span className="text-osrs-parchment text-xs">{i.name}</span>
-                {i.effect === "freeze_opponent" && otherTeams.length > 0 && (
+                {TEAM_TARGET_EFFECTS.has(i.effect) && otherTeams.length > 0 && (
                   <select
                     value={targetTeam[i.inventory_id] ?? otherTeams[0]?.id}
                     onChange={(e) =>
@@ -619,7 +802,7 @@ function BoardShopPanel({
                       }))
                     }
                     className="border-osrs-bronze/40 bg-osrs-brown-dark/60 rounded border px-1 py-0.5 text-[11px]"
-                    aria-label="Freeze target"
+                    aria-label="Target team"
                   >
                     {otherTeams.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -633,7 +816,8 @@ function BoardShopPanel({
                     type="number"
                     min={1}
                     max={Math.max(1, maxTile - 1)}
-                    placeholder="tile #"
+                    placeholder="current tile"
+                    title="Leave blank to block your team's current tile"
                     value={targetTile[i.inventory_id] ?? ""}
                     onChange={(e) =>
                       setTargetTile((prev) => ({
@@ -641,8 +825,26 @@ function BoardShopPanel({
                         [i.inventory_id]: e.target.value,
                       }))
                     }
+                    className="border-osrs-bronze/40 bg-osrs-brown-dark/60 w-24 rounded border px-1 py-0.5 text-[11px]"
+                    aria-label="Roadblock tile (blank = current tile)"
+                  />
+                )}
+                {VALUE_EFFECTS.has(i.effect) && (
+                  <input
+                    type="number"
+                    min={1}
+                    max={diceMax}
+                    placeholder={`1–${diceMax}`}
+                    title={`Move exactly this many tiles (1–${diceMax})`}
+                    value={targetValue[i.inventory_id] ?? ""}
+                    onChange={(e) =>
+                      setTargetValue((prev) => ({
+                        ...prev,
+                        [i.inventory_id]: e.target.value,
+                      }))
+                    }
                     className="border-osrs-bronze/40 bg-osrs-brown-dark/60 w-16 rounded border px-1 py-0.5 text-[11px]"
-                    aria-label="Roadblock tile"
+                    aria-label="Tiles to advance"
                   />
                 )}
                 <button

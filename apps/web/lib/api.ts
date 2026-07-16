@@ -36,6 +36,9 @@ import {
   type BoardInput,
   BoardShopStateSchema,
   type BoardShopState,
+  BoardShopConfigSchema,
+  type BoardShopConfig,
+  type BoardShopConfigInput,
   AdminShopItemSchema,
   type AdminShopItem,
   AdminEventTypeSchema,
@@ -987,17 +990,55 @@ export const api = {
       );
   },
 
-  /** Use an owned power-up (skip / reroll / boost…). */
+  /** Use an owned power-up (skip / reroll / boost…). `value` drives numeric
+   * effects like choose_roll (Wizard's Mind Bomb); `targetTeamId` the offensive
+   * ones (steal/reroll_opponent/knockback/freeze); `targetTileIdx` the roadblock
+   * (optional — the backend defaults it to the team's current tile). */
   async useEventBoardItem(
     eventId: number,
     inventoryId: number,
-    opts: { teamId?: number; targetTeamId?: number; targetTileIdx?: number } = {},
+    opts: {
+      teamId?: number;
+      targetTeamId?: number;
+      targetTileIdx?: number;
+      value?: number;
+    } = {},
   ): Promise<Record<string, unknown>> {
     return (await apiSend("POST", `/events/${eventId}/board/items/${inventoryId}/use`, {
       ...(opts.teamId != null ? { team_id: opts.teamId } : {}),
       ...(opts.targetTeamId != null ? { target_team_id: opts.targetTeamId } : {}),
       ...(opts.targetTileIdx != null ? { target_tile_idx: opts.targetTileIdx } : {}),
+      ...(opts.value != null ? { value: opts.value } : {}),
     })) as Record<string, unknown>;
+  },
+
+  /** Resolve a pending task choice (choose_task items — Cache of Runes). */
+  async resolveEventBoardChoice(
+    eventId: number,
+    choiceIndex: number,
+  ): Promise<Record<string, unknown>> {
+    return (await apiSend("POST", `/events/${eventId}/board/choice`, {
+      choice_index: choiceIndex,
+    })) as Record<string, unknown>;
+  },
+
+  /** Per-event shop config: refresh cadence (mirrored from settings.shop) plus
+   * a row per active catalog item with its overrides. */
+  async eventBoardShopConfig(eventId: number): Promise<BoardShopConfig> {
+    return BoardShopConfigSchema.parse(
+      await apiGet(`/events/${eventId}/board/shop/config`, { authed: true }),
+    );
+  },
+
+  /** Save the per-event shop config (per-item overrides). Refresh cadence is
+   * saved separately through patchEventBoardSettings. */
+  async putEventBoardShopConfig(
+    eventId: number,
+    payload: BoardShopConfigInput,
+  ): Promise<BoardShopConfig> {
+    return BoardShopConfigSchema.parse(
+      await apiSend("PUT", `/events/${eventId}/board/shop/config`, payload),
+    );
   },
 
   /** Superadmin: the site-wide power-up catalog. */

@@ -101,15 +101,25 @@ export async function buyBoardItem(eventId: number, shopItemId: number, teamId?:
   return res;
 }
 
-/** Use an owned power-up. */
+/** Use an owned power-up. `value` drives numeric effects (choose_roll);
+ * `targetTeamId`/`targetTileIdx` the targeted ones. */
 export async function useBoardItem(
   eventId: number,
   inventoryId: number,
-  opts: { teamId?: number; targetTeamId?: number; targetTileIdx?: number } = {},
+  opts: { teamId?: number; targetTeamId?: number; targetTileIdx?: number; value?: number } = {},
 ) {
   const user = await getUser();
   if (!user) throw new Error("Sign in to use items.");
   const res = await api.useEventBoardItem(eventId, inventoryId, opts);
+  revalidatePath(`/events/${eventId}`);
+  return res;
+}
+
+/** Resolve a pending task choice (choose_task items — Cache of Runes). */
+export async function resolveBoardChoice(eventId: number, choiceIndex: number) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to choose a task.");
+  const res = await api.resolveEventBoardChoice(eventId, choiceIndex);
   revalidatePath(`/events/${eventId}`);
   return res;
 }

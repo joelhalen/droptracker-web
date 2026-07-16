@@ -39,6 +39,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
+import { EventBoardShopConfig } from "@/components/event-board-shop-config";
 import { EventDiscordSettings } from "@/components/event-discord";
 import { EventMemberList } from "@/components/event-member-list";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
@@ -1055,6 +1056,9 @@ export function EventManager({
             Game board
           </h3>
           <EventBoardDesigner groupId={groupId} event={event} tasks={tasks} />
+          <div className="mt-6">
+            <EventBoardShopConfig groupId={groupId} eventId={event.id} />
+          </div>
         </section>
       ) : (
         <section className={tab === "board" ? "" : "hidden"}>

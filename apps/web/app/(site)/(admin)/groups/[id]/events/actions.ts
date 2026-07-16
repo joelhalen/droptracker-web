@@ -5,6 +5,8 @@ import {
   BingoBoardInputSchema,
   BoardInputSchema,
   type BoardInput,
+  BoardShopConfigInputSchema,
+  type BoardShopConfigInput,
   EventAwardInputSchema,
   EventChannelConfigInputSchema,
   EventInputSchema,
@@ -452,6 +454,27 @@ export async function saveEventBoardSettings(
   const settings = await api.patchEventBoardSettings(eventId, patch);
   revalidatePath(eventAdminPath(groupId, eventId));
   return settings;
+}
+
+/** Read the per-event shop config (refresh cadence + per-item overrides). */
+export async function fetchBoardShopConfig(groupId: EventGroupId, eventId: number) {
+  await assertCanManageEvent(groupId);
+  return api.eventBoardShopConfig(eventId);
+}
+
+/** Save the per-event shop config (per-item overrides). Refresh cadence is
+ * persisted separately via saveEventBoardSettings by the caller. */
+export async function saveBoardShopConfig(
+  groupId: EventGroupId,
+  eventId: number,
+  payload: BoardShopConfigInput,
+) {
+  await assertCanManageEvent(groupId);
+  const parsed = BoardShopConfigInputSchema.parse(payload);
+  const config = await api.putEventBoardShopConfig(eventId, parsed);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return config;
 }
 
 /** Upload a custom board background image. */
