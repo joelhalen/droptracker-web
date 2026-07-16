@@ -129,6 +129,10 @@ export function EventBoardDesigner({
   // --- Procedural generator (web46a) ---------------------------------------
   const [genOpen, setGenOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
+  // The seed string used by the most recent roll this session (""=random,
+  // null=nothing rolled yet). Drives the "Regenerate" label and the
+  // same-seed-produces-an-identical-board warning.
+  const [lastGenSeed, setLastGenSeed] = useState<string | null>(null);
   const [gen, setGen] = useState<{
     seed: string;
     regions: number;
@@ -474,21 +478,30 @@ export function EventBoardDesigner({
   // Procedurally roll a whole board (art + sequential tile track) server-side.
   // The result is already persisted, so we sync the autosave revision and
   // adopt the returned board rather than marking dirty.
+  const trimmedGenSeed = gen.seed.trim();
+  // Re-rolling with the same explicit seed reproduces the identical board.
+  const sameSeedRepeat =
+    lastGenSeed !== null && trimmedGenSeed !== "" && trimmedGenSeed === lastGenSeed;
+
   const generateBoard = async () => {
-    if (
-      tiles.length > 0 &&
-      !window.confirm(
-        `Replace the current ${tiles.length} tile(s) and background with a freshly ` +
-          "generated board?",
-      )
-    ) {
-      return;
+    // One confirmation, whichever matters most: an identical-board warning when
+    // the seed hasn't changed, otherwise the destructive-replace warning.
+    let confirmMsg = "";
+    if (sameSeedRepeat) {
+      confirmMsg =
+        `The seed is still ${trimmedGenSeed} — regenerating with the same seed produces the ` +
+        `exact same board. Change or clear the seed for a different one. Regenerate anyway?`;
+    } else if (tiles.length > 0) {
+      confirmMsg =
+        `Replace the current ${tiles.length} tile(s) and background with a freshly generated board?`;
     }
+    if (confirmMsg && !window.confirm(confirmMsg)) return;
+
     setGenerating(true);
     setError(null);
     try {
       const detail = await generateEventBoard(groupId, event.id, {
-        seed: gen.seed.trim() ? Number(gen.seed.trim()) : null,
+        seed: trimmedGenSeed ? Number(trimmedGenSeed) : null,
         regions: gen.regions,
         tiles: gen.tiles,
         style: gen.style,
@@ -499,7 +512,8 @@ export function EventBoardDesigner({
       clearHistory(); // a freshly generated board is a clean slate for undo
       savedRevRef.current = revRef.current; // generation already saved server-side
       setSaveState("saved");
-      setGenOpen(false);
+      setLastGenSeed(trimmedGenSeed); // remember what we rolled with ("" = random)
+      // Panel intentionally stays open so the admin can re-roll until happy.
       onSaved?.(detail);
     } catch (err) {
       setError(getErrorMessage(err, "Board generation failed."));
@@ -681,14 +695,18 @@ export function EventBoardDesigner({
               </select>
             </label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={generateBoard}
               disabled={generating}
               className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold/90 rounded px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
             >
-              {generating ? "Generating…" : "Generate board"}
+              {generating
+                ? "Generating…"
+                : lastGenSeed === null
+                  ? "Generate board"
+                  : "🎲 Regenerate"}
             </button>
             <button
               type="button"
@@ -696,11 +714,20 @@ export function EventBoardDesigner({
               disabled={generating}
               className="text-osrs-parchment-dark/70 hover:text-osrs-gold text-xs disabled:opacity-50"
             >
-              Cancel
+              {lastGenSeed === null ? "Cancel" : "Close"}
             </button>
-            <span className="text-osrs-parchment-dark/50 text-xs">
-              The exact tile count is approximate — it emerges from the path geometry.
-            </span>
+            {sameSeedRepeat ? (
+              <span className="text-osrs-red/90 text-xs">
+                ⚠ Same seed as the last roll — you'll get an identical board. Clear or change
+                the seed for a new one.
+              </span>
+            ) : (
+              <span className="text-osrs-parchment-dark/50 text-xs">
+                {lastGenSeed === null
+                  ? "Generates exactly the tile count you enter. Don't like it? Re-roll — the panel stays open."
+                  : "Re-roll for a new board (blank seed = a fresh one each time)."}
+              </span>
+            )}
           </div>
         </div>
       )}
