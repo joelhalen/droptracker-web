@@ -1889,12 +1889,28 @@ export const api = {
     );
   },
 
-  /** Captain/admin: tune which notifications one team's channel receives. */
+  /** Current effective notification state for one team's channel (captain or
+   * event admin — the modal seeds from this). */
+  async teamNotifications(eventId: number, teamId: number): Promise<TeamNotifications> {
+    return withFallback(
+      async () =>
+        TeamNotificationsSchema.parse(
+          await apiGet(`/events/${eventId}/teams/${teamId}/notifications`, {
+            authed: true,
+          }),
+        ),
+      () => ({ team_id: teamId, toggles: {}, pings: {}, task_progress: "milestones" }),
+    );
+  },
+
+  /** Captain/admin: tune which notifications one team's channel receives and
+   * which of them mention @TeamRole. */
   async updateTeamNotifications(
     eventId: number,
     teamId: number,
     input: {
       toggles?: Record<string, boolean>;
+      pings?: Record<string, boolean>;
       task_progress?: EventTaskProgressMode;
     },
   ): Promise<TeamNotifications> {
@@ -1906,7 +1922,8 @@ export const api = {
       () => ({
         team_id: teamId,
         toggles: input.toggles ?? {},
-        task_progress: input.task_progress ?? "all",
+        pings: input.pings ?? {},
+        task_progress: input.task_progress ?? "milestones",
       }),
     );
   },

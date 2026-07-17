@@ -31,13 +31,26 @@ export async function leaveEvent(eventId: number, playerId: number) {
 
 // --- Team channel notifications (web53a) -------------------------------------
 
+/** Current effective notification state for the viewer's team channel —
+ * seeds the captain modal (untouched knobs show the event's configured
+ * verbosity). */
+export async function getMyTeamNotifications(eventId: number, teamId: number) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to manage team notifications.");
+  return api.teamNotifications(eventId, teamId);
+}
+
 /** Captain-facing save of their team's Discord-channel notification toggles
- * (the Web API enforces the captain/leadership/captain_config rules; event
- * admins pass unconditionally). */
+ * and per-type @TeamRole pings (the Web API enforces the captain/leadership/
+ * captain_config rules; event admins pass unconditionally). */
 export async function saveMyTeamNotifications(
   eventId: number,
   teamId: number,
-  input: { toggles?: Record<string, boolean>; task_progress?: "off" | "milestones" | "all" },
+  input: {
+    toggles?: Record<string, boolean>;
+    pings?: Record<string, boolean>;
+    task_progress?: "off" | "milestones" | "all";
+  },
 ) {
   const user = await getUser();
   if (!user) throw new Error("Sign in to manage team notifications.");

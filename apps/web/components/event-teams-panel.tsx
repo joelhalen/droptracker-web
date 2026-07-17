@@ -19,7 +19,10 @@ import {
   type EventTeamRole,
   type TeamMessageToggleKey,
 } from "@droptracker/api-types";
-import { saveMyTeamNotifications } from "@/app/(site)/(public)/events/[id]/actions";
+import {
+  getMyTeamNotifications,
+  saveMyTeamNotifications,
+} from "@/app/(site)/(public)/events/[id]/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { entityPath } from "@/lib/slug";
 import { teamColorMap } from "@/lib/events";
@@ -68,19 +71,19 @@ const TEAM_TOGGLE_LABELS: Record<TeamMessageToggleKey, string> = {
   event_board_roll_prompt: "Board: roll prompts",
 };
 
-/** Team-channel defaults: everything on (roll prompts included — unlike the
- * event's main channels, team channels carry them by default). */
-function defaultTeamToggles(): Record<TeamMessageToggleKey, boolean> {
+function allOn(): Record<TeamMessageToggleKey, boolean> {
   return Object.fromEntries(TEAM_MESSAGE_TOGGLE_KEYS.map((k) => [k, true])) as Record<
     TeamMessageToggleKey,
     boolean
   >;
 }
 
-/** Small modal where a captain (or event admin) tunes which notifications
- * their team's auto-provisioned Discord channel receives. There's no captain
- * read endpoint, so it seeds from the defaults and reflects the server's
- * returned state after the first save. */
+/** Small modal where a captain (or event admin) tunes their team's
+ * auto-provisioned Discord channel: which notifications post ("Send") and
+ * which mention @TeamRole ("@ ping"). Seeds from the live effective state —
+ * untouched knobs inherit the event's configured verbosity, and the save
+ * sends ONLY what the user changed in this dialog, so everything else keeps
+ * inheriting. */
 function TeamNotificationsDialog({
   eventId,
   teamId,
@@ -92,8 +95,21 @@ function TeamNotificationsDialog({
   teamName: string;
   onClose: () => void;
 }) {
-  const [toggles, setToggles] = useState<Record<TeamMessageToggleKey, boolean>>(defaultTeamToggles);
-  const [taskProgress, setTaskProgress] = useState<EventTaskProgressMode>("all");
+  const [toggles, setToggles] = useState<Record<TeamMessageToggleKey, boolean>>(allOn);
+  const [pings, setPings] = useState<Record<TeamMessageToggleKey, boolean>>(allOn);
+  const [taskProgress, setTaskProgress] = useState<EventTaskProgressMode>("milestones");
+  // The server state the dialog seeded from — the diff baseline at save time
+  // (only changed knobs become explicit team overrides).
+  const [baseline, setBaseline] = useState<{
+    toggles: Record<string, boolean>;
+    pings: Record<string, boolean>;
+    task_progress: EventTaskProgressMode;
+  } | null>(null);
+  const [explicit, setExplicit] = useState<{ toggles: string[]; task_progress: boolean }>({
+    toggles: [],
+    task_progress: false,
+  });
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -106,21 +122,82 @@ function TeamNotificationsDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const state = await getMyTeamNotifications(eventId, teamId);
+        if (cancelled) return;
+        setToggles((prev) => ({ ...prev, ...state.toggles }));
+        setPings((prev) => ({ ...prev, ...state.pings }));
+        setTaskProgress(state.task_progress);
+        setBaseline({
+          toggles: { ...state.toggles },
+          pings: { ...state.pings },
+          task_progress: state.task_progress,
+        });
+        setExplicit({
+          toggles: state.explicit?.toggles ?? [],
+          task_progress: state.explicit?.task_progress ?? false,
+        });
+      } catch (err) {
+        if (!cancelled) {
+          setError(getErrorMessage(err, "Couldn't load the current settings."));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, teamId]);
+
   const save = () => {
     setError(null);
     setSaved(false);
     startTransition(async () => {
       try {
-        const res = await saveMyTeamNotifications(eventId, teamId, {
-          toggles,
-          task_progress: taskProgress,
+        // Send only what changed vs the seeded state: unchanged knobs keep
+        // inheriting the event's configured verbosity.
+        const changedToggles: Record<string, boolean> = {};
+        const changedPings: Record<string, boolean> = {};
+        for (const key of TEAM_MESSAGE_TOGGLE_KEYS) {
+          if (baseline && toggles[key] !== baseline.toggles[key]) {
+            changedToggles[key] = toggles[key];
+          }
+          if (baseline && pings[key] !== baseline.pings[key]) {
+            changedPings[key] = pings[key];
+          }
+        }
+        const input: {
+          toggles?: Record<string, boolean>;
+          pings?: Record<string, boolean>;
+          task_progress?: EventTaskProgressMode;
+        } = {};
+        if (Object.keys(changedToggles).length) input.toggles = changedToggles;
+        if (Object.keys(changedPings).length) input.pings = changedPings;
+        if (!baseline || taskProgress !== baseline.task_progress) {
+          input.task_progress = taskProgress;
+        }
+        if (!Object.keys(input).length) {
+          setSaved(true);
+          return;
+        }
+        const res = await saveMyTeamNotifications(eventId, teamId, input);
+        const state = res.notifications;
+        setToggles((prev) => ({ ...prev, ...state.toggles }));
+        setPings((prev) => ({ ...prev, ...state.pings }));
+        setTaskProgress(state.task_progress);
+        setBaseline({
+          toggles: { ...state.toggles },
+          pings: { ...state.pings },
+          task_progress: state.task_progress,
         });
-        // Reflect what the server actually stored (it may clamp/merge).
-        setToggles((prev) => ({
-          ...prev,
-          ...(res.notifications.toggles as Partial<Record<TeamMessageToggleKey, boolean>>),
-        }));
-        setTaskProgress(res.notifications.task_progress);
+        setExplicit({
+          toggles: state.explicit?.toggles ?? [],
+          task_progress: state.explicit?.task_progress ?? false,
+        });
         setSaved(true);
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't save the team notification settings."));
@@ -150,29 +227,71 @@ function TeamNotificationsDialog({
         </div>
         <div className="space-y-3 px-4 py-3">
           <p className="text-osrs-parchment-dark/60 text-xs">
-            Settings apply to {teamName}&apos;s Discord channel. Values shown are the defaults
-            until you save.
+            Applies to {teamName}&apos;s Discord channel. &ldquo;Send&rdquo; posts the message;
+            &ldquo;@&nbsp;ping&rdquo; also mentions the team role. Unchanged rows follow the
+            event&apos;s configured settings.
           </p>
-          <ul className="space-y-1.5">
-            {TEAM_MESSAGE_TOGGLE_KEYS.map((key) => (
-              <li key={key}>
-                <label className="flex cursor-pointer items-center justify-between gap-3 text-sm">
-                  <span>{TEAM_TOGGLE_LABELS[key]}</span>
-                  <input
-                    type="checkbox"
-                    checked={toggles[key]}
-                    onChange={(e) =>
-                      setToggles((prev) => ({ ...prev, [key]: e.target.checked }))
-                    }
-                    className="size-4"
-                  />
-                </label>
+          {loading ? (
+            <p className="text-osrs-parchment-dark/60 text-xs">Loading current settings…</p>
+          ) : (
+            <ul className="space-y-1.5">
+              <li
+                aria-hidden
+                className="text-osrs-parchment-dark/50 flex items-center justify-end gap-4 text-[10px] uppercase tracking-wide"
+              >
+                <span className="w-8 text-center">Send</span>
+                <span className="w-8 text-center">@ ping</span>
               </li>
-            ))}
-          </ul>
+              {TEAM_MESSAGE_TOGGLE_KEYS.map((key) => (
+                <li key={key}>
+                  <div className="flex items-center justify-between gap-4 text-sm">
+                    <span className="flex items-center gap-1.5">
+                      {TEAM_TOGGLE_LABELS[key]}
+                      {!explicit.toggles.includes(key) && (
+                        <span
+                          title="Following the event's configured setting"
+                          className="text-osrs-parchment-dark/40 text-[10px]"
+                        >
+                          (event default)
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex items-center gap-4">
+                      <span className="flex w-8 justify-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`Send ${TEAM_TOGGLE_LABELS[key]}`}
+                          checked={toggles[key]}
+                          onChange={(e) =>
+                            setToggles((prev) => ({ ...prev, [key]: e.target.checked }))
+                          }
+                          className="size-4"
+                        />
+                      </span>
+                      <span className="flex w-8 justify-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`Ping the team for ${TEAM_TOGGLE_LABELS[key]}`}
+                          checked={pings[key]}
+                          disabled={!toggles[key]}
+                          onChange={(e) =>
+                            setPings((prev) => ({ ...prev, [key]: e.target.checked }))
+                          }
+                          className="size-4 disabled:opacity-30"
+                        />
+                      </span>
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
           <label className="block text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-              Task progress detail
+              Task progress detail{" "}
+              {!explicit.task_progress && (
+                <span className="text-osrs-parchment-dark/40">(event default)</span>
+              )}
             </span>
             <select
               value={taskProgress}

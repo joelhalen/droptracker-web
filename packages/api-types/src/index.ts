@@ -2886,7 +2886,17 @@ export const TeamDiscordTeamStateSchema = z.object({
   role_enabled: z.boolean(),
   channel_enabled: z.boolean(),
   toggles: z.record(z.string(), z.boolean()).default({}),
-  task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("all"),
+  pings: z.record(z.string(), z.boolean()).default({}),
+  task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("milestones"),
+  /** Which knobs this team set explicitly (everything else inherits the
+   * event's configured verbosity). */
+  explicit: z
+    .object({
+      toggles: z.array(z.string()).default([]),
+      pings: z.array(z.string()).default([]),
+      task_progress: z.boolean().default(false),
+    })
+    .optional(),
   role_id: z.string().nullable().optional(),
   channel_id: z.string().nullable().optional(),
   channel_kind: z.enum(["text", "thread"]).nullable().optional(),
@@ -2911,8 +2921,11 @@ export const EventTeamDiscordConfigSchema = z.object({
   /** Team captains (leadership feature) may tune their team's toggles. */
   captain_config: z.boolean(),
   teams: z.array(TeamDiscordTeamStateSchema).default([]),
+  /** The scope's inherited baseline — what an untouched team gets (derived
+   * from the event's configured verbosity). */
   default_toggles: z.record(z.string(), z.boolean()).default({}),
-  default_task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("all"),
+  default_pings: z.record(z.string(), z.boolean()).default({}),
+  default_task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("milestones"),
 });
 export type EventTeamDiscordConfig = z.infer<typeof EventTeamDiscordConfigSchema>;
 
@@ -2934,12 +2947,29 @@ export const EventTeamDiscordInputSchema = z.object({
 });
 export type EventTeamDiscordInput = z.infer<typeof EventTeamDiscordInputSchema>;
 
-/** PUT /events/{id}/teams/{teamId}/notifications response (and input shape:
- * {toggles?, task_progress?}). */
+/** GET/PUT /events/{id}/teams/{teamId}/notifications — the team channel's
+ * effective notification state. `toggles` = post it; `pings` = mention
+ * @TeamRole when it posts. Untouched knobs inherit the event's configured
+ * verbosity (`inherited` is that baseline; `explicit` marks the knobs the
+ * team has overridden). Input shape: {toggles?, pings?, task_progress?}. */
 export const TeamNotificationsSchema = z.object({
   team_id: z.number().int(),
   toggles: z.record(z.string(), z.boolean()).default({}),
-  task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("all"),
+  pings: z.record(z.string(), z.boolean()).default({}),
+  task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("milestones"),
+  explicit: z
+    .object({
+      toggles: z.array(z.string()).default([]),
+      pings: z.array(z.string()).default([]),
+      task_progress: z.boolean().default(false),
+    })
+    .optional(),
+  inherited: z
+    .object({
+      toggles: z.record(z.string(), z.boolean()).default({}),
+      task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("milestones"),
+    })
+    .optional(),
 });
 export type TeamNotifications = z.infer<typeof TeamNotificationsSchema>;
 

@@ -1951,6 +1951,7 @@ export function mockEventTeamDiscord(
         role_enabled: true,
         channel_enabled: true,
         toggles: {},
+        pings: {},
         task_progress: "all",
         role_id: "999999999999999901",
         channel_id: "999999999999999902",
@@ -1964,6 +1965,7 @@ export function mockEventTeamDiscord(
         role_enabled: true,
         channel_enabled: false,
         toggles: { event_board_turn: false },
+        pings: { event_completion: false },
         task_progress: "milestones",
         role_id: null,
         channel_id: null,
@@ -1981,7 +1983,16 @@ export function mockEventTeamDiscord(
       event_board_turn: true,
       event_board_roll_prompt: true,
     },
-    default_task_progress: "all",
+    default_pings: {
+      event_completion: true,
+      event_task_progress: false,
+      event_line: true,
+      event_blackout: true,
+      event_lead_change: true,
+      event_board_turn: false,
+      event_board_roll_prompt: true,
+    },
+    default_task_progress: "milestones",
   };
 }
 
