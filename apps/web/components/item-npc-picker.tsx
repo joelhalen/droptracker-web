@@ -227,6 +227,7 @@ export function ItemNpcPicker({
           ) : results.length ? (
             results.map((r) => {
               const isSelected = selectedNames.has(r.name);
+              const untracked = r.tracked === false;
               return (
                 <li key={r.id}>
                   <button
@@ -248,7 +249,9 @@ export function ItemNpcPicker({
                     title={
                       isSelected
                         ? `Remove ${r.name}`
-                        : `Add ${r.name} — click, or drag it across`
+                        : untracked
+                          ? `${r.name} has never been recorded as a drop — a task requiring it may be impossible to complete`
+                          : `Add ${r.name} — click, or drag it across`
                     }
                     className={`flex w-full cursor-grab items-center gap-2 rounded px-2 py-1.5 text-left text-sm active:cursor-grabbing ${
                       isSelected
@@ -259,9 +262,15 @@ export function ItemNpcPicker({
                     <EntityIcon kind={kind} id={r.id} />
                     <span className="min-w-0 flex-1 truncate">{r.name}</span>
                     <span
-                      className={`shrink-0 text-xs ${isSelected ? "text-osrs-gold-bright" : "text-osrs-parchment-dark/40"}`}
+                      className={`shrink-0 text-xs ${
+                        isSelected
+                          ? "text-osrs-gold-bright"
+                          : untracked
+                            ? "text-amber-500/80"
+                            : "text-osrs-parchment-dark/40"
+                      }`}
                     >
-                      {isSelected ? "✓ added" : "+"}
+                      {isSelected ? "✓ added" : untracked ? "⚠ never dropped" : "+"}
                     </span>
                   </button>
                 </li>

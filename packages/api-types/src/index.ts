@@ -2971,6 +2971,9 @@ export type EventTaskLibraryItem = z.infer<typeof EventTaskLibraryItemSchema>;
 export const EventMetaEntrySchema = z.object({
   id: z.number().int(),
   name: z.string(),
+  /** Item search only: false = never seen in the drop history (catalog-only
+   * fallback rows — a task targeting one may be uncompletable). */
+  tracked: z.boolean().optional(),
 });
 export type EventMetaEntry = z.infer<typeof EventMetaEntrySchema>;
 
