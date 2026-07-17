@@ -93,6 +93,7 @@ import {
   GroupEmbedsResponseSchema,
   GroupSubscriptionSchema,
   MyNitroBoostSchema,
+  NotificationPrefsSchema,
   GroupSubscriptionSummarySchema,
   AdminSubscriptionsOverviewSchema,
   GuildStatusSchema,
@@ -190,6 +191,7 @@ import {
   type GroupSubscription,
   type GroupSubscriptionSummary,
   type MyNitroBoost,
+  type NotificationPrefs,
   type AdminSubscriptionsOverview,
   type GuildStatus,
   type LeaderboardPage,
@@ -2199,6 +2201,30 @@ export const api = {
           players: mock.players.map((p) => (p.id === playerId ? { ...p, hidden } : p)),
         };
       },
+    );
+  },
+
+  /** In-game event notification prefs for every linked account (types are
+   * server-driven — new notification types appear without a UI change). */
+  async notificationPrefs(): Promise<NotificationPrefs> {
+    return withFallback(
+      async () =>
+        NotificationPrefsSchema.parse(await apiGet(`/me/notification-prefs`, { authed: true })),
+      () => ({ types: [], players: [] }),
+    );
+  },
+
+  /** Replace one linked account's in-game notification prefs. */
+  async setPlayerNotificationPrefs(
+    playerId: number,
+    prefs: Record<string, boolean>,
+  ): Promise<NotificationPrefs> {
+    return withFallback(
+      async () =>
+        NotificationPrefsSchema.parse(
+          await apiSend("PUT", `/me/players/${playerId}/notification-prefs`, { prefs }),
+        ),
+      () => ({ types: [], players: [] }),
     );
   },
 

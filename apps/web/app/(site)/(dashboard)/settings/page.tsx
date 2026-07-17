@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { SettingsForm } from "@/components/settings-form";
+import { EventNotificationPrefs } from "@/components/event-notification-prefs";
 import { NitroBoostCard } from "@/components/nitro-boost-card";
 import { ThemePicker } from "@/components/theme";
 
@@ -10,7 +11,11 @@ export const metadata: Metadata = { title: "Settings" };
 export default async function SettingsPage() {
   // requireUser guarantees a non-null session even though the layout also gates.
   await requireUser("/settings");
-  const [settings, nitro] = await Promise.all([api.settings(), api.myNitroBoost()]);
+  const [settings, nitro, notificationPrefs] = await Promise.all([
+    api.settings(),
+    api.myNitroBoost(),
+    api.notificationPrefs(),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-10">
@@ -27,6 +32,10 @@ export default async function SettingsPage() {
       {/* SettingsForm renders its own "Privacy" / "Discord notifications" headings. */}
       <section className="max-w-xl">
         <SettingsForm initial={settings} />
+      </section>
+
+      <section className="max-w-xl">
+        <EventNotificationPrefs initial={notificationPrefs} />
       </section>
 
       <NitroBoostCard initial={nitro} />

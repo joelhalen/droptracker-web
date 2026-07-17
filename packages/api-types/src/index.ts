@@ -729,6 +729,28 @@ export const AccountSettingsPatchSchema = AccountSettingsSchema.omit({
 }).partial();
 export type AccountSettingsPatch = z.infer<typeof AccountSettingsPatchSchema>;
 
+/**
+ * In-game event notification prefs (GET /me/notification-prefs): per-player
+ * (RSN) toggles for the RuneLite plugin's event notifications, enforced
+ * server-side at inbox-delivery time. `types` is server-driven so new
+ * notification types appear here without a frontend change. Task-progress
+ * pop-ups are deliberately absent — that mute switch lives in the plugin.
+ */
+export const NotificationPrefTypeSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+});
+export const NotificationPrefsPlayerSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  prefs: z.record(z.string(), z.boolean()),
+});
+export const NotificationPrefsSchema = z.object({
+  types: z.array(NotificationPrefTypeSchema),
+  players: z.array(NotificationPrefsPlayerSchema),
+});
+export type NotificationPrefs = z.infer<typeof NotificationPrefsSchema>;
+
 /** An NPC or item hit in combined search (name + catalog icon). */
 export const SearchEntitySchema = z.object({
   id: z.number().int(),

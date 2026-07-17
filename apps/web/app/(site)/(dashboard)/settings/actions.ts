@@ -6,6 +6,7 @@ import {
   type AccountSettings,
   type AccountSettingsPatch,
   type MyNitroBoost,
+  type NotificationPrefs,
 } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 
@@ -33,4 +34,14 @@ export async function setNitroBoostGroup(groupId: number | null): Promise<MyNitr
   const nitro = await api.setMyNitroBoost(groupId);
   revalidatePath("/settings");
   return nitro;
+}
+
+/** Server Action: replace one linked account's in-game notification prefs. */
+export async function savePlayerNotificationPrefs(
+  playerId: number,
+  prefs: Record<string, boolean>,
+): Promise<NotificationPrefs> {
+  const next = await api.setPlayerNotificationPrefs(playerId, prefs);
+  revalidatePath("/settings");
+  return next;
 }
