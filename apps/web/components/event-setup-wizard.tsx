@@ -197,7 +197,8 @@ export function EventSetupWizard({
   );
   const [joinCode, setJoinCode] = useState(initialEvent?.join_code ?? "");
   const [submissionPolicy, setSubmissionPolicy] = useState<EventDetail["submission_policy"]>(
-    initialEvent?.submission_policy ?? "all",
+    // Default (2026-07-17): manual/non-plugin submissions need admin review.
+    initialEvent?.submission_policy ?? "confirm_non_api",
   );
   const [requiresConfirmation, setRequiresConfirmation] = useState(
     initialEvent?.requires_confirmation ?? false,
