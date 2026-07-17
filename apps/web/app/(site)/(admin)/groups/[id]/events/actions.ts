@@ -9,6 +9,8 @@ import {
   type BoardShopConfigInput,
   EventAwardInputSchema,
   EventChannelConfigInputSchema,
+  EventTeamDiscordInputSchema,
+  type EventTeamDiscordInput,
   EventInputSchema,
   EventRevokeInputSchema,
   EventTaskInputSchema,
@@ -739,6 +741,44 @@ export async function saveEventDiscord(
   revalidatePath(eventAdminPath(groupId, eventId));
   revalidatePath(`${eventAdminPath(groupId, eventId)}/discord`);
   return result;
+}
+
+// --- Per-team Discord channels & roles (web53a) ------------------------------
+
+/** One scope of the team-discord config + live per-team provisioning state. */
+export async function getEventTeamDiscord(
+  groupId: EventGroupId,
+  eventId: number,
+  scopeGroupId?: number | null,
+) {
+  await assertCanManageEvent(groupId);
+  return api.eventTeamDiscord(eventId, scopeGroupId ?? null);
+}
+
+/** Save one scope of the team-discord config (toggles, forum target,
+ * retention, per-team on/off). The bot provisions within ~30s. */
+export async function saveEventTeamDiscord(
+  groupId: EventGroupId,
+  eventId: number,
+  input: EventTeamDiscordInput,
+) {
+  await assertCanManageEvent(groupId);
+  const parsed = EventTeamDiscordInputSchema.parse(input);
+  const result = await api.updateEventTeamDiscord(eventId, parsed);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  return result;
+}
+
+/** Admin-side save of one team's channel notification toggles. (Captains use
+ * the public event page, which calls the API with their own session.) */
+export async function saveTeamNotifications(
+  groupId: EventGroupId,
+  eventId: number,
+  teamId: number,
+  input: { toggles?: Record<string, boolean>; task_progress?: "off" | "milestones" | "all" },
+) {
+  await assertCanManageEvent(groupId);
+  return api.updateTeamNotifications(eventId, teamId, input);
 }
 
 /** Per-task edits (requires_confirmation toggle, points, label, target…).

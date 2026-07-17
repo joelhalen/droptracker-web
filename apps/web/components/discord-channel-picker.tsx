@@ -33,12 +33,18 @@ export function DiscordChannelPicker({
   onChange,
   placeholder = "Discord channel id",
   disabled = false,
+  mode = "sendable",
 }: {
   channels: DiscordChannel[];
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  /** "sendable" (default): text channels + threads — forums excluded, they
+   * aren't messageable. "forum": ONLY forum channels, flat list — for fields
+   * that target a container rather than a destination (e.g. the per-team
+   * thread parent in the team-channels config, web53a). */
+  mode?: "sendable" | "forum";
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -50,9 +56,16 @@ export function DiscordChannelPicker({
   const [manualOverride, setManualOverride] = useState<boolean | null>(null);
 
   const byId = useMemo(() => new Map(channels.map((c) => [c.id, c])), [channels]);
-  // Forums are not messageable — they exist in the list only to prefix their
-  // threads' labels, so they never appear as options.
-  const selectable = useMemo(() => channels.filter((c) => c.type !== "forum"), [channels]);
+  // Sendable mode: forums are not messageable — they exist in the list only
+  // to prefix their threads' labels, so they never appear as options.
+  // Forum mode inverts that: forums are the ONLY options (no thread rows).
+  const selectable = useMemo(
+    () =>
+      mode === "forum"
+        ? channels.filter((c) => c.type === "forum")
+        : channels.filter((c) => c.type !== "forum"),
+    [channels, mode],
+  );
   const manual = manualOverride ?? selectable.length === 0;
 
   const selected = useMemo(() => selectable.find((c) => c.id === value), [selectable, value]);
@@ -111,7 +124,7 @@ export function DiscordChannelPicker({
           setOpen(true);
         }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="Search channels…"
+        placeholder={mode === "forum" ? "Search forum channels…" : "Search channels…"}
         disabled={disabled}
         className={`${input} w-full disabled:cursor-not-allowed disabled:opacity-60`}
       />

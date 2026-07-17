@@ -29,6 +29,23 @@ export async function leaveEvent(eventId: number, playerId: number) {
   return { ok: true as const };
 }
 
+// --- Team channel notifications (web53a) -------------------------------------
+
+/** Captain-facing save of their team's Discord-channel notification toggles
+ * (the Web API enforces the captain/leadership/captain_config rules; event
+ * admins pass unconditionally). */
+export async function saveMyTeamNotifications(
+  eventId: number,
+  teamId: number,
+  input: { toggles?: Record<string, boolean>; task_progress?: "off" | "milestones" | "all" },
+) {
+  const user = await getUser();
+  if (!user) throw new Error("Sign in to manage team notifications.");
+  const result = await api.updateTeamNotifications(eventId, teamId, input);
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const, notifications: result };
+}
+
 // --- Team leadership (web48a) ------------------------------------------------
 
 /** Assign a leader/co-leader (event admins; a leader may appoint their own

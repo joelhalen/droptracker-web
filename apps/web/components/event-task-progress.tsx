@@ -20,7 +20,15 @@ import { TaskDetailContent, type BreakdownFetcher } from "@/components/task-deta
 
 type TeamRef = { id: number; name: string; color?: string | null };
 
-export type ProgressCell = { progress: number; completed: boolean; completed_at?: number | null };
+export type ProgressCell = {
+  progress: number;
+  completed: boolean;
+  completed_at?: number | null;
+  /** Pending-review overlay (web53a): ledger rows awaiting manual review. */
+  pending?: number;
+  /** Confirming every pending row would finish the task. */
+  pending_complete?: boolean;
+};
 export type ProgressMap = Map<string, ProgressCell>;
 
 const key = (taskId: number, teamId: number) => `${taskId}:${teamId}`;
@@ -45,6 +53,8 @@ export function initialProgressMap(progress: EventProgress[] | undefined): Progr
       progress: p.progress,
       completed: p.completed,
       completed_at: p.completed_at,
+      pending: p.pending,
+      pending_complete: p.pending_complete,
     });
   }
   return map;
@@ -67,6 +77,8 @@ export function useLiveProgress(
       team_id?: number | null;
       progress?: number;
       completed?: boolean;
+      pending?: number;
+      pending_complete?: boolean;
       bonus?: string;
     };
     if (typeof data.task_id !== "number" || typeof data.team_id !== "number") return;
@@ -81,6 +93,27 @@ export function useLiveProgress(
           progress: progress ?? existing?.progress ?? 0,
           completed: completed || (existing?.completed ?? false),
           completed_at: completed ? Math.floor(Date.now() / 1000) : existing?.completed_at,
+          // A confirmed completion supersedes the pending-review overlay.
+          pending: completed ? undefined : existing?.pending,
+          pending_complete: completed ? undefined : existing?.pending_complete,
+        });
+        return next;
+      });
+    } else if (data.kind === "pending") {
+      // Pending-review overlay frame — emitted when a submission lands in the
+      // review queue AND after an admin confirms/rejects (count may drop to 0).
+      const pending = typeof data.pending === "number" ? data.pending : 0;
+      const pendingComplete = data.pending_complete === true && pending > 0;
+      const progress = typeof data.progress === "number" ? data.progress : null;
+      setMap((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(k);
+        next.set(k, {
+          progress: progress ?? existing?.progress ?? 0,
+          completed: existing?.completed ?? false,
+          completed_at: existing?.completed_at,
+          pending: pending > 0 ? pending : undefined,
+          pending_complete: pendingComplete ? true : undefined,
         });
         return next;
       });
@@ -90,7 +123,14 @@ export function useLiveProgress(
       const completed = data.completed === true;
       setMap((prev) => {
         const next = new Map(prev);
-        next.set(k, { progress, completed, completed_at: completed ? next.get(k)?.completed_at : null });
+        const existing = next.get(k);
+        next.set(k, {
+          progress,
+          completed,
+          completed_at: completed ? existing?.completed_at : null,
+          pending: existing?.pending,
+          pending_complete: existing?.pending_complete,
+        });
         return next;
       });
     }
@@ -121,6 +161,10 @@ export function TaskProgressBar({
   // Either-or progress is already a percentage of the closest path —
   // "62 / 100" would read as an item count, so show "62%" instead.
   const anyPath = taskConfig(task).kind === "any_path";
+  // Pending-review overlay (web53a): amber = confirmed-by-admin would finish
+  // the task; a partial pending count keeps the normal bar plus an amber dot.
+  const pendingCount = done ? 0 : (cell?.pending ?? 0);
+  const pendingDone = pendingCount > 0 && cell?.pending_complete === true;
   return (
     <div className="flex items-center gap-2 text-xs">
       {label && (
@@ -132,28 +176,44 @@ export function TaskProgressBar({
        * the track outline (and the ✓ text) instead of repainting the bar. */}
       <div
         className={`h-2.5 min-w-0 flex-1 overflow-hidden rounded-full border ${
-          done ? "border-osrs-green/70 bg-osrs-green/10" : "border-osrs-bronze/20 bg-osrs-brown-dark/70"
+          done
+            ? "border-osrs-green/70 bg-osrs-green/10"
+            : pendingDone
+              ? "border-amber-400/60 bg-amber-500/10"
+              : "border-osrs-bronze/20 bg-osrs-brown-dark/70"
         }`}
       >
         <div
           className="h-full rounded-full transition-[width] duration-700"
           style={{
             width: `${pct}%`,
-            backgroundColor: color ?? "#e0b34c",
+            backgroundColor: pendingDone ? "#fbbf24" : (color ?? "#e0b34c"),
             opacity: done ? 1 : 0.85,
           }}
         />
       </div>
+      {pendingCount > 0 && !pendingDone && (
+        <span
+          className="inline-block size-1.5 shrink-0 rounded-full bg-amber-400"
+          title={`${pendingCount.toLocaleString()} awaiting review`}
+          aria-label={`${pendingCount.toLocaleString()} awaiting review`}
+        />
+      )}
       <span
-        className={`w-24 shrink-0 text-right tabular-nums ${done ? "text-osrs-green" : "text-osrs-parchment-dark/70"}`}
+        className={`w-24 shrink-0 text-right tabular-nums ${
+          done ? "text-osrs-green" : pendingDone ? "text-amber-400" : "text-osrs-parchment-dark/70"
+        }`}
+        title={pendingDone ? "Done — awaiting review" : undefined}
       >
         {done
           ? "✓ complete"
-          : binary
-            ? "not yet"
-            : anyPath
-              ? `${pct}%`
-              : `${formatProgressValue(task, cell?.progress ?? 0)} / ${formatProgressValue(task, target)}`}
+          : pendingDone
+            ? "awaiting review"
+            : binary
+              ? "not yet"
+              : anyPath
+                ? `${pct}%`
+                : `${formatProgressValue(task, cell?.progress ?? 0)} / ${formatProgressValue(task, target)}`}
       </span>
     </div>
   );

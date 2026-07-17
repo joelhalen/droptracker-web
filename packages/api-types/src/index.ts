@@ -1852,6 +1852,10 @@ export const EVENT_MESSAGE_TOGGLE_KEYS = [
   "event_lead_change",
   "event_pending",
   "event_activation_failed",
+  "event_board_turn",
+  /** Board game: "task done — roll the dice" nudge (default OFF for the
+   * event's main channels; per-team channels carry it by default). */
+  "event_board_roll_prompt",
 ] as const;
 export type EventMessageToggleKey = (typeof EVENT_MESSAGE_TOGGLE_KEYS)[number];
 
@@ -2026,6 +2030,11 @@ export const BingoCellSchema = z.object({
   completed_by: z.array(z.string()).default([]),
   /** Structured per-team completion state (Task 20 live board). */
   completions: z.array(BingoCellCompletionSchema).optional(),
+  /** Pending-review overlay (web53a): teams whose pending submissions would
+   * FINISH this cell ("done, awaiting review" — amber tile), and teams with
+   * some parts pending but the tile not yet fully covered. */
+  pending_teams: z.array(z.number().int()).optional(),
+  pending_partial_teams: z.array(z.number().int()).optional(),
 });
 export type BingoCell = z.infer<typeof BingoCellSchema>;
 
@@ -2399,6 +2408,11 @@ export const EventProgressSchema = z.object({
   progress: z.number().int().default(0),
   completed: z.boolean().default(false),
   completed_at: z.number().int().nullable().optional(),
+  /** Pending-review overlay (web53a): how many ledger rows await manual
+   * review, and whether confirming them all would finish the task. Absent
+   * when nothing is pending (the common case). */
+  pending: z.number().int().optional(),
+  pending_complete: z.boolean().optional(),
 });
 export type EventProgress = z.infer<typeof EventProgressSchema>;
 
@@ -2528,6 +2542,10 @@ export const TaskBreakdownItemSchema = z.object({
   satisfied: z.boolean().default(false),
   /** point_collection weight, when the task scores by points. */
   points: z.number().optional(),
+  /** Pending-review overlay (web53a): quantity awaiting review, and whether
+   * confirming it would satisfy this item. */
+  pending: z.number().int().optional(),
+  pending_satisfied: z.boolean().optional(),
 });
 export type TaskBreakdownItem = z.infer<typeof TaskBreakdownItemSchema>;
 
@@ -2541,6 +2559,9 @@ export const TaskBreakdownGroupSchema = z.object({
   /** Unit for the bucket total, e.g. "pts" for point_collection. */
   unit: z.string().optional(),
   items: z.array(TaskBreakdownItemSchema).default([]),
+  /** Pending-review overlay (web53a): confirming the pending rows would
+   * satisfy this whole bucket. */
+  pending_satisfied: z.boolean().optional(),
 });
 export type TaskBreakdownGroup = z.infer<typeof TaskBreakdownGroupSchema>;
 
@@ -2565,6 +2586,8 @@ export const TaskBreakdownMeterSchema = z.object({
   binary: z.boolean().default(false),
   label: z.string().nullable().optional(),
   target_value: z.number().int().nullable().optional(),
+  /** Pending-review overlay (web53a): meter amount awaiting review. */
+  pending: z.number().int().optional(),
 });
 export type TaskBreakdownMeter = z.infer<typeof TaskBreakdownMeterSchema>;
 
@@ -2605,6 +2628,9 @@ export const TaskBreakdownSchema = z.object({
   paths: z.array(TaskBreakdownPathSchema).optional(),
   meter: TaskBreakdownMeterSchema.nullable().optional(),
   contributors: z.array(TaskBreakdownContributorSchema).default([]),
+  /** Pending-review overlay (web53a). */
+  pending_count: z.number().int().optional(),
+  pending_complete: z.boolean().optional(),
 });
 export type TaskBreakdown = z.infer<typeof TaskBreakdownSchema>;
 
@@ -2758,6 +2784,11 @@ export const EventMessageConfigSchema = z.object({
     event_lead_change: z.boolean(),
     event_pending: z.boolean(),
     event_activation_failed: z.boolean(),
+    /** Board game: optional so pre-web53a payloads keep parsing; the server
+     * always returns them merged (defaults: dice rolls ON, roll prompts OFF —
+     * roll prompts are team-channel-first). */
+    event_board_turn: z.boolean().optional(),
+    event_board_roll_prompt: z.boolean().optional(),
   }),
   task_progress: z.enum(EVENT_TASK_PROGRESS_MODES),
   /** Verbose completion detail: include the item that finished the task and
@@ -2821,6 +2852,96 @@ export const EventChannelConfigInputSchema = z.object({
   per_group_discord: z.boolean().optional(),
 });
 export type EventChannelConfigInput = z.infer<typeof EventChannelConfigInputSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Per-team Discord channels & roles (web53a)                                 */
+/* GET/PUT /events/{id}/team-discord (+ ?group_id= clan scope),               */
+/* PUT /events/{id}/teams/{teamId}/notifications (captain/admin).             */
+/* -------------------------------------------------------------------------- */
+
+/** What happens to the auto-created team roles/channels when the event ends
+ * naturally: torn down after a ~48h grace window (pings stay usable for
+ * wrap-up), or kept forever. Hard delete always tears down immediately. */
+export const EVENT_TEAM_DISCORD_RETENTIONS = ["delete_48h", "keep"] as const;
+export type EventTeamDiscordRetention = (typeof EVENT_TEAM_DISCORD_RETENTIONS)[number];
+
+/** Notification types a team channel can receive (captain-tunable). */
+export const TEAM_MESSAGE_TOGGLE_KEYS = [
+  "event_completion",
+  "event_task_progress",
+  "event_line",
+  "event_blackout",
+  "event_lead_change",
+  "event_board_turn",
+  "event_board_roll_prompt",
+] as const;
+export type TeamMessageToggleKey = (typeof TEAM_MESSAGE_TOGGLE_KEYS)[number];
+
+/** One team's provisioning state + effective per-team knobs. role_id/
+ * channel_id/sync_status are written back by the bot ("pending" ⇒ it will
+ * create them within ~30s; "failed" carries last_error). */
+export const TeamDiscordTeamStateSchema = z.object({
+  team_id: z.number().int(),
+  name: z.string(),
+  role_enabled: z.boolean(),
+  channel_enabled: z.boolean(),
+  toggles: z.record(z.string(), z.boolean()).default({}),
+  task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("all"),
+  role_id: z.string().nullable().optional(),
+  channel_id: z.string().nullable().optional(),
+  channel_kind: z.enum(["text", "thread"]).nullable().optional(),
+  sync_status: z
+    .enum(["pending", "synced", "delete_pending", "failed"])
+    .nullable()
+    .optional(),
+  last_error: z.string().nullable().optional(),
+});
+export type TeamDiscordTeamState = z.infer<typeof TeamDiscordTeamStateSchema>;
+
+/** One scope of the team-discord config: the shared/host scope (group_id
+ * null, targeting the event's guild) or a participating clan's own scope. */
+export const EventTeamDiscordConfigSchema = z.object({
+  group_id: z.number().int().nullable(),
+  guild_id: z.string().nullable(),
+  channels_enabled: z.boolean(),
+  roles_enabled: z.boolean(),
+  /** Forum-channel snowflake ⇒ team channels are threads inside it. */
+  forum_channel_id: z.string().nullable(),
+  retention: z.enum(EVENT_TEAM_DISCORD_RETENTIONS),
+  /** Team captains (leadership feature) may tune their team's toggles. */
+  captain_config: z.boolean(),
+  teams: z.array(TeamDiscordTeamStateSchema).default([]),
+  default_toggles: z.record(z.string(), z.boolean()).default({}),
+  default_task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("all"),
+});
+export type EventTeamDiscordConfig = z.infer<typeof EventTeamDiscordConfigSchema>;
+
+/** PUT /events/{id}/team-discord — absent keys leave stored values unchanged;
+ * per-team entries merge key-wise (captain toggles survive admin saves). */
+export const EventTeamDiscordInputSchema = z.object({
+  group_id: z.number().int().nullable().optional(),
+  channels_enabled: z.boolean().optional(),
+  roles_enabled: z.boolean().optional(),
+  forum_channel_id: z.string().regex(/^\d+$/).nullable().optional(),
+  retention: z.enum(EVENT_TEAM_DISCORD_RETENTIONS).optional(),
+  captain_config: z.boolean().optional(),
+  teams: z
+    .record(
+      z.string(),
+      z.object({ role: z.boolean().optional(), channel: z.boolean().optional() }),
+    )
+    .optional(),
+});
+export type EventTeamDiscordInput = z.infer<typeof EventTeamDiscordInputSchema>;
+
+/** PUT /events/{id}/teams/{teamId}/notifications response (and input shape:
+ * {toggles?, task_progress?}). */
+export const TeamNotificationsSchema = z.object({
+  team_id: z.number().int(),
+  toggles: z.record(z.string(), z.boolean()).default({}),
+  task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("all"),
+});
+export type TeamNotifications = z.infer<typeof TeamNotificationsSchema>;
 
 /** Reusable task preset: a curated seed (`source: "legacy_v1"`) or a
  * group-saved task (`source: "group"`). Private rows only reach admins of the

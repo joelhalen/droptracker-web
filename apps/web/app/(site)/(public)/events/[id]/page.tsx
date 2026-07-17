@@ -160,6 +160,8 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                 progress={event.progress}
                 taskCount={event.tasks.length}
                 viewerTeamId={event.viewer?.team_id}
+                viewerTeamRole={event.viewer?.team_role ?? null}
+                canManage={event.can_manage}
                 prizePot={event.prize_pot}
               />
             ) : (

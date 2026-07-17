@@ -23,6 +23,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { LocalTime } from "@/components/local-time";
 import { EmptyState } from "@/components/ui";
 import { EventMemberList } from "@/components/event-member-list";
+import { TeamNotificationsButton } from "@/components/event-teams-panel";
 import {
   TaskProgressBar,
   formatProgressValue,
@@ -253,6 +254,14 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
             </span>
           </div>
         </div>
+        {/* Captains (and event admins) tune what this team's auto-provisioned
+            Discord channel receives (web53a) — the Web API enforces the
+            captain_config / leadership rules on save. */}
+        {(isAdmin || viewerRole === "leader" || viewerRole === "co_leader") && (
+          <div className="mt-1.5">
+            <TeamNotificationsButton eventId={event.id} teamId={team.id} teamName={team.name} />
+          </div>
+        )}
       </header>
 
       <div className="grid gap-8 lg:grid-cols-3">

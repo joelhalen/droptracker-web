@@ -14,6 +14,11 @@ import {
   EventTeamDetailSchema,
   EventSummarySchema,
   EventPrizePotSchema,
+  EventTeamDiscordConfigSchema,
+  TeamNotificationsSchema,
+  TaskBreakdownSchema,
+  BingoCellSchema,
+  EventProgressSchema,
   TicketDetailSchema,
   TicketPageSchema,
   GroupConfigPatchSchema,
@@ -231,6 +236,125 @@ test("EventPrizePot read + EventDetail prize_pot block parse", () => {
     },
   });
   assert.equal(parsed.prize_pot?.enabled, true);
+});
+
+// Per-team Discord channels & roles (web53a): config scope + provisioning state.
+test("EventTeamDiscordConfig parse", () => {
+  assert.doesNotThrow(() =>
+    EventTeamDiscordConfigSchema.parse({
+      group_id: null,
+      guild_id: "444444444444444444",
+      channels_enabled: true,
+      roles_enabled: true,
+      forum_channel_id: "666666666666666666",
+      retention: "delete_48h",
+      captain_config: true,
+      teams: [
+        {
+          team_id: 1,
+          name: "Reds",
+          role_enabled: true,
+          channel_enabled: true,
+          toggles: { event_board_roll_prompt: true },
+          task_progress: "all",
+          role_id: "1",
+          channel_id: "2",
+          channel_kind: "thread",
+          sync_status: "synced",
+          last_error: null,
+        },
+        {
+          team_id: 2,
+          name: "Blues",
+          role_enabled: false,
+          channel_enabled: false,
+          toggles: {},
+          task_progress: "off",
+          role_id: null,
+          channel_id: null,
+          channel_kind: null,
+          sync_status: null,
+          last_error: null,
+        },
+      ],
+      default_toggles: { event_completion: true },
+      default_task_progress: "all",
+    }),
+  );
+  assert.doesNotThrow(() =>
+    TeamNotificationsSchema.parse({
+      team_id: 4,
+      toggles: { event_lead_change: false },
+      task_progress: "milestones",
+    }),
+  );
+});
+
+// Pending-review overlay (web53a): progress rows, bingo cells and the task
+// breakdown all optionally carry pending state — and legacy payloads without
+// it must keep parsing.
+test("pending-review overlay fields parse (and stay optional)", () => {
+  const withPending = EventProgressSchema.parse({
+    task_id: 1,
+    team_id: 2,
+    progress: 3,
+    completed: false,
+    completed_at: null,
+    pending: 2,
+    pending_complete: true,
+  });
+  assert.equal(withPending.pending_complete, true);
+  // Legacy row without the overlay.
+  assert.doesNotThrow(() =>
+    EventProgressSchema.parse({ task_id: 1, team_id: 2, progress: 3, completed: true }),
+  );
+
+  const cell = BingoCellSchema.parse({
+    index: 0,
+    label: "Get a whip",
+    task_id: 9,
+    completed_by: [],
+    pending_teams: [2],
+    pending_partial_teams: [3],
+  });
+  assert.deepEqual(cell.pending_teams, [2]);
+
+  assert.doesNotThrow(() =>
+    TaskBreakdownSchema.parse({
+      task_id: 9,
+      team_id: 2,
+      team_name: "Reds",
+      type: "item_collection",
+      kind: "all_of",
+      progress: 2,
+      target: 3,
+      completed: false,
+      wildcard: 0,
+      structure: "checklist",
+      groups: [
+        {
+          mode: "all_of",
+          need: 3,
+          obtained: 2,
+          satisfied: false,
+          pending_satisfied: true,
+          items: [
+            {
+              name: "Dragon pickaxe",
+              required: 1,
+              obtained: 0,
+              satisfied: false,
+              pending: 1,
+              pending_satisfied: true,
+            },
+          ],
+        },
+      ],
+      contributors: [],
+      pending_count: 1,
+      pending_complete: true,
+    }),
+  );
 });
 
 // Every config key (incl. seasonal mirrors) must resolve to a field — guards the

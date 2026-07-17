@@ -42,6 +42,45 @@ type TeamRef = { id: number; name: string; color?: string | null };
  * team switcher, and contributors. */
 const TASK_CARD_WIDTH = 340;
 
+/** Pending-review overlay for one cell (web53a): teams whose queued
+ * submissions would FINISH the cell ("complete") vs. teams with only some
+ * parts pending ("partial"). */
+type CellPending = { complete: Set<number>; partial: Set<number> };
+
+function initialPending(board: BingoBoardData): Map<number, CellPending> {
+  const map = new Map<number, CellPending>();
+  for (const cell of board.cells) {
+    if (cell.pending_teams?.length || cell.pending_partial_teams?.length) {
+      map.set(cell.index, {
+        complete: new Set(cell.pending_teams ?? []),
+        partial: new Set(cell.pending_partial_teams ?? []),
+      });
+    }
+  }
+  return map;
+}
+
+/** Drop `teamId` from a cell's pending sets, pruning empty entries. */
+function clearTeamPending(
+  prev: Map<number, CellPending>,
+  indexes: number[],
+  teamId: number,
+): Map<number, CellPending> {
+  let next: Map<number, CellPending> | null = null;
+  for (const idx of indexes) {
+    const cur = (next ?? prev).get(idx);
+    if (!cur || (!cur.complete.has(teamId) && !cur.partial.has(teamId))) continue;
+    next ??= new Map(prev);
+    const complete = new Set(cur.complete);
+    const partial = new Set(cur.partial);
+    complete.delete(teamId);
+    partial.delete(teamId);
+    if (complete.size || partial.size) next.set(idx, { complete, partial });
+    else next.delete(idx);
+  }
+  return next ?? prev;
+}
+
 function initialCompletions(board: BingoBoardData): Map<number, BingoCellCompletion[]> {
   const map = new Map<number, BingoCellCompletion[]>();
   for (const cell of board.cells) {
@@ -108,6 +147,7 @@ function CellCard({
   teamColor,
   progressMap,
   completions,
+  pendingState,
   viewerTeamId,
   eventId,
   fetchBreakdown,
@@ -118,6 +158,8 @@ function CellCard({
   teamColor: Map<number, string>;
   progressMap: ReturnType<typeof useLiveProgress>;
   completions: BingoCellCompletion[];
+  /** Pending-review overlay for the current team filter (web53a). */
+  pendingState?: "complete" | "partial" | null;
   viewerTeamId?: number | null;
   eventId?: number;
   fetchBreakdown?: BreakdownFetcher;
@@ -142,6 +184,13 @@ function CellCard({
         <p className="text-osrs-parchment-dark/50 mt-1 text-xs">
           Free cell — completed for every team from the start of the event.
         </p>
+      )}
+
+      {pendingState === "complete" && (
+        <p className="mt-1 text-xs text-amber-400">Awaiting review — confirming would finish this tile.</p>
+      )}
+      {pendingState === "partial" && (
+        <p className="mt-1 text-xs text-amber-400/80">Part of this tile is awaiting review.</p>
       )}
 
       {task && eventId != null && (
@@ -188,6 +237,7 @@ export function BingoBoard({
   fetchBreakdown?: BreakdownFetcher;
 }) {
   const [completions, setCompletions] = useState(() => initialCompletions(board));
+  const [pending, setPending] = useState(() => initialPending(board));
   const [selectedTeam, setSelectedTeam] = useState<number | null>(null);
   const [sheetIdx, setSheetIdx] = useState<number | null>(null);
   const coarse = useCoarsePointer();
@@ -215,11 +265,15 @@ export function BingoBoard({
       task_id?: number | null;
       team_id?: number | null;
       player_name?: string;
+      pending?: number;
+      pending_complete?: boolean;
       bonus?: string;
     };
     if (data.kind === "cell" && typeof data.cell_idx === "number") {
       const idx = data.cell_idx;
       const teamId = typeof data.team_id === "number" ? data.team_id : null;
+      // A confirmed completion supersedes any pending overlay — green wins.
+      if (teamId != null) setPending((prev) => clearTeamPending(prev, [idx], teamId));
       setCompletions((prev) => {
         const existing = prev.get(idx) ?? [];
         if (teamId != null && existing.some((c) => c.team_id === teamId)) return prev;
@@ -250,6 +304,30 @@ export function BingoBoard({
         }
         return next;
       });
+    } else if (data.kind === "pending" && typeof data.task_id === "number") {
+      // Pending-review overlay frame (web53a) — emitted when a submission
+      // lands in the review queue and again after a confirm/reject (where the
+      // count may drop to 0, clearing the overlay).
+      const teamId = typeof data.team_id === "number" ? data.team_id : null;
+      if (teamId == null) return;
+      const affected = board.cells.filter((c) => c.task_id === data.task_id).map((c) => c.index);
+      if (!affected.length) return;
+      const count = typeof data.pending === "number" ? data.pending : 0;
+      const wouldFinish = data.pending_complete === true && count > 0;
+      setPending((prev) => {
+        if (count === 0) return clearTeamPending(prev, affected, teamId);
+        const next = new Map(prev);
+        for (const idx of affected) {
+          const cur = next.get(idx);
+          const complete = new Set(cur?.complete ?? []);
+          const partial = new Set(cur?.partial ?? []);
+          complete.delete(teamId);
+          partial.delete(teamId);
+          (wouldFinish ? complete : partial).add(teamId);
+          next.set(idx, { complete, partial });
+        }
+        return next;
+      });
     }
   });
 
@@ -257,6 +335,20 @@ export function BingoBoard({
     const list = completions.get(idx) ?? [];
     if (selectedTeam == null) return list.length > 0;
     return list.some((c) => c.team_id === selectedTeam);
+  };
+
+  /** Pending-review visual state for a cell, honoring the team filter. Done
+   * always wins; "all teams" goes amber when ANY team is pending-complete. */
+  const cellPending = (idx: number): "complete" | "partial" | null => {
+    if (cellDone(idx)) return null;
+    const p = pending.get(idx);
+    if (!p) return null;
+    if (selectedTeam == null) {
+      if (p.complete.size > 0) return "complete";
+      return p.partial.size > 0 ? "partial" : null;
+    }
+    if (p.complete.has(selectedTeam)) return "complete";
+    return p.partial.has(selectedTeam) ? "partial" : null;
   };
 
   /** Detail body for a cell — shared by the desktop hover card and the sheet. */
@@ -268,6 +360,7 @@ export function BingoBoard({
       teamColor={teamColor}
       progressMap={progressMap}
       completions={completions.get(cell.index) ?? []}
+      pendingState={cellPending(cell.index)}
       viewerTeamId={viewerTeamId}
       eventId={eventId}
       fetchBreakdown={fetchBreakdown}
@@ -318,6 +411,9 @@ export function BingoBoard({
         {board.cells.map((cell) => {
           const list = completions.get(cell.index) ?? [];
           const done = cellDone(cell.index);
+          // Pending-review overlay: done > pending-complete (amber) > partial
+          // (default look + amber corner dot) > default.
+          const pend = cellPending(cell.index);
           const task = taskByCell.get(cell.index);
           const free = cell.task_id == null;
           const doneTeams = list.filter((c) => c.team_id != null).map((c) => c.team_id as number);
@@ -326,7 +422,9 @@ export function BingoBoard({
               className={`relative flex aspect-square cursor-pointer flex-col rounded border transition-colors ${
                 done
                   ? "border-osrs-green/60 bg-osrs-green/15 text-osrs-parchment"
-                  : "border-osrs-bronze/30 bg-osrs-brown-dark/40 text-osrs-parchment-dark/80 hover:border-osrs-bronze/60"
+                  : pend === "complete"
+                    ? "border-amber-400/70 bg-amber-500/15 text-osrs-parchment hover:border-amber-400/90"
+                    : "border-osrs-bronze/30 bg-osrs-brown-dark/40 text-osrs-parchment-dark/80 hover:border-osrs-bronze/60"
               }`}
             >
               <BingoTile label={cell.label} task={task} free={free} />
@@ -337,6 +435,23 @@ export function BingoBoard({
                 >
                   ✓
                 </span>
+              )}
+              {!done && pend === "complete" && (
+                <span
+                  className="absolute top-0.5 left-1 text-[10px]"
+                  style={{ textShadow: "1px 1px 0 #000" }}
+                  title="Done — awaiting review"
+                  aria-label="Done — awaiting review"
+                >
+                  ⏳
+                </span>
+              )}
+              {!done && pend === "partial" && (
+                <span
+                  className="absolute top-1 right-1 inline-block size-1.5 rounded-full bg-amber-400/90"
+                  title="Part of this tile is awaiting review"
+                  aria-label="Part of this tile is awaiting review"
+                />
               )}
               {selectedTeam == null && doneTeams.length > 0 && teams.length > 0 && (
                 <span className="absolute right-1 bottom-1 flex gap-0.5">

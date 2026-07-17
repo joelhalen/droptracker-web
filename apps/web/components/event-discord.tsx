@@ -31,6 +31,10 @@ import {
   type EventPingKey,
   type EventScheduledEventState,
   type EventTaskProgressMode,
+  type EventTeamDiscordConfig,
+  type EventTeamDiscordInput,
+  type EventTeamDiscordRetention,
+  type TeamDiscordTeamState,
 } from "@droptracker/api-types";
 import type { DiscordChannel, EventDiscordGuild } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -40,10 +44,12 @@ import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord
 import { DiscordRolePicker } from "@/components/discord-role-picker";
 import {
   getEventDiscord,
+  getEventTeamDiscord,
   listEventDiscordChannels,
   listEventDiscordGuilds,
   listEventDiscordRoles,
   saveEventDiscord,
+  saveEventTeamDiscord,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 
 const field =
@@ -135,6 +141,51 @@ function ToggleGroupLabel({ children }: { children: string }) {
   );
 }
 
+/** Provisioning-state chip for one team's row in "Team channels & roles".
+ * The bot writes sync_status back as it works; nothing provisioned yet
+ * (null) renders as a dash. */
+function TeamSyncStatus({ team }: { team: TeamDiscordTeamState }) {
+  if (team.sync_status === "failed") {
+    return (
+      <span
+        className="border-osrs-red/40 bg-osrs-red/10 text-osrs-red rounded border px-1.5 py-px text-[10px] font-semibold"
+        title={team.last_error ?? "The bot couldn't provision this team — check its permissions and save again."}
+      >
+        failed
+      </span>
+    );
+  }
+  if (team.sync_status === "pending") {
+    return <span className="text-osrs-parchment-dark/60 text-xs">creating…</span>;
+  }
+  if (team.sync_status === "delete_pending") {
+    return <span className="text-osrs-parchment-dark/60 text-xs">removing…</span>;
+  }
+  if (team.sync_status === "synced") {
+    return (
+      <span className="flex flex-wrap items-center gap-x-2 text-xs">
+        {team.role_id && (
+          <span className="text-osrs-gold-bright whitespace-nowrap" title={`Role id ${team.role_id}`}>
+            @role ✓
+          </span>
+        )}
+        {team.channel_id && (
+          <span
+            className="text-osrs-gold-bright whitespace-nowrap"
+            title={`${team.channel_kind === "thread" ? "Thread" : "Channel"} id ${team.channel_id}`}
+          >
+            {team.channel_kind === "thread" ? "🧵 thread ✓" : "#channel ✓"}
+          </span>
+        )}
+        {!team.role_id && !team.channel_id && (
+          <span className="text-osrs-gold-bright">synced</span>
+        )}
+      </span>
+    );
+  }
+  return <span className="text-osrs-parchment-dark/40 text-xs">—</span>;
+}
+
 export function EventDiscordSettings({
   groupId,
   eventId,
@@ -166,6 +217,14 @@ export function EventDiscordSettings({
   // Message verbosity + live leaderboard (always fully merged with defaults
   // by the backend; null only until the GET lands).
   const [messages, setMessages] = useState<EventMessageConfig | null>(null);
+
+  // ── per-team channels & roles (web53a) ────────────────────────────────
+  // `teamDiscord` is the editable draft; `teamDiscordBase` is the last
+  // server copy, so the save can diff and only send changed keys (the PUT
+  // merges — absent keys leave stored values, incl. captain toggles, alone).
+  const [teamDiscord, setTeamDiscord] = useState<EventTeamDiscordConfig | null>(null);
+  const [teamDiscordBase, setTeamDiscordBase] = useState<EventTeamDiscordConfig | null>(null);
+  const [teamDiscordError, setTeamDiscordError] = useState<string | null>(null);
 
   // ── per-group scoping (web48a, clan-vs-clan) ──────────────────────────
   // scope null = the shared/host config; a group id = that clan's own
@@ -275,6 +334,79 @@ export function EventDiscordSettings({
     };
   }, [groupId, eventId, loadChannels, applyConfig]);
 
+  // Team channels & roles load is scope-aware exactly like the main config:
+  // keyed on `scope` so switching pills refetches that clan's own copy.
+  useEffect(() => {
+    let cancelled = false;
+    setTeamDiscord(null);
+    setTeamDiscordBase(null);
+    setTeamDiscordError(null);
+    (async () => {
+      try {
+        const cfg = await getEventTeamDiscord(groupId, eventId, scope);
+        if (cancelled) return;
+        setTeamDiscord(cfg);
+        setTeamDiscordBase(cfg);
+      } catch (err) {
+        if (!cancelled) {
+          setTeamDiscordError(
+            getErrorMessage(err, "Couldn't load the team channels & roles config."),
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId, eventId, scope]);
+
+  const patchTeamDiscord = (patch: Partial<EventTeamDiscordConfig>) => {
+    setSaved(false);
+    setTeamDiscord((prev) => (prev ? { ...prev, ...patch } : prev));
+  };
+
+  const setTeamFlag = (teamId: number, field: "role_enabled" | "channel_enabled", v: boolean) => {
+    setSaved(false);
+    setTeamDiscord((prev) =>
+      prev
+        ? {
+            ...prev,
+            teams: prev.teams.map((t) => (t.team_id === teamId ? { ...t, [field]: v } : t)),
+          }
+        : prev,
+    );
+  };
+
+  /** Only the keys the admin actually changed vs. the server copy — the PUT
+   * merges, so untouched knobs (and captain-owned toggles) stay intact. */
+  const teamDiscordDiff = (): EventTeamDiscordInput | null => {
+    if (!teamDiscord || !teamDiscordBase) return null;
+    const input: EventTeamDiscordInput = {};
+    if (teamDiscord.channels_enabled !== teamDiscordBase.channels_enabled)
+      input.channels_enabled = teamDiscord.channels_enabled;
+    if (teamDiscord.roles_enabled !== teamDiscordBase.roles_enabled)
+      input.roles_enabled = teamDiscord.roles_enabled;
+    if (teamDiscord.forum_channel_id !== teamDiscordBase.forum_channel_id)
+      input.forum_channel_id = teamDiscord.forum_channel_id;
+    if (teamDiscord.retention !== teamDiscordBase.retention)
+      input.retention = teamDiscord.retention;
+    if (teamDiscord.captain_config !== teamDiscordBase.captain_config)
+      input.captain_config = teamDiscord.captain_config;
+    const baseTeams = new Map(teamDiscordBase.teams.map((t) => [t.team_id, t]));
+    const changedTeams: NonNullable<EventTeamDiscordInput["teams"]> = {};
+    for (const t of teamDiscord.teams) {
+      const base = baseTeams.get(t.team_id);
+      const entry: { role?: boolean; channel?: boolean } = {};
+      if (!base || t.role_enabled !== base.role_enabled) entry.role = t.role_enabled;
+      if (!base || t.channel_enabled !== base.channel_enabled) entry.channel = t.channel_enabled;
+      if (Object.keys(entry).length > 0) changedTeams[String(t.team_id)] = entry;
+    }
+    if (Object.keys(changedTeams).length > 0) input.teams = changedTeams;
+    if (Object.keys(input).length === 0) return null;
+    if (scope !== null) input.group_id = scope;
+    return input;
+  };
+
   /** Swap the whole form to another scope (shared or one of my clans). */
   const switchScope = (next: number | null) => {
     if (next === scope) return;
@@ -328,6 +460,14 @@ export function EventDiscordSettings({
       prev ? { ...prev, toggles: { ...prev.toggles, [key]: value } } : prev,
     );
   };
+
+  // The board-game keys are in EVENT_MESSAGE_TOGGLE_KEYS but not (yet) in
+  // EventMessageConfigSchema's closed toggles object, so they're absent from
+  // the inferred type — read them defensively with their documented defaults
+  // (turn posts on, roll prompts OFF for main channels).
+  const boardToggle = (key: "event_board_turn" | "event_board_roll_prompt", fallback: boolean) =>
+    (messages?.toggles as Partial<Record<EventMessageToggleKey, boolean>> | undefined)?.[key] ??
+    fallback;
 
   const setTaskProgress = (mode: EventTaskProgressMode) => {
     setSaved(false);
@@ -387,6 +527,30 @@ export function EventDiscordSettings({
                 : g,
             ),
           });
+        }
+        // Team channels & roles ride the same save button — only PUT when
+        // the section's draft actually changed (the endpoint merges).
+        const teamInput = teamDiscordDiff();
+        if (teamInput) {
+          try {
+            const teamResult = await saveEventTeamDiscord(groupId, eventId, teamInput);
+            setTeamDiscord(teamResult);
+            setTeamDiscordBase(teamResult);
+            setTeamDiscordError(null);
+          } catch (err) {
+            // Typically the backend's 422: enabling roles/channels for a
+            // scope with no guild configured. The main config DID save.
+            setTeamDiscordError(
+              getErrorMessage(
+                err,
+                "Couldn't save the team channels & roles settings. Please try again.",
+              ),
+            );
+            setError(
+              "The channel config saved, but the team channels & roles section didn't — see the note there.",
+            );
+            return;
+          }
         }
         setSaved(true);
       } catch (err) {
@@ -583,6 +747,143 @@ export function EventDiscordSettings({
         </div>
       </CollapsibleSection>
 
+      <CollapsibleSection
+        title="Team channels & roles"
+        hint="Auto-provision a private channel and a mentionable role for every team on this event's server. The bot creates them, keeps them in sync with rosters, and can clean them up after the event. Saves with the button at the bottom."
+      >
+        {teamDiscord ? (
+          <div className="space-y-4 sm:max-w-xl">
+            {teamDiscordError && <Alert variant="error">{teamDiscordError}</Alert>}
+            {!hasGuild && (
+              <p className="text-osrs-gold-bright/80 text-xs">
+                Pick a server under &ldquo;Server &amp; channels&rdquo; first — team roles and
+                channels are created there.
+              </p>
+            )}
+            <ToggleRow
+              label="Create team roles"
+              hint="Auto-creates one mentionable role per team (team name + color); the bot keeps membership in sync with rosters."
+              checked={teamDiscord.roles_enabled}
+              onChange={(v) => patchTeamDiscord({ roles_enabled: v })}
+              disabled={!hasGuild && !teamDiscord.roles_enabled}
+            />
+            <ToggleRow
+              label="Create team channels"
+              hint="A private text channel per team (visible to the team role), or threads inside a forum channel."
+              checked={teamDiscord.channels_enabled}
+              onChange={(v) => patchTeamDiscord({ channels_enabled: v })}
+              disabled={!hasGuild && !teamDiscord.channels_enabled}
+            />
+
+            {teamDiscord.channels_enabled && (
+              <div className="block pl-4 text-sm sm:max-w-md">
+                <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                  Forum channel (optional)
+                </span>
+                <DiscordChannelPicker
+                  channels={channelList}
+                  mode="forum"
+                  value={teamDiscord.forum_channel_id ?? ""}
+                  onChange={(v) => patchTeamDiscord({ forum_channel_id: v.trim() || null })}
+                  placeholder="Forum channel id"
+                />
+                <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
+                  When set, the bot creates one thread per team inside this forum instead of
+                  separate text channels.
+                </span>
+                {teamDiscord.forum_channel_id && (
+                  <button
+                    type="button"
+                    onClick={() => patchTeamDiscord({ forum_channel_id: null })}
+                    className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright mt-1 text-xs"
+                  >
+                    Clear — use separate text channels instead
+                  </button>
+                )}
+              </div>
+            )}
+
+            <label className="block text-sm sm:max-w-md">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                After the event ends
+              </span>
+              <select
+                value={teamDiscord.retention}
+                onChange={(e) =>
+                  patchTeamDiscord({ retention: e.target.value as EventTeamDiscordRetention })
+                }
+                className={`${field} w-full`}
+              >
+                <option value="delete_48h">Delete after 48 hours (default)</option>
+                <option value="keep">Keep roles &amp; channels</option>
+              </select>
+              <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
+                With the default, pings stay usable for wrap-up for two days, then the bot cleans
+                everything up.
+              </span>
+            </label>
+
+            <ToggleRow
+              label="Team captains can configure notifications"
+              hint="Leaders and co-leaders can tune which notifications their team's channel receives, from their team page. Only meaningful when the leadership feature is enabled for this event."
+              checked={teamDiscord.captain_config}
+              onChange={(v) => patchTeamDiscord({ captain_config: v })}
+            />
+
+            {teamDiscord.teams.length > 0 && (
+              <div className="border-osrs-bronze/20 overflow-hidden rounded border">
+                <div className="text-osrs-parchment-dark/50 border-osrs-bronze/20 grid grid-cols-[minmax(0,1fr)_auto_auto_minmax(5rem,auto)] items-center gap-x-4 border-b px-3 py-1.5 text-[10px] font-medium tracking-wide uppercase">
+                  <span>Team</span>
+                  <span>Role</span>
+                  <span>Channel</span>
+                  <span>Status</span>
+                </div>
+                <ul className="divide-osrs-bronze/15 divide-y">
+                  {teamDiscord.teams.map((t) => (
+                    <li
+                      key={t.team_id}
+                      className="grid grid-cols-[minmax(0,1fr)_auto_auto_minmax(5rem,auto)] items-center gap-x-4 px-3 py-2 text-sm"
+                    >
+                      <span className="truncate">{t.name}</span>
+                      <input
+                        type="checkbox"
+                        aria-label={`Role for ${t.name}`}
+                        checked={t.role_enabled}
+                        onChange={(e) => setTeamFlag(t.team_id, "role_enabled", e.target.checked)}
+                        className="size-4 justify-self-center"
+                      />
+                      <input
+                        type="checkbox"
+                        aria-label={`Channel for ${t.name}`}
+                        checked={t.channel_enabled}
+                        onChange={(e) =>
+                          setTeamFlag(t.team_id, "channel_enabled", e.target.checked)
+                        }
+                        className="size-4 justify-self-center"
+                      />
+                      <TeamSyncStatus team={t} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {teamDiscord.teams.length === 0 && (
+              <p className="text-osrs-parchment-dark/50 text-xs">
+                No teams yet — per-team switches appear here once the event has teams.
+              </p>
+            )}
+            <p className="text-osrs-parchment-dark/60 text-xs">
+              The bot provisions roles and channels within ~30 seconds of saving — reload this page
+              to see linked roles/channels and statuses update.
+            </p>
+          </div>
+        ) : teamDiscordError ? (
+          <Alert variant="error">{teamDiscordError}</Alert>
+        ) : (
+          <p className="text-osrs-parchment-dark/60 text-sm">Loading team channel config…</p>
+        )}
+      </CollapsibleSection>
+
       {hasGuild && scope === null && (
         <CollapsibleSection
           title="Scheduled event"
@@ -765,7 +1066,7 @@ export function EventDiscordSettings({
             </div>
 
             <div className="space-y-2">
-              <ToggleGroupLabel>Bingo</ToggleGroupLabel>
+              <ToggleGroupLabel>Bingo & board</ToggleGroupLabel>
               <ToggleRow
                 label="Line bonuses"
                 checked={messages.toggles.event_line}
@@ -775,6 +1076,18 @@ export function EventDiscordSettings({
                 label="Blackout"
                 checked={messages.toggles.event_blackout}
                 onChange={(v) => setToggle("event_blackout", v)}
+              />
+              <ToggleRow
+                label="Board: dice rolls"
+                hint="Board-game events: a post whenever a team rolls and moves."
+                checked={boardToggle("event_board_turn", true)}
+                onChange={(v) => setToggle("event_board_turn", v)}
+              />
+              <ToggleRow
+                label="Board: roll prompts"
+                hint="Nudge when a team finishes its task and can roll — off by default here; team channels carry it by default."
+                checked={boardToggle("event_board_roll_prompt", false)}
+                onChange={(v) => setToggle("event_board_roll_prompt", v)}
               />
             </div>
 

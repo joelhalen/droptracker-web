@@ -107,16 +107,22 @@ function RequirementRow({ item }: { item: TaskBreakdownItem }) {
   const url = item.icon ? tileIconUrl(item.icon) : null;
   const have = item.satisfied;
   const showCount = item.required > 1;
+  // Pending-review overlay (web53a): amber when confirming the queued rows
+  // would satisfy this item; a partial pending count gets a "+N pending" tag.
+  const pendingHave = !have && item.pending_satisfied === true;
+  const pendingQty = have ? 0 : (item.pending ?? 0);
   return (
     <div
-      className={`flex items-center gap-2 rounded px-1.5 py-1 ${have ? "bg-osrs-green/10" : ""}`}
+      className={`flex items-center gap-2 rounded px-1.5 py-1 ${
+        have ? "bg-osrs-green/10" : pendingHave ? "bg-amber-500/10" : ""
+      }`}
     >
       <span className="border-osrs-bronze/25 bg-osrs-brown-dark/60 flex size-6 shrink-0 items-center justify-center rounded border">
         {url ? (
           <img
             src={url}
             alt=""
-            className={`size-5 object-contain ${have ? "" : "opacity-45 grayscale"}`}
+            className={`size-5 object-contain ${have ? "" : pendingHave ? "opacity-70" : "opacity-45 grayscale"}`}
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).style.display = "none";
             }}
@@ -127,7 +133,7 @@ function RequirementRow({ item }: { item: TaskBreakdownItem }) {
       </span>
       <span
         className={`min-w-0 flex-1 truncate text-xs ${
-          have ? "text-osrs-parchment" : "text-osrs-parchment-dark/70"
+          have ? "text-osrs-parchment" : pendingHave ? "text-amber-400/90" : "text-osrs-parchment-dark/70"
         }`}
       >
         {item.name}
@@ -135,12 +141,27 @@ function RequirementRow({ item }: { item: TaskBreakdownItem }) {
           <span className="text-osrs-gold/70"> · {item.points} pt{item.points === 1 ? "" : "s"}</span>
         )}
       </span>
+      {pendingQty > 0 && (showCount || !pendingHave) && (
+        <span
+          className="shrink-0 text-[10px] text-amber-400 tabular-nums"
+          title={`${pendingQty.toLocaleString()} awaiting review`}
+        >
+          +{pendingQty.toLocaleString()} pending
+        </span>
+      )}
       <span
         className={`shrink-0 text-xs tabular-nums ${
-          have ? "text-osrs-green" : "text-osrs-parchment-dark/50"
+          have ? "text-osrs-green" : pendingHave ? "text-amber-400" : "text-osrs-parchment-dark/50"
         }`}
+        title={pendingHave ? "Awaiting review" : undefined}
       >
-        {showCount ? `${Math.min(item.obtained, item.required)} / ${item.required}` : have ? "✓ have" : "need"}
+        {showCount
+          ? `${Math.min(item.obtained, item.required)} / ${item.required}`
+          : have
+            ? "✓ have"
+            : pendingHave
+              ? "⏳ review"
+              : "need"}
       </span>
     </div>
   );
@@ -148,17 +169,28 @@ function RequirementRow({ item }: { item: TaskBreakdownItem }) {
 
 function RequirementGroup({ group }: { group: TaskBreakdownGroup }) {
   const label = groupLabel(group);
+  const pendingDone = !group.satisfied && group.pending_satisfied === true;
   return (
     <div className="grid gap-0.5">
       {label && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-osrs-gold-bright/70 text-[10px] font-semibold uppercase">{label}</span>
-          <span
-            className={`text-[10px] tabular-nums ${
-              group.satisfied ? "text-osrs-green" : "text-osrs-parchment-dark/50"
-            }`}
-          >
-            {group.satisfied ? "✓ done" : `${group.obtained} / ${group.need}${group.unit ? ` ${group.unit}` : ""}`}
+          <span className="flex items-center gap-1.5">
+            {pendingDone && (
+              <span
+                className="rounded bg-amber-500/15 px-1.5 py-px text-[9px] font-semibold text-amber-400 uppercase"
+                title="Confirming the pending submissions would satisfy this requirement"
+              >
+                awaiting review
+              </span>
+            )}
+            <span
+              className={`text-[10px] tabular-nums ${
+                group.satisfied ? "text-osrs-green" : "text-osrs-parchment-dark/50"
+              }`}
+            >
+              {group.satisfied ? "✓ done" : `${group.obtained} / ${group.need}${group.unit ? ` ${group.unit}` : ""}`}
+            </span>
           </span>
         </div>
       )}
@@ -232,7 +264,7 @@ export function TaskDetailContent({
 
   // Live rollup for the selected team — a change means refetch the detail.
   const liveCell = selected != null ? progressMap.get(progressKey(task.id, selected)) : undefined;
-  const liveSig = `${liveCell?.progress ?? 0}:${liveCell?.completed ?? false}`;
+  const liveSig = `${liveCell?.progress ?? 0}:${liveCell?.completed ?? false}:${liveCell?.pending ?? 0}:${liveCell?.pending_complete ?? false}`;
 
   useEffect(() => {
     if (selected == null) return;
@@ -331,6 +363,14 @@ export function TaskDetailContent({
             <p className="text-osrs-parchment-dark/40 text-xs">Loading progress…</p>
           ) : (
             <>
+              {/* Pending-review banner (web53a): every queued row confirmed
+               * would finish the whole task. */}
+              {bd!.pending_complete && !bd!.completed && (
+                <p className="mb-2 rounded border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-400">
+                  This task is complete pending admin review.
+                </p>
+              )}
+
               {/* Overall progress */}
               <div className="mb-2 flex items-center gap-2">
                 <div className="min-w-0 flex-1">
@@ -352,6 +392,13 @@ export function TaskDetailContent({
                         : `${bd!.progress} / ${bd!.target}`}
                 </span>
               </div>
+
+              {/* Meter amount still sitting in the review queue (web53a). */}
+              {bd!.structure === "meter" && !bd!.completed && (bd!.meter?.pending ?? 0) > 0 && (
+                <p className="-mt-1 mb-2 text-right text-[10px] text-amber-400 tabular-nums">
+                  +{formatProgressValue(task, bd!.meter!.pending!)} awaiting review
+                </p>
+              )}
 
               {/* Requirement detail */}
               {bd!.structure === "checklist" && (

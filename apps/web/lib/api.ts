@@ -44,6 +44,12 @@ import {
   AdminEventTypeSchema,
   type AdminEventType,
   EventChannelConfigSchema,
+  EventTeamDiscordConfigSchema,
+  type EventTeamDiscordConfig,
+  type EventTeamDiscordInput,
+  TeamNotificationsSchema,
+  type TeamNotifications,
+  type EventTaskProgressMode,
   EventCompletionSchema,
   EventDetailSchema,
   EventPrizePotSchema,
@@ -273,6 +279,7 @@ import {
   mockEventTeam,
   mockEventCompletions,
   mockEventDiscord,
+  mockEventTeamDiscord,
   mockEventDiscordChannels,
   mockEventDiscordGuilds,
   mockEvents,
@@ -1848,6 +1855,59 @@ export const api = {
           }),
         ),
       () => ({ roles: [], stale: false }),
+    );
+  },
+
+  /** Per-team Discord channels & roles config + live provisioning state
+   * (web53a). `groupId` selects a participating clan's own scope. */
+  async eventTeamDiscord(
+    eventId: number,
+    groupId?: number | null,
+  ): Promise<EventTeamDiscordConfig> {
+    const suffix = groupId != null ? `?group_id=${groupId}` : "";
+    return withFallback(
+      async () =>
+        EventTeamDiscordConfigSchema.parse(
+          await apiGet(`/events/${eventId}/team-discord${suffix}`, { authed: true }),
+        ),
+      () => mockEventTeamDiscord(eventId, groupId ?? null),
+    );
+  },
+
+  /** Save one scope of the team-discord config; the bot provisions within
+   * ~30s of the save. Absent keys leave stored values unchanged. */
+  async updateEventTeamDiscord(
+    eventId: number,
+    input: EventTeamDiscordInput,
+  ): Promise<EventTeamDiscordConfig> {
+    return withFallback(
+      async () =>
+        EventTeamDiscordConfigSchema.parse(
+          await apiSend("PUT", `/events/${eventId}/team-discord`, input),
+        ),
+      () => mockEventTeamDiscord(eventId, input.group_id ?? null),
+    );
+  },
+
+  /** Captain/admin: tune which notifications one team's channel receives. */
+  async updateTeamNotifications(
+    eventId: number,
+    teamId: number,
+    input: {
+      toggles?: Record<string, boolean>;
+      task_progress?: EventTaskProgressMode;
+    },
+  ): Promise<TeamNotifications> {
+    return withFallback(
+      async () =>
+        TeamNotificationsSchema.parse(
+          await apiSend("PUT", `/events/${eventId}/teams/${teamId}/notifications`, input),
+        ),
+      () => ({
+        team_id: teamId,
+        toggles: input.toggles ?? {},
+        task_progress: input.task_progress ?? "all",
+      }),
     );
   },
 

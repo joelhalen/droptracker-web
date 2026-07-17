@@ -8,6 +8,7 @@ import type {
   AdminLookupResponse,
   AnnouncementPage,
   EventChannelConfig,
+  EventTeamDiscordConfig,
   EventCompletion,
   EventDetail,
   EventTeamDetail,
@@ -1927,6 +1928,60 @@ export function mockEventDiscord(_eventId: number): EventChannelConfig {
     },
     per_group_discord: false,
     group_id: null,
+  };
+}
+
+/** Per-team Discord channels & roles (web53a). */
+export function mockEventTeamDiscord(
+  _eventId: number,
+  groupId: number | null,
+): EventTeamDiscordConfig {
+  return {
+    group_id: groupId,
+    guild_id: "444444444444444444",
+    channels_enabled: true,
+    roles_enabled: true,
+    forum_channel_id: null,
+    retention: "delete_48h",
+    captain_config: true,
+    teams: [
+      {
+        team_id: 1,
+        name: "Team Red",
+        role_enabled: true,
+        channel_enabled: true,
+        toggles: {},
+        task_progress: "all",
+        role_id: "999999999999999901",
+        channel_id: "999999999999999902",
+        channel_kind: "text",
+        sync_status: "synced",
+        last_error: null,
+      },
+      {
+        team_id: 2,
+        name: "Team Blue",
+        role_enabled: true,
+        channel_enabled: false,
+        toggles: { event_board_turn: false },
+        task_progress: "milestones",
+        role_id: null,
+        channel_id: null,
+        channel_kind: null,
+        sync_status: "pending",
+        last_error: null,
+      },
+    ],
+    default_toggles: {
+      event_completion: true,
+      event_task_progress: true,
+      event_line: true,
+      event_blackout: true,
+      event_lead_change: true,
+      event_board_turn: true,
+      event_board_roll_prompt: true,
+    },
+    default_task_progress: "all",
   };
 }
 
