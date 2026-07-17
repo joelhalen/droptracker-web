@@ -22,7 +22,7 @@ export const revalidate = 0;
 const WIDTH = 1100;
 
 type Params = Promise<{ id: string }>;
-type Search = Promise<{ k?: string }>;
+type Search = Promise<{ k?: string; team?: string }>;
 
 export default async function BoardImagePage({
   params,
@@ -32,7 +32,7 @@ export default async function BoardImagePage({
   searchParams: Search;
 }) {
   const { id } = await params;
-  const { k } = await searchParams;
+  const { k, team } = await searchParams;
   const eventId = Number(id);
   const token = env.boardImageToken;
 
@@ -51,6 +51,12 @@ export default async function BoardImagePage({
   if (!board && !event.bingo) notFound();
 
   const teams = event.teams.map((t) => ({ id: t.id, name: t.name, color: t.color }));
+  // Team-scoped render (web54a): the per-team Discord channel posts screenshot
+  // the board with that team's tab pre-selected (bingo) / piece highlighted
+  // (board game). Unknown ids fall back to the all-teams view.
+  const teamId = Number(team);
+  const selectedTeam =
+    Number.isFinite(teamId) && teams.some((t) => t.id === teamId) ? teamId : null;
 
   return (
     <>
@@ -62,7 +68,7 @@ export default async function BoardImagePage({
           <EventBoardView
             event={event}
             initialBoard={board}
-            viewerTeamId={null}
+            viewerTeamId={selectedTeam}
             leadership={event.leadership}
             viewerRole={null}
           />
@@ -75,7 +81,8 @@ export default async function BoardImagePage({
             eventId={event.id}
             live={false}
             progress={event.progress}
-            viewerTeamId={null}
+            viewerTeamId={selectedTeam}
+            initialSelectedTeam={selectedTeam}
           />
         )}
       </div>

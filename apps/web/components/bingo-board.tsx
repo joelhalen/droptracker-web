@@ -220,6 +220,7 @@ export function BingoBoard({
   live = false,
   progress,
   viewerTeamId,
+  initialSelectedTeam = null,
   fetchBreakdown,
 }: {
   board: BingoBoardData;
@@ -233,12 +234,15 @@ export function BingoBoard({
   progress?: EventProgress[];
   /** The signed-in viewer's team — pinned first in the detail card. */
   viewerTeamId?: number | null;
+  /** Pre-select a team tab on mount (the chrome-less /board-image render uses
+   * this for the per-team Discord channel posts, web54a). */
+  initialSelectedTeam?: number | null;
   /** Host transport for the per-team breakdown; omit for the site cookie BFF. */
   fetchBreakdown?: BreakdownFetcher;
 }) {
   const [completions, setCompletions] = useState(() => initialCompletions(board));
   const [pending, setPending] = useState(() => initialPending(board));
-  const [selectedTeam, setSelectedTeam] = useState<number | null>(null);
+  const [selectedTeam, setSelectedTeam] = useState<number | null>(initialSelectedTeam);
   const [sheetIdx, setSheetIdx] = useState<number | null>(null);
   const coarse = useCoarsePointer();
 
