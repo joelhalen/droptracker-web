@@ -10,6 +10,7 @@ import { EventBoardView } from "@/components/event-board-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import { EventTeamsPanel } from "@/components/event-teams-panel";
+import { PrizePotPanel } from "@/components/prize-pot-panel";
 import { EmptyState } from "@/components/ui";
 
 export const revalidate = 30;
@@ -45,6 +46,12 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   // Board-game events (web44a): the dice board replaces the bingo grid.
   const board =
     event.kind === "board_game" ? await api.eventBoard(eventId).catch(() => null) : null;
+
+  // Prize pot (web52a): the "Who's bought in" panel — only when the event runs
+  // a pot. Read-only on the public page (no actions).
+  const pot = event.prize_pot?.enabled
+    ? await api.eventPot(eventId).catch(() => null)
+    : null;
 
   const players = user ? user.players.map((p) => ({ id: p.id, name: p.name })) : null;
 
@@ -153,11 +160,21 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                 progress={event.progress}
                 taskCount={event.tasks.length}
                 viewerTeamId={event.viewer?.team_id}
+                prizePot={event.prize_pot}
               />
             ) : (
               <EmptyState title="No teams yet" />
             )}
           </div>
+
+          {pot && pot.enabled && (
+            <div>
+              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+                Who&apos;s bought in
+              </h2>
+              <PrizePotPanel pot={pot} actions={null} />
+            </div>
+          )}
         </aside>
       </div>
     </div>

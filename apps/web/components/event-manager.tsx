@@ -50,6 +50,7 @@ import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
 import { EventBoardShopConfig } from "@/components/event-board-shop-config";
 import { EventDiscordSettings } from "@/components/event-discord";
+import { PrizePotManager } from "@/components/prize-pot-manager";
 import { EventMemberList } from "@/components/event-member-list";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
@@ -96,6 +97,7 @@ const MANAGER_TABS = [
   { key: "tasks", label: "Tasks" },
   { key: "teams", label: "Teams" },
   { key: "board", label: "Board" },
+  { key: "prizes", label: "Prize Pot" },
   { key: "discord", label: "Discord" },
   { key: "review", label: "Review" },
 ] as const;
@@ -1452,6 +1454,17 @@ export function EventManager({
       <div className={tab === "teams" ? "" : "hidden"}>
         <EventSignupTools groupId={groupId} event={event} teams={teams} />
       </div>
+
+      {/* Prize pot: buy-ins, donations, distribution config (web52a). */}
+      <section className={tab === "prizes" ? "" : "hidden"}>
+        <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Prize Pot</h3>
+        <PrizePotManager
+          groupId={groupId}
+          event={event}
+          teams={teams}
+          onEventUpdated={applyDetail}
+        />
+      </section>
 
       {/* Per-event Discord config, inline (web48a — used to be its own page;
           the standalone /discord route still works for old links). */}

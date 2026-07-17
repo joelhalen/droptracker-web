@@ -13,6 +13,7 @@ import {
   EventDetailSchema,
   EventTeamDetailSchema,
   EventSummarySchema,
+  EventPrizePotSchema,
   TicketDetailSchema,
   TicketPageSchema,
   GroupConfigPatchSchema,
@@ -160,6 +161,76 @@ test("EventSummary accepts null/absent description", () => {
       { ...base, id: 3, description: null },
     ]),
   );
+});
+
+// Prize pot (web52a): the full pot read + the lightweight EventDetail block.
+test("EventPrizePot read + EventDetail prize_pot block parse", () => {
+  const money = (v: number) => ({ value: v, value_formatted: String(v) });
+  assert.doesNotThrow(() =>
+    EventPrizePotSchema.parse({
+      enabled: true,
+      total: money(250_000_000),
+      buyin_total: money(200_000_000),
+      donation_total: money(50_000_000),
+      config: {
+        default_buyin: money(5_000_000),
+        distribution: "top_n",
+        top_n: 2,
+        splits: [100],
+        advertise: true,
+        show_contributors: true,
+        allow_leader_mark: false,
+      },
+      per_team: [
+        { team_id: 3, name: "Red", total: money(120_000_000), paid_count: 8, member_count: 10 },
+      ],
+      contributors: [
+        {
+          id: 41,
+          player_id: 55,
+          rsn: "Zezima",
+          team_id: 3,
+          kind: "donation",
+          amount: money(50_000_000),
+          status: "paid",
+        },
+      ],
+      can_manage: true,
+    }),
+  );
+  // contributors null (redacted) is valid.
+  assert.doesNotThrow(() =>
+    EventPrizePotSchema.parse({
+      enabled: true,
+      total: money(0),
+      buyin_total: money(0),
+      donation_total: money(0),
+      config: {
+        default_buyin: money(0),
+        distribution: "first_only",
+        top_n: 1,
+        splits: [100],
+        advertise: false,
+        show_contributors: false,
+        allow_leader_mark: false,
+      },
+      per_team: [],
+      contributors: null,
+      can_manage: false,
+    }),
+  );
+  // The EventDetail prize_pot summary block, and a team carrying pot_total.
+  const parsed = EventDetailSchema.parse({
+    ...mockEvent(1),
+    prize_pot: {
+      enabled: true,
+      total: money(250_000_000),
+      advertise: true,
+      distribution: "top_n",
+      top_n: 2,
+    },
+  });
+  assert.equal(parsed.prize_pot?.enabled, true);
 });
 
 // Every config key (incl. seasonal mirrors) must resolve to a field — guards the

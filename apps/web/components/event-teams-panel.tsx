@@ -8,14 +8,27 @@
  * massive event no longer turns the page into an endless scroll.
  */
 import Link from "next/link";
-import type { EventMember, EventProgress, EventTeam } from "@droptracker/api-types";
+import type {
+  EventMember,
+  EventPrizePotSummary,
+  EventProgress,
+  EventTeam,
+} from "@droptracker/api-types";
 import { entityPath } from "@/lib/slug";
 import { teamColorMap } from "@/lib/events";
+import { StatTile } from "@/components/ui";
 import { LocalTime } from "@/components/local-time";
 import { EventMemberList } from "@/components/event-member-list";
 
 /** Rosters up to this size render inline; larger ones collapse. */
 const INLINE_MAX = 6;
+
+/** One-line description of who's advertised to take the pot. */
+function distributionHint(pot: EventPrizePotSummary): string {
+  if (pot.distribution === "top_n" && pot.top_n > 1) return `Top ${pot.top_n} teams split it`;
+  if (pot.distribution === "custom_split") return "Split among the top teams";
+  return "Winner takes all";
+}
 
 function MemberRow({ m }: { m: EventMember }) {
   return (
@@ -41,20 +54,34 @@ export function EventTeamsPanel({
   progress,
   taskCount,
   viewerTeamId,
+  prizePot,
 }: {
   eventId: number;
   teams: EventTeam[];
   progress?: EventProgress[];
   taskCount: number;
   viewerTeamId?: number | null;
+  /** Prize-pot headline (web52a); shown only when the pot is enabled. Updates
+   * live via the event-detail SSE refresh that feeds this component. */
+  prizePot?: EventPrizePotSummary | null;
 }) {
   // Colors resolve against the unsorted roster so palette fallbacks stay stable
   // as standings change.
   const teamColor = teamColorMap(teams);
   const sorted = [...teams].sort((a, b) => b.score - a.score);
+  const showPot = Boolean(prizePot?.enabled);
 
   return (
-    <ol className="space-y-2">
+    <>
+      {showPot && prizePot && (
+        <StatTile
+          label="Prize Pot"
+          value={`${prizePot.total.value_formatted} GP`}
+          hint={distributionHint(prizePot)}
+          className="mb-3"
+        />
+      )}
+      <ol className="space-y-2">
       {sorted.map((team, i) => {
         const done = (progress ?? []).filter((p) => p.team_id === team.id && p.completed).length;
         const members = team.members ?? [];
@@ -85,6 +112,9 @@ export function EventTeamsPanel({
                 <span className="text-osrs-parchment-dark/50 ml-2 text-xs">
                   {team.member_count} players
                   {done > 0 ? ` · ${done}/${taskCount} tasks` : ""}
+                  {showPot && team.pot_total && team.pot_total.value > 0
+                    ? ` · 💰 ${team.pot_total.value_formatted}`
+                    : ""}
                 </span>
               </span>
               <span className="text-osrs-gold-bright tabular-nums">{team.score}</span>
@@ -117,6 +147,7 @@ export function EventTeamsPanel({
           </li>
         );
       })}
-    </ol>
+      </ol>
+    </>
   );
 }

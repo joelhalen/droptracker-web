@@ -34,6 +34,10 @@ import {
   type EventTemplatePatch,
   type EventTemplateSaveInput,
   type EventParticipant,
+  type EventPrizePot,
+  type EventBuyinKind,
+  type EventBuyinStatus,
+  type EventPrizeDistribution,
 } from "@droptracker/api-types";
 import { api, ApiError } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
@@ -888,4 +892,153 @@ export async function postEventSignupMessage(groupId: EventGroupId, eventId: num
   await assertCanManageEvent(groupId);
   await api.postEventSignupMessage(eventId);
   return { ok: true as const };
+}
+
+// --- Prize pot: buy-ins & donations (web52a) ---------------------------------
+
+/** The event's prize pot (admin view: every row + notes). */
+export async function fetchEventPot(
+  groupId: EventGroupId,
+  eventId: number,
+): Promise<EventPrizePot> {
+  await assertCanManageEvent(groupId);
+  return api.eventPot(eventId);
+}
+
+/** Record a buy-in or donation. */
+export async function recordEventBuyin(
+  groupId: EventGroupId,
+  eventId: number,
+  input: {
+    player_id?: number | null;
+    rsn?: string | null;
+    team_id?: number | null;
+    kind?: EventBuyinKind;
+    amount: number;
+    status?: "pledged" | "paid";
+    note?: string | null;
+  },
+): Promise<{ ok: true; id: number } | { ok: false; message: string }> {
+  await assertCanManageEvent(groupId);
+  try {
+    const result = await api.recordBuyin(eventId, input);
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true, id: result.id };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false, message: err.message };
+    throw err;
+  }
+}
+
+/** Edit a buy-in (amount / note) or flip its paid state — the roster "tick". */
+export async function updateEventBuyin(
+  groupId: EventGroupId,
+  eventId: number,
+  buyinId: number,
+  patch: { amount?: number; status?: EventBuyinStatus; note?: string | null },
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await assertCanManageEvent(groupId);
+  try {
+    await api.updateBuyin(eventId, buyinId, patch);
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false, message: err.message };
+    throw err;
+  }
+}
+
+/** Remove a buy-in (soft-void once paid, else hard delete). */
+export async function deleteEventBuyin(
+  groupId: EventGroupId,
+  eventId: number,
+  buyinId: number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await assertCanManageEvent(groupId);
+  try {
+    await api.deleteBuyin(eventId, buyinId);
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false, message: err.message };
+    throw err;
+  }
+}
+
+/** Seed one pledged buy-in per member at the default buy-in (optionally one team). */
+export async function bulkSeedEventBuyins(
+  groupId: EventGroupId,
+  eventId: number,
+  teamId?: number | null,
+): Promise<{ ok: true; created: number } | { ok: false; message: string }> {
+  await assertCanManageEvent(groupId);
+  try {
+    const r = await api.bulkSeedBuyins(eventId, teamId);
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true, created: r.created };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false, message: err.message };
+    throw err;
+  }
+}
+
+/** Post the current pot to the event's Discord announcements channel now. */
+export async function announceEventPot(
+  groupId: EventGroupId,
+  eventId: number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  await assertCanManageEvent(groupId);
+  try {
+    await api.announcePot(eventId);
+    return { ok: true };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false, message: err.message };
+    throw err;
+  }
+}
+
+/** Toggle the pot and/or merge its config. Disabling an event that already has
+ * recorded buy-ins returns `{ needsConfirm, count, total }` (the backend's 409
+ * `buyins-present`) so the UI can confirm before retrying with the flag. */
+export async function updateEventPotConfig(
+  groupId: EventGroupId,
+  eventId: number,
+  input: {
+    buyins_enabled?: boolean;
+    confirm_disable_buyins?: boolean;
+    prize_config?: {
+      default_buyin?: number;
+      distribution?: EventPrizeDistribution;
+      top_n?: number;
+      splits?: number[];
+      advertise?: boolean;
+      show_contributors?: boolean;
+      allow_leader_mark?: boolean;
+    };
+  },
+): Promise<
+  | { ok: true; event: EventDetail }
+  | { ok: false; needsConfirm: true; count: number; total: number }
+  | { ok: false; needsConfirm?: false; message: string }
+> {
+  await assertCanManageEvent(groupId);
+  try {
+    const event = await api.updateEventPotConfig(eventId, input);
+    revalidatePath(eventAdminPath(groupId, eventId));
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true, event };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      if (err.status === 409 && err.problem?.type === "buyins-present") {
+        return {
+          ok: false,
+          needsConfirm: true,
+          count: Number(err.problem.count ?? 0),
+          total: Number(err.problem.total ?? 0),
+        };
+      }
+      return { ok: false, message: err.message };
+    }
+    throw err;
+  }
 }

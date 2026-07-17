@@ -46,6 +46,11 @@ import {
   EventChannelConfigSchema,
   EventCompletionSchema,
   EventDetailSchema,
+  EventPrizePotSchema,
+  type EventPrizePot,
+  type EventBuyinKind,
+  type EventBuyinStatus,
+  type EventPrizeDistribution,
   EventReadinessSchema,
   EventKindMetaSchema,
   type EventKindMeta,
@@ -309,6 +314,12 @@ type FetchOpts = {
   authed?: boolean;
   /** Next.js cache revalidation window in seconds (ISR for public reads). */
   revalidate?: number;
+  /**
+   * Internal render token (X-Board-Image-Token) — lets the chrome-less
+   * board-image route read ANY event (incl. private/draft) for the Discord
+   * screenshot, bypassing the viewer-visibility gate on the backend.
+   */
+  internalToken?: string;
 };
 
 /**
@@ -326,9 +337,30 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Parsed RFC-7807 body when the error response was JSON. Extension
+     * members live here — e.g. the buy-in confirm-on-disable 409 carries
+     * `{ type: "buyins-present", count, total }`. */
+    public problem?: Record<string, unknown>,
   ) {
     super(message);
   }
+}
+
+/** Build an ApiError from a non-OK response, parsing the RFC-7807 body once so
+ * both the human message and any extension members (`count`/`total`/`type`)
+ * are available to callers. */
+async function apiError(res: Response, context: string): Promise<ApiError> {
+  let problem: Record<string, unknown> | undefined;
+  let message = `Web API ${res.status} for ${context}`;
+  try {
+    const body = (await res.clone().json()) as Record<string, unknown>;
+    problem = body;
+    if (typeof body?.detail === "string") message = body.detail;
+    else if (typeof body?.title === "string") message = body.title;
+  } catch {
+    /* not JSON */
+  }
+  return new ApiError(res.status, message, problem);
 }
 
 async function apiGet(path: string, opts: FetchOpts = {}): Promise<unknown> {
@@ -339,13 +371,14 @@ async function apiGet(path: string, opts: FetchOpts = {}): Promise<unknown> {
     const token = (await cookies()).get(SESSION_COOKIE)?.value;
     if (token) headers.cookie = `${SESSION_COOKIE}=${token}`;
   }
+  if (opts.internalToken) headers["x-board-image-token"] = opts.internalToken;
 
   const res = await fetch(url, {
     headers,
     next: opts.revalidate != null ? { revalidate: opts.revalidate } : undefined,
   });
 
-  if (!res.ok) throw new ApiError(res.status, await problemDetail(res, path));
+  if (!res.ok) throw await apiError(res, path);
   return res.json();
 }
 
@@ -365,7 +398,7 @@ async function apiSend(
     },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new ApiError(res.status, await problemDetail(res, `${method} ${path}`));
+  if (!res.ok) throw await apiError(res, `${method} ${path}`);
   return res.status === 204 ? null : res.json();
 }
 
@@ -381,20 +414,8 @@ async function apiSendForm(method: "POST" | "PUT", path: string, form: FormData)
     },
     body: form,
   });
-  if (!res.ok) throw new ApiError(res.status, await problemDetail(res, `${method} ${path}`));
+  if (!res.ok) throw await apiError(res, `${method} ${path}`);
   return res.status === 204 ? null : res.json();
-}
-
-/** Extract the RFC-7807 `detail` from an error response, falling back to a generic message. */
-async function problemDetail(res: Response, context: string): Promise<string> {
-  try {
-    const body = (await res.clone().json()) as { detail?: string; title?: string };
-    if (body?.detail) return body.detail;
-    if (body?.title) return body.title;
-  } catch {
-    /* not JSON */
-  }
-  return `Web API ${res.status} for ${context}`;
 }
 
 /** True when the caller holds a session cookie (real or dev-mock). */
@@ -713,6 +734,19 @@ export const api = {
     );
   },
 
+  /** Event detail for the chrome-less board-image render — reads ANY event
+   * (incl. private/draft) via the internal render token, no mock fallback. */
+  async eventForRender(id: number, token: string): Promise<EventDetail> {
+    return EventDetailSchema.parse(await apiGet(`/events/${id}`, { internalToken: token }));
+  },
+
+  /** Board-game board for the render page (internal render token). */
+  async eventBoardForRender(eventId: number, token: string): Promise<BoardDetail> {
+    return BoardDetailSchema.parse(
+      await apiGet(`/events/${eventId}/board`, { internalToken: token }),
+    );
+  },
+
   /** Public team page: standings context, roster with contribution stats,
    * per-task progress, recent applied activity. */
   async eventTeam(eventId: number, teamId: number): Promise<EventTeamDetail> {
@@ -895,6 +929,131 @@ export const api = {
     return withFallback(
       async () => EventDetailSchema.parse(await apiSend("POST", `/events/${eventId}/end`, {})),
       () => ({ ...mockEvent(eventId), status: "past" as const }),
+    );
+  },
+
+  // --- Prize pot: buy-ins & donations (web52a) -----------------------------
+  /** The event's prize pot: totals, config, per-team breakdown and (unless
+   * redacted) the contributor list. Public read; admins get every row + notes. */
+  async eventPot(eventId: number): Promise<EventPrizePot> {
+    const zero = { value: 0, value_formatted: "0" };
+    return withFallback(
+      async () => EventPrizePotSchema.parse(await apiGet(`/events/${eventId}/pot`, { authed: true })),
+      () => ({
+        enabled: false,
+        total: zero,
+        buyin_total: zero,
+        donation_total: zero,
+        config: {
+          default_buyin: zero,
+          distribution: "first_only" as const,
+          top_n: 1,
+          splits: [100],
+          advertise: false,
+          show_contributors: true,
+          allow_leader_mark: false,
+        },
+        per_team: [],
+        contributors: [],
+        can_manage: false,
+      }),
+    );
+  },
+
+  /** Record a buy-in or donation. Buy-ins default `pledged`; donations `paid`. */
+  async recordBuyin(
+    eventId: number,
+    input: {
+      player_id?: number | null;
+      rsn?: string | null;
+      team_id?: number | null;
+      kind?: EventBuyinKind;
+      amount: number;
+      status?: "pledged" | "paid";
+      note?: string | null;
+    },
+  ): Promise<{ id: number }> {
+    return withFallback(
+      async () => (await apiSend("POST", `/events/${eventId}/buyins`, input)) as { id: number },
+      () => ({ id: 0 }),
+    );
+  },
+
+  /** Edit a buy-in's amount / note or flip its paid state (the roster "tick"). */
+  async updateBuyin(
+    eventId: number,
+    buyinId: number,
+    patch: { amount?: number; status?: EventBuyinStatus; note?: string | null },
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("PATCH", `/events/${eventId}/buyins/${buyinId}`, patch);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Remove a buy-in — soft-void once it was ever paid, else a hard delete. */
+  async deleteBuyin(eventId: number, buyinId: number): Promise<{ ok: true; voided: boolean }> {
+    return withFallback(
+      async () =>
+        (await apiSend("DELETE", `/events/${eventId}/buyins/${buyinId}`, {})) as {
+          ok: true;
+          voided: boolean;
+        },
+      () => ({ ok: true, voided: false }),
+    );
+  },
+
+  /** Seed one pledged buy-in per member at the default buy-in (a ready
+   * checklist). Optionally scoped to one team. Skips members already seeded. */
+  async bulkSeedBuyins(eventId: number, teamId?: number | null): Promise<{ created: number }> {
+    return withFallback(
+      async () =>
+        (await apiSend(
+          "POST",
+          `/events/${eventId}/buyins/bulk`,
+          teamId != null ? { team_id: teamId } : {},
+        )) as { created: number },
+      () => ({ created: 0 }),
+    );
+  },
+
+  /** Post the current pot to the event's Discord announcements channel now. */
+  async announcePot(eventId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/pot/announce`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Toggle the pot and/or merge its config (writes to PATCH /events/{id}).
+   * Disabling an event that has recorded buy-ins throws ApiError 409 (problem
+   * `type: "buyins-present"` with `count`/`total`) unless `confirm_disable_buyins`
+   * is set — the caller catches it to show a confirm dialog, then retries. */
+  async updateEventPotConfig(
+    eventId: number,
+    input: {
+      buyins_enabled?: boolean;
+      confirm_disable_buyins?: boolean;
+      prize_config?: {
+        default_buyin?: number;
+        distribution?: EventPrizeDistribution;
+        top_n?: number;
+        splits?: number[];
+        advertise?: boolean;
+        show_contributors?: boolean;
+        allow_leader_mark?: boolean;
+      };
+    },
+  ): Promise<EventDetail> {
+    return withFallback(
+      async () => EventDetailSchema.parse(await apiSend("PATCH", `/events/${eventId}`, input)),
+      () => mockEvent(eventId),
     );
   },
 

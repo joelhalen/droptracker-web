@@ -25,12 +25,14 @@ import {
   EVENT_MODES,
   EVENT_SUBMISSION_POLICIES,
   EVENT_FORMATION_MODES,
+  EVENT_PRIZE_DISTRIBUTIONS,
   type DiscordRole,
   type EventDetail,
   type EventDiscordPolicy,
   type EventKind,
   type EventKindMeta,
   type EventParticipant,
+  type EventPrizeDistribution,
   type EventReadiness,
   type EventTask,
   type EventTeam,
@@ -50,6 +52,7 @@ import {
   removeEventTask,
   removeEventTeamMember,
   searchParticipantPlayers,
+  updateEventPotConfig,
   updateGroupEvent,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { fetchDiscordRoles } from "@/app/(site)/(admin)/groups/[id]/announcements/actions";
@@ -187,6 +190,14 @@ export function EventSetupWizard({
   const [requiresConfirmation, setRequiresConfirmation] = useState(
     initialEvent?.requires_confirmation ?? false,
   );
+  // Prize pot (web52a): optional, configured on the "Joining & rules" step and
+  // refined later in the manager's Prize Pot tab.
+  const [potEnabled, setPotEnabled] = useState(initialEvent?.prize_pot?.enabled ?? false);
+  const [potDefaultBuyin, setPotDefaultBuyin] = useState(0);
+  const [potDistribution, setPotDistribution] = useState<EventPrizeDistribution>(
+    initialEvent?.prize_pot?.distribution ?? "first_only",
+  );
+  const [potAdvertise, setPotAdvertise] = useState(initialEvent?.prize_pot?.advertise ?? false);
 
   const [kinds, setKinds] = useState<EventKindMeta[] | null>(null);
   const [roles, setRoles] = useState<DiscordRole[] | null>(null);
@@ -319,12 +330,27 @@ export function EventSetupWizard({
             submission_policy: submissionPolicy,
             requires_confirmation: requiresConfirmation,
           });
-          setDetail({
-            ...detail,
-            formation_mode: formationMode,
-            submission_policy: submissionPolicy,
-            requires_confirmation: requiresConfirmation,
+          // Prize pot config rides its own action (not part of EventInput).
+          // confirm_disable_buyins is safe here — a wizard draft has no records.
+          const potRes = await updateEventPotConfig(groupId, detail.id, {
+            buyins_enabled: potEnabled,
+            confirm_disable_buyins: true,
+            prize_config: {
+              default_buyin: potDefaultBuyin,
+              distribution: potDistribution,
+              advertise: potAdvertise,
+            },
           });
+          setDetail(
+            potRes.ok
+              ? potRes.event
+              : {
+                  ...detail,
+                  formation_mode: formationMode,
+                  submission_policy: submissionPolicy,
+                  requires_confirmation: requiresConfirmation,
+                },
+          );
         }
         setStepIdx((i) => Math.min(i + 1, STEPS.length - 1));
       } catch (err) {
@@ -834,6 +860,78 @@ export function EventSetupWizard({
               </span>
             </span>
           </label>
+
+          {/* Prize pot (web52a): optional GP buy-in / donation tracking. Fine
+              details (the roster tick, donations, custom split) live in the
+              manager's Prize Pot tab once the event exists. */}
+          <div className="border-osrs-bronze/20 space-y-3 rounded border border-dashed p-3">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={potEnabled}
+                onChange={(e) => setPotEnabled(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                💰 Track a prize pot (buy-ins &amp; donations)
+                <span className="text-osrs-parchment-dark/50 block text-xs">
+                  Record GP buy-ins and donations and advertise a running pot. The tool tracks and
+                  advertises GP only — payouts are still traded in-game, like split-tracking.
+                </span>
+              </span>
+            </label>
+            {potEnabled && (
+              <div className="space-y-3 pl-6">
+                <label className="block text-sm">
+                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                    Default buy-in (GP) — 0 for no fixed stake
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={potDefaultBuyin || ""}
+                    onChange={(e) => setPotDefaultBuyin(Math.max(0, Number(e.target.value) || 0))}
+                    placeholder="0"
+                    className={`${field} max-w-[12rem]`}
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                    Who wins the pot?
+                  </span>
+                  <select
+                    value={potDistribution}
+                    onChange={(e) => setPotDistribution(e.target.value as EventPrizeDistribution)}
+                    className={`${field} max-w-md`}
+                  >
+                    {EVENT_PRIZE_DISTRIBUTIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d === "first_only"
+                          ? "Winner takes all"
+                          : d === "top_n"
+                            ? "Top teams split it (set count later)"
+                            : "Custom split (configure later)"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={potAdvertise}
+                    onChange={(e) => setPotAdvertise(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    Advertise the pot on Discord
+                    <span className="text-osrs-parchment-dark/50 block text-xs">
+                      Shows a running pot total on the standings board and start/end announcements.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

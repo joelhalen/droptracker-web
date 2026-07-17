@@ -9,6 +9,12 @@ const bool = (v: string | undefined, fallback = false) =>
 export const env = {
   /** Where the BFF reaches the Web API v1 process (server-side only). */
   webApiInternalUrl: process.env.WEB_API_INTERNAL_URL ?? "http://localhost:31325",
+  /**
+   * Shared secret gating the chrome-less `/board-image/{id}` export route (the
+   * page the bot screenshots for Discord). Must match `BOARD_IMAGE_TOKEN` in the
+   * backend `.env`. Empty disables the route (every request 404s).
+   */
+  boardImageToken: process.env.BOARD_IMAGE_TOKEN ?? "",
   /** Serve built-in mock data when the Web API is unreachable. */
   useMockApi: bool(process.env.USE_MOCK_API, process.env.NODE_ENV !== "production"),
 

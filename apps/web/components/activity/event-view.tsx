@@ -32,10 +32,15 @@ import {
   boardUse,
   eventDetail,
   eventPendingCompletions,
+  eventPot,
   joinEvent,
   leaveEvent,
+  markBuyinPaid,
+  recordBuyin,
   taskBreakdown,
 } from "@/lib/activity/api";
+import { PrizePotPanel, type PrizePotActions } from "@/components/prize-pot-panel";
+import type { EventPrizePot } from "@droptracker/api-types";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "text-osrs-parchment-dark/60",
@@ -107,6 +112,38 @@ export function EventView({
     },
     [eventId, sessionToken],
   );
+
+  // Prize pot (web52a): fetch the full pot when the event advertises one, and
+  // re-fetch on each poll refresh (and after a tick). Actions are the bearer
+  // twins of the site server actions, gated on can_manage inside the panel.
+  const [pot, setPot] = useState<EventPrizePot | null>(null);
+  const potEnabled = Boolean(event?.prize_pot?.enabled);
+  const loadPot = useCallback(async () => {
+    if (!potEnabled) {
+      setPot(null);
+      return;
+    }
+    try {
+      setPot(await eventPot(eventId, sessionToken));
+    } catch {
+      /* leave the last-known pot in place */
+    }
+  }, [eventId, sessionToken, potEnabled]);
+  useEffect(() => {
+    void loadPot();
+  }, [loadPot, refreshKey]);
+  const potActions: PrizePotActions | null =
+    event?.can_manage && sessionToken
+      ? {
+          markPaid: (buyinId, paid) => markBuyinPaid(eventId, buyinId, paid, sessionToken),
+          recordDonation: (rsn, amount) =>
+            recordBuyin(
+              eventId,
+              { rsn, kind: "donation", amount, status: "paid" },
+              sessionToken,
+            ).then(() => undefined),
+        }
+      : null;
 
   // Load the board once the event is known to be a board-game event, and
   // reseed it on each poll refresh (the board view also self-refetches on SSE).
@@ -257,6 +294,10 @@ export function EventView({
             </span>
           ))}
         </div>
+      )}
+
+      {pot && pot.enabled && (
+        <PrizePotPanel pot={pot} actions={potActions} onChanged={loadPot} />
       )}
 
       {canManage && pendingCount > 0 && (

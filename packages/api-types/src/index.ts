@@ -1797,6 +1797,19 @@ export const EVENT_SUBMISSION_POLICIES = ["all", "confirm_non_api", "api_only"] 
  * which only governs task-library reuse. */
 export const EVENT_VISIBILITIES = ["public", "private"] as const;
 
+/** Prize-pot ledger (web52a): a buy-in (a stake to enter, with a paid tick) vs.
+ * a donation (extra/standalone GP, possibly from a non-participant). */
+export const EVENT_BUYIN_KINDS = ["buyin", "donation"] as const;
+export type EventBuyinKind = (typeof EVENT_BUYIN_KINDS)[number];
+/** Only "paid" rows count toward the pot; the tick flips pledged→paid;
+ * donations default paid; "void" = soft-removed (kept for audit). */
+export const EVENT_BUYIN_STATUSES = ["pledged", "paid", "void"] as const;
+export type EventBuyinStatus = (typeof EVENT_BUYIN_STATUSES)[number];
+/** Who is *advertised* as taking the pot (advisory display, not a transfer):
+ * first place only, the top N teams, or a custom percentage split by place. */
+export const EVENT_PRIZE_DISTRIBUTIONS = ["first_only", "top_n", "custom_split"] as const;
+export type EventPrizeDistribution = (typeof EVENT_PRIZE_DISTRIBUTIONS)[number];
+
 /** Ledger row lifecycle for event completions (events-prd.md D3). */
 export const EVENT_COMPLETION_STATUSES = [
   "auto",
@@ -1924,8 +1937,74 @@ export const EventTeamSchema = z.object({
   piece_item_id: z.number().int().nullable().optional(),
   /** Present on EventDetail reads (Task 16); absent on legacy payloads. */
   members: z.array(EventMemberSchema).optional(),
+  /** Prize pot (web52a): this team's paid buy-ins + donations. Present on
+   * EventDetail reads once the pot feature ships; absent on legacy payloads. */
+  pot_total: MoneySchema.optional(),
 });
 export type EventTeam = z.infer<typeof EventTeamSchema>;
+
+/** A single buy-in / donation row (web52a). `rsn` is the live player name or a
+ * free-text external-donor label; `note`/pledged rows are admin-only. */
+export const EventBuyinSchema = z.object({
+  id: z.number().int(),
+  player_id: z.number().int().nullable().optional(),
+  rsn: z.string().nullable().optional(),
+  team_id: z.number().int().nullable().optional(),
+  kind: z.enum(EVENT_BUYIN_KINDS),
+  amount: MoneySchema,
+  status: z.enum(EVENT_BUYIN_STATUSES),
+  note: z.string().nullable().optional(),
+  created_at: z.number().int().nullable().optional(),
+});
+export type EventBuyin = z.infer<typeof EventBuyinSchema>;
+
+/** Prize-pot configuration (web_events.prize_config) as returned by the pot
+ * read — every GP figure is a Money envelope. */
+export const EventPrizeConfigSchema = z.object({
+  default_buyin: MoneySchema,
+  distribution: z.enum(EVENT_PRIZE_DISTRIBUTIONS).default("first_only"),
+  top_n: z.number().int().default(1),
+  splits: z.array(z.number().int()).default([100]),
+  advertise: z.boolean().default(false),
+  show_contributors: z.boolean().default(true),
+  allow_leader_mark: z.boolean().default(false),
+});
+export type EventPrizeConfig = z.infer<typeof EventPrizeConfigSchema>;
+
+/** Full prize-pot read (GET /events/{id}/pot). `contributors` is null when the
+ * viewer may not see the list (show_contributors off and not an admin). */
+export const EventPrizePotSchema = z.object({
+  enabled: z.boolean().default(false),
+  total: MoneySchema,
+  buyin_total: MoneySchema,
+  donation_total: MoneySchema,
+  config: EventPrizeConfigSchema,
+  per_team: z
+    .array(
+      z.object({
+        team_id: z.number().int(),
+        name: z.string(),
+        total: MoneySchema,
+        paid_count: z.number().int().default(0),
+        member_count: z.number().int().default(0),
+      }),
+    )
+    .default([]),
+  contributors: z.array(EventBuyinSchema).nullable().optional(),
+  can_manage: z.boolean().default(false),
+});
+export type EventPrizePot = z.infer<typeof EventPrizePotSchema>;
+
+/** Lightweight pot block folded into EventDetail (rides the event SSE refresh)
+ * so the standings banner shows a live headline without a second fetch. */
+export const EventPrizePotSummarySchema = z.object({
+  enabled: z.boolean().default(false),
+  total: MoneySchema,
+  advertise: z.boolean().default(false),
+  distribution: z.enum(EVENT_PRIZE_DISTRIBUTIONS).default("first_only"),
+  top_n: z.number().int().default(1),
+});
+export type EventPrizePotSummary = z.infer<typeof EventPrizePotSummarySchema>;
 
 /** One team's (or player's) completion of a cell, with enough context for the
  * public board's popover (who + when). `completed_at` comes from the task's
@@ -2342,6 +2421,10 @@ export const EventDetailSchema = EventSummarySchema.extend({
   /** Admin-only: present only when the requester administers the event. */
   join_code: z.string().nullable().optional(),
   discord_guild_id: z.string().nullable().optional(),
+  /** Prize pot headline (web52a) — rides the event-detail SSE refresh so the
+   * standings banner updates live. Full contributor list is GET
+   * /events/{id}/pot. Absent on payloads from before the pot feature. */
+  prize_pot: EventPrizePotSummarySchema.optional(),
 });
 export type EventDetail = z.infer<typeof EventDetailSchema>;
 

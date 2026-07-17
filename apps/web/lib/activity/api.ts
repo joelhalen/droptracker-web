@@ -15,6 +15,7 @@ import {
   BoardShopStateSchema,
   EventCompletionSchema,
   EventDetailSchema,
+  EventPrizePotSchema,
   EventSummarySchema,
   GroupProfileSchema,
   LeaderboardPageSchema,
@@ -30,6 +31,7 @@ import {
   type BoardShopState,
   type EventCompletion,
   type EventDetail,
+  type EventPrizePot,
   type TaskBreakdown,
   type EventSummary,
   type GroupProfile,
@@ -153,9 +155,14 @@ export async function activityMe(sessionToken: string): Promise<Me> {
   return MeSchema.parse(await get("/api/activity/me", sessionToken));
 }
 
-async function send(path: string, sessionToken: string, body: unknown): Promise<unknown> {
+async function sendMethod(
+  method: "POST" | "PATCH" | "DELETE",
+  path: string,
+  sessionToken: string,
+  body: unknown,
+): Promise<unknown> {
   const res = await fetch(path, {
-    method: "POST",
+    method,
     headers: {
       "content-type": "application/json",
       accept: "application/json",
@@ -164,8 +171,8 @@ async function send(path: string, sessionToken: string, body: unknown): Promise<
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    // Surface the upstream RFC-7807 detail so the join panel shows the real
-    // reason ("wrong join code", "team is full", …) instead of a generic one.
+    // Surface the upstream RFC-7807 detail so the caller shows the real reason
+    // ("wrong join code", "team is full", …) instead of a generic one.
     const detail = await res
       .json()
       .then((b: { detail?: string }) => b?.detail)
@@ -173,6 +180,53 @@ async function send(path: string, sessionToken: string, body: unknown): Promise<
     throw new ActivityApiError(res.status, detail ?? `Request failed (${res.status}).`);
   }
   return res.json().catch(() => ({}));
+}
+
+function send(path: string, sessionToken: string, body: unknown): Promise<unknown> {
+  return sendMethod("POST", path, sessionToken, body);
+}
+
+// --- Prize pot (web52a) — bearer twins of the site pot methods ---------------
+
+/** The event's prize pot (public read; admins get every row + can_manage). */
+export async function eventPot(
+  eventId: number,
+  sessionToken: string | null,
+): Promise<EventPrizePot> {
+  return EventPrizePotSchema.parse(
+    await get(`/api/activity/events/${eventId}/pot`, sessionToken),
+  );
+}
+
+/** Record a buy-in or donation. */
+export async function recordBuyin(
+  eventId: number,
+  input: {
+    player_id?: number | null;
+    rsn?: string | null;
+    team_id?: number | null;
+    kind?: "buyin" | "donation";
+    amount: number;
+    status?: "pledged" | "paid";
+    note?: string | null;
+  },
+  sessionToken: string,
+): Promise<{ id: number }> {
+  return (await send(`/api/activity/events/${eventId}/buyins`, sessionToken, input)) as {
+    id: number;
+  };
+}
+
+/** Flip a buy-in's paid state (the roster tick). */
+export async function markBuyinPaid(
+  eventId: number,
+  buyinId: number,
+  paid: boolean,
+  sessionToken: string,
+): Promise<void> {
+  await sendMethod("PATCH", `/api/activity/events/${eventId}/buyins/${buyinId}`, sessionToken, {
+    status: paid ? "paid" : "pledged",
+  });
 }
 
 export async function joinEvent(
