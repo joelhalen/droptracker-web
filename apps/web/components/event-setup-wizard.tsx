@@ -158,15 +158,27 @@ const BLOCKER_STEP: Record<string, StepKey> = {
 export function EventSetupWizard({
   groupId,
   initialEvent = null,
+  initialStep = 0,
 }: {
   groupId: number | null;
   /** Resume an existing draft (?event={id}); null starts fresh. */
   initialEvent?: EventDetail | null;
+  /** Step to open on (?step={n}) — how a resumed/remounted wizard lands back
+   * where the user was instead of on Basics. */
+  initialStep?: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [stepIdx, setStepIdx] = useState(0);
+  // The wizard's position lives in the URL, not just component state (see the
+  // sync effect below): server-action revalidations re-render the page, and a
+  // remount for ANY reason (RSC reconciliation, browser refresh) used to
+  // rebuild this component at step 0 — the "wizard loops back to step 1" bug.
+  // Without a draft only the first two steps exist, so clamp accordingly.
+  const [stepIdx, setStepIdx] = useState(() => {
+    const max = initialEvent ? STEPS.length - 1 : 1;
+    return Math.min(Math.max(Math.trunc(initialStep) || 0, 0), max);
+  });
 
   // The real draft, once it exists. Before that the wizard buffers locally.
   const [detail, setDetail] = useState<EventDetail | null>(initialEvent);
@@ -208,6 +220,16 @@ export function EventSetupWizard({
   const step = STEPS[stepIdx]!;
   const managerPath = (id: number) =>
     (groupId == null ? `/admin/events/${id}` : `/groups/${groupId}/events/${id}`) as Route;
+
+  // Keep the browser URL pointing at the exact wizard position once the
+  // draft exists. history.replaceState (no router.replace!) avoids an RSC
+  // roundtrip that would re-render the page mid-wizard; the App Router still
+  // adopts the URL, so any refresh/remount re-enters via the page's
+  // ?event&step params and resumes right here.
+  useEffect(() => {
+    if (!detail) return;
+    window.history.replaceState(null, "", `?event=${detail.id}&step=${stepIdx}`);
+  }, [detail, stepIdx]);
 
   // Kind registry (same fallback behavior as the old create form).
   useEffect(() => {
@@ -313,9 +335,7 @@ export function EventSetupWizard({
             });
             const full = await reloadGroupEvent(groupId, res.id);
             setDetail(full);
-            // Make refresh/back resume this draft without an RSC roundtrip
-            // (a router.replace would re-render the page mid-wizard).
-            window.history.replaceState(null, "", `?event=${res.id}`);
+            // The URL-sync effect stamps ?event&step once `detail` lands.
           } else {
             await updateGroupEvent(groupId, detail.id, {
               starts_at: toUnix(startsAt),

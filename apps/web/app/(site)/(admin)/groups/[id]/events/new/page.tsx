@@ -9,7 +9,7 @@ import { FeatureGate } from "@/components/feature-gate";
 export const metadata: Metadata = { title: "New event" };
 
 type Params = Promise<{ id: string }>;
-type SearchParams = Promise<{ event?: string }>;
+type SearchParams = Promise<{ event?: string; step?: string }>;
 
 // Access is gated by the (admin)/groups/[id] layout; ?event={id} resumes an
 // existing draft in the wizard.
@@ -23,7 +23,7 @@ export default async function NewEventPage({
   const { id } = await params;
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
-  const { event: eventParam } = await searchParams;
+  const { event: eventParam, step: stepParam } = await searchParams;
 
   const [subscription, tiers, user] = await Promise.all([
     api.groupSubscription(groupId).catch(() => null),
@@ -54,7 +54,11 @@ export default async function NewEventPage({
         <h2 className="heading-rule text-osrs-gold pb-1 text-lg font-semibold">
           {initialEvent ? `Set up: ${initialEvent.name}` : "New event"}
         </h2>
-        <EventCreateEntry groupId={groupId} initialEvent={initialEvent} />
+        <EventCreateEntry
+          groupId={groupId}
+          initialEvent={initialEvent}
+          initialStep={Number(stepParam) || 0}
+        />
       </div>
     </FeatureGate>
   );

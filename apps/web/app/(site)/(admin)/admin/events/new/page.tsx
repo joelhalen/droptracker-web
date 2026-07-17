@@ -6,7 +6,7 @@ import { EventCreateEntry } from "@/components/event-create-entry";
 
 export const metadata: Metadata = { title: "New global event" };
 
-type SearchParams = Promise<{ event?: string }>;
+type SearchParams = Promise<{ event?: string; step?: string }>;
 
 // Superadmin-only (guarded by the /admin layout). Global events belong to no
 // group — any player with a linked account can join.
@@ -15,7 +15,7 @@ export default async function NewGlobalEventPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const { event: eventParam } = await searchParams;
+  const { event: eventParam, step: stepParam } = await searchParams;
 
   let initialEvent = null;
   if (eventParam) {
@@ -36,7 +36,11 @@ export default async function NewGlobalEventPage({
         Global events belong to no group — any player with a linked account can join. Group events
         are created from each group&apos;s own Events tab.
       </p>
-      <EventCreateEntry groupId={null} initialEvent={initialEvent} />
+      <EventCreateEntry
+        groupId={null}
+        initialEvent={initialEvent}
+        initialStep={Number(stepParam) || 0}
+      />
     </div>
   );
 }

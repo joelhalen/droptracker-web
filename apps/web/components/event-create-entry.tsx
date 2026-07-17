@@ -13,9 +13,12 @@ import { EventTemplatePicker } from "@/components/event-template-picker";
 export function EventCreateEntry({
   groupId,
   initialEvent = null,
+  initialStep = 0,
 }: {
   groupId: number | null;
   initialEvent?: EventDetail | null;
+  /** Wizard step to open on (?step={n}) — see EventSetupWizard. */
+  initialStep?: number;
 }) {
   const [source, setSource] = useState<"new" | "template">("new");
 
@@ -68,7 +71,7 @@ export function EventCreateEntry({
       {!resuming && source === "template" ? (
         <EventTemplatePicker groupId={groupId} />
       ) : (
-        <EventSetupWizard groupId={groupId} initialEvent={initialEvent} />
+        <EventSetupWizard groupId={groupId} initialEvent={initialEvent} initialStep={initialStep} />
       )}
     </div>
   );
