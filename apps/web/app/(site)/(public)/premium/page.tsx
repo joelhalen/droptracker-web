@@ -24,11 +24,11 @@ export default async function PremiumPage() {
   return (
     <div className="space-y-8">
       <header className="text-center">
-        <h1 className="text-osrs-gold text-3xl font-bold">Premium for clans</h1>
+        <h1 className="text-osrs-gold text-3xl font-bold">Upgrade your DropTracker Group</h1>
         <p className="text-osrs-parchment-dark/80 mx-auto mt-2 max-w-xl">
-          A recurring subscription that unlocks extras for your whole group — custom Discord
-          embeds, the Hall of Fame, events like bingo, and video submissions. Manage it from your
-          group&apos;s admin page.
+          A recurring subscription that unlocks extras for your whole group — customizable Discord embeds,
+          a Personal-Best Hall of Fame, advanced & fully-integrated events, like Bingo, and video submissions (currently unavailable). Manage it from your group&apos;s
+          admin page.
         </p>
       </header>
 
@@ -70,9 +70,9 @@ export default async function PremiumPage() {
       </div>
 
       <p className="text-osrs-parchment-dark/70 text-center text-sm">
-        Already run a clan?{" "}
+        Already subscribed?{" "}
         <Link href="/dashboard" className="text-osrs-gold-bright hover:underline">
-          Manage your group&apos;s subscription →
+          Manage your groups →
         </Link>
       </p>
 

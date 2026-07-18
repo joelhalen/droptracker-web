@@ -1741,6 +1741,9 @@ export const EVENT_TASK_TYPES = [
   "pb_target",
   "skill_target",
   "loot_value",
+  /** Pet acquisition: a specific pet, a pet category (boss/skilling/raids/…),
+   * or "any pet". Credited from pet submissions. */
+  "pet_collection",
   /** Manual-confirmation-only tasks (no automated evaluation). */
   "custom",
 ] as const;

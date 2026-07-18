@@ -23,6 +23,8 @@ import {
 } from "@droptracker/api-types";
 import {
   OSRS_SKILLS,
+  PET_CATEGORY_KEYS,
+  PET_CATEGORY_LABELS,
   TASK_TYPE_HELP,
   TASK_TYPE_LABELS,
   formatSeconds,
@@ -67,6 +69,21 @@ const ITEM_MODE_HELP: Record<ItemMode, string> = {
   any_path:
     "Dryness protection: completing ANY one path finishes the task — e.g. the full Justiciar " +
     "set OR any 5 Justiciar items. The same item can appear in more than one path.",
+};
+
+/** How a pet_collection task is scoped. */
+type PetMode = "specific" | "category" | "any";
+
+const PET_MODE_LABELS: Record<PetMode, string> = {
+  specific: "A specific pet",
+  category: "Any pet from a category",
+  any: "Any pet",
+};
+
+const PET_MODE_HELP: Record<PetMode, string> = {
+  specific: "One named pet (e.g. Baby mole). Credited from that pet's submission.",
+  category: "Any pet in the chosen categories counts (boss / skilling / raids / misc).",
+  any: "Any pet at all — but trivial/stackable 'misc' pets are excluded. Pick the category mode and add 'Misc pets' to include them.",
 };
 
 /** One sub-requirement of a "Combined requirements" task. */
@@ -412,6 +429,33 @@ export function EventTaskForm({
     initial?.type === "custom" ? (initial.target ?? "") : "",
   );
 
+  // pet_collection
+  const initialPetCategories =
+    initial?.type === "pet_collection" && Array.isArray(initialConfig.categories)
+      ? (initialConfig.categories as string[])
+      : [];
+  const [petMode, setPetMode] = useState<PetMode>(
+    initial?.type === "pet_collection"
+      ? initial.target
+        ? "specific"
+        : initialPetCategories.length
+          ? "category"
+          : "any"
+      : "specific",
+  );
+  const [petItem, setPetItem] = useState<PickerEntry[]>(
+    initial?.type === "pet_collection" && initial.target ? [{ name: initial.target }] : [],
+  );
+  const [petCategories, setPetCategories] = useState<string[]>(initialPetCategories);
+  const [petCount, setPetCount] = useState(
+    initial?.type === "pet_collection" ? (initial.target_value ?? 1) : 1,
+  );
+  const petName = petItem[0]?.name ?? "";
+  const togglePetCategory = (key: string) =>
+    setPetCategories((prev) =>
+      prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key],
+    );
+
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -472,6 +516,12 @@ export function EventTaskForm({
       case "ehb_target":
         if (numericGoal < 1) return "Set a target amount.";
         break;
+      case "pet_collection":
+        if (petMode === "specific" && !petName) return "Pick a pet.";
+        if (petMode === "category" && petCategories.length === 0)
+          return "Choose at least one pet category.";
+        if (petMode !== "specific" && petCount < 1) return "Number of pets must be at least 1.";
+        break;
       case "custom":
         break;
     }
@@ -519,6 +569,13 @@ export function EventTaskForm({
         return `Level ${numericGoal} ${skill}`;
       case "loot_value":
         return `${numericGoal.toLocaleString()} GP${sourceNpcs.length ? ` from ${sourceNpcs.map((n) => n.name).join(", ")}` : ""}`;
+      case "pet_collection": {
+        const n = petCount > 1 ? `${petCount}× ` : "";
+        if (petMode === "specific") return `${n}${petName}`;
+        if (petMode === "category")
+          return `${n}Any ${petCategories.map((c) => PET_CATEGORY_LABELS[c] ?? c).join(" / ").toLowerCase()}`;
+        return petCount > 1 ? `Any ${petCount} pets` : "Any pet";
+      }
       default:
         return "";
     }
@@ -591,6 +648,16 @@ export function EventTaskForm({
       case "ehp_target":
       case "ehb_target":
         return { ...base, target_value: numericGoal };
+      case "pet_collection":
+        if (petMode === "specific")
+          return { ...base, target: petName, target_value: petCount };
+        if (petMode === "category")
+          return {
+            ...base,
+            target_value: petCount,
+            config: JSON.stringify({ categories: petCategories }),
+          };
+        return { ...base, target_value: petCount }; // any pet (misc excluded)
       default:
         return { ...base, target: customTarget.trim() || undefined };
     }
@@ -889,6 +956,72 @@ export function EventTaskForm({
               emptyHint="Leave empty to count drops from anywhere."
             />
           </div>
+        </div>
+      )}
+
+      {type === "pet_collection" && (
+        <div className="grid gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-sm">
+              <span className="text-osrs-parchment-dark/80">Pet requirement</span>
+              <select
+                value={petMode}
+                onChange={(e) => setPetMode(e.target.value as PetMode)}
+                className={field}
+              >
+                {(Object.keys(PET_MODE_LABELS) as PetMode[]).map((m) => (
+                  <option key={m} value={m}>
+                    {PET_MODE_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {petMode !== "specific" && (
+              <label className="grid gap-1 text-sm">
+                <span className="text-osrs-parchment-dark/80">Number of pets</span>
+                <QuantityInput
+                  min={1}
+                  value={petCount}
+                  onChange={setPetCount}
+                  className={field}
+                  title="How many qualifying pets the team must obtain (default 1)."
+                />
+              </label>
+            )}
+          </div>
+          <p className="text-osrs-parchment-dark/50 text-xs">{PET_MODE_HELP[petMode]}</p>
+          {petMode === "specific" ? (
+            <ItemNpcPicker
+              kind="item"
+              mode="single"
+              selected={petItem}
+              onChange={setPetItem}
+              search={searchItems}
+              resolve={resolveItems}
+              selectionTitle="Pet"
+            />
+          ) : petMode === "category" ? (
+            <div className="flex flex-wrap gap-2">
+              {PET_CATEGORY_KEYS.map((key) => {
+                const on = petCategories.includes(key);
+                return (
+                  <button
+                    type="button"
+                    key={key}
+                    onClick={() => togglePetCategory(key)}
+                    aria-pressed={on}
+                    className={`rounded border px-3 py-1.5 text-sm ${
+                      on
+                        ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
+                        : "border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold"
+                    }`}
+                  >
+                    {PET_CATEGORY_LABELS[key]}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
       )}
 

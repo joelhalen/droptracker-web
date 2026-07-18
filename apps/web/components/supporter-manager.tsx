@@ -107,10 +107,10 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
     // scroll-mt clears the sticky header when arriving via /premium#supporter.
     <section id="supporter" className="mx-auto max-w-4xl scroll-mt-24 space-y-4">
       <header className="text-center">
-        <h2 className="text-osrs-gold text-2xl font-bold">Support DropTracker personally</h2>
+        <h2 className="text-osrs-gold text-2xl font-bold">Unlock Perks for You & Support the Project</h2>
         <p className="text-osrs-parchment-dark/80 mx-auto mt-1 max-w-xl text-sm">
-          A personal subscription that supports the project and unlocks perks for you — including
-          video capture for your own submissions, even if your group&apos;s plan doesn&apos;t have
+          A personal subscription that supports the project and unlocks perks for you — including the ability to have the bot DM you your submissions,
+          video capture (currently unavailable) for yourself—even if your group&apos;s plan doesn&apos;t have
           it. Pay any amount you like, separate from (or in addition to) your group&apos;s plan.
         </p>
       </header>

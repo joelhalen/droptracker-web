@@ -26,7 +26,24 @@ export default async function EventsPage() {
 
   return (
     <div className="space-y-10">
-      <h1 className="text-osrs-gold text-3xl font-bold">Events</h1>
+      <header>
+        <h1 className="text-osrs-gold text-2xl font-bold">Events & Competitions</h1>
+        <p className="text-osrs-parchment-dark/70 mt-2 max-w-3xl text-sm">
+          Events are competitions hosted by DropTracker groups — bingo boards, team races, and
+          task lists built from real in-game goals: boss drops, killcounts, XP, personal bests,
+          pets, and more. Progress tracks itself — play with the DropTracker RuneLite plugin
+          installed and the moment a drop lands or a record falls, the matching tile is credited
+          and the scoreboard updates live, both here and in the hosting group&apos;s Discord.
+        </p>
+        <p className="text-osrs-parchment-dark/70 mt-2 max-w-3xl text-sm">
+          Joining is free: be a member of the hosting group, run the plugin, and you&apos;re in.
+          Hosting your own is available to groups subscribed to the{" "}
+          <Link href="/premium" className="text-osrs-gold-bright hover:underline">
+            Patron tier
+          </Link>
+          .
+        </p>
+      </header>
       {recruiting.length > 0 && <EventRecruitingBanner items={recruiting} />}
       {upcoming.length > 0 && (
         <EventSection title="Upcoming" events={upcoming} empty="" />

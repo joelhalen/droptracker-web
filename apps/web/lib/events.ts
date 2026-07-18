@@ -76,6 +76,7 @@ export const TASK_TYPE_LABELS: Record<EventTask["type"], string> = {
   pb_target: "Personal best",
   skill_target: "Skill level",
   loot_value: "Loot value",
+  pet_collection: "Pet",
   custom: "Custom (manual)",
 };
 
@@ -90,8 +91,22 @@ export const TASK_TYPE_HELP: Record<EventTask["type"], string> = {
   pb_target: "Beat a boss within a time limit. Completed by a tracked personal best.",
   skill_target: "Reach a skill level during the event.",
   loot_value: "Earn a GP amount from drops — optionally only from specific NPCs.",
+  pet_collection:
+    "Obtain a pet — a specific one, any pet from a category (boss / skilling / raids), or any pet at all. Credited from pet submissions.",
   custom: "Anything else. Completed manually via an admin award.",
 };
+
+/** Pet categories the engine can gate on (utils/osrs_pets.py). `misc` is
+ * opt-in — a bare "any pet" task excludes those trivial/stackable pets. */
+export const PET_CATEGORY_LABELS: Record<string, string> = {
+  boss: "Boss pets",
+  skilling: "Skilling pets",
+  raids: "Raids pets",
+  misc: "Misc pets (stackable / trivial)",
+};
+
+/** Category keys offered in the pet task builder, in display order. */
+export const PET_CATEGORY_KEYS = ["boss", "skilling", "raids", "misc"] as const;
 
 /** Canonical OSRS skills as RuneLite reports them (xp/skill task targets). */
 export const OSRS_SKILLS = [
@@ -257,6 +272,18 @@ export function taskGoal(
       }
       if (target) return tv != null && tv > 1 ? `${target} · ${tv.toLocaleString()}×` : target;
       return "";
+    }
+    case "pet_collection": {
+      const count = tv != null && tv > 1 ? ` · ${tv.toLocaleString()}×` : "";
+      // Specific pet by name.
+      if (target) return `${target}${count}`;
+      // Category gate, else "any pet".
+      const cats = taskConfig(task).categories;
+      if (Array.isArray(cats) && cats.length) {
+        const names = (cats as string[]).map((c) => PET_CATEGORY_LABELS[c] ?? c);
+        return `Any ${names.join(" / ").toLowerCase()}${count}`;
+      }
+      return `Any pet${count}`;
     }
     default: {
       const parts: string[] = [];
