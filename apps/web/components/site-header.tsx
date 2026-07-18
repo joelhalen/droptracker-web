@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
+import { FaDiscord } from "react-icons/fa6";
 import type { Me } from "@droptracker/api-types";
 import { HeaderNav, type NavTab } from "@/components/tab-nav";
 import { ThemeMenu } from "@/components/theme";
@@ -129,8 +130,9 @@ function SignInLink({ className = "" }: { className?: string }) {
     <Link
       href="/api/auth/login"
       prefetch={false}
-      className={`bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${className}`}
+      className={`bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors ${className}`}
     >
+      <FaDiscord className="size-4 shrink-0" aria-hidden />
       Sign in with Discord
     </Link>
   );
@@ -239,11 +241,13 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
           Drop<span className="text-osrs-gold-bright">Tracker</span>
         </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden items-center gap-6 text-sm md:flex">
+        {/* Desktop nav. `lg` breakpoint, not `md`: the full row (brand + 7 tabs
+            + theme + sign-in) needs ~980px, so between md and lg it overflowed —
+            the nav overlapped the brand and the sign-in text wrapped. */}
+        <nav className="hidden items-center gap-6 text-sm lg:flex">
           <HeaderNav tabs={tabs} />
         </nav>
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 lg:flex">
           <ThemeMenu />
           {me === undefined ? (
             <span className="bg-osrs-bronze/20 h-8 w-24 animate-pulse rounded-lg" aria-hidden />
@@ -255,7 +259,7 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
         </div>
 
         {/* Mobile controls */}
-        <div className="flex items-center gap-1 md:hidden">
+        <div className="flex items-center gap-1 lg:hidden">
           <ThemeMenu />
           <button
             type="button"
@@ -285,7 +289,7 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
       {mobileOpen && (
         <div
           id="mobile-menu"
-          className="card-pop menu-in absolute inset-x-3 top-full z-50 mt-1 max-h-[calc(100dvh-7rem)] touch-pan-y overflow-y-auto overscroll-contain p-2 md:hidden"
+          className="card-pop menu-in absolute inset-x-3 top-full z-50 mt-1 max-h-[calc(100dvh-7rem)] touch-pan-y overflow-y-auto overscroll-contain p-2 lg:hidden"
         >
           <nav className="space-y-0.5">
             {tabs.map((t) => {
@@ -329,7 +333,7 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
             </>
           ) : (
             <div className="px-2.5 py-2">
-              <SignInLink className="block text-center" />
+              <SignInLink className="w-full" />
             </div>
           )}
         </div>
