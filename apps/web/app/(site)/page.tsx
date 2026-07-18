@@ -90,11 +90,13 @@ export default async function HomePage() {
           page itself never reads searchParams (which would break ISR). */}
       <AuthErrorBanner />
 
-      <Card padding="p-8 sm:p-12" className="relative overflow-hidden">
+      {/* No overflow-hidden here — the search dropdown must escape the card;
+          the decorative backdrop clips itself instead. */}
+      <Card padding="p-8 sm:p-12" className="relative">
         {/* Decorative backdrop: item icons from recent global drops, washed
             out under a left-to-right surface gradient so the copy and search
             field stay fully readable. */}
-        <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
           {icons.map((url, i) => {
             const slot = COLLAGE_SLOTS[i]!;
             return (
