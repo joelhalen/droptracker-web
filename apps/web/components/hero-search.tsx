@@ -9,6 +9,7 @@
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { entityPath } from "@/lib/slug";
+import { cycleActive } from "@/lib/listbox";
 import { useEffect, useRef, useState } from "react";
 import type { SearchResults } from "@droptracker/api-types";
 
@@ -134,7 +135,7 @@ export function HeroSearch() {
       if (!suggestions.length) return;
       setOpen(true);
       const delta = e.key === "ArrowDown" ? 1 : -1;
-      setActive((prev) => (prev + delta + suggestions.length + 1) % (suggestions.length + 1) - 1);
+      setActive((prev) => cycleActive(prev, delta, suggestions.length));
     } else if (e.key === "Escape") {
       setOpen(false);
       setActive(-1);
