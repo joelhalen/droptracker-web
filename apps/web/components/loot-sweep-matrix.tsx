@@ -41,6 +41,7 @@ import { decaySequence } from "@/lib/loot-sweep";
 import {
   buildMatrixRows,
   buildTeamColumns,
+  fmtPoints,
   gatingCounts,
   maxAwardsOf,
   type LootSweepTeamEntry,
@@ -73,9 +74,7 @@ const PREVIEW_COLUMN: TeamColumn = {
   isViewer: false,
 };
 
-function fmt(n: number): string {
-  return n.toLocaleString();
-}
+const fmt = fmtPoints;
 
 function groupImg(group: LootSweepGroup): string | null {
   return group.image_url || (group.npc_id != null ? `/img/npcdb/${group.npc_id}.png` : null);
@@ -610,7 +609,11 @@ export function LootSweepMatrix({
                     row.set.decay_percent,
                     row.item.awards_per_tier ?? 1,
                     row.set.decay_mode,
-                  ).join(" / ")}`}
+                  ).join(" / ")}${
+                    row.item.match_names?.length
+                      ? ` · also counts: ${row.item.match_names.join(", ")}`
+                      : ""
+                  }${(row.item.required ?? 1) > 1 ? ` · needs ${row.item.required} for the set` : ""}`}
                 >
                   <span className="text-osrs-parchment-dark/60 w-7 shrink-0 text-right text-xs tabular-nums">
                     {fmt(row.item.points)}

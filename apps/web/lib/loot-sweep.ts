@@ -25,8 +25,13 @@ export function receiptFactor(
   return Math.max(0, 1 - (tier * decayPercent) / 100);
 }
 
-/** Whole points the `k`-th receipt is worth (rounded per receipt, like the
- * backend, so the columns are clean integers). */
+/** Round to 2 decimals — scores are decimal-valued (a 1-pointer's second
+ * receipt at 20% decay is exactly 0.8). Matches the backend's `_round2`. */
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Points the `k`-th receipt is worth (2-decimal, like the backend). */
 export function receiptPoints(
   base: number,
   k: number,
@@ -34,7 +39,7 @@ export function receiptPoints(
   awardsPerTier = 1,
   mode: LootSweepDecayMode = "linear",
 ): number {
-  return Math.round(base * receiptFactor(k, decayPercent, awardsPerTier, mode));
+  return round2(base * receiptFactor(k, decayPercent, awardsPerTier, mode));
 }
 
 /** The per-receipt point sequence up to the cap (the preview strip). */
@@ -70,5 +75,5 @@ export function itemTotal(
   const n = Math.min(Math.max(count, 0), Math.max(maxAwards, 0));
   let total = 0;
   for (let k = 1; k <= n; k++) total += receiptPoints(base, k, decayPercent, awardsPerTier, mode);
-  return total;
+  return round2(total);
 }

@@ -1960,7 +1960,8 @@ export type EventMember = z.infer<typeof EventMemberSchema>;
 export const EventTeamSchema = z.object({
   id: z.number().int(),
   name: z.string(),
-  score: z.number().int().default(0),
+  /** Decimal-valued for loot_sweep events (2dp); integral elsewhere. */
+  score: z.number().default(0),
   member_count: z.number().int().default(0),
   /** The clan this team represents (clan_vs_clan only; null on standard). */
   group_id: z.number().int().nullable().optional(),
@@ -2243,8 +2244,14 @@ export const LootSweepConfigItemSchema = z.object({
   item_name: z.string(),
   /** Resolved game id for the icon (server-filled from the item DB). */
   item_id: z.number().int().nullable().optional(),
-  /** Base points for the FIRST receipt (decays from here). */
-  points: z.number().int(),
+  /** Base points for the FIRST receipt (decays from here, 2dp). */
+  points: z.number(),
+  /** Alternate drop names that credit THIS entry's counter/decay/cap (the
+   * vestige + gold-ring rule, or an "any ancestral piece" pool). */
+  match_names: z.array(z.string()).optional(),
+  /** Receipts (any mix of names) the group demands before the entry counts
+   * toward its completion. Omitted = 1. */
+  required: z.number().int().optional(),
   /** Receipts sharing each decay tier — full points for this many before the
    * first 20% step (the sheet's duplicate rows). Omitted = 1. */
   awards_per_tier: z.number().int().optional(),
@@ -2293,7 +2300,7 @@ export type LootSweepConfig = z.infer<typeof LootSweepConfigSchema>;
 export const LootSweepTeamItemSchema = z.object({
   count: z.number().int(),
   scored: z.number().int(),
-  points: z.number().int(),
+  points: z.number(),
 });
 export type LootSweepTeamItem = z.infer<typeof LootSweepTeamItemSchema>;
 
@@ -2302,18 +2309,18 @@ export const LootSweepTeamGroupSchema = z.object({
   /** Times every gating item has been collected. */
   completions: z.number().int(),
   awarded: z.number().int(),
-  bonus_total: z.number().int(),
-  item_total: z.number().int(),
+  bonus_total: z.number(),
+  item_total: z.number(),
   items: z.array(LootSweepTeamItemSchema),
 });
 
 /** One team's standing within a set. */
 export const LootSweepTeamSchema = z.object({
   team_id: z.number().int(),
-  total: z.number().int(),
+  total: z.number(),
   set_completions: z.number().int(),
   set_awarded: z.number().int(),
-  set_total: z.number().int(),
+  set_total: z.number(),
   groups: z.array(LootSweepTeamGroupSchema),
 });
 
@@ -2339,7 +2346,7 @@ export const LootSweepBoardSchema = z.object({
       id: z.number().int(),
       name: z.string(),
       color: z.string().nullable().optional(),
-      score: z.number().int(),
+      score: z.number(),
     }),
   ),
   sets: z.array(LootSweepSetSchema),
@@ -2356,7 +2363,9 @@ export const LootSweepReceiptSchema = z.object({
   player_id: z.number().int().nullable(),
   player_name: z.string().nullable(),
   received_at: z.number().int().nullable(),
-  points: z.number().int(),
+  points: z.number(),
+  /** The name that actually dropped (may be one of the entry's aliases). */
+  matched_name: z.string().nullable().optional(),
   proof_url: z.string().nullable().optional(),
   source_type: z.string().nullable().optional(),
 });
@@ -2585,7 +2594,8 @@ export type EventViewer = z.infer<typeof EventViewerSchema>;
 export const EventProgressSchema = z.object({
   task_id: z.number().int(),
   team_id: z.number().int(),
-  progress: z.number().int().default(0),
+  /** loot_sweep running point totals are 2-decimal values. */
+  progress: z.number().default(0),
   completed: z.boolean().default(false),
   completed_at: z.number().int().nullable().optional(),
   /** Pending-review overlay (web53a): how many ledger rows await manual
@@ -2645,7 +2655,7 @@ export type EventReadiness = z.infer<typeof EventReadinessSchema>;
 
 /** GET /events/{id}/teams/{teamId} — public team page payload. */
 export const EventTeamTaskSchema = EventTaskSchema.extend({
-  progress: z.number().int().default(0),
+  progress: z.number().default(0),
   completed: z.boolean().default(false),
   completed_at: z.number().int().nullable().optional(),
 });
@@ -2680,7 +2690,7 @@ export const EventTeamDetailSchema = z.object({
   team: z.object({
     id: z.number().int(),
     name: z.string(),
-    score: z.number().int().default(0),
+    score: z.number().default(0),
     group_id: z.number().int().nullable().optional(),
     /** Admin-assigned accent color ("#rrggbb"); null = palette default. */
     color: z.string().nullable().optional(),

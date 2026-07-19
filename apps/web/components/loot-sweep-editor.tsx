@@ -28,6 +28,12 @@ export type LootSweepItemDraft = {
   countsForGroup: boolean;
   /** "drop" (NPC-scoped) or "pet" (credited from a pet submission by name). */
   source: "drop" | "pet";
+  /** Alternate drop names that credit this same entry (vestige + gold ring,
+   * or an "any ancestral piece" pool listing every piece). */
+  matchNames: string[];
+  /** Receipts (any mix of names) needed before this entry counts toward the
+   * group's completion — "any 3 ancestral pieces". Default 1. */
+  required: number;
 };
 
 export type LootSweepGroupDraft = {
@@ -93,6 +99,8 @@ export function lootSweepFromConfig(config: Record<string, unknown> | null | und
       maxAwards: typeof it.max_awards === "number" ? it.max_awards : null,
       countsForGroup: it.counts_for_group !== false,
       source: it.source === "pet" ? "pet" : "drop",
+      matchNames: Array.isArray(it.match_names) ? (it.match_names as unknown[]).map(String) : [],
+      required: typeof it.required === "number" && it.required > 1 ? it.required : 1,
     })),
   });
   return {
@@ -126,6 +134,8 @@ export function lootSweepToConfig(d: LootSweepDraft): string {
         ...(i.maxAwards != null ? { max_awards: i.maxAwards } : {}),
         ...(i.countsForGroup ? {} : { counts_for_group: false }),
         ...(i.source === "pet" ? { source: "pet" } : {}),
+        ...(i.matchNames.length ? { match_names: i.matchNames } : {}),
+        ...(i.required > 1 ? { required: i.required } : {}),
       })),
     })),
   });
@@ -296,7 +306,9 @@ function GroupCard({
       setUploading(false);
     }
   };
-  const itemNames = new Set(group.items.map((i) => i.name.toLowerCase()));
+  const itemNames = new Set(
+    group.items.flatMap((i) => [i.name.toLowerCase(), ...i.matchNames.map((a) => a.toLowerCase())]),
+  );
   const npcNames = new Set(group.npcs.map((n) => n.name.toLowerCase()));
 
   const addItem = (e: EventMetaEntry) => {
@@ -305,12 +317,14 @@ function GroupCard({
       items: [
         ...group.items,
         { name: e.name, id: e.id, points: 1, awardsPerTier: 1, maxAwards: null,
-          countsForGroup: true, source: "drop" },
+          countsForGroup: true, source: "drop", matchNames: [], required: 1 },
       ],
     });
   };
   const patchItem = (i: number, p: Partial<LootSweepItemDraft>) =>
     patch({ items: group.items.map((it, idx) => (idx === i ? { ...it, ...p } : it)) });
+  // Which item row has its "also counts" search open (by item name).
+  const [aliasOpenFor, setAliasOpenFor] = useState<string | null>(null);
 
   return (
     <div className="border-osrs-bronze/25 bg-osrs-brown-dark/20 grid gap-3 rounded-lg border p-3">
@@ -491,8 +505,11 @@ function GroupCard({
                   />
                 </label>
                 <label className="flex items-center gap-1 text-xs">
-                  <span className="text-osrs-parchment-dark/70" title="Receipts at full points before each decay step">
-                    ×tier
+                  <span
+                    className="text-osrs-parchment-dark/70"
+                    title="Receipts per decay step — how many pay the SAME points before the next −% step (1 = decay every receipt; 3 = full points ×3, then step). Not a completion requirement."
+                  >
+                    /step
                   </span>
                   <QuantityInput
                     min={1}
@@ -502,6 +519,23 @@ function GroupCard({
                     disabled={disabled}
                     className={`${field} w-12`}
                     title="How many receipts share each decay tier (1 = decay every receipt; 3 = full for 3, then step)."
+                  />
+                </label>
+                <label className="flex items-center gap-1 text-xs">
+                  <span
+                    className="text-osrs-parchment-dark/70"
+                    title="Receipts needed (any mix of this entry's names) before it counts toward the group's completion — e.g. 3 for an 'any 3 ancestral pieces' entry."
+                  >
+                    Need
+                  </span>
+                  <QuantityInput
+                    min={1}
+                    max={100}
+                    value={it.required}
+                    onChange={(n) => patchItem(idx, { required: n })}
+                    disabled={disabled}
+                    className={`${field} w-12`}
+                    title="How many receipts complete this entry for the group (default 1)."
                   />
                 </label>
                 <label
@@ -523,6 +557,67 @@ function GroupCard({
                 >
                   {seqPts.join(" · ")}
                 </span>
+                {!disabled && it.matchNames.length === 0 && aliasOpenFor !== it.name && (
+                  <button
+                    type="button"
+                    onClick={() => setAliasOpenFor(it.name)}
+                    className="text-osrs-parchment-dark/50 hover:text-osrs-gold-bright text-[11px]"
+                    title="Add another item name that credits this same entry (e.g. Gold ring on a vestige)"
+                  >
+                    + also counts
+                  </button>
+                )}
+                {(it.matchNames.length > 0 || aliasOpenFor === it.name) && (
+                  <div className="flex w-full flex-wrap items-center gap-1.5 pl-9">
+                    <span className="text-osrs-parchment-dark/50 text-[10px] font-medium uppercase tracking-wider">
+                      also counts
+                    </span>
+                    {it.matchNames.map((alias) => (
+                      <span
+                        key={alias}
+                        className="border-osrs-bronze/30 text-osrs-parchment/80 flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px]"
+                      >
+                        {alias}
+                        {!disabled && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              patchItem(idx, { matchNames: it.matchNames.filter((a) => a !== alias) })
+                            }
+                            className="text-osrs-parchment-dark/50 hover:text-osrs-red"
+                            aria-label={`Remove ${alias}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    {!disabled && aliasOpenFor === it.name ? (
+                      <div className="w-56">
+                        <InlineSearch
+                          kind="item"
+                          search={searchItems}
+                          taken={itemNames}
+                          placeholder="Another name that counts…"
+                          onPick={(e) =>
+                            patchItem(idx, { matchNames: [...it.matchNames, e.name] })
+                          }
+                          disabled={disabled}
+                        />
+                      </div>
+                    ) : (
+                      !disabled && (
+                        <button
+                          type="button"
+                          onClick={() => setAliasOpenFor(it.name)}
+                          className="text-osrs-parchment-dark/50 hover:text-osrs-gold-bright text-[11px]"
+                        >
+                          + add
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
                 {!disabled && (
                   <button
                     type="button"

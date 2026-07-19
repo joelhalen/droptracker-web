@@ -1710,8 +1710,8 @@ function lsTeamEntry(
       count = Math.min(count, max);
       const scored = count;
       const points = itemTotal(it.points, count, max, LS_DECAY, it.awards_per_tier ?? 1, "linear");
-      itemTotalSum += points;
-      if (gates && count === 0) gatingComplete = false;
+      itemTotalSum = Math.round((itemTotalSum + points) * 100) / 100;
+      if (gates && count < (it.required ?? 1)) gatingComplete = false;
       return { count, scored, points };
     });
     const awarded = gatingComplete ? Math.min(1, g.bonus_max) : 0;
@@ -1794,7 +1794,10 @@ export function mockEventLootSweep(eventId: number): LootSweepBoard {
           bonus_max: 1,
           items: [
             lsItem("Steam battlestaff", 11787, 2, { awards_per_tier: 2 }),
-            lsItem("Zamorakian spear", 11824, 2, { awards_per_tier: 2 }),
+            lsItem("Zamorakian spear", 11824, 2, {
+              awards_per_tier: 2,
+              match_names: ["Zamorakian hasta"],
+            }),
             lsItem("Staff of the dead", 11791, 7),
             lsItem("Zamorak hilt", 11816, 7),
           ],
@@ -1812,7 +1815,7 @@ export function mockEventLootSweep(eventId: number): LootSweepBoard {
           bonus_points: 4,
           bonus_max: 1,
           items: [
-            lsItem("Ahrim's hood", 4708, 2),
+            lsItem("Ahrim's hood", 4708, 2, { required: 2 }),
             lsItem("Ahrim's robetop", 4712, 2),
             lsItem("Ahrim's robeskirt", 4714, 2),
             lsItem("Ahrim's staff", 4710, 2),

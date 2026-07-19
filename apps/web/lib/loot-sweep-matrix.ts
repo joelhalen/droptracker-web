@@ -103,7 +103,8 @@ export function buildTeamColumns(
 }
 
 /** Gating-item completion within one group: how many of the group's gating
- * items the team has received at least once. */
+ * entries the team has satisfied — an entry with `required: 3` (an "any 3
+ * ancestral pieces" pool) only counts once 3 receipts have landed. */
 export function gatingCounts(
   group: LootSweepGroup,
   teamGroup: LootSweepTeamGroupEntry | undefined,
@@ -113,14 +114,18 @@ export function gatingCounts(
   group.items.forEach((item, i) => {
     if (item.counts_for_group === false) return;
     of += 1;
-    if ((teamGroup?.items[i]?.count ?? 0) > 0) got += 1;
+    if ((teamGroup?.items[i]?.count ?? 0) >= (item.required ?? 1)) got += 1;
   });
   return { got, of };
 }
 
-function fmt(n: number): string {
-  return n.toLocaleString();
+/** Point formatter: thousands separators, up to 2 decimals, trailing zeros
+ * trimmed — 1200 → "1,200", 0.8 → "0.8", 3.0 → "3". */
+export function fmtPoints(n: number): string {
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
+
+const fmt = fmtPoints;
 
 /** Compact relative time for receipt rows: "just now", "5m ago", "3h ago",
  * "2d ago", "3w ago". Hours run to 48 before switching to days so "yesterday
@@ -150,14 +155,16 @@ export function itemCellTitle(args: {
   const { teamName, item, prog, decayPercent, decayMode } = args;
   const max = maxAwardsOf(item);
   const apt = item.awards_per_tier ?? 1;
+  const required = item.required ?? 1;
   const head = `${item.item_name} — ${teamName}`;
+  const need = required > 1 ? ` · needs ${required} for the set` : "";
   if (!prog || prog.count === 0) {
     const batch = apt > 1 ? ` (full points ×${apt} at a time)` : "";
-    return `${head}: worth ${fmt(item.points)} each, up to ${max}${batch}`;
+    return `${head}: worth ${fmt(item.points)} each, up to ${max}${batch}${need}`;
   }
   const tail =
     prog.scored >= max
       ? `capped (${max}/${max} scored)`
       : `next worth ${fmt(receiptPoints(item.points, prog.scored + 1, decayPercent, apt, decayMode))}`;
-  return `${head}: ${prog.count} received · ${fmt(prog.points)} pts banked · ${tail}`;
+  return `${head}: ${prog.count} received · ${fmt(prog.points)} pts banked · ${tail}${need}`;
 }

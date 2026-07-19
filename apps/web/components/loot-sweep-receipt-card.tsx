@@ -21,7 +21,7 @@ import { fetchLootSweepReceipts } from "@/app/(site)/(public)/events/[id]/action
 import { CARD_SECTION_CLASS } from "@/components/hover-card";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { decaySequence } from "@/lib/loot-sweep";
-import { maxAwardsOf, timeAgo } from "@/lib/loot-sweep-matrix";
+import { fmtPoints, maxAwardsOf, timeAgo } from "@/lib/loot-sweep-matrix";
 
 const cache = new Map<string, LootSweepReceipts>();
 const inflight = new Map<string, Promise<LootSweepReceipts>>();
@@ -51,9 +51,7 @@ function load(eventId: number, taskId: number, item: string): Promise<LootSweepR
 const SCHEDULE_CHIPS = 12;
 const RECEIPT_ROWS = 8;
 
-function fmt(n: number): string {
-  return n.toLocaleString();
-}
+const fmt = fmtPoints;
 
 function Caption({ children }: { children: React.ReactNode }) {
   return (
@@ -118,6 +116,11 @@ export function LootSweepReceiptCard({
             )}
           </p>
           <p className="text-osrs-parchment-dark/60 truncate text-xs">{set.label}</p>
+          {(item.match_names?.length ?? 0) > 0 && (
+            <p className="text-osrs-parchment-dark/50 truncate text-[11px]">
+              Also counts: {item.match_names!.join(", ")}
+            </p>
+          )}
         </div>
       </div>
 
@@ -139,6 +142,11 @@ export function LootSweepReceiptCard({
               ? `${fmt(banked)} pts banked · cap reached — extras score 0`
               : `${fmt(banked)} pts banked · next is worth ${fmt(seq[scored] ?? 0)} pts`}
         </p>
+        {(item.required ?? 1) > 1 && (
+          <p className="text-osrs-parchment-dark/60 mt-0.5 text-[11px]">
+            Counts for the set once {item.required} have been received (any of the listed names).
+          </p>
+        )}
       </div>
 
       <div className="mt-2.5">
@@ -210,6 +218,11 @@ export function LootSweepReceiptCard({
                     ) : (
                       <span className="text-osrs-parchment min-w-0 truncate font-medium">
                         {r.player_name ?? "Unknown"}
+                      </span>
+                    )}
+                    {r.matched_name && r.matched_name.toLowerCase() !== item.item_name.toLowerCase() && (
+                      <span className="text-osrs-parchment-dark/50 min-w-0 truncate text-[11px]">
+                        ({r.matched_name})
                       </span>
                     )}
                     {r.quantity > 1 && (

@@ -139,6 +139,50 @@ test("gatingCounts counts only gating items received at least once", () => {
   assert.deepEqual(gatingCounts(group, undefined), { got: 0, of: 2 });
 });
 
+test("gatingCounts: an entry with required N only counts at N receipts", () => {
+  const group = {
+    npcs: ["Great Olm"],
+    bonus_points: 25,
+    bonus_max: 1,
+    items: [
+      {
+        item_name: "Ancestral piece",
+        points: 3,
+        required: 3,
+        match_names: ["Ancestral robe top", "Ancestral robe bottom"],
+      },
+    ],
+  };
+  const tg = (count: number) => ({
+    completions: 0,
+    awarded: 0,
+    bonus_total: 0,
+    item_total: 0,
+    items: [{ count, scored: count, points: 0 }],
+  });
+  assert.deepEqual(gatingCounts(group, tg(2)), { got: 0, of: 1 });
+  assert.deepEqual(gatingCounts(group, tg(3)), { got: 1, of: 1 });
+});
+
+test("itemCellTitle: decimal points render trimmed (1 pt → next worth 0.8)", () => {
+  const title = itemCellTitle({
+    teamName: "Alpha",
+    item: { item_name: "Eclipse atlatl", points: 1 },
+    prog: { count: 1, scored: 1, points: 1 },
+    decayPercent: 20,
+    decayMode: "linear",
+  });
+  assert.match(title, /next worth 0\.8/);
+  const need = itemCellTitle({
+    teamName: "Alpha",
+    item: { item_name: "Ancestral piece", points: 3, required: 3 },
+    prog: undefined,
+    decayPercent: 20,
+    decayMode: "linear",
+  });
+  assert.match(need, /needs 3 for the set/);
+});
+
 test("maxAwardsOf: explicit cap wins, else 5 tiers × awards_per_tier", () => {
   assert.equal(maxAwardsOf({ item_name: "x", points: 1 }), 5);
   assert.equal(maxAwardsOf({ item_name: "x", points: 1, awards_per_tier: 3 }), 15);
