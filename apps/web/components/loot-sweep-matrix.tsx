@@ -270,6 +270,9 @@ export function LootSweepMatrix({
 }) {
   const [board, setBoard] = useState<LootSweepBoard>(initial);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  // null = show all teams; a team id = focus that one column (its receipt
+  // tabs render at full size — the "zoom into one team" view for big events).
+  const [focusTeamId, setFocusTeamId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
 
   const refetchNow = useCallback(() => {
@@ -377,7 +380,13 @@ export function LootSweepMatrix({
   }
 
   const preview = columns.length === 0;
-  const cols = preview ? [PREVIEW_COLUMN] : columns;
+  // Focus mode narrows to one team so a big field can be read one column at a
+  // time at full size (a stale focus id after a roster change falls back to
+  // all). `focusIdx` drives the prev/next cycler.
+  const focused = focusTeamId != null && columns.some((c) => c.id === focusTeamId);
+  const shownColumns = focused ? columns.filter((c) => c.id === focusTeamId) : columns;
+  const focusIdx = focused ? columns.findIndex((c) => c.id === focusTeamId) : -1;
+  const cols = preview ? [PREVIEW_COLUMN] : shownColumns;
   // Small fields get the collection-log treatment: with ≤4 columns there's
   // room to use the item icon itself as each receipt tab, and the columns
   // flex (minmax → 1fr) to fill the page instead of leaving it empty —
@@ -429,6 +438,74 @@ export function LootSweepMatrix({
           </p>
         </div>
       </details>
+
+      {!preview && columns.length > 1 && (
+        <div className="border-osrs-bronze/25 bg-osrs-surface-1 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm">
+          <span className="text-osrs-parchment-dark/60 text-xs">View</span>
+          <button
+            type="button"
+            onClick={() => setFocusTeamId(null)}
+            className={`rounded-full border px-2.5 py-1 text-xs ${
+              !focused
+                ? "border-osrs-gold/50 text-osrs-gold-bright bg-osrs-gold/10"
+                : "border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:text-osrs-gold-bright"
+            }`}
+          >
+            All teams ({columns.length})
+          </button>
+          {viewerTeamId != null && columns.some((c) => c.id === viewerTeamId) && (
+            <button
+              type="button"
+              onClick={() => setFocusTeamId(viewerTeamId)}
+              className={`rounded-full border px-2.5 py-1 text-xs ${
+                focusTeamId === viewerTeamId
+                  ? "border-osrs-gold/50 text-osrs-gold-bright bg-osrs-gold/10"
+                  : "border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:text-osrs-gold-bright"
+              }`}
+            >
+              My team
+            </button>
+          )}
+          <span className="text-osrs-parchment-dark/30 mx-0.5">·</span>
+          {/* Focus one team, and step through them. Selecting a single team
+              zooms it to the full-size icon view (no compressed squares). */}
+          <button
+            type="button"
+            aria-label="Previous team"
+            disabled={!focused}
+            onClick={() => setFocusTeamId(columns[(focusIdx - 1 + columns.length) % columns.length]!.id)}
+            className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright disabled:opacity-30"
+          >
+            ‹
+          </button>
+          <select
+            value={focused ? String(focusTeamId) : "all"}
+            onChange={(e) => setFocusTeamId(e.target.value === "all" ? null : Number(e.target.value))}
+            className="bg-osrs-surface-2 border-osrs-bronze/40 text-osrs-parchment max-w-[12rem] rounded border px-2 py-1 text-xs"
+          >
+            <option value="all">Focus a team…</option>
+            {columns.map((c) => (
+              <option key={c.id} value={c.id}>
+                #{c.rank} {c.name} — {fmt(c.score)} pts
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            aria-label="Next team"
+            disabled={!focused}
+            onClick={() => setFocusTeamId(columns[(focusIdx + 1) % columns.length]!.id)}
+            className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright disabled:opacity-30"
+          >
+            ›
+          </button>
+          {focused && (
+            <span className="text-osrs-parchment-dark/50 text-xs">
+              {focusIdx + 1} of {columns.length}
+            </span>
+          )}
+        </div>
+      )}
 
       <div>
         {/* Team header strip: pinned below the site nav, scroll-synced to the
