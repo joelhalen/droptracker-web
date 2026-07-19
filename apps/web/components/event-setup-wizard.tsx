@@ -1199,7 +1199,9 @@ function WizardTasksStep({
         <p className="text-osrs-parchment-dark/60 text-sm">
           {detail.kind === "bingo"
             ? "Bingo boards are built from tasks: add tasks here (or let the board designer create them), then lay out the grid below."
-            : "The dice board draws from a task pool: add tasks here, then lay out the track below."}
+            : detail.kind === "loot_sweep"
+              ? "A Loot Sweep is a set of “Loot Sweep set” tasks — one per boss. Add them here; the live board is built from them automatically (no board to lay out)."
+              : "The dice board draws from a task pool: add tasks here, then lay out the track below."}
         </p>
       )}
 

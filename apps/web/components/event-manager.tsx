@@ -1052,7 +1052,11 @@ export function EventManager({
         role="tablist"
         aria-label="Event settings sections"
       >
-        {MANAGER_TABS.map((t) => (
+        {MANAGER_TABS.filter(
+          // Loot Sweep has no designable board (its board is auto-built from
+          // the set tasks) — hide the bingo/board designer tab for it.
+          (t) => !(t.key === "board" && event.kind === "loot_sweep"),
+        ).map((t) => (
           <button
             key={t.key}
             type="button"
@@ -1423,8 +1427,9 @@ export function EventManager({
       </section>
 
       {/* Board designer: dice board for board_game events (web44a), the
-          bingo grid for everything else (Task 20). */}
-      {event.kind === "board_game" ? (
+          bingo grid for everything else (Task 20). Loot Sweep has no
+          designable board — its icon board is built from the set tasks. */}
+      {event.kind === "loot_sweep" ? null : event.kind === "board_game" ? (
         <section className={tab === "board" ? "" : "hidden"}>
           <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
             Game board
