@@ -30,37 +30,49 @@ function fmt(n: number): string {
   return n.toLocaleString();
 }
 
-/** One item — icon + ×count + points. `prog` absent = preview (no team). */
-function ItemCell({ def, prog }: { def: LootSweepConfigItem; prog?: LootSweepTeamItem }) {
+/** One item — icon + received/max + points. `prog` absent = preview (no team).
+ * `bonus` = a scoring extra (pet / mega-rare) that doesn't gate the set. */
+function ItemCell({
+  def,
+  prog,
+  bonus,
+}: {
+  def: LootSweepConfigItem;
+  prog?: LootSweepTeamItem;
+  bonus: boolean;
+}) {
   const count = prog?.count ?? 0;
   const obtained = count > 0;
   const isPet = def.source === "pet";
   const maxAwards = def.max_awards ?? 5 * (def.awards_per_tier ?? 1);
   const shownPts = obtained ? (prog?.points ?? 0) : def.points;
-  const title = obtained
-    ? `${def.item_name}${isPet ? " (pet)" : ""} — ${count} received, ${fmt(
-        prog?.points ?? 0,
-      )} pts (${prog?.scored ?? 0}/${maxAwards} scored)`
-    : `${def.item_name}${isPet ? " (pet)" : ""} — worth ${def.points}${
-        (def.awards_per_tier ?? 1) > 1 ? ` ×${def.awards_per_tier} at full` : ""
-      }, not obtained yet`;
+  const perTier = def.awards_per_tier ?? 1;
+  const title =
+    `${def.item_name}${isPet ? " (pet)" : bonus ? " (bonus — doesn't count toward the set)" : ""} — ` +
+    (obtained
+      ? `${count} received, ${fmt(prog?.points ?? 0)} pts (${prog?.scored ?? 0}/${maxAwards} score)`
+      : `worth ${def.points} each, up to ${maxAwards}${perTier > 1 ? ` (full points ×${perTier} at a time)` : ""}`);
   return (
     <div
       title={title}
-      className={`relative flex w-[52px] shrink-0 flex-col items-center gap-0.5 rounded-md p-1 ${
+      className={`relative flex w-[54px] shrink-0 flex-col items-center gap-0.5 rounded-md p-1 ${
         obtained ? "bg-osrs-gold/10" : ""
-      } ${isPet ? "ring-osrs-gold/30 ring-1" : ""}`}
+      } ${bonus ? "ring-osrs-gold/40 bg-osrs-gold/[0.03] ring-1" : ""}`}
     >
-      <div className="relative">
-        <ItemDbIcon itemId={def.item_id} size={40} className={obtained ? "" : "opacity-25 grayscale"} />
-        {count > 1 && (
-          <span className="bg-osrs-brown-dark text-osrs-gold-bright ring-osrs-bronze/50 absolute -right-2 -top-1.5 rounded-full px-1 text-[11px] font-bold leading-tight ring-1">
-            ×{count}
-          </span>
-        )}
-      </div>
-      <span className={`text-[11px] leading-none ${obtained ? "text-osrs-gold-bright font-medium" : "text-osrs-parchment-dark/40"}`}>
-        {fmt(shownPts)}
+      <ItemDbIcon itemId={def.item_id} size={40} className={obtained ? "" : "opacity-25 grayscale"} />
+      {/* received / max — the key "how many of a possible N" */}
+      <span
+        className={`text-[11px] font-semibold leading-none tabular-nums ${
+          obtained ? "text-osrs-gold-bright" : "text-osrs-parchment-dark/40"
+        }`}
+      >
+        {count}
+        <span className="text-osrs-parchment-dark/40 font-normal">/{maxAwards}</span>
+      </span>
+      <span
+        className={`text-[10px] leading-none ${obtained ? "text-osrs-gold/80" : "text-osrs-parchment-dark/30"}`}
+      >
+        {fmt(shownPts)} pts
       </span>
     </div>
   );
@@ -76,23 +88,45 @@ function GroupCluster({
   teamGroup: LootSweepSet["teams"][number]["groups"][number] | undefined;
   showLabel: boolean;
 }) {
+  const items = group.items.map((it, ii) => ({ it, ii }));
+  const setItems = items.filter(({ it }) => it.counts_for_group !== false);
+  const bonusItems = items.filter(({ it }) => it.counts_for_group === false);
   return (
     <div className="flex flex-col gap-1">
       {showLabel && (
         <span
-          className="text-osrs-parchment-dark/50 max-w-[13rem] truncate text-[11px] font-medium"
+          className="text-osrs-parchment-dark/50 max-w-[15rem] truncate text-[11px] font-medium"
           title={`${group.label ?? ""}${group.npcs.length ? ` — ${group.npcs.join(", ")}` : ""}${
-            group.bonus_points ? ` · +${group.bonus_points} set` : ""
+            group.bonus_points ? ` · +${group.bonus_points} for the set` : ""
           }`}
         >
           {group.label || group.npcs[0] || "—"}
           {teamGroup && teamGroup.awarded > 0 && <span className="text-osrs-green ml-1">✓</span>}
         </span>
       )}
-      <div className="flex flex-wrap gap-1">
-        {group.items.map((it, ii) => (
-          <ItemCell key={ii} def={it} prog={teamGroup?.items[ii]} />
-        ))}
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+        {setItems.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {setItems.map(({ it, ii }) => (
+              <ItemCell key={ii} def={it} prog={teamGroup?.items[ii]} bonus={false} />
+            ))}
+          </div>
+        )}
+        {bonusItems.length > 0 && (
+          <div className="border-osrs-gold/20 flex flex-col gap-0.5 border-l pl-2">
+            <span
+              className="text-osrs-gold/60 text-[9px] font-medium uppercase tracking-wider"
+              title="Bonus points — these score but don't count toward completing the set"
+            >
+              bonus
+            </span>
+            <div className="flex flex-wrap gap-1">
+              {bonusItems.map(({ it, ii }) => (
+                <ItemCell key={ii} def={it} prog={teamGroup?.items[ii]} bonus={true} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -244,6 +278,12 @@ export function LootSweepBoard({
 
   return (
     <div className="space-y-4">
+      <p className="text-osrs-parchment-dark/50 text-xs">
+        Each tile shows <span className="text-osrs-parchment-dark/70">received / max</span> and the
+        points it&apos;s worth — greyed until obtained. Items in a{" "}
+        <span className="ring-osrs-gold/40 rounded px-1 ring-1">bonus</span> column score but
+        don&apos;t count toward completing the set.
+      </p>
       {board.sets.map((set) => (
         <SetCard key={set.task_id} set={set} teamMeta={teamMeta} viewerTeamId={viewerTeamId} />
       ))}
