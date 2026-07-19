@@ -31,7 +31,7 @@ export function EventTypesManager({ initial }: { initial: AdminEventType[] }) {
       {rows.length === 0 && (
         <Card padding="p-6">
           <p className="text-osrs-parchment-dark/60 text-sm">
-            No event types found — has the web43a migration run?
+            No event types found... nothing to see here.
           </p>
         </Card>
       )}

@@ -97,8 +97,10 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
 
   // --- Level notifications ------------------------------------------------
   { key: "notify_levels", label: "Notify levels", category: "levels", type: "boolean", help: "Master toggle for level-up, total-level milestone, and post-99 XP milestone notifications.", default: false, seasonalMirror: true },
-  { key: "level_minimum_for_notifications", label: "Minimum level", category: "levels", type: "int", help: "Only notify for levels at or above this value.", default: 1, min: 1, max: 99 },
-  { key: "level_increment", label: "Level increment", category: "levels", type: "int", help: "Notify every N levels (1 = every level). Level 99 always notifies.", default: 1, min: 1, max: 99 },
+  { key: "level_minimum_for_notifications", label: "Minimum level", category: "levels", type: "int", help: "Only notify for skill levels at or above this value. Set to 99 (with the toggles below off) to only announce 99s.", default: 1, min: 1, max: 99 },
+  { key: "level_increment", label: "Level increment", category: "levels", type: "int", help: "Notify every N skill levels (1 = every level). Level 99 always notifies. In a multi-level jump, every crossed level is checked.", default: 1, min: 1, max: 99 },
+  { key: "notify_virtual_levels", label: "Virtual levels (100+)", category: "levels", type: "boolean", help: "Also notify for virtual level-ups above 99 (levels 100–126). Off = level 99 is the final level-up notification for a skill.", default: false },
+  { key: "notify_combat_levels", label: "Combat level-ups", category: "levels", type: "boolean", help: "Notify when a member's combat level increases. Combat levels ignore the minimum/increment filters above.", default: false },
   { key: "level_milestones", label: "Total level milestones", category: "levels", type: "csv", help: "Comma-separated TOTAL levels that always notify (e.g. 1500,2000,2277).", default: "" },
   { key: "post99_xp_interval", label: "Post-99 XP interval", category: "levels", type: "int", help: "After a skill reaches 99, notify every N XP (e.g. 25000000 = every 25M). Multiples of 1M; 0 disables.", default: 25000000, min: 0 },
 
