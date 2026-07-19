@@ -60,6 +60,56 @@ export default async function EventDetailPage({ params }: { params: Params }) {
 
   const players = user ? user.players.map((p) => ({ id: p.id, name: p.name })) : null;
 
+  const participatePanel = (
+    <div>
+      <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Participate</h2>
+      <EventJoinPanel
+        event={event}
+        players={players}
+        viewerGroupIds={user?.groups.map((g) => g.id) ?? []}
+      />
+    </div>
+  );
+  const teamsPanel = (
+    <div>
+      <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Teams</h2>
+      {event.teams.length ? (
+        <EventTeamsPanel
+          eventId={event.id}
+          teams={event.teams}
+          progress={event.progress}
+          taskCount={event.tasks.length}
+          viewerTeamId={event.viewer?.team_id}
+          viewerTeamRole={event.viewer?.team_role ?? null}
+          canManage={event.can_manage}
+          prizePot={event.prize_pot}
+        />
+      ) : (
+        <EmptyState title="No teams yet" />
+      )}
+    </div>
+  );
+  const potPanel =
+    pot && pot.enabled ? (
+      <div>
+        <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+          Who&apos;s bought in
+        </h2>
+        <PrizePotPanel pot={pot} actions={null} />
+      </div>
+    ) : null;
+  const lootSweepBoard = lootSweep ? (
+    <div>
+      <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Loot Sweep</h2>
+      <LootSweepBoard
+        eventId={event.id}
+        initial={lootSweep}
+        live={event.status === "active"}
+        viewerTeamId={event.viewer?.team_id ?? null}
+      />
+    </div>
+  ) : null;
+
   return (
     <div className="space-y-8">
       <header>
@@ -91,7 +141,19 @@ export default async function EventDetailPage({ params }: { params: Params }) {
         )}
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-3">
+      {lootSweep ? (
+        // Loot Sweep: the board is data-dense, so it takes the FULL page width;
+        // the roster/participate panels move up top instead of a right rail.
+        <div className="space-y-8">
+          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+            {participatePanel}
+            {teamsPanel}
+            {potPanel}
+          </div>
+          {lootSweepBoard}
+        </div>
+      ) : (
+        <div className="grid gap-8 lg:grid-cols-3">
         <section className="lg:col-span-2 space-y-8">
           {board && (
             <div>
@@ -104,20 +166,6 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                 viewerTeamId={event.viewer?.team_id ?? null}
                 leadership={event.leadership}
                 viewerRole={event.viewer?.team_role ?? null}
-              />
-            </div>
-          )}
-
-          {lootSweep && (
-            <div>
-              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-                Loot Sweep
-              </h2>
-              <LootSweepBoard
-                eventId={event.id}
-                initial={lootSweep}
-                live={event.status === "active"}
-                viewerTeamId={event.viewer?.team_id ?? null}
               />
             </div>
           )}
@@ -162,45 +210,12 @@ export default async function EventDetailPage({ params }: { params: Params }) {
         </section>
 
         <aside className="space-y-8">
-          <div>
-            <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-              Participate
-            </h2>
-            <EventJoinPanel
-              event={event}
-              players={players}
-              viewerGroupIds={user?.groups.map((g) => g.id) ?? []}
-            />
-          </div>
-
-          <div>
-            <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Teams</h2>
-            {event.teams.length ? (
-              <EventTeamsPanel
-                eventId={event.id}
-                teams={event.teams}
-                progress={event.progress}
-                taskCount={event.tasks.length}
-                viewerTeamId={event.viewer?.team_id}
-                viewerTeamRole={event.viewer?.team_role ?? null}
-                canManage={event.can_manage}
-                prizePot={event.prize_pot}
-              />
-            ) : (
-              <EmptyState title="No teams yet" />
-            )}
-          </div>
-
-          {pot && pot.enabled && (
-            <div>
-              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-                Who&apos;s bought in
-              </h2>
-              <PrizePotPanel pot={pot} actions={null} />
-            </div>
-          )}
+          {participatePanel}
+          {teamsPanel}
+          {potPanel}
         </aside>
-      </div>
+        </div>
+      )}
     </div>
   );
 }

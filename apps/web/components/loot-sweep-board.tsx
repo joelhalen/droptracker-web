@@ -287,48 +287,32 @@ function SetCard({
       </ul>
     );
 
-  // Single-boss set: a "side portion" — boss art + name + full-set bonus on the
-  // left, the collection race on the right. Meta-sets keep the header layout.
-  if (!multiGroup) {
-    const g = set.groups[0];
-    const img =
-      g?.image_url || (g?.npc_id != null ? `/img/npcdb/${g.npc_id}.png` : null);
-    const bonusPts = g?.bonus_points ?? 0;
-    return (
-      <div className="border-osrs-bronze/25 bg-osrs-brown-dark/30 overflow-hidden rounded-lg border">
-        <div className="flex">
-          <div className="border-osrs-bronze/20 bg-osrs-brown-dark/40 flex w-36 shrink-0 flex-col items-center gap-1 border-r p-3 text-center sm:w-40">
-            {img && (              <img
-                src={img}
-                alt=""
-                className="mb-1 h-20 w-20 object-contain"
-                onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
-              />
-            )}
-            <span className="text-osrs-gold text-sm font-semibold leading-tight">{set.label}</span>
-            {bonusPts > 0 && (
-              <span className="text-osrs-gold-bright text-[11px]">
-                Full set +{fmt(bonusPts)}
-                {g && g.bonus_max > 1 ? ` ×${g.bonus_max}` : ""}
-              </span>
-            )}
-            <span className="text-osrs-parchment-dark/45 text-[10px]">−{set.decay_percent}% / tier</span>
-          </div>
-          <div className="min-w-0 flex-1">{rows}</div>
-        </div>
-      </div>
-    );
-  }
-
+  // Full-width card: a header bar (boss art + name + full-set bonus) with the
+  // team rows spanning the whole width beneath. Single-boss sets show the
+  // boss's image; meta-sets carry their sub-boss art inside the clusters.
+  const single = multiGroup ? null : set.groups[0];
+  const headerImg = single
+    ? single.image_url || (single.npc_id != null ? `/img/npcdb/${single.npc_id}.png` : null)
+    : null;
+  const headerBonus = single ? single.bonus_points : set.set_bonus_points;
+  const headerBonusMax = single ? single.bonus_max : set.set_bonus_max;
   return (
     <div className="border-osrs-bronze/25 bg-osrs-brown-dark/30 overflow-hidden rounded-lg border">
-      <div className="border-osrs-bronze/20 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
+      <div className="border-osrs-bronze/20 flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2.5">
+        {headerImg && (
+          <img
+            src={headerImg}
+            alt=""
+            className="h-9 w-9 shrink-0 object-contain"
+            onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+          />
+        )}
         <h3 className="text-osrs-gold text-base font-semibold">{set.label}</h3>
-        <div className="text-osrs-parchment-dark/60 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-          {set.set_bonus_points > 0 && (
+        <div className="text-osrs-parchment-dark/60 ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          {headerBonus > 0 && (
             <span className="text-osrs-gold-bright">
-              Full-set bonus {fmt(set.set_bonus_points)}
-              {set.set_bonus_max > 1 ? ` ×${set.set_bonus_max}` : ""}
+              Full-set bonus {fmt(headerBonus)}
+              {headerBonusMax > 1 ? ` ×${headerBonusMax}` : ""}
             </span>
           )}
           <span>−{set.decay_percent}% / tier</span>
