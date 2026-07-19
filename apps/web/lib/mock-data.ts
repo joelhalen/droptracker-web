@@ -1453,6 +1453,19 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
       activated_at: now - 5 * DAY,
       ...eventDefaults,
     },
+    {
+      id: 4,
+      group_id: groupId ?? 101,
+      name: "Loot Sweep Duos",
+      description: "A small-field sweep — three duos racing the same logs.",
+      status: "active",
+      starts_at: now - 2 * DAY,
+      ends_at: now + 12 * DAY,
+      has_bingo: false,
+      kind: "loot_sweep" as const,
+      activated_at: now - 2 * DAY,
+      ...eventDefaults,
+    },
   ];
   return all.filter((e) => (status ? e.status === status : true));
 }
@@ -1466,10 +1479,10 @@ export function mockEvent(id: number): EventDetail {
       ...summary,
       id,
       tasks: [],
-      teams: LOOT_SWEEP_TEAMS.map((t, i) => ({
+      teams: board.teams.map((t) => ({
         id: t.id,
         name: t.name,
-        score: board.teams[i]!.score,
+        score: t.score,
         coins: 0,
         ...(t.color ? { color: t.color } : {}),
         member_count: 2,
@@ -1723,6 +1736,7 @@ function lsTeamEntry(
 }
 
 function lsSet(
+  roster: typeof LOOT_SWEEP_TEAMS,
   task_id: number,
   label: string,
   cfg: {
@@ -1742,16 +1756,18 @@ function lsSet(
   };
   return {
     ...base,
-    teams: LOOT_SWEEP_TEAMS.map((t) => lsTeamEntry(t.id, t.intensity, base)),
+    teams: roster.map((t) => lsTeamEntry(t.id, t.intensity, base)),
   };
 }
 
 /** Loot Sweep live board (GET /events/{id}/loot-sweep): three sets covering
  * the matrix's shapes — a plain boss, high-cap batched items (progress bars),
- * and a multi-group meta-set. */
+ * and a multi-group meta-set. Event 4 runs a 3-team field so dev exercises
+ * the ≤4-team icon-tab mode. */
 export function mockEventLootSweep(eventId: number): LootSweepBoard {
+  const roster = eventId === 4 ? LOOT_SWEEP_TEAMS.slice(0, 3) : LOOT_SWEEP_TEAMS;
   const sets: LootSweepSet[] = [
-    lsSet(41, "Kree'arra", {
+    lsSet(roster, 41, "Kree'arra", {
       groups: [
         {
           npcs: ["Kree'arra"],
@@ -1768,7 +1784,7 @@ export function mockEventLootSweep(eventId: number): LootSweepBoard {
         },
       ],
     }),
-    lsSet(42, "K'ril Tsutsaroth", {
+    lsSet(roster, 42, "K'ril Tsutsaroth", {
       groups: [
         {
           npcs: ["K'ril Tsutsaroth"],
@@ -1784,7 +1800,7 @@ export function mockEventLootSweep(eventId: number): LootSweepBoard {
         },
       ],
     }),
-    lsSet(43, "Barrows Brothers", {
+    lsSet(roster, 43, "Barrows Brothers", {
       set_bonus_points: 40,
       set_bonus_max: 1,
       groups: [
@@ -1824,7 +1840,7 @@ export function mockEventLootSweep(eventId: number): LootSweepBoard {
   return {
     event_id: eventId,
     kind: "loot_sweep",
-    teams: LOOT_SWEEP_TEAMS.map((t) => ({
+    teams: roster.map((t) => ({
       id: t.id,
       name: t.name,
       color: t.color,

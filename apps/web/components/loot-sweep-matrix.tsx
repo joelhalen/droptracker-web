@@ -46,6 +46,8 @@ const REFETCH_GAP_MS = 2000;
  * inline styles rather than Tailwind classes. */
 const RAIL_W = 224;
 const COL_W = 76;
+/** Column width when receipt tabs render as item icons (≤4 teams). */
+const COL_W_ICON = 124;
 /** Above this many receipts a cell renders a progress bar, not squares. */
 const SQUARES_MAX = 8;
 
@@ -79,8 +81,20 @@ function BossArt({ src, size }: { src: string | null; size: number }) {
   );
 }
 
-/** Receipt squares (≤8 scoring receipts) or a compact bar (9+). */
-function ReceiptCell({ count, max, color }: { count: number; max: number; color: string }) {
+/** Receipt squares (≤8 scoring receipts) or a compact bar (9+). With `iconId`
+ * set (≤4-team mode), each receipt tab is the item's own icon — grayscale
+ * until received, full color once it lands (pets have no icon → squares). */
+function ReceiptCell({
+  count,
+  max,
+  color,
+  iconId,
+}: {
+  count: number;
+  max: number;
+  color: string;
+  iconId?: number | null;
+}) {
   const filled = Math.min(count, max);
   if (max > SQUARES_MAX) {
     const pct = Math.round((filled / max) * 100);
@@ -92,6 +106,23 @@ function ReceiptCell({ count, max, color }: { count: number; max: number; color:
         <span className="text-osrs-parchment-dark/50 text-[10px] leading-none tabular-nums">
           {filled}/{max}
         </span>
+      </div>
+    );
+  }
+  if (iconId != null) {
+    return (
+      <div
+        className="flex max-w-[118px] flex-wrap justify-center gap-[3px]"
+        aria-label={`${filled} of ${max} received`}
+      >
+        {Array.from({ length: max }).map((_, i) => (
+          <ItemDbIcon
+            key={i}
+            itemId={iconId}
+            size={20}
+            className={i < filled ? "" : "opacity-25 grayscale"}
+          />
+        ))}
       </div>
     );
   }
@@ -234,7 +265,10 @@ export function LootSweepMatrix({
 
   const preview = columns.length === 0;
   const cols = preview ? [PREVIEW_COLUMN] : columns;
-  const gridTemplate = `${RAIL_W}px repeat(${cols.length}, ${COL_W}px)`;
+  // Small fields get the collection-log treatment: with ≤4 columns there's
+  // room to use the item icon itself as each receipt tab.
+  const iconTabs = cols.length <= 4;
+  const gridTemplate = `${RAIL_W}px repeat(${cols.length}, ${iconTabs ? COL_W_ICON : COL_W}px)`;
 
   const toggleSet = (taskId: number) =>
     setCollapsed((prev) => {
@@ -464,12 +498,20 @@ export function LootSweepMatrix({
                 <span className="text-osrs-parchment min-w-0 flex-1 truncate text-sm">
                   {row.item.item_name}
                 </span>
-                {(isPet || !row.gates) && (
+                {isPet && (
+                  <span
+                    className="text-osrs-gold/70 ring-osrs-gold/30 shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1"
+                    title="Credited from a pet drop"
+                  >
+                    pet
+                  </span>
+                )}
+                {!row.gates && (
                   <span
                     className="text-osrs-gold/70 ring-osrs-gold/30 shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1"
                     title="Scores points but isn't needed to complete the set"
                   >
-                    {isPet ? "pet" : "bonus"}
+                    bonus
                   </span>
                 )}
               </div>
@@ -494,7 +536,12 @@ export function LootSweepMatrix({
                           })
                     }
                   >
-                    <ReceiptCell count={prog?.count ?? 0} max={max} color={col.color} />
+                    <ReceiptCell
+                      count={prog?.count ?? 0}
+                      max={max}
+                      color={col.color}
+                      iconId={iconTabs ? row.item.item_id : null}
+                    />
                   </div>
                 );
               })}
