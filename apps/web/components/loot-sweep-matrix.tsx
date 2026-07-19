@@ -134,7 +134,7 @@ function ReceiptCell({
   if (iconId != null) {
     return (
       <div
-        className="flex flex-wrap justify-center gap-[3px] px-1"
+        className="flex max-w-full flex-wrap justify-center gap-[3px] px-1"
         aria-label={`${filled} of ${max} received`}
       >
         {Array.from({ length: max }).map((_, i) => (
@@ -316,6 +316,24 @@ export function LootSweepMatrix({
     if (headScrollRef.current) headScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
   }, []);
 
+  // Elastic columns are MEASURED, not fr-based: rows lay out at max-content
+  // width (needed for the fixed-column overflow mode), and under max-content
+  // sizing a 1fr track grows to fit an UNWRAPPED run of receipt tabs —
+  // pushing into the next team's column instead of line-breaking. Fixed
+  // pixel tracks derived from the scroller's width make flex-wrap actually
+  // wrap while still filling the page.
+  const bodyScrollRef = useRef<HTMLDivElement>(null);
+  const [bodyW, setBodyW] = useState(0);
+  useEffect(() => {
+    const el = bodyScrollRef.current;
+    if (!el) return;
+    const measure = () => setBodyW(el.clientWidth);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, []);
+
   // Colors resolve against the unsorted roster (palette fallbacks stay stable
   // and match the Teams panel); columns then rank by overall score.
   const colors = useMemo(() => teamColorMap(board.teams), [board.teams]);
@@ -348,9 +366,9 @@ export function LootSweepMatrix({
   // receipt art scales up with the extra room.
   const iconTabs = cols.length <= 4;
   const iconSize = cols.length <= 2 ? 34 : 28;
-  const gridTemplate = iconTabs
-    ? `${RAIL_W}px repeat(${cols.length}, minmax(${COL_W_ICON}px, 1fr))`
-    : `${RAIL_W}px repeat(${cols.length}, ${COL_W}px)`;
+  // 1100 ≈ content width before first measure (SSR + hydration render).
+  const iconColW = Math.max(COL_W_ICON, Math.floor(((bodyW || 1100) - RAIL_W) / cols.length));
+  const gridTemplate = `${RAIL_W}px repeat(${cols.length}, ${iconTabs ? iconColW : COL_W}px)`;
 
   const toggleSet = (taskId: number) =>
     setCollapsed((prev) => {
@@ -450,6 +468,7 @@ export function LootSweepMatrix({
         </div>
 
         <div
+          ref={bodyScrollRef}
           className="border-osrs-bronze/25 overflow-x-auto rounded-b-lg border border-t-0"
           onScroll={onBodyScroll}
         >
