@@ -761,24 +761,31 @@ export function LootSweepMatrix({
                         </span>
                       )}
                       <IconCluster ids={iconIdsOf(row.item)} size={compact ? 18 : 22} max={compact ? 3 : 4} />
-                      <span className={`text-osrs-parchment min-w-0 flex-1 truncate ${compact ? "text-xs" : "text-sm"}`}>
-                        {row.item.item_name}
-                        {(row.item.required ?? 1) > 1 && (
-                          <span className="text-osrs-parchment-dark/45 ml-1 text-[11px]">
-                            ×{row.item.required}
+                      {/* Name on top; the pet / bonus tag sits BELOW it. */}
+                      <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                        <span className={`text-osrs-parchment truncate ${compact ? "text-xs" : "text-sm"}`}>
+                          {row.item.item_name}
+                          {(row.item.required ?? 1) > 1 && (
+                            <span className="text-osrs-parchment-dark/45 ml-1 text-[11px]">
+                              ×{row.item.required}
+                            </span>
+                          )}
+                        </span>
+                        {(isPet || !row.gates) && (
+                          <span className="mt-0.5 flex items-center gap-1">
+                            {isPet && (
+                              <span className="text-osrs-gold/70 ring-osrs-gold/30 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1">
+                                pet
+                              </span>
+                            )}
+                            {!row.gates && (
+                              <span className="text-osrs-gold/70 ring-osrs-gold/30 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1">
+                                bonus
+                              </span>
+                            )}
                           </span>
                         )}
                       </span>
-                      {isPet && (
-                        <span className="text-osrs-gold/70 ring-osrs-gold/30 shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1">
-                          pet
-                        </span>
-                      )}
-                      {!row.gates && (
-                        <span className="text-osrs-gold/70 ring-osrs-gold/30 shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1">
-                          bonus
-                        </span>
-                      )}
                     </>
                   );
                   const indent = compact
