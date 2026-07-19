@@ -424,6 +424,18 @@ export async function inviteEventParticipant(
   return { ok: true as const };
 }
 
+/** Invite many opponent clans in one call. Returns per-clan invited/skipped. */
+export async function bulkInviteEventParticipants(
+  groupId: EventGroupId,
+  eventId: number,
+  opponentGroupIds: number[],
+) {
+  await assertCanManageEvent(groupId);
+  const result = await api.bulkInviteEventParticipants(eventId, opponentGroupIds);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  return result;
+}
+
 export async function acceptEventInvitation(
   groupId: EventGroupId,
   eventId: number,

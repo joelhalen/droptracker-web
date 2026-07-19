@@ -3,7 +3,13 @@ import type { EventDetail, EventTask } from "@droptracker/api-types";
 /** Default per-team accent palette, indexed by roster order — the fallback
  * when a team has no admin-assigned `color`. Shared by the bingo board, task
  * progress bars, and team pages so a team keeps one color across every event
- * surface. */
+ * surface.
+ *
+ * 16 entries so a large clan-vs-clan field (8–12+ clans) gets a distinct color
+ * per team instead of wrapping the old 8. The first 8 are unchanged, so no
+ * existing team is recolored; the next 8 fill the gaps (indigo, fuchsia, lime,
+ * brown, aqua, cyan, rose, lavender) and are picked so positions 0–11 stay
+ * clearly distinguishable from one another. */
 export const TEAM_COLORS = [
   "#e05c4c", // red
   "#4c8fe0", // blue
@@ -13,6 +19,14 @@ export const TEAM_COLORS = [
   "#e07f4c", // orange
   "#4cc9c0", // teal
   "#e05ca8", // pink
+  "#6d5ce0", // indigo
+  "#e05cd0", // fuchsia
+  "#c9d94c", // lime
+  "#b07a4c", // brown
+  "#4cc9a0", // aqua
+  "#4c9fd8", // cyan
+  "#e04c72", // rose
+  "#9c8fd0", // lavender
 ];
 
 /** id → accent color for a roster: the team's assigned `color` when set,

@@ -1661,6 +1661,31 @@ export const api = {
     );
   },
 
+  /** Invite several opponent clans at once (the many-clan case). Returns the
+   * per-clan outcome so the UI can report exactly who was invited vs skipped. */
+  async bulkInviteEventParticipants(
+    eventId: number,
+    groupIds: number[],
+  ): Promise<{
+    invited: { group_id: number; group_name: string | null }[];
+    skipped: { group_id: number; group_name: string | null; reason: string }[];
+  }> {
+    const clan = z.object({ group_id: z.number(), group_name: z.string().nullable() });
+    const schema = z.object({
+      invited: clan.array(),
+      skipped: clan.extend({ reason: z.string() }).array(),
+    });
+    return withFallback(
+      async () =>
+        schema.parse(
+          await apiSend("POST", `/events/${eventId}/participants/bulk`, {
+            group_ids: groupIds,
+          }),
+        ),
+      () => ({ invited: [], skipped: [] }),
+    );
+  },
+
   async acceptEventInvitation(
     eventId: number,
     groupId: number,
