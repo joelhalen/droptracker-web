@@ -537,8 +537,8 @@ export function EventTaskForm({
       case "loot_sweep":
         if (lootSweep.groups.length < 1) return "Add at least one group.";
         for (const g of lootSweep.groups) {
-          if (g.npcs.length < 1)
-            return "Every group needs a source NPC — items only count from their NPC.";
+          // NPCs are strongly recommended (items only count from their NPC), but
+          // a few "section" sets legitimately span many sources — allow empty.
           if (g.items.length < 1) return "Every group needs at least one item.";
           if (g.items.some((i) => i.points < 1)) return "Every item needs at least 1 point.";
         }

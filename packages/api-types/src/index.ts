@@ -2253,6 +2253,9 @@ export const LootSweepConfigItemSchema = z.object({
   /** Whether the item gates its GROUP's bonus (false = a scoring extra like a
    * pet or mega-rare). Omitted = true. */
   counts_for_group: z.boolean().optional(),
+  /** How it's credited: "drop" (NPC-scoped drop, default) or "pet" (a `pet`
+   * submission matched by name — a pet only comes from its boss). */
+  source: z.enum(["drop", "pet"]).optional(),
 });
 export type LootSweepConfigItem = z.infer<typeof LootSweepConfigItemSchema>;
 

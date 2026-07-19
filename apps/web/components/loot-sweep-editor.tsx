@@ -26,6 +26,8 @@ export type LootSweepItemDraft = {
   awardsPerTier: number;
   maxAwards?: number | null;
   countsForGroup: boolean;
+  /** "drop" (NPC-scoped) or "pet" (credited from a pet submission by name). */
+  source: "drop" | "pet";
 };
 
 export type LootSweepGroupDraft = {
@@ -86,6 +88,7 @@ export function lootSweepFromConfig(config: Record<string, unknown> | null | und
       awardsPerTier: typeof it.awards_per_tier === "number" ? it.awards_per_tier : 1,
       maxAwards: typeof it.max_awards === "number" ? it.max_awards : null,
       countsForGroup: it.counts_for_group !== false,
+      source: it.source === "pet" ? "pet" : "drop",
     })),
   });
   return {
@@ -117,6 +120,7 @@ export function lootSweepToConfig(d: LootSweepDraft): string {
         ...(i.awardsPerTier > 1 ? { awards_per_tier: i.awardsPerTier } : {}),
         ...(i.maxAwards != null ? { max_awards: i.maxAwards } : {}),
         ...(i.countsForGroup ? {} : { counts_for_group: false }),
+        ...(i.source === "pet" ? { source: "pet" } : {}),
       })),
     })),
   });
@@ -274,7 +278,8 @@ function GroupCard({
     patch({
       items: [
         ...group.items,
-        { name: e.name, id: e.id, points: 1, awardsPerTier: 1, maxAwards: null, countsForGroup: true },
+        { name: e.name, id: e.id, points: 1, awardsPerTier: 1, maxAwards: null,
+          countsForGroup: true, source: "drop" },
       ],
     });
   };
@@ -391,7 +396,17 @@ function GroupCard({
                 className="border-osrs-bronze/20 bg-osrs-brown-dark/40 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded border p-2"
               >
                 <ItemDbIcon itemId={it.id} size={26} />
-                <span className="text-osrs-parchment min-w-0 flex-1 truncate text-sm">{it.name}</span>
+                <span className="text-osrs-parchment min-w-0 flex-1 truncate text-sm">
+                  {it.name}
+                  {it.source === "pet" && (
+                    <span
+                      className="border-osrs-gold/40 text-osrs-gold-bright ml-1.5 rounded border px-1 text-[10px]"
+                      title="Credited from a pet submission (not a drop)"
+                    >
+                      pet
+                    </span>
+                  )}
+                </span>
                 <label className="flex items-center gap-1 text-xs">
                   <span className="text-osrs-parchment-dark/70">Pts</span>
                   <QuantityInput
