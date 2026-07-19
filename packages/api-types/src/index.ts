@@ -2228,6 +2228,94 @@ export const BoardDetailSchema = z.object({
 });
 export type BoardDetail = z.infer<typeof BoardDetailSchema>;
 
+// --------------------------------------------------------------------------- //
+// Loot Sweep (loot_sweep kind)
+// --------------------------------------------------------------------------- //
+
+/** How an item's points decay on each successive team receipt. `linear` sheds
+ * `decay_percent` percentage-points of the base each time (100/80/60/40/20 for
+ * 20); `geometric` multiplies by (1 − decay_percent/100) each time. */
+export const LOOT_SWEEP_DECAY_MODES = ["linear", "geometric"] as const;
+export type LootSweepDecayMode = (typeof LOOT_SWEEP_DECAY_MODES)[number];
+
+/** One item in a `loot_sweep` task config (`kind: "loot_sweep"`). */
+export const LootSweepConfigItemSchema = z.object({
+  item_name: z.string(),
+  /** Resolved game id for the icon (server-filled from the item DB). */
+  item_id: z.number().int().nullable().optional(),
+  /** Base points for the FIRST receipt (decays from here). */
+  points: z.number().int(),
+  /** Per-item cap on scoring receipts; omitted = the set's default_max_awards. */
+  max_awards: z.number().int().optional(),
+  /** Whether the item is required for set completion (false = a scoring extra
+   * like a pet). Omitted = true. */
+  counts_for_set: z.boolean().optional(),
+});
+export type LootSweepConfigItem = z.infer<typeof LootSweepConfigItemSchema>;
+
+/** A `loot_sweep` task's normalized config (one task = one boss "set"). */
+export const LootSweepConfigSchema = z.object({
+  kind: z.literal("loot_sweep"),
+  decay_percent: z.number().int(),
+  decay_mode: z.enum(LOOT_SWEEP_DECAY_MODES),
+  default_max_awards: z.number().int(),
+  set_bonus_points: z.number().int(),
+  set_bonus_max: z.number().int(),
+  items: z.array(LootSweepConfigItemSchema),
+});
+export type LootSweepConfig = z.infer<typeof LootSweepConfigSchema>;
+
+/** One team's per-item receipts within a set — SAME-INDEXED to the set's
+ * `items` array, so the grid maps by position. */
+export const LootSweepTeamItemSchema = z.object({
+  /** Total receipts of this item (folds stack quantity). */
+  count: z.number().int(),
+  /** Receipts that scored (min(count, max_awards)). */
+  scored: z.number().int(),
+  /** Points this item is worth to the team so far. */
+  points: z.number().int(),
+});
+
+/** One team's standing within a set. */
+export const LootSweepTeamSchema = z.object({
+  team_id: z.number().int(),
+  total: z.number().int(),
+  sets_completed: z.number().int(),
+  sets_awarded: z.number().int(),
+  set_total: z.number().int(),
+  items: z.array(LootSweepTeamItemSchema),
+});
+
+/** One boss "set" (one loot_sweep task) with every team's per-item progress. */
+export const LootSweepSetSchema = z.object({
+  task_id: z.number().int(),
+  label: z.string(),
+  decay_percent: z.number().int(),
+  decay_mode: z.enum(LOOT_SWEEP_DECAY_MODES),
+  default_max_awards: z.number().int(),
+  set_bonus_points: z.number().int(),
+  set_bonus_max: z.number().int(),
+  items: z.array(LootSweepConfigItemSchema),
+  teams: z.array(LootSweepTeamSchema),
+});
+export type LootSweepSet = z.infer<typeof LootSweepSetSchema>;
+
+/** GET /events/{id}/loot-sweep — the live board data. */
+export const LootSweepBoardSchema = z.object({
+  event_id: z.number().int(),
+  kind: z.string(),
+  teams: z.array(
+    z.object({
+      id: z.number().int(),
+      name: z.string(),
+      color: z.string().nullable().optional(),
+      score: z.number().int(),
+    }),
+  ),
+  sets: z.array(LootSweepSetSchema),
+});
+export type LootSweepBoard = z.infer<typeof LootSweepBoardSchema>;
+
 /** PUT /events/{id}/board — the designer's autosave payload. Exactly one of
  * difficulty / task_id / library_item_id per tile (or none = rest tile). */
 export const BoardTileInputSchema = z.object({

@@ -8,6 +8,7 @@ import { EventWindow } from "@/components/local-time";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventBoardView } from "@/components/event-board-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
+import { LootSweepBoard } from "@/components/loot-sweep-board";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import { EventTeamsPanel } from "@/components/event-teams-panel";
 import { PrizePotPanel } from "@/components/prize-pot-panel";
@@ -46,6 +47,10 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   // Board-game events (web44a): the dice board replaces the bingo grid.
   const board =
     event.kind === "board_game" ? await api.eventBoard(eventId).catch(() => null) : null;
+
+  // Loot Sweep events: the icon-grid collection race replaces the task list.
+  const lootSweep =
+    event.kind === "loot_sweep" ? await api.eventLootSweep(eventId).catch(() => null) : null;
 
   // Prize pot (web52a): the "Who's bought in" panel — only when the event runs
   // a pot. Read-only on the public page (no actions).
@@ -103,6 +108,20 @@ export default async function EventDetailPage({ params }: { params: Params }) {
             </div>
           )}
 
+          {lootSweep && (
+            <div>
+              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+                Loot Sweep
+              </h2>
+              <LootSweepBoard
+                eventId={event.id}
+                initial={lootSweep}
+                live={event.status === "active"}
+                viewerTeamId={event.viewer?.team_id ?? null}
+              />
+            </div>
+          )}
+
           {event.bingo && (
             <div>
               <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
@@ -120,23 +139,26 @@ export default async function EventDetailPage({ params }: { params: Params }) {
             </div>
           )}
 
-          <div>
-            <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Tasks</h2>
-            {event.tasks.length ? (
-              <EventTaskBoard
-                tasks={event.tasks}
-                // Original (unsorted) team order — keeps per-team colors in
-                // sync with the bingo board's index-based palette.
-                teams={event.teams.map((t) => ({ id: t.id, name: t.name, color: t.color }))}
-                progress={event.progress}
-                eventId={event.id}
-                live={event.status === "active"}
-                viewerTeamId={event.viewer?.team_id}
-              />
-            ) : (
-              <EmptyState title="No tasks yet" />
-            )}
-          </div>
+          {/* Loot Sweep sets are shown by the board above, not as flat tasks. */}
+          {event.kind !== "loot_sweep" && (
+            <div>
+              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Tasks</h2>
+              {event.tasks.length ? (
+                <EventTaskBoard
+                  tasks={event.tasks}
+                  // Original (unsorted) team order — keeps per-team colors in
+                  // sync with the bingo board's index-based palette.
+                  teams={event.teams.map((t) => ({ id: t.id, name: t.name, color: t.color }))}
+                  progress={event.progress}
+                  eventId={event.id}
+                  live={event.status === "active"}
+                  viewerTeamId={event.viewer?.team_id}
+                />
+              ) : (
+                <EmptyState title="No tasks yet" />
+              )}
+            </div>
+          )}
         </section>
 
         <aside className="space-y-8">

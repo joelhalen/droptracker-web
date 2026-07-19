@@ -29,6 +29,8 @@ import {
   BingoBoardSchema,
   BoardDetailSchema,
   type BoardDetail,
+  LootSweepBoardSchema,
+  type LootSweepBoard,
   BoardRollResultSchema,
   type BoardRollResult,
   BoardSettingsSchema,
@@ -1104,6 +1106,15 @@ export const api = {
   /** The whole board: tiles + settings + team positions (game view + designer). */
   async eventBoard(eventId: number): Promise<BoardDetail> {
     return BoardDetailSchema.parse(await apiGet(`/events/${eventId}/board`, { authed: true }));
+  },
+
+  /** Loot Sweep live board: every `loot_sweep` set with per-team, per-item
+   * receipt counts + decayed points + set-bonus status. `authed` forwards the
+   * session when present (to see restricted events) and tolerates anonymous. */
+  async eventLootSweep(eventId: number): Promise<LootSweepBoard> {
+    return LootSweepBoardSchema.parse(
+      await apiGet(`/events/${eventId}/loot-sweep`, { authed: true }),
+    );
   },
 
   /** Replace the tile layout (designer autosave). 409 once the event starts. */

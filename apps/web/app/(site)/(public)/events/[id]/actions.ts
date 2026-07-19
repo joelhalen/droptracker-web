@@ -105,6 +105,14 @@ export async function fetchPublicEventBoard(eventId: number) {
   return api.eventBoard(eventId);
 }
 
+// --- Loot Sweep (loot_sweep) -----------------------------------------------
+
+/** The live Loot Sweep board (sets + per-team, per-item receipt counts). Draft
+ * visibility is enforced by the Web API; anonymous viewers see active/past. */
+export async function fetchEventLootSweep(eventId: number) {
+  return api.eventLootSweep(eventId);
+}
+
 /** Player-facing dice roll: the caller must be on the team and the event's
  * settings must allow team-triggered rolls — the Web API enforces both. */
 export async function rollBoardAsMember(eventId: number, teamId?: number) {

@@ -35,6 +35,13 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
+import {
+  LootSweepEditor,
+  type LootSweepDraft,
+  emptyLootSweepDraft,
+  lootSweepFromConfig,
+  lootSweepToConfig,
+} from "@/components/loot-sweep-editor";
 import { QuantityInput } from "@/components/quantity-input";
 import {
   addEventTask,
@@ -456,6 +463,11 @@ export function EventTaskForm({
       prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key],
     );
 
+  // loot_sweep (one boss "set")
+  const [lootSweep, setLootSweep] = useState<LootSweepDraft>(
+    initial?.type === "loot_sweep" ? lootSweepFromConfig(initialConfig) : emptyLootSweepDraft(),
+  );
+
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -522,6 +534,10 @@ export function EventTaskForm({
           return "Choose at least one pet category.";
         if (petMode !== "specific" && petCount < 1) return "Number of pets must be at least 1.";
         break;
+      case "loot_sweep":
+        if (lootSweep.items.length < 1) return "Add at least one item to the set.";
+        if (lootSweep.items.some((i) => i.points < 1)) return "Every item needs at least 1 point.";
+        break;
       case "custom":
         break;
     }
@@ -576,6 +592,10 @@ export function EventTaskForm({
           return `${n}Any ${petCategories.map((c) => PET_CATEGORY_LABELS[c] ?? c).join(" / ").toLowerCase()}`;
         return petCount > 1 ? `Any ${petCount} pets` : "Any pet";
       }
+      case "loot_sweep":
+        return lootSweep.items.length
+          ? `${lootSweep.items.length}-item set`
+          : "Loot Sweep set";
       default:
         return "";
     }
@@ -658,6 +678,10 @@ export function EventTaskForm({
             config: JSON.stringify({ categories: petCategories }),
           };
         return { ...base, target_value: petCount }; // any pet (misc excluded)
+      case "loot_sweep":
+        // One task = one boss "set"; params + items live in config. The task
+        // never "completes", so target/target_value are unused.
+        return { ...base, config: lootSweepToConfig(lootSweep) };
       default:
         return { ...base, target: customTarget.trim() || undefined };
     }
@@ -1040,12 +1064,25 @@ export function EventTaskForm({
         </label>
       )}
 
+      {type === "loot_sweep" && (
+        <LootSweepEditor
+          value={lootSweep}
+          onChange={setLootSweep}
+          search={searchItems}
+          resolve={resolveItems}
+          disabled={pending}
+        />
+      )}
+
       {/* ── points / review / sharing / submit ───────────────────────────── */}
       <div className="flex flex-wrap items-end gap-3">
-        <label className="grid gap-1 text-sm">
-          <span className="text-osrs-parchment-dark/80">Points</span>
-          <QuantityInput min={0} value={points} onChange={setPoints} className={`${field} w-24`} />
-        </label>
+        {/* Loot Sweep scores from its per-item config, not a flat task award. */}
+        {type !== "loot_sweep" && (
+          <label className="grid gap-1 text-sm">
+            <span className="text-osrs-parchment-dark/80">Points</span>
+            <QuantityInput min={0} value={points} onChange={setPoints} className={`${field} w-24`} />
+          </label>
+        )}
         <label className="grid gap-1 text-sm">
           <span className="text-osrs-parchment-dark/80">Difficulty</span>
           <select
