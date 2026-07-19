@@ -95,18 +95,27 @@ function GroupCluster({
   const items = group.items.map((it, ii) => ({ it, ii }));
   const setItems = items.filter(({ it }) => it.counts_for_group !== false);
   const bonusItems = items.filter(({ it }) => it.counts_for_group === false);
+  const img = group.image_url || (group.npc_id != null ? `/img/npcdb/${group.npc_id}.png` : null);
   return (
     <div className="flex flex-col gap-1">
       {showLabel && (
-        <span
-          className="text-osrs-parchment-dark/50 max-w-[15rem] truncate text-[11px] font-medium"
+        <div
+          className="text-osrs-parchment-dark/60 flex max-w-[15rem] items-center gap-1.5 text-[11px] font-medium"
           title={`${group.label ?? ""}${group.npcs.length ? ` — ${group.npcs.join(", ")}` : ""}${
             group.bonus_points ? ` · +${group.bonus_points} for the set` : ""
           }`}
         >
-          {group.label || group.npcs[0] || "—"}
-          {teamGroup && teamGroup.awarded > 0 && <span className="text-osrs-green ml-1">✓</span>}
-        </span>
+          {img && (
+            <img
+              src={img}
+              alt=""
+              className="h-5 w-5 shrink-0 object-contain"
+              onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+            />
+          )}
+          <span className="truncate">{group.label || group.npcs[0] || "—"}</span>
+          {teamGroup && teamGroup.awarded > 0 && <span className="text-osrs-green">✓</span>}
+        </div>
       )}
       <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
         {setItems.length > 0 && (
