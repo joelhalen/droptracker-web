@@ -311,13 +311,17 @@ function GroupCard({
       setUploading(false);
     }
   };
-  const itemNames = new Set(
-    group.items.flatMap((i) => [i.name.toLowerCase(), ...i.matchNames.map((a) => a.toLowerCase())]),
+  // Only real individual entries reserve a name against ADDING it again as its
+  // own row (a second identical row is silently dropped by the scorer). Pieces
+  // of a pool don't reserve — an item can be both its own row AND a pool member
+  // (additive scoring), so the pool's piece picker (below) stays open to them.
+  const primaryNames = new Set(
+    group.items.filter((i) => !i.virtual).map((i) => i.name.toLowerCase()),
   );
   const npcNames = new Set(group.npcs.map((n) => n.name.toLowerCase()));
 
   const addItem = (e: EventMetaEntry) => {
-    if (itemNames.has(e.name.toLowerCase())) return;
+    if (primaryNames.has(e.name.toLowerCase())) return;
     patch({
       items: [
         ...group.items,
@@ -473,7 +477,7 @@ function GroupCard({
             onPick={addItem}
             placeholder="Add an item to this group…"
             disabled={disabled}
-            taken={itemNames}
+            taken={primaryNames}
           />
         </div>
         {!disabled && (
@@ -647,7 +651,14 @@ function GroupCard({
                         <InlineSearch
                           kind="item"
                           search={searchItems}
-                          taken={itemNames}
+                          // Only this entry's OWN names are off-limits — a piece
+                          // may also be an individual row elsewhere in the group.
+                          taken={
+                            new Set([
+                              it.name.toLowerCase(),
+                              ...it.matchNames.map((a) => a.toLowerCase()),
+                            ])
+                          }
                           placeholder={it.virtual ? "Add a piece that counts…" : "Another name that counts…"}
                           onPick={(e) =>
                             patchItem(idx, { matchNames: [...it.matchNames, e.name] })
