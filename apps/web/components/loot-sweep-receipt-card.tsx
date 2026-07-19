@@ -19,9 +19,17 @@ import Link from "next/link";
 import type { LootSweepConfigItem, LootSweepReceipts, LootSweepSet } from "@droptracker/api-types";
 import { fetchLootSweepReceipts } from "@/app/(site)/(public)/events/[id]/actions";
 import { CARD_SECTION_CLASS } from "@/components/hover-card";
-import { ItemDbIcon } from "@/components/item-db-icon";
+import { IconCluster } from "@/components/loot-sweep-info-cards";
 import { decaySequence } from "@/lib/loot-sweep";
-import { fmtPoints, maxAwardsOf, timeAgo } from "@/lib/loot-sweep-matrix";
+import { fmtPoints, iconIdsOf, maxAwardsOf, timeAgo } from "@/lib/loot-sweep-matrix";
+
+/** The board's transport for the receipt ledger — the website passes its
+ * cookie server action, the Discord activity its bearer BFF twin. */
+export type ReceiptsFetcher = (
+  eventId: number,
+  taskId: number,
+  item: string,
+) => Promise<LootSweepReceipts>;
 
 const cache = new Map<string, LootSweepReceipts>();
 const inflight = new Map<string, Promise<LootSweepReceipts>>();
@@ -32,13 +40,18 @@ export function clearLootSweepReceiptsCache(): void {
   inflight.clear();
 }
 
-function load(eventId: number, taskId: number, item: string): Promise<LootSweepReceipts> {
+function load(
+  fetcher: ReceiptsFetcher,
+  eventId: number,
+  taskId: number,
+  item: string,
+): Promise<LootSweepReceipts> {
   const key = `${eventId}:${taskId}:${item.toLowerCase()}`;
   const hit = cache.get(key);
   if (hit) return Promise.resolve(hit);
   const pending = inflight.get(key);
   if (pending) return pending;
-  const promise = fetchLootSweepReceipts(eventId, taskId, item)
+  const promise = fetcher(eventId, taskId, item)
     .then((data) => {
       cache.set(key, data);
       return data;
@@ -68,6 +81,7 @@ export function LootSweepReceiptCard({
   team,
   count,
   banked,
+  fetchReceipts = fetchLootSweepReceipts,
 }: {
   eventId: number;
   set: Pick<LootSweepSet, "task_id" | "label" | "decay_percent" | "decay_mode">;
@@ -77,6 +91,8 @@ export function LootSweepReceiptCard({
   count: number;
   /** Points this team has banked on the item so far (the cell's total). */
   banked: number;
+  /** Ledger transport; defaults to the website cookie action. */
+  fetchReceipts?: ReceiptsFetcher;
 }) {
   const [data, setData] = useState<LootSweepReceipts | null>(null);
   const [failed, setFailed] = useState(false);
@@ -84,14 +100,14 @@ export function LootSweepReceiptCard({
   useEffect(() => {
     let alive = true;
     setFailed(false);
-    load(eventId, set.task_id, item.item_name).then(
+    load(fetchReceipts, eventId, set.task_id, item.item_name).then(
       (d) => alive && setData(d),
       () => alive && setFailed(true),
     );
     return () => {
       alive = false;
     };
-  }, [eventId, set.task_id, item.item_name]);
+  }, [fetchReceipts, eventId, set.task_id, item.item_name]);
 
   const max = maxAwardsOf(item);
   const apt = item.awards_per_tier ?? 1;
@@ -101,11 +117,12 @@ export function LootSweepReceiptCard({
   const receipts = data?.teams.find((t) => t.team_id === team.id)?.receipts;
   const isPet = item.source === "pet";
   const bonus = item.counts_for_group === false;
+  const ids = iconIdsOf(item);
 
   return (
     <div className="p-3 text-sm">
       <div className="flex items-center gap-2.5">
-        <ItemDbIcon itemId={item.item_id} size={34} />
+        <IconCluster ids={ids} size={30} max={6} />
         <div className="min-w-0 flex-1">
           <p className="text-osrs-parchment truncate font-semibold leading-tight">
             {item.item_name}

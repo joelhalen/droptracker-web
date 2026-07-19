@@ -30,20 +30,24 @@ import type {
   LootSweepSet,
   RealtimeEvent,
 } from "@droptracker/api-types";
-import { fetchEventLootSweep } from "@/app/(site)/(public)/events/[id]/actions";
+import { fetchEventLootSweep, fetchLootSweepReceipts } from "@/app/(site)/(public)/events/[id]/actions";
 import { HoverCard } from "@/components/hover-card";
 import { ItemDbIcon } from "@/components/item-db-icon";
+import { IconCluster, ItemInfoCard, SectionInfoCard } from "@/components/loot-sweep-info-cards";
 import {
   LootSweepReceiptCard,
   clearLootSweepReceiptsCache,
+  type ReceiptsFetcher,
 } from "@/components/loot-sweep-receipt-card";
-import { decaySequence } from "@/lib/loot-sweep";
 import {
   buildMatrixRows,
   buildTeamColumns,
   fmtPoints,
   gatingCounts,
+  iconIdsOf,
   maxAwardsOf,
+  sectionClearPoints,
+  sectionMaxPoints,
   type LootSweepTeamEntry,
   type TeamColumn,
 } from "@/lib/loot-sweep-matrix";
@@ -247,11 +251,22 @@ export function LootSweepMatrix({
   initial,
   live,
   viewerTeamId,
+  fetchBoard = fetchEventLootSweep,
+  fetchReceipts = fetchLootSweepReceipts,
+  stickyTop,
 }: {
   eventId: number;
   initial: LootSweepBoard;
   live: boolean;
   viewerTeamId?: number | null;
+  /** Board transport — website cookie action by default; the Discord activity
+   * passes its bearer BFF twin. */
+  fetchBoard?: (eventId: number) => Promise<LootSweepBoard>;
+  /** Receipt-ledger transport for the hover cards (same story). */
+  fetchReceipts?: ReceiptsFetcher;
+  /** Where the pinned team-header strip sticks. Omitted = measure the site
+   * nav (the website); the activity passes 0 (its own scroll container). */
+  stickyTop?: number;
 }) {
   const [board, setBoard] = useState<LootSweepBoard>(initial);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -261,12 +276,12 @@ export function LootSweepMatrix({
     clearLootSweepReceiptsCache();
     startTransition(async () => {
       try {
-        setBoard(await fetchEventLootSweep(eventId));
+        setBoard(await fetchBoard(eventId));
       } catch {
         /* keep the last good board */
       }
     });
-  }, [eventId]);
+  }, [eventId, fetchBoard]);
 
   // Leading + trailing debounce: an idle frame refetches immediately; a burst
   // schedules exactly one trailing refetch REFETCH_GAP_MS after the last run.
@@ -300,14 +315,18 @@ export function LootSweepMatrix({
 
   // The header strip pins below the site nav — measure the nav's sticky
   // wrapper so the strip lands flush under it (0 = viewport top fallback).
-  const [stickyTop, setStickyTop] = useState(0);
+  // When the host supplies an explicit offset (the activity, which has its own
+  // scroll container and no site nav) skip the measurement entirely.
+  const [measuredTop, setMeasuredTop] = useState(0);
   useEffect(() => {
+    if (stickyTop != null) return;
     const nav = document.querySelector<HTMLElement>("div.sticky.top-0");
-    const measure = () => setStickyTop(nav?.offsetHeight ?? 0);
+    const measure = () => setMeasuredTop(nav?.offsetHeight ?? 0);
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, []);
+  }, [stickyTop]);
+  const headerTop = stickyTop ?? measuredTop;
 
   // One horizontal scroller (the body) drives the pinned header strip.
   const headScrollRef = useRef<HTMLDivElement>(null);
@@ -418,7 +437,7 @@ export function LootSweepMatrix({
         <div
           ref={headScrollRef}
           className="border-osrs-bronze/25 bg-osrs-surface-2 shadow-osrs-card sticky z-30 overflow-x-hidden rounded-t-lg border"
-          style={{ top: stickyTop }}
+          style={{ top: headerTop }}
         >
           <div className="w-max min-w-full" style={{ display: "grid", gridTemplateColumns: gridTemplate }}>
             <div className={`${railBase} bg-osrs-surface-2 text-osrs-parchment-dark/50 flex items-end px-3 pb-2 pt-3 text-[11px] uppercase tracking-wider`}>
@@ -481,32 +500,59 @@ export function LootSweepMatrix({
               const bonus = single ? single.bonus_points : row.set.set_bonus_points;
               const bonusMax = single ? single.bonus_max : row.set.set_bonus_max;
               const isCollapsed = collapsed.has(row.set.task_id);
+              const clearPts = sectionClearPoints(row.set);
+              const maxPts = sectionMaxPoints(row.set);
               return (
                 <div
                   key={`set-${row.set.task_id}`}
                   className="bg-osrs-surface-2 border-osrs-bronze/20 w-max min-w-full border-t first:border-t-0"
                   style={{ display: "grid", gridTemplateColumns: gridTemplate }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => toggleSet(row.set.task_id)}
-                    aria-expanded={!isCollapsed}
-                    className={`${railBase} bg-osrs-surface-2 hover:text-osrs-gold-bright flex items-center gap-2 px-3 py-2 text-left`}
-                    title={`${row.set.label} — −${row.set.decay_percent}% per tier (${row.set.decay_mode})${
-                      bonus > 0 ? ` · full-set bonus ${fmt(bonus)}${bonusMax > 1 ? ` ×${bonusMax}` : ""}` : ""
-                    }. Click to ${isCollapsed ? "expand" : "collapse"}.`}
-                  >
-                    <span className="text-osrs-parchment-dark/50 w-2 text-[10px]">
+                  <div className={`${railBase} bg-osrs-surface-2 flex items-center gap-1.5 px-2 py-1.5`}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSet(row.set.task_id)}
+                      aria-expanded={!isCollapsed}
+                      aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${row.set.label}`}
+                      className="text-osrs-parchment-dark/50 hover:text-osrs-gold-bright w-3 shrink-0 text-xs"
+                    >
                       {isCollapsed ? "▸" : "▾"}
-                    </span>
-                    <BossArt src={art} size={24} />
-                    <span className="text-osrs-gold min-w-0 flex-1 truncate text-sm font-semibold">
-                      {row.set.label}
-                    </span>
-                    {bonus > 0 && (
-                      <span className="text-osrs-gold-bright text-[11px] tabular-nums">+{fmt(bonus)}</span>
+                    </button>
+                    {preview ? (
+                      <span className="flex min-w-0 flex-1 items-center gap-2">
+                        <BossArt src={art} size={34} />
+                        <span className="text-osrs-gold truncate text-sm font-semibold">
+                          {row.set.label}
+                        </span>
+                      </span>
+                    ) : (
+                      <HoverCard
+                        className="flex min-w-0 flex-1 cursor-help items-center gap-2"
+                        width={300}
+                        content={<SectionInfoCard set={row.set} />}
+                      >
+                        <BossArt src={art} size={34} />
+                        <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                          <span className="text-osrs-gold truncate text-sm font-semibold">
+                            {row.set.label}
+                          </span>
+                          <span
+                            className="text-osrs-parchment-dark/60 truncate text-[11px]"
+                            title={`Clear this section for ${fmt(clearPts)} pts (up to ${fmt(maxPts)} with duplicates)`}
+                          >
+                            <span className="text-osrs-gold-bright tabular-nums">{fmt(clearPts)}</span> pts
+                            {bonus > 0 && (
+                              <span className="text-osrs-parchment-dark/45">
+                                {" "}
+                                · +{fmt(bonus)}
+                                {bonusMax > 1 ? ` ×${bonusMax}` : ""} set
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                      </HoverCard>
                     )}
-                  </button>
+                  </div>
                   {cols.map((col) => (
                     <div
                       key={col.id}
@@ -537,22 +583,30 @@ export function LootSweepMatrix({
                   className="bg-osrs-surface-1 border-osrs-bronze/10 w-max min-w-full border-t"
                   style={{ display: "grid", gridTemplateColumns: gridTemplate }}
                 >
-                  <div
-                    className={`${railBase} bg-osrs-surface-1 flex items-center gap-1.5 py-1.5 pl-7 pr-3`}
-                    title={`${row.group.label ?? ""}${row.group.npcs.length ? ` — ${row.group.npcs.join(", ")}` : ""}${
-                      row.group.bonus_points ? ` · +${fmt(row.group.bonus_points)} for the set` : ""
-                    }`}
-                  >
-                    <BossArt src={groupImg(row.group)} size={18} />
-                    <span className="text-osrs-parchment-dark/70 min-w-0 truncate text-xs font-medium">
-                      {row.group.label || row.group.npcs[0] || "—"}
-                    </span>
-                    {row.group.bonus_points > 0 && (
-                      <span className="text-osrs-parchment-dark/50 text-[10px] tabular-nums">
-                        +{fmt(row.group.bonus_points)}
+                  {preview ? (
+                    <div className={`${railBase} bg-osrs-surface-1 flex items-center gap-1.5 py-1.5 pl-6 pr-3`}>
+                      <BossArt src={groupImg(row.group)} size={26} />
+                      <span className="text-osrs-parchment-dark/70 min-w-0 truncate text-xs font-medium">
+                        {row.group.label || row.group.npcs[0] || "—"}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <HoverCard
+                      className={`${railBase} bg-osrs-surface-1 flex cursor-help items-center gap-1.5 py-1.5 pl-6 pr-3`}
+                      width={300}
+                      content={<SectionInfoCard set={row.set} groupIdx={row.groupIdx} />}
+                    >
+                      <BossArt src={groupImg(row.group)} size={26} />
+                      <span className="text-osrs-parchment-dark/70 min-w-0 flex-1 truncate text-xs font-medium">
+                        {row.group.label || row.group.npcs[0] || "—"}
+                      </span>
+                      {row.group.bonus_points > 0 && (
+                        <span className="text-osrs-parchment-dark/50 text-[10px] tabular-nums">
+                          +{fmt(row.group.bonus_points)}
+                        </span>
+                      )}
+                    </HoverCard>
+                  )}
                   {cols.map((col) => {
                     const tg = setTeams?.get(col.id)?.groups[row.groupIdx];
                     const counts = gatingCounts(row.group, tg);
@@ -599,46 +653,48 @@ export function LootSweepMatrix({
                   containIntrinsicSize: iconTabs ? "auto 48px" : "auto 37px",
                 }}
               >
-                <div
-                  className={`${railBase} bg-osrs-surface-1 flex items-center gap-2 py-1.5 pr-3 ${
+                {(() => {
+                  const railInner = (
+                    <>
+                      <span className="text-osrs-parchment-dark/60 w-7 shrink-0 text-right text-xs tabular-nums">
+                        {fmt(row.item.points)}
+                      </span>
+                      <IconCluster ids={iconIdsOf(row.item)} size={22} max={4} />
+                      <span className="text-osrs-parchment min-w-0 flex-1 truncate text-sm">
+                        {row.item.item_name}
+                        {(row.item.required ?? 1) > 1 && (
+                          <span className="text-osrs-parchment-dark/45 ml-1 text-[11px]">
+                            ×{row.item.required}
+                          </span>
+                        )}
+                      </span>
+                      {isPet && (
+                        <span className="text-osrs-gold/70 ring-osrs-gold/30 shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1">
+                          pet
+                        </span>
+                      )}
+                      {!row.gates && (
+                        <span className="text-osrs-gold/70 ring-osrs-gold/30 shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1">
+                          bonus
+                        </span>
+                      )}
+                    </>
+                  );
+                  const railCls = `${railBase} bg-osrs-surface-1 flex items-center gap-2 py-1.5 pr-3 ${
                     row.set.groups.length > 1 ? "pl-9" : "pl-5"
-                  }`}
-                  title={`${row.item.item_name} — points per receipt: ${decaySequence(
-                    row.item.points,
-                    max,
-                    row.set.decay_percent,
-                    row.item.awards_per_tier ?? 1,
-                    row.set.decay_mode,
-                  ).join(" / ")}${
-                    row.item.match_names?.length
-                      ? ` · also counts: ${row.item.match_names.join(", ")}`
-                      : ""
-                  }${(row.item.required ?? 1) > 1 ? ` · needs ${row.item.required} for the set` : ""}`}
-                >
-                  <span className="text-osrs-parchment-dark/60 w-7 shrink-0 text-right text-xs tabular-nums">
-                    {fmt(row.item.points)}
-                  </span>
-                  <ItemDbIcon itemId={row.item.item_id} size={22} />
-                  <span className="text-osrs-parchment min-w-0 flex-1 truncate text-sm">
-                    {row.item.item_name}
-                  </span>
-                  {isPet && (
-                    <span
-                      className="text-osrs-gold/70 ring-osrs-gold/30 shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1"
-                      title="Credited from a pet drop"
+                  }`;
+                  return preview ? (
+                    <div className={railCls}>{railInner}</div>
+                  ) : (
+                    <HoverCard
+                      className={`${railCls} cursor-help`}
+                      width={300}
+                      content={<ItemInfoCard item={row.item} set={row.set} />}
                     >
-                      pet
-                    </span>
-                  )}
-                  {!row.gates && (
-                    <span
-                      className="text-osrs-gold/70 ring-osrs-gold/30 shrink-0 rounded px-1 text-[9px] font-medium uppercase tracking-wider ring-1"
-                      title="Scores points but isn't needed to complete the set"
-                    >
-                      bonus
-                    </span>
-                  )}
-                </div>
+                      {railInner}
+                    </HoverCard>
+                  );
+                })()}
                 {cols.map((col) => {
                   const prog = setTeams?.get(col.id)?.groups[row.groupIdx]?.items[row.itemIdx];
                   const cell = (
@@ -673,6 +729,7 @@ export function LootSweepMatrix({
                               team={{ id: col.id, name: col.name, color: col.color }}
                               count={prog?.count ?? 0}
                               banked={prog?.points ?? 0}
+                              fetchReceipts={fetchReceipts}
                             />
                           }
                         >

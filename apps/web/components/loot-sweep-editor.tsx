@@ -34,6 +34,9 @@ export type LootSweepItemDraft = {
   /** Receipts (any mix of names) needed before this entry counts toward the
    * group's completion — "any 3 ancestral pieces". Default 1. */
   required: number;
+  /** The name is a custom label ("Any ancestral piece"), not a real item —
+   * matchNames carries the real pieces. */
+  virtual: boolean;
 };
 
 export type LootSweepGroupDraft = {
@@ -101,6 +104,7 @@ export function lootSweepFromConfig(config: Record<string, unknown> | null | und
       source: it.source === "pet" ? "pet" : "drop",
       matchNames: Array.isArray(it.match_names) ? (it.match_names as unknown[]).map(String) : [],
       required: typeof it.required === "number" && it.required > 1 ? it.required : 1,
+      virtual: it.virtual === true,
     })),
   });
   return {
@@ -136,6 +140,7 @@ export function lootSweepToConfig(d: LootSweepDraft): string {
         ...(i.source === "pet" ? { source: "pet" } : {}),
         ...(i.matchNames.length ? { match_names: i.matchNames } : {}),
         ...(i.required > 1 ? { required: i.required } : {}),
+        ...(i.virtual ? { virtual: true } : {}),
       })),
     })),
   });
@@ -317,14 +322,15 @@ function GroupCard({
       items: [
         ...group.items,
         { name: e.name, id: e.id, points: 1, awardsPerTier: 1, maxAwards: null,
-          countsForGroup: true, source: "drop", matchNames: [], required: 1 },
+          countsForGroup: true, source: "drop", matchNames: [], required: 1,
+          virtual: false },
       ],
     });
   };
   const patchItem = (i: number, p: Partial<LootSweepItemDraft>) =>
     patch({ items: group.items.map((it, idx) => (idx === i ? { ...it, ...p } : it)) });
-  // Which item row has its "also counts" search open (by item name).
-  const [aliasOpenFor, setAliasOpenFor] = useState<string | null>(null);
+  // Which item row (by index) has its "also counts / pieces" search open.
+  const [aliasOpenFor, setAliasOpenFor] = useState<number | null>(null);
 
   return (
     <div className="border-osrs-bronze/25 bg-osrs-brown-dark/20 grid gap-3 rounded-lg border p-3">
@@ -459,17 +465,50 @@ function GroupCard({
       </div>
 
       {/* items */}
-      <InlineSearch
-        kind="item"
-        search={searchItems}
-        onPick={addItem}
-        placeholder="Add an item to this group…"
-        disabled={disabled}
-        taken={itemNames}
-      />
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <InlineSearch
+            kind="item"
+            search={searchItems}
+            onPick={addItem}
+            placeholder="Add an item to this group…"
+            disabled={disabled}
+            taken={itemNames}
+          />
+        </div>
+        {!disabled && (
+          <button
+            type="button"
+            onClick={() =>
+              patch({
+                items: [
+                  ...group.items,
+                  {
+                    name: "Any …",
+                    id: null,
+                    points: 1,
+                    awardsPerTier: 1,
+                    maxAwards: null,
+                    countsForGroup: true,
+                    source: "drop",
+                    matchNames: [],
+                    required: 1,
+                    virtual: true,
+                  },
+                ],
+              })
+            }
+            className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:text-osrs-gold-bright shrink-0 rounded border px-2 py-1.5 text-xs"
+            title="A custom slot backed by several items — e.g. 'Any ancestral piece'. Name it, add the real pieces below, and set how many are needed."
+          >
+            + pooled slot
+          </button>
+        )}
+      </div>
       {group.items.length === 0 ? (
         <p className="border-osrs-bronze/20 text-osrs-parchment-dark/40 rounded border border-dashed px-3 py-4 text-center text-xs">
-          Search above to add this group&apos;s items.
+          Search above to add this group&apos;s items, or add a pooled slot for
+          &ldquo;any of&rdquo; requirements.
         </p>
       ) : (
         <ul className="grid gap-2">
@@ -478,21 +517,32 @@ function GroupCard({
             const seqPts = decaySequence(it.points, max, decayPercent, it.awardsPerTier, decayMode);
             return (
               <li
-                key={it.name}
+                key={idx}
                 className="border-osrs-bronze/20 bg-osrs-brown-dark/40 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded border p-2"
               >
                 <ItemDbIcon itemId={it.id} size={26} />
-                <span className="text-osrs-parchment min-w-0 flex-1 truncate text-sm">
-                  {it.name}
-                  {it.source === "pet" && (
-                    <span
-                      className="border-osrs-gold/40 text-osrs-gold-bright ml-1.5 rounded border px-1 text-[10px]"
-                      title="Credited from a pet submission (not a drop)"
-                    >
-                      pet
-                    </span>
-                  )}
-                </span>
+                {it.virtual ? (
+                  <input
+                    value={it.name}
+                    onChange={(e) => patchItem(idx, { name: e.target.value })}
+                    placeholder="Any ancestral piece"
+                    disabled={disabled}
+                    className={`${field} min-w-0 flex-1`}
+                    title="Custom slot name shown on the board — the real items that count are the pieces below."
+                  />
+                ) : (
+                  <span className="text-osrs-parchment min-w-0 flex-1 truncate text-sm">
+                    {it.name}
+                    {it.source === "pet" && (
+                      <span
+                        className="border-osrs-gold/40 text-osrs-gold-bright ml-1.5 rounded border px-1 text-[10px]"
+                        title="Credited from a pet submission (not a drop)"
+                      >
+                        pet
+                      </span>
+                    )}
+                  </span>
+                )}
                 <label className="flex items-center gap-1 text-xs">
                   <span className="text-osrs-parchment-dark/70">Pts</span>
                   <QuantityInput
@@ -557,20 +607,20 @@ function GroupCard({
                 >
                   {seqPts.join(" · ")}
                 </span>
-                {!disabled && it.matchNames.length === 0 && aliasOpenFor !== it.name && (
+                {!disabled && !it.virtual && it.matchNames.length === 0 && aliasOpenFor !== idx && (
                   <button
                     type="button"
-                    onClick={() => setAliasOpenFor(it.name)}
+                    onClick={() => setAliasOpenFor(idx)}
                     className="text-osrs-parchment-dark/50 hover:text-osrs-gold-bright text-[11px]"
                     title="Add another item name that credits this same entry (e.g. Gold ring on a vestige)"
                   >
                     + also counts
                   </button>
                 )}
-                {(it.matchNames.length > 0 || aliasOpenFor === it.name) && (
+                {(it.virtual || it.matchNames.length > 0 || aliasOpenFor === idx) && (
                   <div className="flex w-full flex-wrap items-center gap-1.5 pl-9">
                     <span className="text-osrs-parchment-dark/50 text-[10px] font-medium uppercase tracking-wider">
-                      also counts
+                      {it.virtual ? "pieces (any count)" : "also counts"}
                     </span>
                     {it.matchNames.map((alias) => (
                       <span
@@ -592,13 +642,13 @@ function GroupCard({
                         )}
                       </span>
                     ))}
-                    {!disabled && aliasOpenFor === it.name ? (
+                    {!disabled && (aliasOpenFor === idx || it.virtual) ? (
                       <div className="w-56">
                         <InlineSearch
                           kind="item"
                           search={searchItems}
                           taken={itemNames}
-                          placeholder="Another name that counts…"
+                          placeholder={it.virtual ? "Add a piece that counts…" : "Another name that counts…"}
                           onPick={(e) =>
                             patchItem(idx, { matchNames: [...it.matchNames, e.name] })
                           }
@@ -609,7 +659,7 @@ function GroupCard({
                       !disabled && (
                         <button
                           type="button"
-                          onClick={() => setAliasOpenFor(it.name)}
+                          onClick={() => setAliasOpenFor(idx)}
                           className="text-osrs-parchment-dark/50 hover:text-osrs-gold-bright text-[11px]"
                         >
                           + add

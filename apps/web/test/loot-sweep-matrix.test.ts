@@ -5,8 +5,10 @@ import {
   buildMatrixRows,
   buildTeamColumns,
   gatingCounts,
+  iconIdsOf,
   itemCellTitle,
   maxAwardsOf,
+  sectionClearPoints,
   timeAgo,
 } from "../lib/loot-sweep-matrix";
 
@@ -181,6 +183,42 @@ test("itemCellTitle: decimal points render trimmed (1 pt → next worth 0.8)", (
     decayMode: "linear",
   });
   assert.match(need, /needs 3 for the set/);
+});
+
+test("iconIdsOf: uses resolved icon_ids, else the single primary icon", () => {
+  assert.deepEqual(iconIdsOf({ item_name: "x", points: 1, item_id: 42 }), [42]);
+  assert.deepEqual(
+    iconIdsOf({ item_name: "x", points: 1, item_id: null, icon_ids: [1, 2, 3] }),
+    [1, 2, 3],
+  );
+  assert.deepEqual(iconIdsOf({ item_name: "x", points: 1 }), []);
+});
+
+test("sectionClearPoints: gating items once (required-aware) + bonuses", () => {
+  const set: LootSweepSet = {
+    task_id: 1,
+    label: "CoX",
+    decay_percent: 20,
+    decay_mode: "linear",
+    set_bonus_points: 30,
+    set_bonus_max: 1,
+    groups: [
+      {
+        npcs: ["Great Olm"],
+        bonus_points: 25,
+        bonus_max: 3,
+        items: [
+          // required 3 → first 3 receipts of a 3-pointer: 3 + 2.4 + 1.8 = 7.2
+          { item_name: "Any ancestral piece", points: 3, required: 3, virtual: true, match_names: ["a", "b", "c"] },
+          // a bonus/pet item does NOT count toward "clearing"
+          { item_name: "Olmlet", points: 45, counts_for_group: false, source: "pet" },
+        ],
+      },
+    ],
+    teams: [],
+  };
+  // 7.2 (ancestral) + 25 (group bonus) + 30 (set bonus) = 62.2
+  assert.equal(sectionClearPoints(set), 62.2);
 });
 
 test("maxAwardsOf: explicit cap wins, else 5 tiers × awards_per_tier", () => {

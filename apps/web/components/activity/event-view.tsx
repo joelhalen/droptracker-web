@@ -11,10 +11,11 @@
  * the event every 30s and remounts the board with fresh completions.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { BoardDetail, EventDetail, Me } from "@droptracker/api-types";
+import type { BoardDetail, EventDetail, LootSweepBoard, Me } from "@droptracker/api-types";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventBoardView, type BoardActions } from "@/components/event-board-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
+import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import type { BreakdownFetcher } from "@/components/task-detail";
 import { EventWindow } from "@/components/local-time";
@@ -35,6 +36,8 @@ import {
   eventPot,
   joinEvent,
   leaveEvent,
+  lootSweepBoard,
+  lootSweepReceipts,
   markBuyinPaid,
   recordBuyin,
   taskBreakdown,
@@ -83,6 +86,21 @@ export function EventView({
   // separately (EventBoardView needs an initialBoard) and reseeded on refresh.
   const [board, setBoard] = useState<BoardDetail | null>(null);
   const isBoardGame = event?.kind === "board_game";
+
+  // Loot Sweep events: the collection-log matrix replaces the task list.
+  // Fetched separately (the matrix takes an initial board) and reseeded on
+  // refresh; the matrix also self-refetches on SSE via its injected transport.
+  const [lootSweep, setLootSweep] = useState<LootSweepBoard | null>(null);
+  const isLootSweep = event?.kind === "loot_sweep";
+  const lootSweepFetchBoard = useCallback(
+    (id: number) => lootSweepBoard(id, sessionToken),
+    [sessionToken],
+  );
+  const lootSweepFetchReceipts = useCallback(
+    (id: number, taskId: number, item: string) =>
+      lootSweepReceipts(id, taskId, item, sessionToken),
+    [sessionToken],
+  );
 
   // Bearer-token transport for the shared board view — the exact `BoardActions`
   // shape the site fills with cookie server actions, wired here to the
@@ -159,6 +177,20 @@ export function EventView({
       cancelled = true;
     };
   }, [isBoardGame, eventId, sessionToken, refreshKey]);
+
+  // Same for the Loot Sweep matrix's initial board.
+  useEffect(() => {
+    if (!isLootSweep) return;
+    let cancelled = false;
+    lootSweepBoard(eventId, sessionToken)
+      .then((b) => {
+        if (!cancelled) setLootSweep(b);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isLootSweep, eventId, sessionToken, refreshKey]);
 
   useEffect(() => {
     void load(false);
@@ -359,6 +391,24 @@ export function EventView({
         </div>
       )}
 
+      {isLootSweep && lootSweep && (
+        <div>
+          <h2 className="heading-rule text-osrs-gold mb-2 pb-1 text-base font-semibold">
+            Loot Sweep
+          </h2>
+          <LootSweepMatrix
+            key={`loot-sweep-${refreshKey}`}
+            eventId={event.id}
+            initial={lootSweep}
+            live={live}
+            viewerTeamId={event.viewer?.team_id ?? null}
+            fetchBoard={lootSweepFetchBoard}
+            fetchReceipts={lootSweepFetchReceipts}
+            stickyTop={0}
+          />
+        </div>
+      )}
+
       {event.bingo && (
         <BingoBoard
           key={`board-${refreshKey}`}
@@ -373,7 +423,8 @@ export function EventView({
         />
       )}
 
-      {event.tasks.length > 0 && (
+      {/* Loot Sweep sets are shown by the matrix above, not as flat tasks. */}
+      {!isLootSweep && event.tasks.length > 0 && (
         <div>
           <h2 className="heading-rule text-osrs-gold mb-2 pb-1 text-base font-semibold">Tasks</h2>
           <EventTaskBoard

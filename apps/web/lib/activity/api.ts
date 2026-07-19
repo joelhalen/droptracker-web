@@ -19,6 +19,8 @@ import {
   EventSummarySchema,
   GroupProfileSchema,
   LeaderboardPageSchema,
+  LootSweepBoardSchema,
+  LootSweepReceiptsSchema,
   MeSchema,
   PbBossBoardSchema,
   PbBossIndexSchema,
@@ -36,6 +38,8 @@ import {
   type EventSummary,
   type GroupProfile,
   type LeaderboardPage,
+  type LootSweepBoard,
+  type LootSweepReceipts,
   type Me,
   type PbBossBoard,
   type PbBossIndex,
@@ -255,6 +259,30 @@ export async function boardDetail(
   sessionToken: string | null,
 ): Promise<BoardDetail> {
   return BoardDetailSchema.parse(await get(`/api/activity/events/${eventId}/board`, sessionToken));
+}
+
+/** Loot Sweep board (sets + per-team receipt counts). Icons come back
+ * same-origin (the BFF rewrites www/img → /img for the discordsays CSP). */
+export async function lootSweepBoard(
+  eventId: number,
+  sessionToken: string | null,
+): Promise<LootSweepBoard> {
+  return LootSweepBoardSchema.parse(
+    await get(`/api/activity/events/${eventId}/loot-sweep`, sessionToken),
+  );
+}
+
+/** Loot Sweep per-item receipt ledger (the hover cards). */
+export async function lootSweepReceipts(
+  eventId: number,
+  taskId: number,
+  item: string,
+  sessionToken: string | null,
+): Promise<LootSweepReceipts> {
+  const q = new URLSearchParams({ task_id: String(taskId), item });
+  return LootSweepReceiptsSchema.parse(
+    await get(`/api/activity/events/${eventId}/loot-sweep/receipts?${q}`, sessionToken),
+  );
 }
 
 export async function boardRoll(

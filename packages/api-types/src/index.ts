@@ -2252,6 +2252,12 @@ export const LootSweepConfigItemSchema = z.object({
   /** Receipts (any mix of names) the group demands before the entry counts
    * toward its completion. Omitted = 1. */
   required: z.number().int().optional(),
+  /** The item_name is a custom label ("Any ancestral piece"), not a real
+   * droppable item — the pieces live in match_names. */
+  virtual: z.boolean().optional(),
+  /** Board only: resolved game ids for every piece this entry displays
+   * (primary first for a real item, then each match name). */
+  icon_ids: z.array(z.number().int()).optional(),
   /** Receipts sharing each decay tier — full points for this many before the
    * first 20% step (the sheet's duplicate rows). Omitted = 1. */
   awards_per_tier: z.number().int().optional(),
@@ -2378,6 +2384,10 @@ export const LootSweepReceiptsSchema = z.object({
   task_id: z.number().int(),
   item_name: z.string(),
   item_id: z.number().int().nullable().optional(),
+  virtual: z.boolean().optional(),
+  required: z.number().int().optional(),
+  match_names: z.array(z.string()).optional(),
+  icon_ids: z.array(z.number().int()).optional(),
   teams: z.array(
     z.object({
       team_id: z.number().int(),

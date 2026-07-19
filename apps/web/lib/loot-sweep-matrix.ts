@@ -10,7 +10,7 @@ import type {
   LootSweepGroup,
   LootSweepSet,
 } from "@droptracker/api-types";
-import { defaultMaxAwards, receiptPoints } from "./loot-sweep";
+import { defaultMaxAwards, itemTotal, receiptPoints } from "./loot-sweep";
 
 export type LootSweepTeamEntry = LootSweepSet["teams"][number];
 export type LootSweepTeamGroupEntry = LootSweepTeamEntry["groups"][number];
@@ -45,6 +45,52 @@ export type TeamColumn = {
 /** Total scoring receipts for an item (the number of squares its cells get). */
 export function maxAwardsOf(item: LootSweepConfigItem): number {
   return item.max_awards ?? defaultMaxAwards(item.awards_per_tier ?? 1);
+}
+
+/** Game ids of the piece icons an entry displays: the resolved `icon_ids` from
+ * the board (a pooled/virtual entry shows all its pieces), falling back to the
+ * single primary icon. */
+export function iconIdsOf(item: LootSweepConfigItem): number[] {
+  if (item.icon_ids && item.icon_ids.length) return item.icon_ids;
+  return item.item_id != null ? [item.item_id] : [];
+}
+
+/** Points a group is worth when cleared once: each gating entry's first
+ * `required` receipts (a pooled "any 3" entry counts three receipts), plus its
+ * completion bonus. */
+export function groupClearPoints(group: LootSweepGroup, decayPercent: number, decayMode: LootSweepSet["decay_mode"]): number {
+  let pts = 0;
+  for (const it of group.items) {
+    if (it.counts_for_group === false) continue;
+    pts += itemTotal(it.points, it.required ?? 1, maxAwardsOf(it), decayPercent, it.awards_per_tier ?? 1, decayMode);
+  }
+  return round2(pts + group.bonus_points);
+}
+
+/** Points a whole set is worth when fully cleared once — each group cleared
+ * plus the whole-set bonus. This is the "complete the section for N pts"
+ * headline shown beside the boss art. */
+export function sectionClearPoints(set: LootSweepSet): number {
+  let pts = 0;
+  for (const g of set.groups) pts += groupClearPoints(g, set.decay_percent, set.decay_mode);
+  return round2(pts + set.set_bonus_points);
+}
+
+/** Theoretical maximum a set can yield (every item maxed, all bonuses at their
+ * repeat cap) — the tooltip's "up to N". */
+export function sectionMaxPoints(set: LootSweepSet): number {
+  let pts = 0;
+  for (const g of set.groups) {
+    for (const it of g.items) {
+      pts += itemTotal(it.points, maxAwardsOf(it), maxAwardsOf(it), set.decay_percent, it.awards_per_tier ?? 1, set.decay_mode);
+    }
+    pts += g.bonus_points * (g.bonus_max ?? 1);
+  }
+  return round2(pts + set.set_bonus_points * (set.set_bonus_max ?? 1));
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
 }
 
 /** Flatten sets → groups → items into the matrix's row list. Within a group,

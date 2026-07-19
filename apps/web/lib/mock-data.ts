@@ -1686,7 +1686,10 @@ function lsItem(
   points: number,
   extra: Partial<LootSweepGroup["items"][number]> = {},
 ): LootSweepGroup["items"][number] {
-  return { item_name, item_id, points, ...extra };
+  // The board endpoint resolves icon_ids in prod; mirror it here so the mock
+  // exercises the icon cluster (primary first unless virtual).
+  const icon_ids = extra.icon_ids ?? (item_id != null && !extra.virtual ? [item_id] : []);
+  return { item_name, item_id, points, icon_ids, ...extra };
 }
 
 /** Deterministic per-team progress for one set: `intensity` scales receipt
@@ -1836,6 +1839,30 @@ export function mockEventLootSweep(eventId: number): LootSweepBoard {
         },
       ],
     }),
+    lsSet(roster, 44, "Chambers of Xeric", {
+      set_bonus_points: 30,
+      set_bonus_max: 1,
+      groups: [
+        {
+          npcs: ["Great Olm"],
+          npc_id: 7551,
+          bonus_points: 25,
+          bonus_max: 3,
+          items: [
+            // A virtual, pooled entry: any 3 ancestral pieces complete the slot.
+            lsItem("Any ancestral piece", null, 3, {
+              virtual: true,
+              required: 3,
+              match_names: ["Ancestral hat", "Ancestral robe top", "Ancestral robe bottom"],
+              icon_ids: [21018, 21021, 21024],
+            }),
+            lsItem("Dragon claws", 13652, 6),
+            lsItem("Twisted bow", 20997, 40, { max_awards: 3 }),
+            lsItem("Olmlet", null, 45, { counts_for_group: false, source: "pet" }),
+          ],
+        },
+      ],
+    }),
   ];
   const totals = new Map<number, number>();
   for (const s of sets) {
@@ -1882,11 +1909,17 @@ export function mockEventLootSweepReceipts(
     }),
   );
   const max = def.max_awards ?? defaultMaxAwards(def.awards_per_tier ?? 1);
+  // A pooled entry's receipts cycle through its real piece names.
+  const pieceNames = def.match_names?.length ? def.match_names : [def.item_name];
   return {
     event_id: eventId,
     task_id: set.task_id,
     item_name: def.item_name,
     item_id: def.item_id ?? null,
+    virtual: def.virtual,
+    required: def.required,
+    match_names: def.match_names,
+    icon_ids: def.icon_ids,
     teams: set.teams.map((t, ti) => {
       const count = t.groups[groupIdx]?.items[itemIdx]?.count ?? 0;
       return {
@@ -1900,6 +1933,7 @@ export function mockEventLootSweepReceipts(
           points:
             itemTotal(def.points, k + 1, max, LS_DECAY, def.awards_per_tier ?? 1, "linear") -
             itemTotal(def.points, k, max, LS_DECAY, def.awards_per_tier ?? 1, "linear"),
+          matched_name: pieceNames[k % pieceNames.length],
           proof_url: k % 3 === 0 ? "/img/npcdb/3162.png" : null,
           source_type: def.source === "pet" ? "pet" : "drop",
         })),
