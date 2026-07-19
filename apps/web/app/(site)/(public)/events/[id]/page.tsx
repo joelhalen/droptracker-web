@@ -8,7 +8,7 @@ import { EventWindow } from "@/components/local-time";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventBoardView } from "@/components/event-board-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
-import { LootSweepBoard } from "@/components/loot-sweep-board";
+import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import { EventTeamsPanel } from "@/components/event-teams-panel";
 import { PrizePotPanel } from "@/components/prize-pot-panel";
@@ -101,7 +101,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   const lootSweepBoard = lootSweep ? (
     <div>
       <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Loot Sweep</h2>
-      <LootSweepBoard
+      <LootSweepMatrix
         eventId={event.id}
         initial={lootSweep}
         live={event.status === "active"}

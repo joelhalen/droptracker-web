@@ -286,6 +286,7 @@ import {
   mockEventTeamDiscord,
   mockEventDiscordChannels,
   mockEventDiscordGuilds,
+  mockEventLootSweep,
   mockEvents,
   mockEventTaskLibrary,
   mockEventTemplates,
@@ -1112,8 +1113,10 @@ export const api = {
    * receipt counts + decayed points + set-bonus status. `authed` forwards the
    * session when present (to see restricted events) and tolerates anonymous. */
   async eventLootSweep(eventId: number): Promise<LootSweepBoard> {
-    return LootSweepBoardSchema.parse(
-      await apiGet(`/events/${eventId}/loot-sweep`, { authed: true }),
+    return withFallback(
+      async () =>
+        LootSweepBoardSchema.parse(await apiGet(`/events/${eventId}/loot-sweep`, { authed: true })),
+      () => mockEventLootSweep(eventId),
     );
   },
 

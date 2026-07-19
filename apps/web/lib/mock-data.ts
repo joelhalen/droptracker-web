@@ -28,6 +28,9 @@ import type {
   GuildStatus,
   LeaderboardPage,
   Lootboard,
+  LootSweepBoard,
+  LootSweepGroup,
+  LootSweepSet,
   ManualSubmissionQueue,
   Me,
   ItemDetail,
@@ -57,6 +60,7 @@ import type {
   WomSyncResult,
 } from "@droptracker/api-types";
 import { EMBED_TYPES, GROUP_CONFIG_FIELDS } from "@droptracker/api-types";
+import { defaultMaxAwards, itemTotal } from "./loot-sweep";
 import { slugify } from "./slug";
 
 const fmt = (n: number): string => {
@@ -1436,6 +1440,19 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
       ended_at: now - 26 * DAY,
       ...eventDefaults,
     },
+    {
+      id: 3,
+      group_id: groupId ?? 101,
+      name: "GWD Loot Sweep",
+      description: "Race to sweep the God Wars and Barrows collection logs.",
+      status: "active",
+      starts_at: now - 5 * DAY,
+      ends_at: now + 9 * DAY,
+      has_bingo: false,
+      kind: "loot_sweep" as const,
+      activated_at: now - 5 * DAY,
+      ...eventDefaults,
+    },
   ];
   return all.filter((e) => (status ? e.status === status : true));
 }
@@ -1443,6 +1460,30 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
 export function mockEvent(id: number): EventDetail {
   const now = Math.floor(Date.now() / 1000);
   const summary = mockEvents().find((e) => e.id === id) ?? mockEvents()[0]!;
+  if (summary.kind === "loot_sweep") {
+    const board = mockEventLootSweep(id);
+    return {
+      ...summary,
+      id,
+      tasks: [],
+      teams: LOOT_SWEEP_TEAMS.map((t, i) => ({
+        id: t.id,
+        name: t.name,
+        score: board.teams[i]!.score,
+        coins: 0,
+        ...(t.color ? { color: t.color } : {}),
+        member_count: 2,
+        members: [],
+      })),
+      progress: [],
+      bingo: null,
+      viewer: { player_ids_on_event: [1337], team_id: 31, signed_up_player_ids: [] },
+      join_requires_code: false,
+      join_code: null,
+      starts_at: summary.starts_at ?? now,
+      ends_at: summary.ends_at ?? now + 7 * DAY,
+    };
+  }
   const cells = Array.from({ length: 25 }, (_, i) => ({
     index: i,
     label: ["Twisted bow", "Free space", "99 Slayer", "Vorkath 50kc", "Any 2 hilts"][i % 5]!,
@@ -1606,6 +1647,190 @@ export function mockEvent(id: number): EventDetail {
     join_code: null,
     starts_at: summary.starts_at ?? now,
     ends_at: summary.ends_at ?? now + 7 * DAY,
+  };
+}
+
+/** Loot Sweep mock roster: 8 teams so the matrix exercises ranking, the
+ * pinned viewer column (team 31), palette fallbacks, and quiet tail teams.
+ * `intensity` drives how far along each team's collection is (1 = leader). */
+const LOOT_SWEEP_TEAMS: { id: number; name: string; color: string | null; intensity: number }[] = [
+  { id: 31, name: "Whiteclaw", color: "#8db255", intensity: 0.8 },
+  { id: 32, name: "Ironveil", color: "#d4537e", intensity: 1 },
+  { id: 33, name: "Duskfall", color: null, intensity: 0.9 },
+  { id: 34, name: "Emberkin", color: null, intensity: 0.65 },
+  { id: 35, name: "Tidecall", color: null, intensity: 0.5 },
+  { id: 36, name: "Stonewrit", color: null, intensity: 0.35 },
+  { id: 37, name: "Ashenvow", color: null, intensity: 0.15 },
+  { id: 38, name: "Palefang", color: null, intensity: 0 },
+];
+
+const LS_DECAY = 20;
+
+function lsItem(
+  item_name: string,
+  item_id: number | null,
+  points: number,
+  extra: Partial<LootSweepGroup["items"][number]> = {},
+): LootSweepGroup["items"][number] {
+  return { item_name, item_id, points, ...extra };
+}
+
+/** Deterministic per-team progress for one set: `intensity` scales receipt
+ * counts (with a small per-item wobble so columns don't look uniform), and
+ * bonus/pet items only land for the two leading teams. Totals reuse the real
+ * decay math so tooltips and sums match what the engine would award. */
+function lsTeamEntry(
+  teamId: number,
+  intensity: number,
+  set: Pick<LootSweepSet, "groups" | "set_bonus_points" | "set_bonus_max">,
+): LootSweepSet["teams"][number] {
+  const groups = set.groups.map((g, gi) => {
+    let itemTotalSum = 0;
+    let gatingComplete = true;
+    const items = g.items.map((it, ii) => {
+      const max = it.max_awards ?? defaultMaxAwards(it.awards_per_tier ?? 1);
+      const gates = it.counts_for_group !== false;
+      const wobble = (ii + gi + teamId) % 3;
+      let count = Math.max(0, Math.round(intensity * max) - wobble);
+      if (!gates) count = intensity >= 0.9 ? 1 : 0;
+      count = Math.min(count, max);
+      const scored = count;
+      const points = itemTotal(it.points, count, max, LS_DECAY, it.awards_per_tier ?? 1, "linear");
+      itemTotalSum += points;
+      if (gates && count === 0) gatingComplete = false;
+      return { count, scored, points };
+    });
+    const awarded = gatingComplete ? Math.min(1, g.bonus_max) : 0;
+    return {
+      completions: awarded,
+      awarded,
+      bonus_total: awarded * g.bonus_points,
+      item_total: itemTotalSum,
+      items,
+    };
+  });
+  const allDone = groups.every((g) => g.awarded > 0);
+  const set_awarded = allDone ? Math.min(1, set.set_bonus_max) : 0;
+  const set_total = set_awarded * set.set_bonus_points;
+  return {
+    team_id: teamId,
+    total: groups.reduce((s, g) => s + g.item_total + g.bonus_total, 0) + set_total,
+    set_completions: set_awarded,
+    set_awarded,
+    set_total,
+    groups,
+  };
+}
+
+function lsSet(
+  task_id: number,
+  label: string,
+  cfg: {
+    set_bonus_points?: number;
+    set_bonus_max?: number;
+    groups: LootSweepGroup[];
+  },
+): LootSweepSet {
+  const base = {
+    task_id,
+    label,
+    decay_percent: LS_DECAY,
+    decay_mode: "linear" as const,
+    set_bonus_points: cfg.set_bonus_points ?? 0,
+    set_bonus_max: cfg.set_bonus_max ?? 1,
+    groups: cfg.groups,
+  };
+  return {
+    ...base,
+    teams: LOOT_SWEEP_TEAMS.map((t) => lsTeamEntry(t.id, t.intensity, base)),
+  };
+}
+
+/** Loot Sweep live board (GET /events/{id}/loot-sweep): three sets covering
+ * the matrix's shapes — a plain boss, high-cap batched items (progress bars),
+ * and a multi-group meta-set. */
+export function mockEventLootSweep(eventId: number): LootSweepBoard {
+  const sets: LootSweepSet[] = [
+    lsSet(41, "Kree'arra", {
+      groups: [
+        {
+          npcs: ["Kree'arra"],
+          npc_id: 3162,
+          bonus_points: 40,
+          bonus_max: 1,
+          items: [
+            lsItem("Armadyl helmet", 11826, 9),
+            lsItem("Armadyl chestplate", 11828, 9),
+            lsItem("Armadyl chainskirt", 11830, 9),
+            lsItem("Armadyl hilt", 11810, 13),
+            lsItem("Pet kree'arra", null, 60, { counts_for_group: false, source: "pet" }),
+          ],
+        },
+      ],
+    }),
+    lsSet(42, "K'ril Tsutsaroth", {
+      groups: [
+        {
+          npcs: ["K'ril Tsutsaroth"],
+          npc_id: 3129,
+          bonus_points: 35,
+          bonus_max: 1,
+          items: [
+            lsItem("Steam battlestaff", 11787, 2, { awards_per_tier: 2 }),
+            lsItem("Zamorakian spear", 11824, 2, { awards_per_tier: 2 }),
+            lsItem("Staff of the dead", 11791, 7),
+            lsItem("Zamorak hilt", 11816, 7),
+          ],
+        },
+      ],
+    }),
+    lsSet(43, "Barrows Brothers", {
+      set_bonus_points: 40,
+      set_bonus_max: 1,
+      groups: [
+        {
+          label: "Ahrim",
+          npcs: ["Ahrim the Blighted"],
+          npc_id: 1672,
+          bonus_points: 4,
+          bonus_max: 1,
+          items: [
+            lsItem("Ahrim's hood", 4708, 2),
+            lsItem("Ahrim's robetop", 4712, 2),
+            lsItem("Ahrim's robeskirt", 4714, 2),
+            lsItem("Ahrim's staff", 4710, 2),
+          ],
+        },
+        {
+          label: "Dharok",
+          npcs: ["Dharok the Wretched"],
+          npc_id: 1673,
+          bonus_points: 4,
+          bonus_max: 1,
+          items: [
+            lsItem("Dharok's helm", 4716, 2),
+            lsItem("Dharok's platebody", 4720, 2),
+            lsItem("Dharok's platelegs", 4722, 2),
+            lsItem("Dharok's greataxe", 4718, 2),
+          ],
+        },
+      ],
+    }),
+  ];
+  const totals = new Map<number, number>();
+  for (const s of sets) {
+    for (const t of s.teams) totals.set(t.team_id, (totals.get(t.team_id) ?? 0) + t.total);
+  }
+  return {
+    event_id: eventId,
+    kind: "loot_sweep",
+    teams: LOOT_SWEEP_TEAMS.map((t) => ({
+      id: t.id,
+      name: t.name,
+      color: t.color,
+      score: totals.get(t.id) ?? 0,
+    })),
+    sets,
   };
 }
 

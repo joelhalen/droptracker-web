@@ -1,0 +1,147 @@
+/**
+ * Loot Sweep matrix board — pure row/column shaping for the collection-log
+ * view (item rows grouped under boss header rows, one column per team).
+ * Kept out of the component so the flattening, ordering, and tooltip rules
+ * are unit-testable (test/loot-sweep-matrix.test.ts).
+ */
+import type {
+  LootSweepBoard,
+  LootSweepConfigItem,
+  LootSweepGroup,
+  LootSweepSet,
+} from "@droptracker/api-types";
+import { defaultMaxAwards, receiptPoints } from "./loot-sweep";
+
+export type LootSweepTeamEntry = LootSweepSet["teams"][number];
+export type LootSweepTeamGroupEntry = LootSweepTeamEntry["groups"][number];
+
+/** One rendered row of the matrix. `group` rows appear only in meta-sets
+ * (Barrows, DKs) — a single-boss set goes straight from its header to items. */
+export type MatrixRow =
+  | { kind: "set"; set: LootSweepSet; multiGroup: boolean; gatingGroups: number }
+  | { kind: "group"; set: LootSweepSet; group: LootSweepGroup; groupIdx: number }
+  | {
+      kind: "item";
+      set: LootSweepSet;
+      group: LootSweepGroup;
+      groupIdx: number;
+      item: LootSweepConfigItem;
+      /** Index into group.items — SAME index into a team's `groups[gi].items`. */
+      itemIdx: number;
+      /** false = scoring extra (pet / mega-rare) that doesn't gate the group. */
+      gates: boolean;
+    };
+
+/** A team column, ranked by overall event score (viewer pinned first). */
+export type TeamColumn = {
+  id: number;
+  name: string;
+  color: string;
+  score: number;
+  rank: number;
+  isViewer: boolean;
+};
+
+/** Total scoring receipts for an item (the number of squares its cells get). */
+export function maxAwardsOf(item: LootSweepConfigItem): number {
+  return item.max_awards ?? defaultMaxAwards(item.awards_per_tier ?? 1);
+}
+
+/** Flatten sets → groups → items into the matrix's row list. Within a group,
+ * gating items keep config order and bonus items follow them, so the "bonus"
+ * rows always sit at the bottom of their boss block. */
+export function buildMatrixRows(sets: LootSweepSet[]): MatrixRow[] {
+  const rows: MatrixRow[] = [];
+  for (const set of sets) {
+    const multiGroup = set.groups.length > 1;
+    const gatingGroups = set.groups.filter((g) =>
+      g.items.some((it) => it.counts_for_group !== false),
+    ).length;
+    rows.push({ kind: "set", set, multiGroup, gatingGroups });
+    set.groups.forEach((group, groupIdx) => {
+      if (multiGroup) rows.push({ kind: "group", set, group, groupIdx });
+      const indexed = group.items.map((item, itemIdx) => ({ item, itemIdx }));
+      const gating = indexed.filter(({ item }) => item.counts_for_group !== false);
+      const bonus = indexed.filter(({ item }) => item.counts_for_group === false);
+      for (const { item, itemIdx } of [...gating, ...bonus]) {
+        rows.push({
+          kind: "item",
+          set,
+          group,
+          groupIdx,
+          item,
+          itemIdx,
+          gates: item.counts_for_group !== false,
+        });
+      }
+    });
+  }
+  return rows;
+}
+
+/** Order teams into columns: overall score descending (rank), viewer's team
+ * pulled to the front with its rank kept. `colors` should come from
+ * `teamColorMap` over the UNSORTED roster so palette fallbacks stay stable. */
+export function buildTeamColumns(
+  teams: LootSweepBoard["teams"],
+  viewerTeamId: number | null,
+  colors: Map<number, string>,
+): TeamColumn[] {
+  const ranked = [...teams]
+    .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name))
+    .map((t, i) => ({
+      id: t.id,
+      name: t.name,
+      color: colors.get(t.id) ?? "#c8a165",
+      score: t.score,
+      rank: i + 1,
+      isViewer: viewerTeamId != null && t.id === viewerTeamId,
+    }));
+  const viewerIdx = ranked.findIndex((t) => t.isViewer);
+  if (viewerIdx > 0) ranked.unshift(ranked.splice(viewerIdx, 1)[0]!);
+  return ranked;
+}
+
+/** Gating-item completion within one group: how many of the group's gating
+ * items the team has received at least once. */
+export function gatingCounts(
+  group: LootSweepGroup,
+  teamGroup: LootSweepTeamGroupEntry | undefined,
+): { got: number; of: number } {
+  let got = 0;
+  let of = 0;
+  group.items.forEach((item, i) => {
+    if (item.counts_for_group === false) return;
+    of += 1;
+    if ((teamGroup?.items[i]?.count ?? 0) > 0) got += 1;
+  });
+  return { got, of };
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString();
+}
+
+/** Hover text for one item × team cell — receipts, banked points, and what
+ * the NEXT receipt is worth (the decay made tangible). */
+export function itemCellTitle(args: {
+  teamName: string;
+  item: LootSweepConfigItem;
+  prog: { count: number; scored: number; points: number } | undefined;
+  decayPercent: number;
+  decayMode: LootSweepSet["decay_mode"];
+}): string {
+  const { teamName, item, prog, decayPercent, decayMode } = args;
+  const max = maxAwardsOf(item);
+  const apt = item.awards_per_tier ?? 1;
+  const head = `${item.item_name} — ${teamName}`;
+  if (!prog || prog.count === 0) {
+    const batch = apt > 1 ? ` (full points ×${apt} at a time)` : "";
+    return `${head}: worth ${fmt(item.points)} each, up to ${max}${batch}`;
+  }
+  const tail =
+    prog.scored >= max
+      ? `capped (${max}/${max} scored)`
+      : `next worth ${fmt(receiptPoints(item.points, prog.scored + 1, decayPercent, apt, decayMode))}`;
+  return `${head}: ${prog.count} received · ${fmt(prog.points)} pts banked · ${tail}`;
+}

@@ -24,6 +24,7 @@ import {
   GroupConfigPatchSchema,
   LeaderboardPageSchema,
   LootboardSchema,
+  LootSweepBoardSchema,
   ItemDetailSchema,
   MeSchema,
   NpcDetailSchema,
@@ -46,6 +47,7 @@ import {
   mockBackupOverview,
   mockAnnouncements,
   mockEvent,
+  mockEventLootSweep,
   mockEventTeam,
   mockEvents,
   mockAdminSubscriptionsOverview,
@@ -107,6 +109,8 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => LootboardSchema.parse(mockLootboard(42, "all")));
   assert.doesNotThrow(() => EventSummarySchema.array().parse(mockEvents()));
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(1)));
+  assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(3)));
+  assert.doesNotThrow(() => LootSweepBoardSchema.parse(mockEventLootSweep(3)));
   assert.doesNotThrow(() => EventTeamDetailSchema.parse(mockEventTeam(1, 21)));
   assert.doesNotThrow(() => GroupSubscriptionSchema.parse(mockGroupSubscription(101)));
   assert.doesNotThrow(() => GroupSubscriptionSummarySchema.parse(mockGroupSubscriptionSummary(101)));
