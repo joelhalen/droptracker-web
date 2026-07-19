@@ -156,6 +156,11 @@ function SetCard({
 
           {/* team rows */}
           <ul>
+            {teams.length === 0 && (
+              <li className="text-osrs-parchment-dark/40 px-4 py-3 text-xs">
+                No teams yet — each team&apos;s progress appears here once teams are added.
+              </li>
+            )}
             {teams.map((team, rank) => {
               const meta = teamMeta.get(team.team_id);
               const mine = viewerTeamId != null && team.team_id === viewerTeamId;
