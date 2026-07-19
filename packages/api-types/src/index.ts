@@ -2290,6 +2290,7 @@ export const LootSweepTeamItemSchema = z.object({
   scored: z.number().int(),
   points: z.number().int(),
 });
+export type LootSweepTeamItem = z.infer<typeof LootSweepTeamItemSchema>;
 
 /** One team's standing within a group — SAME-INDEXED to the set's `groups`. */
 export const LootSweepTeamGroupSchema = z.object({
