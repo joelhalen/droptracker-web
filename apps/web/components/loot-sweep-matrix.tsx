@@ -61,6 +61,10 @@ const REFETCH_GAP_MS = 2000;
  * inline styles rather than Tailwind classes. */
 const RAIL_W = 224;
 const COL_W = 76;
+/** Phone-sized layout: a slimmer rail + columns so team data isn't shoved off
+ * the right edge by the item names. */
+const RAIL_W_COMPACT = 128;
+const COL_W_COMPACT = 60;
 /** Column width floor when receipt tabs render as item icons (≤4 teams). */
 const COL_W_ICON = 124;
 /** Tab-count ceilings before a cell falls back to the progress bar: narrow
@@ -355,6 +359,19 @@ export function LootSweepMatrix({
     return () => ro.disconnect();
   }, []);
 
+  // Phone-sized layout: slim the rail + columns so the item names don't push
+  // every team off-screen. Desktop-first so SSR/hydration matches on desktop.
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const on = () => setCompact(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const railW = compact ? RAIL_W_COMPACT : RAIL_W;
+  const colW = compact ? COL_W_COMPACT : COL_W;
+
   // Colors resolve against the unsorted roster (palette fallbacks stay stable
   // and match the Teams panel); columns then rank by overall score.
   const colors = useMemo(() => teamColorMap(board.teams), [board.teams]);
@@ -394,8 +411,11 @@ export function LootSweepMatrix({
   const iconTabs = cols.length <= 4;
   const iconSize = cols.length <= 2 ? 34 : 28;
   // 1100 ≈ content width before first measure (SSR + hydration render).
-  const iconColW = Math.max(COL_W_ICON, Math.floor(((bodyW || 1100) - RAIL_W) / cols.length));
-  const gridTemplate = `${RAIL_W}px repeat(${cols.length}, ${iconTabs ? iconColW : COL_W}px)`;
+  const iconColW = Math.max(
+    compact ? COL_W_COMPACT * 2 : COL_W_ICON,
+    Math.floor(((bodyW || 1100) - railW) / cols.length),
+  );
+  const gridTemplate = `${railW}px repeat(${cols.length}, ${iconTabs ? iconColW : colW}px)`;
 
   const toggleSet = (taskId: number) =>
     setCollapsed((prev) => {
@@ -526,7 +546,7 @@ export function LootSweepMatrix({
                 className={`flex flex-col items-center gap-0.5 px-1 pb-2 pt-3 ${
                   col.isViewer ? `${pinBase} bg-osrs-surface-2` : colBase
                 }`}
-                style={col.isViewer ? { left: RAIL_W } : undefined}
+                style={col.isViewer ? { left: railW } : undefined}
                 title={
                   preview
                     ? "Team progress appears here once teams are added"
@@ -597,7 +617,7 @@ export function LootSweepMatrix({
                     </button>
                     {preview ? (
                       <span className="flex min-w-0 flex-1 items-center gap-2">
-                        <BossArt src={art} size={34} />
+                        <BossArt src={art} size={compact ? 26 : 34} />
                         <span className="text-osrs-gold truncate text-sm font-semibold">
                           {row.set.label}
                         </span>
@@ -608,7 +628,7 @@ export function LootSweepMatrix({
                         width={300}
                         content={<SectionInfoCard set={row.set} />}
                       >
-                        <BossArt src={art} size={34} />
+                        <BossArt src={art} size={compact ? 26 : 34} />
                         <span className="flex min-w-0 flex-1 flex-col leading-tight">
                           <span className="text-osrs-gold truncate text-sm font-semibold">
                             {row.set.label}
@@ -636,7 +656,7 @@ export function LootSweepMatrix({
                       className={`flex items-center justify-center py-2 ${
                         col.isViewer ? `${pinBase} bg-osrs-surface-2` : colBase
                       }`}
-                      style={col.isViewer ? { left: RAIL_W } : undefined}
+                      style={col.isViewer ? { left: railW } : undefined}
                     >
                       {!preview && (
                         <SetCell
@@ -662,7 +682,7 @@ export function LootSweepMatrix({
                 >
                   {preview ? (
                     <div className={`${railBase} bg-osrs-surface-1 flex items-center gap-1.5 py-1.5 pl-6 pr-3`}>
-                      <BossArt src={groupImg(row.group)} size={26} />
+                      <BossArt src={groupImg(row.group)} size={compact ? 20 : 26} />
                       <span className="text-osrs-parchment-dark/70 min-w-0 truncate text-xs font-medium">
                         {row.group.label || row.group.npcs[0] || "—"}
                       </span>
@@ -673,7 +693,7 @@ export function LootSweepMatrix({
                       width={300}
                       content={<SectionInfoCard set={row.set} groupIdx={row.groupIdx} />}
                     >
-                      <BossArt src={groupImg(row.group)} size={26} />
+                      <BossArt src={groupImg(row.group)} size={compact ? 20 : 26} />
                       <span className="text-osrs-parchment-dark/70 min-w-0 flex-1 truncate text-xs font-medium">
                         {row.group.label || row.group.npcs[0] || "—"}
                       </span>
@@ -694,7 +714,7 @@ export function LootSweepMatrix({
                         className={`flex items-center justify-center py-1.5 ${
                           col.isViewer ? `${pinBase} bg-osrs-surface-1` : colBase
                         }`}
-                        style={col.isViewer ? { left: RAIL_W } : undefined}
+                        style={col.isViewer ? { left: railW } : undefined}
                         title={
                           preview
                             ? undefined
@@ -733,11 +753,15 @@ export function LootSweepMatrix({
                 {(() => {
                   const railInner = (
                     <>
-                      <span className="text-osrs-parchment-dark/60 w-7 shrink-0 text-right text-xs tabular-nums">
-                        {fmt(row.item.points)}
-                      </span>
-                      <IconCluster ids={iconIdsOf(row.item)} size={22} max={4} />
-                      <span className="text-osrs-parchment min-w-0 flex-1 truncate text-sm">
+                      {/* Points-per-first-receipt: dropped on phones to save
+                          width (still in the hover card). */}
+                      {!compact && (
+                        <span className="text-osrs-parchment-dark/60 w-7 shrink-0 text-right text-xs tabular-nums">
+                          {fmt(row.item.points)}
+                        </span>
+                      )}
+                      <IconCluster ids={iconIdsOf(row.item)} size={compact ? 18 : 22} max={compact ? 3 : 4} />
+                      <span className={`text-osrs-parchment min-w-0 flex-1 truncate ${compact ? "text-xs" : "text-sm"}`}>
                         {row.item.item_name}
                         {(row.item.required ?? 1) > 1 && (
                           <span className="text-osrs-parchment-dark/45 ml-1 text-[11px]">
@@ -757,9 +781,16 @@ export function LootSweepMatrix({
                       )}
                     </>
                   );
-                  const railCls = `${railBase} bg-osrs-surface-1 flex items-center gap-2 py-1.5 pr-3 ${
-                    row.set.groups.length > 1 ? "pl-9" : "pl-5"
-                  }`;
+                  const indent = compact
+                    ? row.set.groups.length > 1
+                      ? "pl-4"
+                      : "pl-2"
+                    : row.set.groups.length > 1
+                      ? "pl-9"
+                      : "pl-5";
+                  const railCls = `${railBase} bg-osrs-surface-1 flex items-center py-1.5 pr-2 ${
+                    compact ? "gap-1.5" : "gap-2"
+                  } ${indent}`;
                   return preview ? (
                     <div className={railCls}>{railInner}</div>
                   ) : (
@@ -790,7 +821,7 @@ export function LootSweepMatrix({
                       className={`flex items-center justify-center ${iconTabs ? "px-2 py-2" : "py-1.5"} ${
                         col.isViewer ? `${pinBase} bg-osrs-surface-1` : colBase
                       }`}
-                      style={col.isViewer ? { left: RAIL_W } : undefined}
+                      style={col.isViewer ? { left: railW } : undefined}
                     >
                       {preview ? (
                         cell
