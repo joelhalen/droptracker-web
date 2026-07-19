@@ -89,18 +89,28 @@ function ReceiptCell({
   max,
   color,
   iconId,
+  iconSize = 20,
+  wide = false,
 }: {
   count: number;
   max: number;
   color: string;
   iconId?: number | null;
+  /** Icon-tab edge length; scaled up as the field shrinks. */
+  iconSize?: number;
+  /** Small-field mode: cells stretch, so bars/squares grow with them. */
+  wide?: boolean;
 }) {
   const filled = Math.min(count, max);
   if (max > SQUARES_MAX) {
     const pct = Math.round((filled / max) * 100);
     return (
-      <div className="flex flex-col items-center gap-0.5" aria-label={`${filled} of ${max} received`}>
-        <span className="bg-osrs-surface-3 h-[6px] w-[44px] overflow-hidden rounded-full">
+      <div className="flex w-full flex-col items-center gap-0.5" aria-label={`${filled} of ${max} received`}>
+        <span
+          className={`bg-osrs-surface-3 overflow-hidden rounded-full ${
+            wide ? "h-[8px] w-4/5 max-w-[150px]" : "h-[6px] w-[44px]"
+          }`}
+        >
           <span className="block h-full" style={{ width: `${pct}%`, backgroundColor: color }} />
         </span>
         <span className="text-osrs-parchment-dark/50 text-[10px] leading-none tabular-nums">
@@ -112,14 +122,14 @@ function ReceiptCell({
   if (iconId != null) {
     return (
       <div
-        className="flex max-w-[118px] flex-wrap justify-center gap-[3px]"
+        className="flex flex-wrap justify-center gap-[3px] px-1"
         aria-label={`${filled} of ${max} received`}
       >
         {Array.from({ length: max }).map((_, i) => (
           <ItemDbIcon
             key={i}
             itemId={iconId}
-            size={20}
+            size={iconSize}
             className={i < filled ? "" : "opacity-25 grayscale"}
           />
         ))}
@@ -128,13 +138,15 @@ function ReceiptCell({
   }
   return (
     <div
-      className="flex max-w-[58px] flex-wrap justify-center gap-[2px]"
+      className={`flex flex-wrap justify-center ${wide ? "gap-[3px]" : "max-w-[58px] gap-[2px]"}`}
       aria-label={`${filled} of ${max} received`}
     >
       {Array.from({ length: max }).map((_, i) => (
         <span
           key={i}
-          className={`h-[9px] w-[9px] rounded-[2px] border ${i < filled ? "" : "border-osrs-stone/50"}`}
+          className={`rounded-[2px] border ${wide ? "h-[13px] w-[13px]" : "h-[9px] w-[9px]"} ${
+            i < filled ? "" : "border-osrs-stone/50"
+          }`}
           style={i < filled ? { backgroundColor: color, borderColor: color } : undefined}
         />
       ))}
@@ -266,9 +278,14 @@ export function LootSweepMatrix({
   const preview = columns.length === 0;
   const cols = preview ? [PREVIEW_COLUMN] : columns;
   // Small fields get the collection-log treatment: with ≤4 columns there's
-  // room to use the item icon itself as each receipt tab.
+  // room to use the item icon itself as each receipt tab, and the columns
+  // flex (minmax → 1fr) to fill the page instead of leaving it empty —
+  // receipt art scales up with the extra room.
   const iconTabs = cols.length <= 4;
-  const gridTemplate = `${RAIL_W}px repeat(${cols.length}, ${iconTabs ? COL_W_ICON : COL_W}px)`;
+  const iconSize = cols.length <= 2 ? 34 : 28;
+  const gridTemplate = iconTabs
+    ? `${RAIL_W}px repeat(${cols.length}, minmax(${COL_W_ICON}px, 1fr))`
+    : `${RAIL_W}px repeat(${cols.length}, ${COL_W}px)`;
 
   const toggleSet = (taskId: number) =>
     setCollapsed((prev) => {
@@ -476,7 +493,7 @@ export function LootSweepMatrix({
                 display: "grid",
                 gridTemplateColumns: gridTemplate,
                 contentVisibility: "auto",
-                containIntrinsicSize: "auto 37px",
+                containIntrinsicSize: iconTabs ? "auto 48px" : "auto 37px",
               }}
             >
               <div
@@ -520,7 +537,7 @@ export function LootSweepMatrix({
                 return (
                   <div
                     key={col.id}
-                    className={`flex items-center justify-center py-1.5 ${
+                    className={`flex items-center justify-center ${iconTabs ? "py-2" : "py-1.5"} ${
                       col.isViewer ? `${pinBase} bg-osrs-surface-1` : ""
                     }`}
                     style={col.isViewer ? { left: RAIL_W } : undefined}
@@ -541,6 +558,8 @@ export function LootSweepMatrix({
                       max={max}
                       color={col.color}
                       iconId={iconTabs ? row.item.item_id : null}
+                      iconSize={iconSize}
+                      wide={iconTabs}
                     />
                   </div>
                 );
