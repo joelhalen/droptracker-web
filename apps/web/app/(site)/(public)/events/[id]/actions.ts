@@ -113,6 +113,12 @@ export async function fetchEventLootSweep(eventId: number) {
   return api.eventLootSweep(eventId);
 }
 
+/** Receipt ledger for one Loot Sweep item — who pulled each one, when, the
+ * points it credited, and screenshot proof. Backs the board's hover cards. */
+export async function fetchLootSweepReceipts(eventId: number, taskId: number, item: string) {
+  return api.eventLootSweepReceipts(eventId, taskId, item);
+}
+
 /** Player-facing dice roll: the caller must be on the team and the event's
  * settings must allow team-triggered rolls — the Web API enforces both. */
 export async function rollBoardAsMember(eventId: number, teamId?: number) {

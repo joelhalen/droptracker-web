@@ -25,6 +25,7 @@ import {
   LeaderboardPageSchema,
   LootboardSchema,
   LootSweepBoardSchema,
+  LootSweepReceiptsSchema,
   ItemDetailSchema,
   MeSchema,
   NpcDetailSchema,
@@ -48,6 +49,7 @@ import {
   mockAnnouncements,
   mockEvent,
   mockEventLootSweep,
+  mockEventLootSweepReceipts,
   mockEventTeam,
   mockEvents,
   mockAdminSubscriptionsOverview,
@@ -113,6 +115,9 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(4)));
   assert.doesNotThrow(() => LootSweepBoardSchema.parse(mockEventLootSweep(3)));
   assert.doesNotThrow(() => LootSweepBoardSchema.parse(mockEventLootSweep(4)));
+  assert.doesNotThrow(() =>
+    LootSweepReceiptsSchema.parse(mockEventLootSweepReceipts(3, 41, "Armadyl helmet")),
+  );
   assert.doesNotThrow(() => EventTeamDetailSchema.parse(mockEventTeam(1, 21)));
   assert.doesNotThrow(() => GroupSubscriptionSchema.parse(mockGroupSubscription(101)));
   assert.doesNotThrow(() => GroupSubscriptionSummarySchema.parse(mockGroupSubscriptionSummary(101)));

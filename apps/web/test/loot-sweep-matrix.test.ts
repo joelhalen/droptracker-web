@@ -7,6 +7,7 @@ import {
   gatingCounts,
   itemCellTitle,
   maxAwardsOf,
+  timeAgo,
 } from "../lib/loot-sweep-matrix";
 
 // Minimal set fixtures: one plain boss (with a non-gating pet) and one
@@ -142,6 +143,17 @@ test("maxAwardsOf: explicit cap wins, else 5 tiers × awards_per_tier", () => {
   assert.equal(maxAwardsOf({ item_name: "x", points: 1 }), 5);
   assert.equal(maxAwardsOf({ item_name: "x", points: 1, awards_per_tier: 3 }), 15);
   assert.equal(maxAwardsOf({ item_name: "x", points: 1, awards_per_tier: 3, max_awards: 7 }), 7);
+});
+
+test("timeAgo: compact buckets, hours run to 48 before days", () => {
+  const now = 1_800_000_000_000;
+  const at = (secsAgo: number) => Math.floor(now / 1000) - secsAgo;
+  assert.equal(timeAgo(at(30), now), "just now");
+  assert.equal(timeAgo(at(5 * 60), now), "5m ago");
+  assert.equal(timeAgo(at(40 * 3600), now), "40h ago");
+  assert.equal(timeAgo(at(3 * 86400), now), "3d ago");
+  assert.equal(timeAgo(at(30 * 86400), now), "4w ago");
+  assert.equal(timeAgo(null, now), "");
 });
 
 test("itemCellTitle: shows decayed next-receipt value, then the cap", () => {

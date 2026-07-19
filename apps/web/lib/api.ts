@@ -31,6 +31,8 @@ import {
   type BoardDetail,
   LootSweepBoardSchema,
   type LootSweepBoard,
+  LootSweepReceiptsSchema,
+  type LootSweepReceipts,
   BoardRollResultSchema,
   type BoardRollResult,
   BoardSettingsSchema,
@@ -287,6 +289,7 @@ import {
   mockEventDiscordChannels,
   mockEventDiscordGuilds,
   mockEventLootSweep,
+  mockEventLootSweepReceipts,
   mockEvents,
   mockEventTaskLibrary,
   mockEventTemplates,
@@ -1117,6 +1120,23 @@ export const api = {
       async () =>
         LootSweepBoardSchema.parse(await apiGet(`/events/${eventId}/loot-sweep`, { authed: true })),
       () => mockEventLootSweep(eventId),
+    );
+  },
+
+  /** Loot Sweep hover card: per-team receipt ledger (who/when/points/proof)
+   * for ONE item of a set. Fetched lazily the first time a cell's card opens. */
+  async eventLootSweepReceipts(
+    eventId: number,
+    taskId: number,
+    item: string,
+  ): Promise<LootSweepReceipts> {
+    const q = new URLSearchParams({ task_id: String(taskId), item });
+    return withFallback(
+      async () =>
+        LootSweepReceiptsSchema.parse(
+          await apiGet(`/events/${eventId}/loot-sweep/receipts?${q}`, { authed: true }),
+        ),
+      () => mockEventLootSweepReceipts(eventId, taskId, item),
     );
   },
 

@@ -2346,6 +2346,38 @@ export const LootSweepBoardSchema = z.object({
 });
 export type LootSweepBoard = z.infer<typeof LootSweepBoardSchema>;
 
+/** One applied ledger row for an item × team (the board's hover card). `n` is
+ * the 1-based ordinal of the row's FIRST receipt — a quantity-3 stack consumes
+ * ordinals n..n+2 — and `points` is exactly what the row credited under the
+ * decay schedule (0 once past the cap). */
+export const LootSweepReceiptSchema = z.object({
+  n: z.number().int(),
+  quantity: z.number().int(),
+  player_id: z.number().int().nullable(),
+  player_name: z.string().nullable(),
+  received_at: z.number().int().nullable(),
+  points: z.number().int(),
+  proof_url: z.string().nullable().optional(),
+  source_type: z.string().nullable().optional(),
+});
+export type LootSweepReceipt = z.infer<typeof LootSweepReceiptSchema>;
+
+/** GET /events/{id}/loot-sweep/receipts?task_id&item — per-team receipt
+ * ledger for one loot_sweep item, teams in credit order. */
+export const LootSweepReceiptsSchema = z.object({
+  event_id: z.number().int(),
+  task_id: z.number().int(),
+  item_name: z.string(),
+  item_id: z.number().int().nullable().optional(),
+  teams: z.array(
+    z.object({
+      team_id: z.number().int(),
+      receipts: z.array(LootSweepReceiptSchema),
+    }),
+  ),
+});
+export type LootSweepReceipts = z.infer<typeof LootSweepReceiptsSchema>;
+
 /** PUT /events/{id}/board — the designer's autosave payload. Exactly one of
  * difficulty / task_id / library_item_id per tile (or none = rest tile). */
 export const BoardTileInputSchema = z.object({

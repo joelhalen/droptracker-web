@@ -30,6 +30,7 @@ import type {
   Lootboard,
   LootSweepBoard,
   LootSweepGroup,
+  LootSweepReceipts,
   LootSweepSet,
   ManualSubmissionQueue,
   Me,
@@ -1847,6 +1848,60 @@ export function mockEventLootSweep(eventId: number): LootSweepBoard {
       score: totals.get(t.id) ?? 0,
     })),
     sets,
+  };
+}
+
+const LS_MOCK_PLAYERS = ["Zezima", "Woox", "B0aty", "Framed", "Settled", "Sick Nerd"];
+
+/** Receipt ledger for one item (the hover card): fabricated from the same
+ * counts the board mock reports, with the exact per-receipt decay points so
+ * card totals always match the cell. Every third receipt carries a fake
+ * proof screenshot to exercise the thumbnail. */
+export function mockEventLootSweepReceipts(
+  eventId: number,
+  taskId: number,
+  item: string,
+): LootSweepReceipts {
+  const now = Math.floor(Date.now() / 1000);
+  const board = mockEventLootSweep(eventId);
+  const set = board.sets.find((s) => s.task_id === taskId) ?? board.sets[0]!;
+  const wanted = item.trim().toLowerCase();
+  let groupIdx = 0;
+  let itemIdx = 0;
+  let def = set.groups[0]!.items[0]!;
+  set.groups.forEach((g, gi) =>
+    g.items.forEach((it, ii) => {
+      if (it.item_name.toLowerCase() === wanted) {
+        groupIdx = gi;
+        itemIdx = ii;
+        def = it;
+      }
+    }),
+  );
+  const max = def.max_awards ?? defaultMaxAwards(def.awards_per_tier ?? 1);
+  return {
+    event_id: eventId,
+    task_id: set.task_id,
+    item_name: def.item_name,
+    item_id: def.item_id ?? null,
+    teams: set.teams.map((t, ti) => {
+      const count = t.groups[groupIdx]?.items[itemIdx]?.count ?? 0;
+      return {
+        team_id: t.team_id,
+        receipts: Array.from({ length: count }, (_, k) => ({
+          n: k + 1,
+          quantity: 1,
+          player_id: 1000 + ti * 10 + k,
+          player_name: LS_MOCK_PLAYERS[(ti + k) % LS_MOCK_PLAYERS.length]!,
+          received_at: now - (count - k) * 5400 * (ti + 1),
+          points:
+            itemTotal(def.points, k + 1, max, LS_DECAY, def.awards_per_tier ?? 1, "linear") -
+            itemTotal(def.points, k, max, LS_DECAY, def.awards_per_tier ?? 1, "linear"),
+          proof_url: k % 3 === 0 ? "/img/npcdb/3162.png" : null,
+          source_type: def.source === "pet" ? "pet" : "drop",
+        })),
+      };
+    }),
   };
 }
 

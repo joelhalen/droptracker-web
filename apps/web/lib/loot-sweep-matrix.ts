@@ -122,6 +122,22 @@ function fmt(n: number): string {
   return n.toLocaleString();
 }
 
+/** Compact relative time for receipt rows: "just now", "5m ago", "3h ago",
+ * "2d ago", "3w ago". Hours run to 48 before switching to days so "yesterday
+ * evening" doesn't collapse into a bare "1d". */
+export function timeAgo(epochSec: number | null | undefined, nowMs = Date.now()): string {
+  if (!epochSec) return "";
+  const s = Math.max(0, Math.floor(nowMs / 1000) - epochSec);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 14) return `${d}d ago`;
+  return `${Math.floor(d / 7)}w ago`;
+}
+
 /** Hover text for one item × team cell — receipts, banked points, and what
  * the NEXT receipt is worth (the decay made tangible). */
 export function itemCellTitle(args: {
