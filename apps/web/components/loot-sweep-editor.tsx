@@ -36,6 +36,8 @@ export type LootSweepGroupDraft = {
   bonusPoints: number;
   bonusMax: number;
   items: LootSweepItemDraft[];
+  /** Custom uploaded boss/category image; null = use the NPC's own art. */
+  imageUrl: string | null;
 };
 
 export type LootSweepDraft = {
@@ -52,6 +54,7 @@ const emptyGroup = (): LootSweepGroupDraft => ({
   bonusPoints: 0,
   bonusMax: 1,
   items: [],
+  imageUrl: null,
 });
 
 export function emptyLootSweepDraft(): LootSweepDraft {
@@ -81,6 +84,7 @@ export function lootSweepFromConfig(config: Record<string, unknown> | null | und
     })),
     bonusPoints: typeof g.bonus_points === "number" ? g.bonus_points : 0,
     bonusMax: typeof g.bonus_max === "number" ? g.bonus_max : 1,
+    imageUrl: typeof g.image_url === "string" ? g.image_url : null,
     items: (Array.isArray(g.items) ? (g.items as Record<string, unknown>[]) : []).map((it) => ({
       name: String(it.item_name ?? it.name ?? ""),
       id: typeof it.item_id === "number" ? it.item_id : null,
@@ -111,6 +115,7 @@ export function lootSweepToConfig(d: LootSweepDraft): string {
     groups: d.groups.map((g) => ({
       ...(g.label.trim() ? { label: g.label.trim() } : {}),
       npcs: g.npcs.map((n) => n.name),
+      ...(g.imageUrl ? { image_url: g.imageUrl } : {}),
       bonus_points: g.bonusPoints,
       bonus_max: g.bonusMax,
       items: g.items.map((i) => ({
@@ -256,6 +261,7 @@ function GroupCard({
   removable,
   searchItems,
   searchNpcs,
+  uploadImage,
   disabled,
 }: {
   group: LootSweepGroupDraft;
@@ -267,9 +273,29 @@ function GroupCard({
   removable: boolean;
   searchItems: (q: string) => Promise<EventMetaEntry[]>;
   searchNpcs: (q: string) => Promise<EventMetaEntry[]>;
+  uploadImage?: (form: FormData) => Promise<{ url: string }>;
   disabled?: boolean;
 }) {
   const patch = (p: Partial<LootSweepGroupDraft>) => onChange({ ...group, ...p });
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
+  const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !uploadImage) return;
+    setUploading(true);
+    setUploadErr(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const { url } = await uploadImage(form);
+      patch({ imageUrl: url });
+    } catch {
+      setUploadErr("Upload failed — PNG/JPEG/WebP, under 4 MB.");
+    } finally {
+      setUploading(false);
+    }
+  };
   const itemNames = new Set(group.items.map((i) => i.name.toLowerCase()));
   const npcNames = new Set(group.npcs.map((n) => n.name.toLowerCase()));
 
@@ -307,6 +333,52 @@ function GroupCard({
           </button>
         )}
       </div>
+
+      {/* boss/category image */}
+      {uploadImage && (
+        <div className="flex items-center gap-3">
+          {group.imageUrl ? (            <img
+              src={group.imageUrl}
+              alt=""
+              className="border-osrs-bronze/30 h-12 w-12 rounded border object-contain"
+            />
+          ) : (
+            <div className="border-osrs-bronze/20 text-osrs-parchment-dark/30 flex h-12 w-12 items-center justify-center rounded border border-dashed text-[9px]">
+              no img
+            </div>
+          )}
+          <div className="grid gap-0.5 text-xs">
+            <div className="flex items-center gap-2">
+              <label
+                className={`text-osrs-parchment-dark/80 hover:text-osrs-gold-bright cursor-pointer ${
+                  uploading || disabled ? "pointer-events-none opacity-50" : ""
+                }`}
+              >
+                {uploading ? "Uploading…" : group.imageUrl ? "Replace image" : "Upload image"}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  hidden
+                  disabled={uploading || disabled}
+                  onChange={onPickImage}
+                />
+              </label>
+              {group.imageUrl && !disabled && (
+                <button
+                  type="button"
+                  onClick={() => patch({ imageUrl: null })}
+                  className="text-osrs-parchment-dark/50 hover:text-osrs-red"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <span className="text-osrs-parchment-dark/40">
+              {uploadErr ?? "Optional — the boss's own NPC art is used if none is set."}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* NPCs */}
       <div className="grid gap-1.5">
@@ -475,12 +547,14 @@ export function LootSweepEditor({
   onChange,
   searchItems,
   searchNpcs,
+  uploadImage,
   disabled = false,
 }: {
   value: LootSweepDraft;
   onChange: (next: LootSweepDraft) => void;
   searchItems: (q: string) => Promise<EventMetaEntry[]>;
   searchNpcs: (q: string) => Promise<EventMetaEntry[]>;
+  uploadImage?: (form: FormData) => Promise<{ url: string }>;
   disabled?: boolean;
 }) {
   const patch = (p: Partial<LootSweepDraft>) => onChange({ ...value, ...p });
@@ -559,6 +633,7 @@ export function LootSweepEditor({
           removable={value.groups.length > 1}
           searchItems={searchItems}
           searchNpcs={searchNpcs}
+          uploadImage={uploadImage}
           disabled={disabled}
         />
       ))}

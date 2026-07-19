@@ -214,6 +214,103 @@ function SetCard({
   const gatingGroups = set.groups.filter((g) => g.items.some((it) => it.counts_for_group !== false)).length;
   const teams = [...set.teams].sort((a, b) => b.total - a.total);
 
+  const rows =
+    teams.length === 0 ? (
+      <div className="px-4 py-3">
+        <p className="text-osrs-parchment-dark/40 mb-2.5 text-xs">
+          No teams yet — each team&apos;s progress appears here once teams are added. The set&apos;s
+          items:
+        </p>
+        <div className="flex items-start">
+          <TeamItems set={set} teamGroups={undefined} multiGroup={multiGroup} />
+        </div>
+      </div>
+    ) : (
+      <ul className="divide-osrs-bronze/10 divide-y">
+        {teams.map((team, rank) => {
+          const meta = teamMeta.get(team.team_id);
+          const mine = viewerTeamId != null && team.team_id === viewerTeamId;
+          const groupsDone = team.groups.filter((g) => g.awarded > 0).length;
+          return (
+            <li
+              key={team.team_id}
+              className={`flex items-start gap-3 px-4 py-3 ${mine ? "bg-osrs-gold/5" : ""}`}
+            >
+              <div className="flex w-28 shrink-0 items-center gap-1.5 pt-2">
+                <span className="text-osrs-parchment-dark/40 w-4 text-right text-xs">{rank + 1}</span>
+                <span
+                  className="size-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: meta?.color ?? "#c8a165" }}
+                />
+                <span
+                  className={`min-w-0 truncate text-sm ${mine ? "text-osrs-gold-bright font-semibold" : "text-osrs-parchment"}`}
+                  title={meta?.name}
+                >
+                  {meta?.name ?? `Team ${team.team_id}`}
+                </span>
+              </div>
+
+              <TeamItems set={set} teamGroups={team.groups} multiGroup={multiGroup} />
+
+              <div className="flex w-16 shrink-0 flex-col items-end pt-1.5">
+                {team.set_awarded > 0 ? (
+                  <span
+                    className="text-osrs-green text-xs font-semibold"
+                    title={`Full set complete${team.set_total ? ` · +${fmt(team.set_total)}` : ""}`}
+                  >
+                    ✓ set
+                  </span>
+                ) : multiGroup ? (
+                  <span
+                    className="text-osrs-parchment-dark/50 text-xs"
+                    title={`${groupsDone}/${gatingGroups} groups complete`}
+                  >
+                    {groupsDone}/{gatingGroups}
+                  </span>
+                ) : null}
+                <span className="text-osrs-gold text-lg font-bold tabular-nums leading-tight">
+                  {fmt(team.total)}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    );
+
+  // Single-boss set: a "side portion" — boss art + name + full-set bonus on the
+  // left, the collection race on the right. Meta-sets keep the header layout.
+  if (!multiGroup) {
+    const g = set.groups[0];
+    const img =
+      g?.image_url || (g?.npc_id != null ? `/img/npcdb/${g.npc_id}.png` : null);
+    const bonusPts = g?.bonus_points ?? 0;
+    return (
+      <div className="border-osrs-bronze/25 bg-osrs-brown-dark/30 overflow-hidden rounded-lg border">
+        <div className="flex">
+          <div className="border-osrs-bronze/20 bg-osrs-brown-dark/40 flex w-36 shrink-0 flex-col items-center gap-1 border-r p-3 text-center sm:w-40">
+            {img && (              <img
+                src={img}
+                alt=""
+                className="mb-1 h-20 w-20 object-contain"
+                onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+              />
+            )}
+            <span className="text-osrs-gold text-sm font-semibold leading-tight">{set.label}</span>
+            {bonusPts > 0 && (
+              <span className="text-osrs-gold-bright text-[11px]">
+                Full set +{fmt(bonusPts)}
+                {g && g.bonus_max > 1 ? ` ×${g.bonus_max}` : ""}
+              </span>
+            )}
+            <span className="text-osrs-parchment-dark/45 text-[10px]">−{set.decay_percent}% / tier</span>
+          </div>
+          <div className="min-w-0 flex-1">{rows}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="border-osrs-bronze/25 bg-osrs-brown-dark/30 overflow-hidden rounded-lg border">
       <div className="border-osrs-bronze/20 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
@@ -228,69 +325,7 @@ function SetCard({
           <span>−{set.decay_percent}% / tier</span>
         </div>
       </div>
-
-      {teams.length === 0 ? (
-        <div className="px-4 py-3">
-          <p className="text-osrs-parchment-dark/40 mb-2.5 text-xs">
-            No teams yet — each team&apos;s progress appears here once teams are added. The
-            set&apos;s items:
-          </p>
-          <div className="flex items-start">
-            <TeamItems set={set} teamGroups={undefined} multiGroup={multiGroup} />
-          </div>
-        </div>
-      ) : (
-        <ul className="divide-osrs-bronze/10 divide-y">
-          {teams.map((team, rank) => {
-            const meta = teamMeta.get(team.team_id);
-            const mine = viewerTeamId != null && team.team_id === viewerTeamId;
-            const groupsDone = team.groups.filter((g) => g.awarded > 0).length;
-            return (
-              <li
-                key={team.team_id}
-                className={`flex items-start gap-3 px-4 py-3 ${mine ? "bg-osrs-gold/5" : ""}`}
-              >
-                <div className="flex w-28 shrink-0 items-center gap-1.5 pt-2">
-                  <span className="text-osrs-parchment-dark/40 w-4 text-right text-xs">{rank + 1}</span>
-                  <span
-                    className="size-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: meta?.color ?? "#c8a165" }}
-                  />
-                  <span
-                    className={`min-w-0 truncate text-sm ${mine ? "text-osrs-gold-bright font-semibold" : "text-osrs-parchment"}`}
-                    title={meta?.name}
-                  >
-                    {meta?.name ?? `Team ${team.team_id}`}
-                  </span>
-                </div>
-
-                <TeamItems set={set} teamGroups={team.groups} multiGroup={multiGroup} />
-
-                <div className="flex w-16 shrink-0 flex-col items-end pt-1.5">
-                  {team.set_awarded > 0 ? (
-                    <span
-                      className="text-osrs-green text-xs font-semibold"
-                      title={`Full set complete${team.set_total ? ` · +${fmt(team.set_total)}` : ""}`}
-                    >
-                      ✓ set
-                    </span>
-                  ) : multiGroup ? (
-                    <span
-                      className="text-osrs-parchment-dark/50 text-xs"
-                      title={`${groupsDone}/${gatingGroups} groups complete`}
-                    >
-                      {groupsDone}/{gatingGroups}
-                    </span>
-                  ) : null}
-                  <span className="text-osrs-gold text-lg font-bold tabular-nums leading-tight">
-                    {fmt(team.total)}
-                  </span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {rows}
     </div>
   );
 }

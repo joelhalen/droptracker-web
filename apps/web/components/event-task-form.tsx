@@ -49,6 +49,7 @@ import {
   searchEventItems,
   searchEventNpcs,
   updateEventTask,
+  uploadLootSweepImage,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 
 const field =
@@ -1077,6 +1078,11 @@ export function EventTaskForm({
           onChange={setLootSweep}
           searchItems={searchItems}
           searchNpcs={searchNpcs}
+          uploadImage={
+            groupId != null
+              ? (form) => uploadLootSweepImage(groupId, eventId, form)
+              : undefined
+          }
           disabled={pending}
         />
       )}

@@ -597,6 +597,17 @@ export async function uploadEventBoardBackground(
   return res;
 }
 
+/** Upload a custom boss/category image for a Loot Sweep group; returns the
+ * stored URL for the group's `image_url`. */
+export async function uploadLootSweepImage(
+  groupId: EventGroupId,
+  eventId: number,
+  form: FormData,
+): Promise<{ url: string }> {
+  await assertCanManageEvent(groupId);
+  return api.uploadLootSweepImage(eventId, form);
+}
+
 /** Manual dice roll (admin rolling on a team's behalf from the manager). */
 export async function rollEventBoard(
   groupId: EventGroupId,

@@ -2265,6 +2265,11 @@ export const LootSweepGroupSchema = z.object({
   label: z.string().optional(),
   /** Source NPC name(s) — a drop only counts from these. */
   npcs: z.array(z.string()),
+  /** Custom uploaded boss/category image (config); board falls back to `npc_id`
+   * art when unset. */
+  image_url: z.string().nullable().optional(),
+  /** Board only: the primary NPC's game id, for `npcdb/{id}.png` artwork. */
+  npc_id: z.number().int().nullable().optional(),
   /** Awarded when all this group's gating items are collected once. */
   bonus_points: z.number().int(),
   bonus_max: z.number().int(),

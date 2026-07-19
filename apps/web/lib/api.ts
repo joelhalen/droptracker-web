@@ -1167,6 +1167,14 @@ export const api = {
       .parse(await apiSendForm("POST", `/events/${eventId}/board/background`, form));
   },
 
+  /** Upload a custom boss/category image for a Loot Sweep group; returns the
+   * stored URL to put in the group's `image_url`. */
+  async uploadLootSweepImage(eventId: number, form: FormData): Promise<{ url: string }> {
+    return z
+      .object({ url: z.string(), width: z.number().int(), height: z.number().int() })
+      .parse(await apiSendForm("POST", `/events/${eventId}/loot-sweep/image`, form));
+  },
+
   /** Manual dice roll for the caller's team (admins may pass a team_id). */
   async rollEventBoard(eventId: number, teamId?: number): Promise<BoardRollResult> {
     return BoardRollResultSchema.parse(
