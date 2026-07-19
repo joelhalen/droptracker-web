@@ -2238,64 +2238,85 @@ export type BoardDetail = z.infer<typeof BoardDetailSchema>;
 export const LOOT_SWEEP_DECAY_MODES = ["linear", "geometric"] as const;
 export type LootSweepDecayMode = (typeof LOOT_SWEEP_DECAY_MODES)[number];
 
-/** One item in a `loot_sweep` task config (`kind: "loot_sweep"`). */
+/** One item in a `loot_sweep` group. */
 export const LootSweepConfigItemSchema = z.object({
   item_name: z.string(),
   /** Resolved game id for the icon (server-filled from the item DB). */
   item_id: z.number().int().nullable().optional(),
   /** Base points for the FIRST receipt (decays from here). */
   points: z.number().int(),
-  /** Per-item cap on scoring receipts; omitted = the set's default_max_awards. */
+  /** Receipts sharing each decay tier — full points for this many before the
+   * first 20% step (the sheet's duplicate rows). Omitted = 1. */
+  awards_per_tier: z.number().int().optional(),
+  /** Total scoring receipts; omitted = 5 tiers × awards_per_tier. */
   max_awards: z.number().int().optional(),
-  /** Whether the item is required for set completion (false = a scoring extra
-   * like a pet). Omitted = true. */
-  counts_for_set: z.boolean().optional(),
+  /** Whether the item gates its GROUP's bonus (false = a scoring extra like a
+   * pet or mega-rare). Omitted = true. */
+  counts_for_group: z.boolean().optional(),
 });
 export type LootSweepConfigItem = z.infer<typeof LootSweepConfigItemSchema>;
 
-/** A `loot_sweep` task's normalized config (one task = one boss "set"). */
+/** One group (sub-set) of a `loot_sweep` task: items tied to source NPC(s) with
+ * their own completion bonus. A simple boss is one group; Barrows is many. */
+export const LootSweepGroupSchema = z.object({
+  label: z.string().optional(),
+  /** Source NPC name(s) — a drop only counts from these. */
+  npcs: z.array(z.string()),
+  /** Awarded when all this group's gating items are collected once. */
+  bonus_points: z.number().int(),
+  bonus_max: z.number().int(),
+  items: z.array(LootSweepConfigItemSchema),
+});
+export type LootSweepGroup = z.infer<typeof LootSweepGroupSchema>;
+
+/** A `loot_sweep` task's normalized config (one task = one set of groups). */
 export const LootSweepConfigSchema = z.object({
   kind: z.literal("loot_sweep"),
   decay_percent: z.number().int(),
   decay_mode: z.enum(LOOT_SWEEP_DECAY_MODES),
-  default_max_awards: z.number().int(),
+  /** Awarded once EVERY group is complete (0 = no whole-set bonus). */
   set_bonus_points: z.number().int(),
   set_bonus_max: z.number().int(),
-  items: z.array(LootSweepConfigItemSchema),
+  groups: z.array(LootSweepGroupSchema),
 });
 export type LootSweepConfig = z.infer<typeof LootSweepConfigSchema>;
 
-/** One team's per-item receipts within a set — SAME-INDEXED to the set's
- * `items` array, so the grid maps by position. */
+/** One team's per-item receipts — SAME-INDEXED to the group's `items`. */
 export const LootSweepTeamItemSchema = z.object({
-  /** Total receipts of this item (folds stack quantity). */
   count: z.number().int(),
-  /** Receipts that scored (min(count, max_awards)). */
   scored: z.number().int(),
-  /** Points this item is worth to the team so far. */
   points: z.number().int(),
+});
+
+/** One team's standing within a group — SAME-INDEXED to the set's `groups`. */
+export const LootSweepTeamGroupSchema = z.object({
+  /** Times every gating item has been collected. */
+  completions: z.number().int(),
+  awarded: z.number().int(),
+  bonus_total: z.number().int(),
+  item_total: z.number().int(),
+  items: z.array(LootSweepTeamItemSchema),
 });
 
 /** One team's standing within a set. */
 export const LootSweepTeamSchema = z.object({
   team_id: z.number().int(),
   total: z.number().int(),
-  sets_completed: z.number().int(),
-  sets_awarded: z.number().int(),
+  set_completions: z.number().int(),
+  set_awarded: z.number().int(),
   set_total: z.number().int(),
-  items: z.array(LootSweepTeamItemSchema),
+  groups: z.array(LootSweepTeamGroupSchema),
 });
 
-/** One boss "set" (one loot_sweep task) with every team's per-item progress. */
+/** One set (one loot_sweep task) with its group defs + every team's progress. */
 export const LootSweepSetSchema = z.object({
   task_id: z.number().int(),
   label: z.string(),
   decay_percent: z.number().int(),
   decay_mode: z.enum(LOOT_SWEEP_DECAY_MODES),
-  default_max_awards: z.number().int(),
   set_bonus_points: z.number().int(),
   set_bonus_max: z.number().int(),
-  items: z.array(LootSweepConfigItemSchema),
+  groups: z.array(LootSweepGroupSchema),
   teams: z.array(LootSweepTeamSchema),
 });
 export type LootSweepSet = z.infer<typeof LootSweepSetSchema>;

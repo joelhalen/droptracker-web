@@ -1,15 +1,14 @@
 "use client";
 
 /**
- * Loot Sweep live board. A redesign of the classic percentage grid into an
- * icon-first "collection race": per set, each team gets a strip of the boss's
- * item icons — greyed-out until obtained, full colour once received, with a
- * ×count badge and a scored/cap meter — plus a full-set badge and the team's
- * running set total. Ranked by total, the viewer's own team pinned/highlighted.
+ * Loot Sweep live board (v2 — nested groups). An icon-first "collection race":
+ * per set, item icons are greyed-out until obtained and full-colour once
+ * received, with a ×count badge and scored/cap pips. Items are clustered by
+ * their group (sub-set) with the group's NPC + bonus labelled; a team's row
+ * shows how many groups it has completed and its running set total, ranked.
  *
- * Realtime: listens on the event SSE scope and refetches on any scoring frame
- * (the payload is small; a refetch is simpler and always consistent — the same
- * pattern as the board-game view).
+ * Realtime: refetches on any scoring frame on the event SSE scope (the payload
+ * is small; a refetch is always consistent — the board-game pattern).
  */
 
 import { useCallback, useState, useTransition } from "react";
@@ -46,6 +45,7 @@ function ItemCell({
   const title = obtained
     ? `${name} — ${count} received, ${fmt(points)} pts (${scored}/${maxAwards} scored)`
     : `${name} — not obtained yet`;
+  const pips = Math.min(maxAwards, 6);
   return (
     <div
       title={title}
@@ -54,31 +54,26 @@ function ItemCell({
       } ${bonus ? "ring-osrs-gold/25 ring-1" : ""}`}
     >
       <div className="relative">
-        <ItemDbIcon
-          itemId={itemId}
-          size={30}
-          className={obtained ? "" : "opacity-30 grayscale"}
-        />
+        <ItemDbIcon itemId={itemId} size={30} className={obtained ? "" : "opacity-30 grayscale"} />
         {count > 1 && (
           <span className="bg-osrs-brown-dark text-osrs-gold-bright ring-osrs-bronze/40 absolute -right-1.5 -top-1 rounded-full px-1 text-[10px] font-bold leading-tight ring-1">
             ×{count}
           </span>
         )}
       </div>
-      {/* scored/cap pips */}
       <div className="flex h-1 gap-0.5" aria-hidden>
-        {Array.from({ length: Math.min(maxAwards, 6) }).map((_, i) => (
+        {Array.from({ length: pips }).map((_, i) => (
           <span
             key={i}
-            className={`h-1 w-1 rounded-full ${
-              i < Math.min(scored, 6) ? "bg-osrs-gold" : "bg-osrs-stone/40"
-            }`}
+            className={`h-1 w-1 rounded-full ${i < Math.min(scored, 6) ? "bg-osrs-gold" : "bg-osrs-stone/40"}`}
           />
         ))}
       </div>
     </div>
   );
 }
+
+type Col = { gi: number; ii: number; groupStart: boolean };
 
 function SetCard({
   set,
@@ -89,17 +84,14 @@ function SetCard({
   teamMeta: Map<number, { name: string; color: string | null | undefined }>;
   viewerTeamId: number | null | undefined;
 }) {
-  const setItems = set.items
-    .map((it, i) => ({ it, i }))
-    .filter(({ it }) => it.counts_for_set !== false);
-  const bonusItems = set.items
-    .map((it, i) => ({ it, i }))
-    .filter(({ it }) => it.counts_for_set === false);
-  const ordered = [...setItems, ...bonusItems];
+  // Flatten items across groups, remembering group boundaries for dividers.
+  const cols: Col[] = [];
+  set.groups.forEach((g, gi) => g.items.forEach((_it, ii) => cols.push({ gi, ii, groupStart: ii === 0 })));
+  const gatingGroups = set.groups.filter((g) => g.items.some((it) => it.counts_for_group !== false)).length;
 
-  // Teams arrive ranked by overall score; re-sort by THIS set's total so the
-  // card tells its own story, viewer's team highlighted in place.
   const teams = [...set.teams].sort((a, b) => b.total - a.total);
+  const divider = (groupStart: boolean, gi: number) =>
+    groupStart && gi > 0 ? "border-osrs-bronze/25 ml-2 border-l pl-2" : "";
 
   return (
     <div className="border-osrs-bronze/25 bg-osrs-brown-dark/30 overflow-hidden rounded-lg border">
@@ -112,30 +104,54 @@ function SetCard({
               {set.set_bonus_max > 1 ? ` ×${set.set_bonus_max}` : ""}
             </span>
           )}
-          <span>−{set.decay_percent}% / repeat</span>
+          <span>−{set.decay_percent}% / tier</span>
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <div className="min-w-max">
-          {/* item legend header */}
-          <div className="border-osrs-bronze/10 text-osrs-parchment-dark/50 flex items-end gap-2 border-b px-4 py-2 text-[10px]">
+          {/* group labels */}
+          <div className="border-osrs-bronze/10 flex items-end gap-2 border-b px-4 pt-2 text-[10px]">
             <span className="w-32 shrink-0" />
-            {ordered.map(({ it, i }, pos) => (
-              <div
-                key={i}
-                className={`flex w-12 shrink-0 flex-col items-center ${
-                  pos === setItems.length && bonusItems.length ? "border-osrs-bronze/20 ml-2 border-l pl-2" : ""
-                }`}
-                title={`${it.item_name} — ${it.points} pts first receipt${
-                  it.counts_for_set === false ? " (bonus, not part of the set)" : ""
-                }`}
-              >
-                <ItemDbIcon itemId={it.item_id} size={22} />
-                <span className="text-osrs-gold-bright mt-0.5">{it.points}</span>
-              </div>
-            ))}
-            <span className="w-24 shrink-0 text-right">Set · Total</span>
+            {cols.map(({ gi, ii, groupStart }) => {
+              const g = set.groups[gi]!;
+              return (
+                <div key={`${gi}-${ii}`} className={`w-12 shrink-0 ${divider(groupStart, gi)}`}>
+                  {groupStart && (
+                    <span
+                      className="text-osrs-parchment-dark/50 block truncate"
+                      title={`${g.label ?? ""}${g.npcs.length ? ` — ${g.npcs.join(", ")}` : ""}${
+                        g.bonus_points ? ` · +${g.bonus_points} set` : ""
+                      }`}
+                    >
+                      {g.label || g.npcs[0] || "—"}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+            <span className="w-24 shrink-0" />
+          </div>
+
+          {/* item legend */}
+          <div className="border-osrs-bronze/10 flex items-end gap-2 border-b px-4 pb-2 pt-1 text-[10px]">
+            <span className="w-32 shrink-0" />
+            {cols.map(({ gi, ii, groupStart }) => {
+              const it = set.groups[gi]!.items[ii]!;
+              return (
+                <div
+                  key={`${gi}-${ii}`}
+                  className={`flex w-12 shrink-0 flex-col items-center ${divider(groupStart, gi)}`}
+                  title={`${it.item_name} — ${it.points} pts${
+                    it.counts_for_group === false ? " (bonus, doesn't gate)" : ""
+                  }`}
+                >
+                  <ItemDbIcon itemId={it.item_id} size={20} />
+                  <span className="text-osrs-gold-bright mt-0.5">{it.points}</span>
+                </div>
+              );
+            })}
+            <span className="text-osrs-parchment-dark/50 w-24 shrink-0 text-right">Done · Total</span>
           </div>
 
           {/* team rows */}
@@ -143,7 +159,7 @@ function SetCard({
             {teams.map((team, rank) => {
               const meta = teamMeta.get(team.team_id);
               const mine = viewerTeamId != null && team.team_id === viewerTeamId;
-              const byIndex = new Map(team.items.map((ti, idx) => [idx, ti]));
+              const groupsDone = team.groups.filter((g) => g.awarded > 0).length;
               return (
                 <li
                   key={team.team_id}
@@ -152,9 +168,7 @@ function SetCard({
                   }`}
                 >
                   <div className="flex w-32 shrink-0 items-center gap-1.5">
-                    <span className="text-osrs-parchment-dark/40 w-4 text-right text-xs">
-                      {rank + 1}
-                    </span>
+                    <span className="text-osrs-parchment-dark/40 w-4 text-right text-xs">{rank + 1}</span>
                     <span
                       className="size-2.5 shrink-0 rounded-full"
                       style={{ backgroundColor: meta?.color ?? "#c8a165" }}
@@ -167,46 +181,37 @@ function SetCard({
                     </span>
                   </div>
 
-                  {ordered.map(({ it, i }, pos) => {
-                    const ti = byIndex.get(i);
+                  {cols.map(({ gi, ii, groupStart }) => {
+                    const it = set.groups[gi]!.items[ii]!;
+                    const ti = team.groups[gi]?.items[ii];
                     return (
-                      <div
-                        key={i}
-                        className={
-                          pos === setItems.length && bonusItems.length
-                            ? "border-osrs-bronze/20 ml-2 border-l pl-2"
-                            : ""
-                        }
-                      >
+                      <div key={`${gi}-${ii}`} className={divider(groupStart, gi)}>
                         <ItemCell
                           itemId={it.item_id}
                           name={it.item_name}
                           count={ti?.count ?? 0}
                           scored={ti?.scored ?? 0}
                           points={ti?.points ?? 0}
-                          maxAwards={it.max_awards ?? set.default_max_awards}
-                          bonus={it.counts_for_set === false}
+                          maxAwards={it.max_awards ?? 5 * (it.awards_per_tier ?? 1)}
+                          bonus={it.counts_for_group === false}
                         />
                       </div>
                     );
                   })}
 
                   <div className="flex w-24 shrink-0 flex-col items-end">
-                    {team.sets_awarded > 0 ? (
-                      <span
-                        className="text-osrs-green text-xs font-semibold"
-                        title={`Full set completed ${team.sets_completed}×${
-                          team.set_total ? `, +${fmt(team.set_total)} pts` : ""
-                        }`}
-                      >
-                        ✓ set{team.sets_awarded > 1 ? ` ×${team.sets_awarded}` : ""}
-                      </span>
-                    ) : (
-                      <span className="text-osrs-parchment-dark/30 text-xs">—</span>
-                    )}
-                    <span className="text-osrs-gold text-sm font-bold tabular-nums">
-                      {fmt(team.total)}
+                    <span
+                      className={`text-xs ${
+                        team.set_awarded > 0 ? "text-osrs-green font-semibold" : "text-osrs-parchment-dark/40"
+                      }`}
+                      title={`${groupsDone}/${gatingGroups} groups complete${
+                        team.set_total ? ` · +${fmt(team.set_total)} set bonus` : ""
+                      }`}
+                    >
+                      {team.set_awarded > 0 ? "✓ " : ""}
+                      {groupsDone}/{gatingGroups}
                     </span>
+                    <span className="text-osrs-gold text-sm font-bold tabular-nums">{fmt(team.total)}</span>
                   </div>
                 </li>
               );
@@ -252,9 +257,7 @@ export function LootSweepBoard({
   );
   useEventStream(live ? [`event:${eventId}`] : [], onFrame);
 
-  const teamMeta = new Map(
-    board.teams.map((t) => [t.id, { name: t.name, color: t.color }]),
-  );
+  const teamMeta = new Map(board.teams.map((t) => [t.id, { name: t.name, color: t.color }]));
 
   if (!board.sets.length) {
     return (
@@ -267,12 +270,7 @@ export function LootSweepBoard({
   return (
     <div className="space-y-4">
       {board.sets.map((set) => (
-        <SetCard
-          key={set.task_id}
-          set={set}
-          teamMeta={teamMeta}
-          viewerTeamId={viewerTeamId}
-        />
+        <SetCard key={set.task_id} set={set} teamMeta={teamMeta} viewerTeamId={viewerTeamId} />
       ))}
     </div>
   );

@@ -535,8 +535,13 @@ export function EventTaskForm({
         if (petMode !== "specific" && petCount < 1) return "Number of pets must be at least 1.";
         break;
       case "loot_sweep":
-        if (lootSweep.items.length < 1) return "Add at least one item to the set.";
-        if (lootSweep.items.some((i) => i.points < 1)) return "Every item needs at least 1 point.";
+        if (lootSweep.groups.length < 1) return "Add at least one group.";
+        for (const g of lootSweep.groups) {
+          if (g.npcs.length < 1)
+            return "Every group needs a source NPC — items only count from their NPC.";
+          if (g.items.length < 1) return "Every group needs at least one item.";
+          if (g.items.some((i) => i.points < 1)) return "Every item needs at least 1 point.";
+        }
         break;
       case "custom":
         break;
@@ -592,10 +597,12 @@ export function EventTaskForm({
           return `${n}Any ${petCategories.map((c) => PET_CATEGORY_LABELS[c] ?? c).join(" / ").toLowerCase()}`;
         return petCount > 1 ? `Any ${petCount} pets` : "Any pet";
       }
-      case "loot_sweep":
-        return lootSweep.items.length
-          ? `${lootSweep.items.length}-item set`
-          : "Loot Sweep set";
+      case "loot_sweep": {
+        const items = lootSweep.groups.reduce((n, g) => n + g.items.length, 0);
+        if (lootSweep.groups.length === 1 && lootSweep.groups[0]?.label.trim())
+          return lootSweep.groups[0].label.trim();
+        return items ? `${items}-item Loot Sweep set` : "Loot Sweep set";
+      }
       default:
         return "";
     }
@@ -1068,8 +1075,8 @@ export function EventTaskForm({
         <LootSweepEditor
           value={lootSweep}
           onChange={setLootSweep}
-          search={searchItems}
-          resolve={resolveItems}
+          searchItems={searchItems}
+          searchNpcs={searchNpcs}
           disabled={pending}
         />
       )}
