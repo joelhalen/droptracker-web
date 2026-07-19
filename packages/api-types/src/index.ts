@@ -1744,6 +1744,11 @@ export const EVENT_TASK_TYPES = [
   /** Pet acquisition: a specific pet, a pet category (boss/skilling/raids/…),
    * or "any pet". Credited from pet submissions. */
   "pet_collection",
+  /** Loot Sweep (loot_sweep kind): one task per boss "set". Each config item
+   * awards points that decay per successive team receipt (capped per item);
+   * collecting a full set awards a bonus (capped). Scored continuously off the
+   * ledger — never "completes". See the backend docs/LOOT_SWEEP.md. */
+  "loot_sweep",
   /** Manual-confirmation-only tasks (no automated evaluation). */
   "custom",
 ] as const;
@@ -1777,7 +1782,7 @@ export type EventTaskDifficulty = (typeof EVENT_TASK_DIFFICULTIES)[number];
  * kinds a non-superadmin may CREATE is governed site-wide by the
  * web_event_types registry (enabled/admin_only + test-group allowlist);
  * existing events of a disabled kind keep running. */
-export const EVENT_KINDS = ["standard", "bingo", "board_game"] as const;
+export const EVENT_KINDS = ["standard", "bingo", "board_game", "loot_sweep"] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 /** One row of GET /events/meta/types — the create form's kind picker.
