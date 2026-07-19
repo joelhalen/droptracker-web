@@ -364,6 +364,10 @@ export function LootSweepMatrix({
   // matching their row (set rows are a surface step up from item rows).
   const railBase = "sticky left-0 z-10 border-osrs-bronze/20 border-r";
   const pinBase = "sticky z-[5] border-osrs-gold/25 border-x";
+  // Every team column carries a left divider so adjacent columns read as
+  // separate logs — essential in elastic mode, where receipt tabs would
+  // otherwise run edge-to-edge into one continuous strip.
+  const colBase = "border-osrs-bronze/25 border-l";
 
   return (
     <div className="space-y-3">
@@ -407,7 +411,7 @@ export function LootSweepMatrix({
               <div
                 key={col.id}
                 className={`flex flex-col items-center gap-0.5 px-1 pb-2 pt-3 ${
-                  col.isViewer ? `${pinBase} bg-osrs-surface-2` : ""
+                  col.isViewer ? `${pinBase} bg-osrs-surface-2` : colBase
                 }`}
                 style={col.isViewer ? { left: RAIL_W } : undefined}
                 title={
@@ -489,7 +493,7 @@ export function LootSweepMatrix({
                     <div
                       key={col.id}
                       className={`flex items-center justify-center py-2 ${
-                        col.isViewer ? `${pinBase} bg-osrs-surface-2` : ""
+                        col.isViewer ? `${pinBase} bg-osrs-surface-2` : colBase
                       }`}
                       style={col.isViewer ? { left: RAIL_W } : undefined}
                     >
@@ -539,7 +543,7 @@ export function LootSweepMatrix({
                       <div
                         key={col.id}
                         className={`flex items-center justify-center py-1.5 ${
-                          col.isViewer ? `${pinBase} bg-osrs-surface-1` : ""
+                          col.isViewer ? `${pinBase} bg-osrs-surface-1` : colBase
                         }`}
                         style={col.isViewer ? { left: RAIL_W } : undefined}
                         title={
@@ -628,8 +632,8 @@ export function LootSweepMatrix({
                   return (
                     <div
                       key={col.id}
-                      className={`flex items-center justify-center ${iconTabs ? "py-2" : "py-1.5"} ${
-                        col.isViewer ? `${pinBase} bg-osrs-surface-1` : ""
+                      className={`flex items-center justify-center ${iconTabs ? "px-2 py-2" : "py-1.5"} ${
+                        col.isViewer ? `${pinBase} bg-osrs-surface-1` : colBase
                       }`}
                       style={col.isViewer ? { left: RAIL_W } : undefined}
                     >
@@ -638,6 +642,7 @@ export function LootSweepMatrix({
                       ) : (
                         <HoverCard
                           className="flex w-full cursor-help items-center justify-center"
+                          width={320}
                           content={
                             <LootSweepReceiptCard
                               eventId={eventId}
@@ -645,6 +650,7 @@ export function LootSweepMatrix({
                               item={row.item}
                               team={{ id: col.id, name: col.name, color: col.color }}
                               count={prog?.count ?? 0}
+                              banked={prog?.points ?? 0}
                             />
                           }
                         >
