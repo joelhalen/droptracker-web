@@ -52,28 +52,32 @@ function ItemCell({
     (obtained
       ? `${count} received, ${fmt(prog?.points ?? 0)} pts (${prog?.scored ?? 0}/${maxAwards} score)`
       : `worth ${def.points} each, up to ${maxAwards}${perTier > 1 ? ` (full points ×${perTier} at a time)` : ""}`);
+  const filled = Math.min(count, maxAwards);
   return (
     <div
       title={title}
-      className={`relative flex w-[54px] shrink-0 flex-col items-center gap-0.5 rounded-md p-1 ${
+      className={`relative flex w-[50px] shrink-0 flex-col items-center gap-0.5 rounded-md px-0.5 pb-1 pt-0.5 ${
         obtained ? "bg-osrs-gold/10" : ""
       } ${bonus ? "ring-osrs-gold/40 bg-osrs-gold/[0.03] ring-1" : ""}`}
     >
-      <ItemDbIcon itemId={def.item_id} size={40} className={obtained ? "" : "opacity-25 grayscale"} />
-      {/* received / max — the key "how many of a possible N" */}
+      {/* points it's worth — centered above the icon */}
       <span
-        className={`text-[11px] font-semibold leading-none tabular-nums ${
-          obtained ? "text-osrs-gold-bright" : "text-osrs-parchment-dark/40"
+        className={`text-[10px] font-medium leading-none tabular-nums ${
+          obtained ? "text-osrs-gold-bright" : "text-osrs-parchment-dark/45"
         }`}
       >
-        {count}
-        <span className="text-osrs-parchment-dark/40 font-normal">/{maxAwards}</span>
+        {fmt(shownPts)}
       </span>
-      <span
-        className={`text-[10px] leading-none ${obtained ? "text-osrs-gold/80" : "text-osrs-parchment-dark/30"}`}
-      >
-        {fmt(shownPts)} pts
-      </span>
+      <ItemDbIcon itemId={def.item_id} size={38} className={obtained ? "" : "opacity-25 grayscale"} />
+      {/* one tab per allowed receipt; filled for each one obtained */}
+      <div className="flex max-w-[44px] flex-wrap justify-center gap-[2px]" aria-label={`${count} of ${maxAwards} received`}>
+        {Array.from({ length: maxAwards }).map((_, i) => (
+          <span
+            key={i}
+            className={`h-1 w-[4px] rounded-[1px] ${i < filled ? "bg-osrs-gold-bright" : "bg-osrs-stone/40"}`}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -132,6 +136,71 @@ function GroupCluster({
   );
 }
 
+/** A "bonus" section — the scoring extras that don't gate the set. */
+function BonusColumn({
+  items,
+  teamGroup,
+}: {
+  items: { it: LootSweepConfigItem; ii: number }[];
+  teamGroup: LootSweepSet["teams"][number]["groups"][number] | undefined;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div className="border-osrs-gold/20 flex shrink-0 flex-col gap-0.5 self-stretch border-l pl-3">
+      <span
+        className="text-osrs-gold/60 text-[9px] font-medium uppercase tracking-wider"
+        title="Bonus points — these score but don't count toward completing the set"
+      >
+        bonus
+      </span>
+      <div className="flex flex-wrap gap-1">
+        {items.map(({ it, ii }) => (
+          <ItemCell key={ii} def={it} prog={teamGroup?.items[ii]} bonus />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** The item area of a team row. Single-group sets fill the set items on the
+ * left and pin the bonus column to the RIGHT so it lands in the same spot on
+ * every set; meta-sets keep their per-group clusters. */
+function TeamItems({
+  set,
+  teamGroups,
+  multiGroup,
+}: {
+  set: LootSweepSet;
+  teamGroups: LootSweepSet["teams"][number]["groups"] | undefined;
+  multiGroup: boolean;
+}) {
+  if (multiGroup) {
+    return (
+      <div className="flex min-w-0 flex-1 flex-wrap gap-x-6 gap-y-3">
+        {set.groups.map((g, gi) => (
+          <GroupCluster key={gi} group={g} teamGroup={teamGroups?.[gi]} showLabel />
+        ))}
+      </div>
+    );
+  }
+  const g = set.groups[0];
+  if (!g) return <div className="flex-1" />;
+  const tg = teamGroups?.[0];
+  const indexed = g.items.map((it, ii) => ({ it, ii }));
+  const setItems = indexed.filter(({ it }) => it.counts_for_group !== false);
+  const bonusItems = indexed.filter(({ it }) => it.counts_for_group === false);
+  return (
+    <>
+      <div className="flex min-w-0 flex-1 flex-wrap content-start gap-1">
+        {setItems.map(({ it, ii }) => (
+          <ItemCell key={ii} def={it} prog={tg?.items[ii]} bonus={false} />
+        ))}
+      </div>
+      <BonusColumn items={bonusItems} teamGroup={tg} />
+    </>
+  );
+}
+
 function SetCard({
   set,
   teamMeta,
@@ -166,10 +235,8 @@ function SetCard({
             No teams yet — each team&apos;s progress appears here once teams are added. The
             set&apos;s items:
           </p>
-          <div className="flex flex-wrap gap-x-6 gap-y-3">
-            {set.groups.map((g, gi) => (
-              <GroupCluster key={gi} group={g} teamGroup={undefined} showLabel={multiGroup} />
-            ))}
+          <div className="flex items-start">
+            <TeamItems set={set} teamGroups={undefined} multiGroup={multiGroup} />
           </div>
         </div>
       ) : (
@@ -197,11 +264,7 @@ function SetCard({
                   </span>
                 </div>
 
-                <div className="flex min-w-0 flex-1 flex-wrap gap-x-6 gap-y-3">
-                  {set.groups.map((g, gi) => (
-                    <GroupCluster key={gi} group={g} teamGroup={team.groups[gi]} showLabel={multiGroup} />
-                  ))}
-                </div>
+                <TeamItems set={set} teamGroups={team.groups} multiGroup={multiGroup} />
 
                 <div className="flex w-16 shrink-0 flex-col items-end pt-1.5">
                   {team.set_awarded > 0 ? (
@@ -278,12 +341,22 @@ export function LootSweepBoard({
 
   return (
     <div className="space-y-4">
-      <p className="text-osrs-parchment-dark/50 text-xs">
-        Each tile shows <span className="text-osrs-parchment-dark/70">received / max</span> and the
-        points it&apos;s worth — greyed until obtained. Items in a{" "}
-        <span className="ring-osrs-gold/40 rounded px-1 ring-1">bonus</span> column score but
-        don&apos;t count toward completing the set.
-      </p>
+      <div className="border-osrs-bronze/25 bg-osrs-brown-dark/20 rounded-lg border p-4 text-sm">
+        <p className="text-osrs-parchment/90 leading-relaxed">
+          Race to collect drops from bosses across the game. Every item is worth points the first
+          time your team receives it, and a little less each time after — so spreading out across
+          many bosses beats farming one. Complete <em>all</em> of a boss&apos;s items and your team
+          banks its full-set bonus on top.
+        </p>
+        <p className="text-osrs-parchment-dark/70 mt-2 leading-relaxed">
+          Each tile is one drop: the <span className="text-osrs-gold-bright">number above</span> is
+          the points it&apos;s worth, and the <span className="text-osrs-gold-bright">little bars</span>{" "}
+          below fill in — one per receipt — up to the max that can score. Tiles stay greyed until
+          you&apos;ve pulled the drop. Items in a{" "}
+          <span className="ring-osrs-gold/40 rounded px-1 ring-1">bonus</span> section still score
+          but aren&apos;t needed to complete the set (pets, mega-rares).
+        </p>
+      </div>
       {board.sets.map((set) => (
         <SetCard key={set.task_id} set={set} teamMeta={teamMeta} viewerTeamId={viewerTeamId} />
       ))}
