@@ -10,7 +10,7 @@
  * simpler and safer than patching state client-side).
  */
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import type {
   BoardDetail,
   BoardPosition,
@@ -157,7 +157,27 @@ export function EventBoardView({
       .catch(() => {});
   }, [actions, event.id]);
 
-  // SSE: any board/completion frame → refetch (cheap, always consistent).
+  // Audit P0-13: board assembly is a heavy uncached read, and busy events
+  // emit frame bursts (every teammate's drop). Coalesce refetches through a
+  // trailing-edge debounce so N frames in a burst cost one fetch, and skip
+  // `progress` frames entirely — partial progress can't move pieces, and it
+  // is by far the highest-frequency kind (200 viewers × a few frames/sec
+  // used to self-inflict a read storm on the popular events).
+  const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefetch = useCallback(() => {
+    if (refetchTimer.current) return; // a fetch is already scheduled
+    refetchTimer.current = setTimeout(() => {
+      refetchTimer.current = null;
+      refetch();
+    }, 600);
+  }, [refetch]);
+  useEffect(
+    () => () => {
+      if (refetchTimer.current) clearTimeout(refetchTimer.current);
+    },
+    [],
+  );
+
   const onFrame = useCallback(
     (frame: RealtimeEvent) => {
       if (frame.type !== "event_update") return;
@@ -167,13 +187,12 @@ export function EventBoardView({
         kind === "board_task_complete" ||
         kind === "board_item_used" ||
         kind === "board_blocked" ||
-        kind === "completion" ||
-        kind === "progress"
+        kind === "completion"
       ) {
-        refetch();
+        scheduleRefetch();
       }
     },
-    [refetch],
+    [scheduleRefetch],
   );
   useEventStream([`event:${event.id}`], onFrame);
 

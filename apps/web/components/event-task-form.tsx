@@ -355,8 +355,11 @@ export function EventTaskForm({
   const [difficulty, setDifficulty] = useState<"air" | "water" | "earth" | "fire" | null>(
     initial?.difficulty ?? null,
   );
+  // Private by default (audit): defaulting to Public quietly shipped every
+  // clan's in-jokes and event-specific labels into the shared cross-group
+  // library — sharing should be a deliberate choice.
   const [visibility, setVisibility] = useState<"public" | "private">(
-    initial?.visibility ?? "public",
+    initial?.visibility ?? "private",
   );
 
   // item_collection
@@ -733,7 +736,7 @@ export function EventTaskForm({
             requires_confirmation: input.requires_confirmation ?? false,
             // The API may demote a public save to private when its
             // requirements duplicate an existing public preset.
-            visibility: res.visibility ?? input.visibility ?? "public",
+            visibility: res.visibility ?? input.visibility ?? "private",
           });
         }
       } catch (err) {
@@ -1121,8 +1124,8 @@ export function EventTaskForm({
             className={field}
             title="Every task is saved to the reusable task library — choose who can find it there"
           >
-            <option value="public">Public — any clan can reuse it</option>
             <option value="private">Private — save for this clan only</option>
+            <option value="public">Public — share it so any clan can reuse it</option>
           </select>
         </label>
         <label className="text-osrs-parchment-dark/80 mb-2 flex items-center gap-2 text-sm">

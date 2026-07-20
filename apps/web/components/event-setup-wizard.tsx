@@ -20,7 +20,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   EVENT_MODES,
   EVENT_SUBMISSION_POLICIES,
@@ -182,6 +182,9 @@ export function EventSetupWizard({
 
   // The real draft, once it exists. Before that the wizard buffers locally.
   const [detail, setDetail] = useState<EventDetail | null>(initialEvent);
+  // Set the moment createGroupEvent returns — survives a failed post-create
+  // reload so retrying resumes the same draft instead of creating a twin.
+  const createdEventIdRef = useRef<number | null>(initialEvent?.id ?? null);
 
   // Step 1–3 fields (seeded from the draft when resuming).
   const [name, setName] = useState(initialEvent?.name ?? "");
@@ -324,17 +327,25 @@ export function EventSetupWizard({
           }
         } else if (step.key === "schedule") {
           if (!detail) {
-            const res = await createGroupEvent(groupId, {
-              name: name.trim(),
-              description: description || undefined,
-              starts_at: toUnix(startsAt),
-              ends_at: toUnix(endsAt),
-              ...(groupId != null ? { mode } : {}),
-              kind,
-              discord_event_policy: discordPolicy,
-              ...(pingRoleIds.length ? { pings: { event_created: pingRoleIds } } : {}),
-            });
-            const full = await reloadGroupEvent(groupId, res.id);
+            // Remember the created id across attempts: if the post-create
+            // reload fails, retrying "Continue" must resume THAT draft, not
+            // silently create a duplicate (audit).
+            let eventId = createdEventIdRef.current;
+            if (eventId == null) {
+              const res = await createGroupEvent(groupId, {
+                name: name.trim(),
+                description: description || undefined,
+                starts_at: toUnix(startsAt),
+                ends_at: toUnix(endsAt),
+                ...(groupId != null ? { mode } : {}),
+                kind,
+                discord_event_policy: discordPolicy,
+                ...(pingRoleIds.length ? { pings: { event_created: pingRoleIds } } : {}),
+              });
+              eventId = res.id;
+              createdEventIdRef.current = res.id;
+            }
+            const full = await reloadGroupEvent(groupId, eventId);
             setDetail(full);
             // The URL-sync effect stamps ?event&step once `detail` lands.
           } else {
@@ -362,6 +373,16 @@ export function EventSetupWizard({
               advertise: potAdvertise,
             },
           });
+          if (!potRes.ok && potEnabled) {
+            // Money-facing: silently advancing here shipped events whose
+            // organizer believed the pot was on when the save failed (audit).
+            setError(
+              "message" in potRes && potRes.message
+                ? `The prize pot couldn't be saved: ${potRes.message}`
+                : "The prize pot couldn't be saved — check the pot settings and try again.",
+            );
+            return;
+          }
           setDetail(
             potRes.ok
               ? potRes.event
