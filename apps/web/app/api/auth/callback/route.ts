@@ -9,7 +9,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
-import { consumeOAuthState, setSession } from "@/lib/session";
+import { consumeOAuthState, safeReturnPath, setSession } from "@/lib/session";
 
 const DISCORD_TOKEN = "https://discord.com/api/oauth2/token";
 const DISCORD_ME = "https://discord.com/api/users/@me";
@@ -58,9 +58,11 @@ export async function GET(req: NextRequest) {
     if (!sessionRes.ok) throw new Error(`Web API session mint failed: ${sessionRes.status}`);
     const { session_token } = (await sessionRes.json()) as { session_token: string };
 
-    // 4. Persist as httpOnly cookie.
+    // 4. Persist as httpOnly cookie. Re-clamp the return path (defense in
+    // depth — the state is HMAC-signed, but the login route pre-dating the
+    // clamp may have signed an absolute URL).
     await setSession(session_token);
-    return NextResponse.redirect(new URL(verified.redirectTo, env.siteUrl));
+    return NextResponse.redirect(new URL(safeReturnPath(verified.redirectTo), env.siteUrl));
   } catch (err) {
     console.error("[auth/callback]", err);
     return NextResponse.redirect(new URL("/?auth=exchange_failed", env.siteUrl));

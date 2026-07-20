@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import { orNotFound } from "@/lib/fetch";
+import { orAccessDenied } from "@/lib/fetch";
 import { EventDiscordSettings } from "@/components/event-discord";
 import { FeatureGate } from "@/components/feature-gate";
 
@@ -23,7 +23,7 @@ export default async function EventDiscordPage({ params }: { params: Params }) {
   if (!Number.isFinite(groupId) || !Number.isFinite(evId)) notFound();
 
   const [event, subscription, tiers, user] = await Promise.all([
-    orNotFound(api.eventForAdmin(evId)),
+    orAccessDenied(api.eventForAdmin(evId)),
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
     getUser(),

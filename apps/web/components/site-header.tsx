@@ -19,24 +19,10 @@ import type { Route } from "next";
 import { usePathname } from "next/navigation";
 import { FaDiscord } from "react-icons/fa6";
 import type { Me } from "@droptracker/api-types";
+import { useMe } from "@/lib/use-me";
 import { HeaderNav, type NavTab } from "@/components/tab-nav";
 import { ThemeMenu } from "@/components/theme";
 import { ModeratorBadge, NameTile, SuperadminBadge } from "@/components/ui";
-
-function useMe(): Me | null | undefined {
-  const [me, setMe] = useState<Me | null | undefined>(undefined);
-  useEffect(() => {
-    let active = true;
-    fetch("/api/me", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => active && setMe(data))
-      .catch(() => active && setMe(null));
-    return () => {
-      active = false;
-    };
-  }, []);
-  return me;
-}
 
 /** Groups the user can administrate — shown in the account menus. */
 function adminGroups(me: Me) {

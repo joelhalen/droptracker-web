@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { forbidden, notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { requireUser, canAdminGroup } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
@@ -23,8 +23,12 @@ export default async function GroupAdminLayout({
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
 
+  // Signing in always suffices for the 401 side (an actual group admin just
+  // needs their session), so requireUser's straight-to-OAuth redirect stays;
+  // a signed-in non-admin gets the 403 interrupt page (web57a) — which links
+  // back to the group's public profile — instead of a silent bounce there.
   const user = await requireUser(`/groups/${groupId}/admin`);
-  if (!canAdminGroup(user, groupId)) redirect(`/groups/${groupId}`);
+  if (!canAdminGroup(user, groupId)) forbidden();
 
   const group = await api.group(groupId);
   // Tier badge in the admin header — makes the group's plan visible from every

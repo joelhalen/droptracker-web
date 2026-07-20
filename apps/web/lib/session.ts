@@ -14,6 +14,19 @@ import { env, SESSION_COOKIE } from "./env";
 const OAUTH_STATE_COOKIE = "dt_oauth_state";
 const STATE_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * Clamp a user-supplied return path to a same-site path. `?redirect=` values
+ * flow into `new URL(x, siteUrl)`, where an absolute URL ("https://evil.com")
+ * or a protocol-relative one ("//evil.com", "/\evil.com" — browsers treat the
+ * backslash as a slash) would WIN over the base and turn sign-in/out into an
+ * open redirect. Anything that isn't a plain in-site path falls back to "/".
+ */
+export function safeReturnPath(value: string | null | undefined): string {
+  if (!value || !value.startsWith("/")) return "/";
+  if (value.startsWith("//") || value.startsWith("/\\")) return "/";
+  return value;
+}
+
 function sign(value: string): string {
   return createHmac("sha256", env.sessionCookieSecret).update(value).digest("base64url");
 }

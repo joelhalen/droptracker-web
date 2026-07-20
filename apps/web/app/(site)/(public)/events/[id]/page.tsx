@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, ApiError, apiErrorCode } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import { orNotFound } from "@/lib/fetch";
+import { AccessDenied } from "@/components/access-denied";
 import { EventWindow } from "@/components/local-time";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventBoardView } from "@/components/event-board-view";
@@ -43,7 +43,51 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   // Signed-in viewers read with their session: the backend then serves draft
   // events to members of participating clans (the pre-publication landing
   // page) and includes the viewer block. Anonymous reads stay ISR-cached.
-  const event = await orNotFound(user ? api.eventForAdmin(eventId) : api.event(eventId));
+  //
+  // Access-denial handling (web57a). The backend answers:
+  //  - signed-in viewer, restricted event → 403 with code event_draft/event_private
+  //  - anonymous viewer, restricted event → 404, byte-identical to a missing
+  //    event (logged-out probing still can't tell them apart) — so the
+  //    anonymous 404 page offers a sign-in that returns here, in case the
+  //    visitor is a participant who just isn't signed in yet.
+  let event;
+  try {
+    event = await (user ? api.eventForAdmin(eventId) : api.event(eventId));
+  } catch (err) {
+    const code = apiErrorCode(err);
+    if (code === "event_draft") {
+      return (
+        <AccessDenied
+          title="This event isn't live yet"
+          message="The organizers haven't published this event, so it's only visible to event admins and members of participating clans. If your clan is taking part, ask a clan admin to add you to the group on DropTracker — then this page will open right up."
+          back={{ href: "/events", label: "Browse events" }}
+        />
+      );
+    }
+    if (code === "event_private") {
+      return (
+        <AccessDenied
+          title="This event is private"
+          message="The organizers have limited this event to members of participating clans. If your clan is taking part, ask a clan admin to add you to the group on DropTracker to get access."
+          back={{ href: "/events", label: "Browse events" }}
+        />
+      );
+    }
+    if (err instanceof ApiError && err.status === 404) {
+      if (!user) {
+        return (
+          <AccessDenied
+            title="Event not available"
+            message="This event doesn't exist — or it's restricted to participants. If someone shared this link with you, sign in with Discord and we'll bring you back here to check your access."
+            signInReturnTo={`/events/${eventId}`}
+            back={{ href: "/events", label: "Browse events" }}
+          />
+        );
+      }
+      notFound();
+    }
+    throw err;
+  }
 
   // Board-game events (web44a): the dice board replaces the bingo grid.
   const board =

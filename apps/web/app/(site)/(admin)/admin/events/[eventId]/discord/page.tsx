@@ -3,7 +3,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
-import { orNotFound } from "@/lib/fetch";
+import { orAccessDenied } from "@/lib/fetch";
 import { EventDiscordSettings } from "@/components/event-discord";
 
 export const metadata: Metadata = { title: "Event Discord settings" };
@@ -18,7 +18,7 @@ export default async function AdminEventDiscordPage({ params }: { params: Params
   const evId = Number(eventId);
   if (!Number.isFinite(evId)) notFound();
 
-  const event = await orNotFound(api.eventForAdmin(evId));
+  const event = await orAccessDenied(api.eventForAdmin(evId));
   if (event.group_id != null) {
     redirect(`/groups/${event.group_id}/events/${event.id}/discord`);
   }

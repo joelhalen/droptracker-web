@@ -11,32 +11,15 @@
  *                            carrying the tier so it's highlighted on arrival
  *  - Admins several groups → dashboard, to pick which group to upgrade
  */
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Route } from "next";
-import type { Me } from "@droptracker/api-types";
-
-/** Module-level promise so N tier cards share a single /api/me request. */
-let mePromise: Promise<Me | null> | null = null;
-function fetchMe(): Promise<Me | null> {
-  mePromise ??= fetch("/api/me", { cache: "no-store" })
-    .then((r) => (r.ok ? (r.json() as Promise<Me>) : null))
-    .catch(() => null);
-  return mePromise;
-}
+import { useMe } from "@/lib/use-me";
 
 const CTA_CLASS =
   "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-5 block truncate rounded px-3 py-2 text-center text-sm font-medium transition-colors";
 
 export function PremiumTierCta({ tierKey }: { tierKey: string }) {
-  const [me, setMe] = useState<Me | null | undefined>(undefined);
-  useEffect(() => {
-    let active = true;
-    fetchMe().then((data) => active && setMe(data));
-    return () => {
-      active = false;
-    };
-  }, []);
+  const me = useMe();
 
   if (me === undefined) {
     return <span className="bg-osrs-bronze/20 mt-5 block h-9 animate-pulse rounded" aria-hidden />;

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
-import { orNotFound } from "@/lib/fetch";
+import { orAccessDenied } from "@/lib/fetch";
 import { EventManager } from "@/components/event-manager";
 
 export const metadata: Metadata = { title: "Manage event" };
@@ -16,7 +16,7 @@ export default async function AdminManageEventPage({ params }: { params: Params 
   const evId = Number(eventId);
   if (!Number.isFinite(evId)) notFound();
 
-  const event = await orNotFound(api.eventForAdmin(evId));
+  const event = await orAccessDenied(api.eventForAdmin(evId));
   if (event.group_id != null) {
     redirect(`/groups/${event.group_id}/events/${event.id}`);
   }

@@ -4,13 +4,13 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
-import { issueOAuthState, setSession } from "@/lib/session";
+import { issueOAuthState, safeReturnPath, setSession } from "@/lib/session";
 
 const DISCORD_AUTHORIZE = "https://discord.com/api/oauth2/authorize";
 const SCOPES = ["identify", "guilds"];
 
 export async function GET(req: NextRequest) {
-  const redirectTo = req.nextUrl.searchParams.get("redirect") ?? "/";
+  const redirectTo = safeReturnPath(req.nextUrl.searchParams.get("redirect"));
   const state = await issueOAuthState(redirectTo);
 
   if (!env.discord.clientId) {

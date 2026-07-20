@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
     // Group-icon uploads travel through a Server Action as multipart FormData;
     // the backend caps icons at 2 MB, so allow headroom over the 1 MB default.
     serverActions: { bodySizeLimit: "3mb" },
+    // unauthorized()/forbidden() interrupts (web57a access-denied pages): role
+    // failures render app/(site)/{unauthorized,forbidden}.tsx with real
+    // 401/403 statuses instead of silently redirecting home.
+    authInterrupts: true,
   },
   async rewrites() {
     // Legacy PayPal IPN endpoint. Pre-cutover group subscriptions are PayPal

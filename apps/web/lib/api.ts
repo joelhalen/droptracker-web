@@ -363,6 +363,16 @@ export class ApiError extends Error {
   }
 }
 
+/** Machine-readable reason code from an ApiError's problem body (the `code`
+ * extension member — e.g. "event_private", "event_draft", "staff_required"),
+ * or null. Lets pages branch on WHY access was denied without string-matching
+ * human-readable titles. */
+export function apiErrorCode(err: unknown): string | null {
+  if (!(err instanceof ApiError)) return null;
+  const code = err.problem?.code;
+  return typeof code === "string" ? code : null;
+}
+
 /** Build an ApiError from a non-OK response, parsing the RFC-7807 body once so
  * both the human message and any extension members (`count`/`total`/`type`)
  * are available to callers. */

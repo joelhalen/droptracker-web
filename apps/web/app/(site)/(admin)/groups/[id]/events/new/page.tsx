@@ -2,7 +2,7 @@ import type { Metadata, Route } from "next";
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import { orNotFound } from "@/lib/fetch";
+import { orAccessDenied } from "@/lib/fetch";
 import { EventCreateEntry } from "@/components/event-create-entry";
 import { FeatureGate } from "@/components/feature-gate";
 
@@ -35,7 +35,7 @@ export default async function NewEventPage({
   if (eventParam) {
     const evId = Number(eventParam);
     if (!Number.isFinite(evId)) notFound();
-    initialEvent = await orNotFound(api.eventForAdmin(evId));
+    initialEvent = await orAccessDenied(api.eventForAdmin(evId));
     // Only drafts run through guided setup — anything live is managed.
     if (initialEvent.status !== "draft") {
       redirect(`/groups/${groupId}/events/${evId}` as Route);

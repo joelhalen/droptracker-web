@@ -2,8 +2,18 @@
  * Server-side auth helpers for authed route groups. The API is the source of
  * truth (FRONTEND_PLAN.md §7.2); these helpers resolve the session via the BFF
  * client and gate rendering.
+ *
+ * Two rejection styles (web57a):
+ *  - `requireUser` (personal pages — dashboard, settings, tickets): signing in
+ *    always suffices, so it redirects straight into Discord OAuth and returns
+ *    here — no interstitial worth showing.
+ *  - `requireSuperadmin` / `requireModerator` (role-gated subtrees): signing
+ *    in may NOT suffice, so these throw `unauthorized()` / `forbidden()`
+ *    instead — rendering the (site) interrupt boundaries with an explanation
+ *    (and a sign-in button on the 401 side) rather than silently bouncing
+ *    the visitor home.
  */
-import { redirect } from "next/navigation";
+import { forbidden, redirect, unauthorized } from "next/navigation";
 import type { Me } from "@droptracker/api-types";
 import { api } from "./api";
 
@@ -19,17 +29,22 @@ export async function requireUser(returnTo: string): Promise<Me> {
   return user;
 }
 
-/** Require site-staff (superadmin); send non-staff home (FRONTEND_PLAN.md §9). */
-export async function requireSuperadmin(returnTo: string): Promise<Me> {
-  const user = await requireUser(returnTo);
-  if (!user.is_superadmin) redirect("/");
+/** Require site-staff (superadmin); non-staff get the 403 interrupt page,
+ *  signed-out visitors the 401 sign-in page. The `_returnTo` argument is
+ *  vestigial (the unauthorized boundary derives the return path from the
+ *  URL); kept so the ~50 existing call sites don't churn. */
+export async function requireSuperadmin(_returnTo?: string): Promise<Me> {
+  const user = await getUser();
+  if (!user) unauthorized();
+  if (!user.is_superadmin) forbidden();
   return user;
 }
 
-/** Require moderator-or-superadmin; send others home. Gates /moderation. */
-export async function requireModerator(returnTo: string): Promise<Me> {
-  const user = await requireUser(returnTo);
-  if (!user.is_moderator && !user.is_superadmin) redirect("/");
+/** Require moderator-or-superadmin; same rejection shape as requireSuperadmin. */
+export async function requireModerator(_returnTo?: string): Promise<Me> {
+  const user = await getUser();
+  if (!user) unauthorized();
+  if (!user.is_moderator && !user.is_superadmin) forbidden();
   return user;
 }
 

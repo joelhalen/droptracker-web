@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { orNotFound } from "../lib/fetch";
-import { ApiError } from "../lib/api";
+import { orAccessDenied, orNotFound } from "../lib/fetch";
+import { ApiError, apiErrorCode } from "../lib/api";
 
 /**
  * `notFound()` throws a framework-internal error distinguished by its digest.
@@ -37,4 +37,43 @@ test("plain Error mentioning 404 still triggers notFound() (legacy fallback)", a
 test("plain Error without 404 rethrows", async () => {
   const err = new Error("connect ECONNREFUSED");
   await assert.rejects(orNotFound(Promise.reject(err)), (thrown: unknown) => thrown === err);
+});
+
+/** Interrupt digests for unauthorized()/forbidden() (authInterrupts, web57a). */
+function isHttpInterrupt(status: number) {
+  return (err: unknown): boolean =>
+    ((err as { digest?: string })?.digest ?? "") === `NEXT_HTTP_ERROR_FALLBACK;${status}`;
+}
+
+// unauthorized()/forbidden() runtime-guard on this env var; next.config.ts's
+// `experimental.authInterrupts: true` sets it in real builds, node:test must
+// set it itself (checked at call time, so before-the-test is early enough).
+process.env.__NEXT_EXPERIMENTAL_AUTH_INTERRUPTS = "1";
+
+test("orAccessDenied maps 401/403/404 to interrupts and rethrows the rest", async () => {
+  assert.deepEqual(await orAccessDenied(Promise.resolve({ ok: true })), { ok: true });
+  await assert.rejects(
+    orAccessDenied(Promise.reject(new ApiError(401, "Not authenticated"))),
+    isHttpInterrupt(401),
+  );
+  await assert.rejects(
+    orAccessDenied(Promise.reject(new ApiError(403, "Forbidden"))),
+    isHttpInterrupt(403),
+  );
+  await assert.rejects(
+    orAccessDenied(Promise.reject(new ApiError(404, "No event 5."))),
+    isNotFoundThrow,
+  );
+  const err = new ApiError(500, "boom");
+  await assert.rejects(orAccessDenied(Promise.reject(err)), (thrown: unknown) => thrown === err);
+});
+
+test("apiErrorCode reads the problem body's code member", () => {
+  assert.equal(
+    apiErrorCode(new ApiError(403, "Event restricted", { code: "event_private" })),
+    "event_private",
+  );
+  assert.equal(apiErrorCode(new ApiError(403, "Forbidden")), null);
+  assert.equal(apiErrorCode(new ApiError(403, "Forbidden", { code: 7 })), null);
+  assert.equal(apiErrorCode(new Error("nope")), null);
 });

@@ -1,7 +1,7 @@
 import type { Metadata, Route } from "next";
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
-import { orNotFound } from "@/lib/fetch";
+import { orAccessDenied } from "@/lib/fetch";
 import { EventCreateEntry } from "@/components/event-create-entry";
 
 export const metadata: Metadata = { title: "New global event" };
@@ -21,7 +21,7 @@ export default async function NewGlobalEventPage({
   if (eventParam) {
     const evId = Number(eventParam);
     if (!Number.isFinite(evId)) notFound();
-    initialEvent = await orNotFound(api.eventForAdmin(evId));
+    initialEvent = await orAccessDenied(api.eventForAdmin(evId));
     if (initialEvent.status !== "draft") {
       redirect(`/admin/events/${evId}` as Route);
     }
