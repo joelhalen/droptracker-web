@@ -68,7 +68,7 @@ function ItemCell({
       >
         {fmt(shownPts)}
       </span>
-      <ItemDbIcon itemId={def.item_id} size={38} className={obtained ? "" : "opacity-25 grayscale"} />
+      <ItemDbIcon itemId={def.item_id} size={38} gray={!obtained} className={obtained ? "" : "opacity-25"} />
       {/* one tab per allowed receipt; filled for each one obtained */}
       <div className="flex max-w-[44px] flex-wrap justify-center gap-[2px]" aria-label={`${count} of ${maxAwards} received`}>
         {Array.from({ length: maxAwards }).map((_, i) => (

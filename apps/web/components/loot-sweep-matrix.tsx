@@ -151,7 +151,11 @@ function ReceiptCell({
             key={i}
             itemId={iconId}
             size={iconSize}
-            className={i < filled ? "" : "opacity-25 grayscale"}
+            // Not-yet-received tabs use the pre-baked grayscale icon (no
+            // client-side filter raster — the desktop scroll-jank fix); opacity
+            // stays as a cheap CSS dim.
+            gray={i >= filled}
+            className={i < filled ? "" : "opacity-25"}
           />
         ))}
       </div>

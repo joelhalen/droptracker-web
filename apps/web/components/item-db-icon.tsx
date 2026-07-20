@@ -11,16 +11,25 @@ export function ItemDbIcon({
   itemId,
   size = 20,
   className = "",
+  gray = false,
 }: {
   itemId: number | null | undefined;
   /** Width/height in CSS pixels. */
   size?: number;
   className?: string;
+  /** Load the pre-baked grayscale variant (`/img/itemdb/gray/{id}.png`) rather
+   * than applying a client-side `filter: grayscale()`. The Loot Sweep board
+   * renders hundreds of greyed "not yet received" receipt tabs, and the
+   * per-element filter raster on every scroll reveal was the desktop scroll-jank
+   * cost — a static desaturated PNG makes it a plain (cached) bitmap blit.
+   * Falls back to the colour icon once if the variant isn't ready yet. */
+  gray?: boolean;
 }) {
   if (itemId == null) return null;
+  const src = gray ? `${IMG_BASE}/itemdb/gray/${itemId}.png` : `${IMG_BASE}/itemdb/${itemId}.png`;
   return (
     <img
-      src={`${IMG_BASE}/itemdb/${itemId}.png`}
+      src={src}
       alt=""
       width={size}
       height={size}
@@ -31,7 +40,15 @@ export function ItemDbIcon({
       decoding="async"
       className={`inline-block shrink-0 object-contain ${className}`}
       onError={(e) => {
-        (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+        const el = e.currentTarget as HTMLImageElement;
+        // Grayscale variant not baked yet (backend still generating it): fall
+        // back to the colour icon once so a receipt tab is never blank.
+        if (gray && el.dataset.grayFellBack !== "1") {
+          el.dataset.grayFellBack = "1";
+          el.src = `${IMG_BASE}/itemdb/${itemId}.png`;
+          return;
+        }
+        el.style.visibility = "hidden";
       }}
     />
   );
