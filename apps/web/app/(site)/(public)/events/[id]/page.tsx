@@ -10,6 +10,7 @@ import { EventBoardView } from "@/components/event-board-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
 import { EventTaskBoard } from "@/components/event-task-progress";
+import { EventCompletionHistory } from "@/components/event-completion-history";
 import { EventTeamsPanel } from "@/components/event-teams-panel";
 import { PrizePotPanel } from "@/components/prize-pot-panel";
 import { EmptyState } from "@/components/ui";
@@ -215,6 +216,24 @@ export default async function EventDetailPage({ params }: { params: Params }) {
           {potPanel}
         </aside>
         </div>
+      )}
+
+      {/* Centralized completion history — every task completion / point award
+          in one auditable, filterable timeline (web57a). */}
+      {event.status !== "draft" && (event.teams.length > 0 || event.tasks.length > 0) && (
+        <section>
+          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+            Completion history
+          </h2>
+          <p className="text-osrs-parchment-dark/60 mb-4 max-w-2xl text-sm">
+            Every recorded task completion and the points it earned — who pulled it, for which team,
+            and when.
+          </p>
+          <EventCompletionHistory
+            eventId={event.id}
+            teams={event.teams.map((t) => ({ id: t.id, name: t.name }))}
+          />
+        </section>
       )}
     </div>
   );

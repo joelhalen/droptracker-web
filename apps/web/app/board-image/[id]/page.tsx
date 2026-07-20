@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { env } from "@/lib/env";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventBoardView } from "@/components/event-board-view";
+import { LootSweepStandings } from "@/components/loot-sweep-standings";
 
 /**
  * Chrome-less render of an event's live board, sized for a 1:1 screenshot the
@@ -45,10 +46,16 @@ export default async function BoardImagePage({
     event.kind === "board_game"
       ? await api.eventBoardForRender(eventId, token).catch(() => null)
       : null;
+  // Loot Sweep renders a COMPACT standings leaderboard (not the full per-item
+  // matrix, which is far too tall to screenshot for a game-wide sweep).
+  const sweep =
+    event.kind === "loot_sweep"
+      ? await api.eventLootSweepSummaryForRender(eventId, token).catch(() => null)
+      : null;
 
-  // Only bingo / board-game events have a visual board; anything else (a plain
-  // task-list event) has nothing to screenshot.
-  if (!board && !event.bingo) notFound();
+  // Only bingo / board-game / loot-sweep events have a visual board; anything
+  // else (a plain task-list event) has nothing to screenshot.
+  if (!board && !event.bingo && !sweep) notFound();
 
   const teams = event.teams.map((t) => ({ id: t.id, name: t.name, color: t.color }));
   // Team-scoped render (web54a): the per-team Discord channel posts screenshot
@@ -85,6 +92,7 @@ export default async function BoardImagePage({
             initialSelectedTeam={selectedTeam}
           />
         )}
+        {sweep && <LootSweepStandings summary={sweep} highlightTeamId={selectedTeam} />}
       </div>
     </>
   );

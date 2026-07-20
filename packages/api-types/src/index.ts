@@ -2283,7 +2283,8 @@ export const LootSweepGroupSchema = z.object({
   image_url: z.string().nullable().optional(),
   /** Board only: the primary NPC's game id, for `npcdb/{id}.png` artwork. */
   npc_id: z.number().int().nullable().optional(),
-  /** Awarded when all this group's gating items are collected once. */
+  /** Scored each time all this group's gating items are collected once (a
+   * "clear"); repeatable and decaying like an item, up to `bonus_max` clears. */
   bonus_points: z.number().int(),
   bonus_max: z.number().int(),
   items: z.array(LootSweepConfigItemSchema),
@@ -2295,7 +2296,8 @@ export const LootSweepConfigSchema = z.object({
   kind: z.literal("loot_sweep"),
   decay_percent: z.number().int(),
   decay_mode: z.enum(LOOT_SWEEP_DECAY_MODES),
-  /** Awarded once EVERY group is complete (0 = no whole-set bonus). */
+  /** Scored each time EVERY group is cleared (0 = no whole-set bonus);
+   * repeatable and decaying like an item, up to `set_bonus_max` clears. */
   set_bonus_points: z.number().int(),
   set_bonus_max: z.number().int(),
   groups: z.array(LootSweepGroupSchema),
@@ -2396,6 +2398,33 @@ export const LootSweepReceiptsSchema = z.object({
   ),
 });
 export type LootSweepReceipts = z.infer<typeof LootSweepReceiptsSchema>;
+
+/** GET /events/{id}/loot-sweep/summary — the compact standings the Discord
+ * board image renders (a leaderboard, NOT the full per-item matrix, which is
+ * far too tall to screenshot for a game-wide sweep). */
+export const LootSweepSummaryTeamSchema = z.object({
+  team_id: z.number().int(),
+  rank: z.number().int(),
+  name: z.string(),
+  color: z.string().nullable().optional(),
+  score: z.number(),
+  sets_completed: z.number().int(),
+  top_sets: z.array(
+    z.object({
+      label: z.string().nullable(),
+      npc_id: z.number().int().nullable().optional(),
+      points: z.number(),
+    }),
+  ),
+});
+export const LootSweepSummarySchema = z.object({
+  event_id: z.number().int(),
+  event_name: z.string(),
+  status: z.string(),
+  sets_total: z.number().int(),
+  teams: z.array(LootSweepSummaryTeamSchema),
+});
+export type LootSweepSummary = z.infer<typeof LootSweepSummarySchema>;
 
 /** PUT /events/{id}/board — the designer's autosave payload. Exactly one of
  * difficulty / task_id / library_item_id per tile (or none = rest tile). */

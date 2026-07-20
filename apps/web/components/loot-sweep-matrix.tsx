@@ -95,6 +95,8 @@ function BossArt({ src, size }: { src: string | null; size: number }) {
       src={src}
       alt=""
       style={{ width: size, height: size }}
+      loading="lazy"
+      decoding="async"
       className="shrink-0 object-contain"
       onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
     />
@@ -173,37 +175,70 @@ function ReceiptCell({
   );
 }
 
-/** Section tally: one box per required unique (or per group on a meta-set),
- * filled as collected; a gold ring marks the bonus banked. */
+/** Section tally — a compact collection-log strip: one cell per required
+ * unique (or per group on a meta-set) that fills as the pieces come in. Once
+ * the whole thing is cleared the cells turn gold (banked) and a "✓×N" counter
+ * shows how many times it's been cleared — because a clear is repeatable and
+ * each repeat scores a little less (it decays like an item). */
 function TallyBoxes({
   got,
   of,
+  completions,
   color,
-  done,
   wide,
 }: {
   got: number;
   of: number;
+  /** Times the set/section has been fully cleared (repeatable). */
+  completions: number;
   color: string;
-  done: boolean;
   wide: boolean;
 }) {
+  const cleared = completions > 0;
+  const cell = wide ? "h-[12px] w-[12px]" : "h-[10px] w-[10px]";
   return (
     <div
-      className={`flex flex-wrap justify-center gap-[2px] ${wide ? "max-w-[118px]" : "max-w-[58px]"} ${
-        done ? "ring-osrs-gold/50 rounded-[3px] p-0.5 ring-1" : ""
-      }`}
-      aria-label={`${got} of ${of} collected${done ? ", bonus banked" : ""}`}
+      className="flex items-center justify-center gap-1"
+      aria-label={cleared ? `cleared ${completions} time(s)` : `${got} of ${of} collected`}
     >
-      {Array.from({ length: of }).map((_, i) => (
+      <div className={`flex flex-wrap justify-center gap-[3px] ${wide ? "max-w-[104px]" : "max-w-[54px]"}`}>
+        {Array.from({ length: of }).map((_, i) => {
+          const filled = i < got;
+          return (
+            <span
+              key={i}
+              className={`rounded-[3px] transition-colors ${cell} ${
+                filled
+                  ? cleared
+                    ? "bg-osrs-gold shadow-[inset_0_1px_0_rgba(255,255,255,0.5)]"
+                    : "shadow-[inset_0_1px_0_rgba(255,255,255,0.35)]"
+                  : "border-osrs-stone/40 bg-osrs-surface-2/50 border"
+              }`}
+              style={filled && !cleared ? { backgroundColor: color } : undefined}
+            />
+          );
+        })}
+      </div>
+      {cleared && (
         <span
-          key={i}
-          className={`rounded-[2px] border ${wide ? "h-[11px] w-[11px]" : "h-[9px] w-[9px]"} ${
-            i < got ? "" : "border-osrs-stone/50"
-          }`}
-          style={i < got ? { backgroundColor: color, borderColor: color } : undefined}
-        />
-      ))}
+          className="text-osrs-gold-bright ring-osrs-gold/40 bg-osrs-gold/10 inline-flex items-center gap-[1px] rounded-full px-1 py-[1px] text-[10px] font-bold leading-none tabular-nums ring-1"
+          title={`Cleared ${completions}×`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-[9px] w-[9px]"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          {completions > 1 ? `×${completions}` : null}
+        </span>
+      )}
     </div>
   );
 }
@@ -223,7 +258,7 @@ function SetCell({
   wide: boolean;
 }) {
   const multiGroup = set.groups.length > 1;
-  let done: boolean;
+  let completions: number;
   let got: number;
   let of: number;
   if (multiGroup) {
@@ -233,19 +268,23 @@ function SetCell({
         (team?.groups[gi]?.awarded ?? 0) > 0,
     ).length;
     of = gatingGroups;
-    done = (team?.set_awarded ?? 0) > 0;
+    completions = team?.set_completions ?? 0;
   } else {
     const counts = gatingCounts(set.groups[0]!, team?.groups[0]);
     got = counts.got;
     of = counts.of;
-    done = (team?.groups[0]?.awarded ?? 0) > 0;
+    completions = team?.groups[0]?.completions ?? 0;
   }
+  const unit = multiGroup ? "sets" : "pieces";
   const title =
-    `${set.label} — ${col.name}: ${got}/${of} ${multiGroup ? "groups" : "uniques"}` +
-    `${done ? " · bonus banked" : ""} · ${fmt(team?.total ?? 0)} pts in this set`;
+    `${set.label} — ${col.name}: ` +
+    (completions > 0
+      ? `cleared ${completions}×${completions > 1 ? " (each repeat scores less — decays)" : ""}`
+      : `${got}/${of} ${unit} collected`) +
+    ` · ${fmt(team?.total ?? 0)} pts in this set`;
   return (
     <div title={title}>
-      <TallyBoxes got={got} of={of} color={col.color} done={done} wide={wide} />
+      <TallyBoxes got={got} of={of} completions={completions} color={col.color} wide={wide} />
     </div>
   );
 }
@@ -416,6 +455,19 @@ export function LootSweepMatrix({
     Math.floor(((bodyW || 1100) - railW) / cols.length),
   );
   const gridTemplate = `${railW}px repeat(${cols.length}, ${iconTabs ? iconColW : colW}px)`;
+  // Rows are as wide as their fixed grid tracks (this exact px sum == their
+  // `max-content` width, so the layout is pixel-identical). Setting it EXPLICITLY
+  // instead of `w-max` gives `content-visibility:auto` a definite inline size —
+  // otherwise the browser must lay out every row's contents to find its
+  // max-content width, which defeats the off-screen skip and keeps big boards
+  // janky to scroll. `minWidth:100%` still stretches short rows to fill.
+  const rowW = railW + cols.length * (iconTabs ? iconColW : colW);
+  const rowBase: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: gridTemplate,
+    width: rowW,
+    minWidth: "100%",
+  };
 
   const toggleSet = (taskId: number) =>
     setCollapsed((prev) => {
@@ -536,7 +588,7 @@ export function LootSweepMatrix({
           className="border-osrs-bronze/25 bg-osrs-surface-2 shadow-osrs-card sticky z-30 overflow-x-hidden rounded-t-lg border"
           style={{ top: headerTop }}
         >
-          <div className="w-max min-w-full" style={{ display: "grid", gridTemplateColumns: gridTemplate }}>
+          <div style={rowBase}>
             <div className={`${railBase} bg-osrs-surface-2 text-osrs-parchment-dark/50 flex items-end px-3 pb-2 pt-3 text-[11px] uppercase tracking-wider`}>
               Boss / item
             </div>
@@ -602,8 +654,8 @@ export function LootSweepMatrix({
               return (
                 <div
                   key={`set-${row.set.task_id}`}
-                  className="bg-osrs-surface-2 border-osrs-bronze/20 w-max min-w-full border-t first:border-t-0"
-                  style={{ display: "grid", gridTemplateColumns: gridTemplate }}
+                  className="bg-osrs-surface-2 border-osrs-bronze/20 border-t first:border-t-0"
+                  style={{ ...rowBase, contentVisibility: "auto", containIntrinsicSize: "auto 56px" }}
                 >
                   <div className={`${railBase} bg-osrs-surface-2 flex items-center gap-1.5 px-2 py-1.5`}>
                     <button
@@ -629,20 +681,27 @@ export function LootSweepMatrix({
                         content={<SectionInfoCard set={row.set} />}
                       >
                         <BossArt src={art} size={compact ? 26 : 34} />
-                        <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                        <span className="flex min-w-0 flex-1 flex-col leading-snug">
                           <span className="text-osrs-gold truncate text-sm font-semibold">
                             {row.set.label}
                           </span>
                           <span
-                            className="text-osrs-parchment-dark/60 truncate text-[11px]"
-                            title={`Clear this section for ${fmt(clearPts)} pts (up to ${fmt(maxPts)} with duplicates)`}
+                            className="text-osrs-parchment-dark/55 text-[11px]"
+                            title={
+                              bonus > 0
+                                ? `Clear it once for ${fmt(clearPts)} pts — up to ${fmt(maxPts)} available. Collecting all ${row.multiGroup ? "sets" : "items"} scores +${fmt(bonus)} pts, repeatable up to ${bonusMax}× (each repeat decays).`
+                                : `Clear it once for ${fmt(clearPts)} pts — up to ${fmt(maxPts)} available.`
+                            }
                           >
-                            <span className="text-osrs-gold-bright tabular-nums">{fmt(clearPts)}</span> pts
+                            <span className="text-osrs-gold-bright tabular-nums">{fmt(maxPts)}</span> pts
+                            available
                             {bonus > 0 && (
                               <span className="text-osrs-parchment-dark/45">
-                                {" "}
-                                · +{fmt(bonus)}
-                                {bonusMax > 1 ? ` ×${bonusMax}` : ""} set
+                                {" · "}all {row.multiGroup ? "sets" : "items"} ={" "}
+                                <span className="text-osrs-gold-bright/90 tabular-nums">
+                                  +{fmt(bonus)}
+                                </span>
+                                {bonusMax > 1 ? ` (×${bonusMax}, decays)` : ""}
                               </span>
                             )}
                           </span>
@@ -677,8 +736,8 @@ export function LootSweepMatrix({
               return (
                 <div
                   key={`group-${row.set.task_id}-${row.groupIdx}`}
-                  className="bg-osrs-surface-1 border-osrs-bronze/10 w-max min-w-full border-t"
-                  style={{ display: "grid", gridTemplateColumns: gridTemplate }}
+                  className="bg-osrs-surface-1 border-osrs-bronze/10 border-t"
+                  style={{ ...rowBase, contentVisibility: "auto", containIntrinsicSize: "auto 40px" }}
                 >
                   {preview ? (
                     <div className={`${railBase} bg-osrs-surface-1 flex items-center gap-1.5 py-1.5 pl-6 pr-3`}>
@@ -707,7 +766,7 @@ export function LootSweepMatrix({
                   {cols.map((col) => {
                     const tg = setTeams?.get(col.id)?.groups[row.groupIdx];
                     const counts = gatingCounts(row.group, tg);
-                    const done = (tg?.awarded ?? 0) > 0;
+                    const completions = tg?.completions ?? 0;
                     return (
                       <div
                         key={col.id}
@@ -718,15 +777,19 @@ export function LootSweepMatrix({
                         title={
                           preview
                             ? undefined
-                            : `${row.group.label || row.group.npcs[0] || "Group"} — ${col.name}: ${counts.got}/${counts.of} uniques${done ? " · bonus banked" : ""}`
+                            : `${row.group.label || row.group.npcs[0] || "Group"} — ${col.name}: ${
+                                completions > 0
+                                  ? `cleared ${completions}×${completions > 1 ? " (each repeat scores less)" : ""}`
+                                  : `${counts.got}/${counts.of} pieces collected`
+                              }`
                         }
                       >
                         {!preview && (
                           <TallyBoxes
                             got={counts.got}
                             of={counts.of}
+                            completions={completions}
                             color={col.color}
-                            done={done}
                             wide={iconTabs}
                           />
                         )}
@@ -742,10 +805,9 @@ export function LootSweepMatrix({
             return (
               <div
                 key={`item-${row.set.task_id}-${row.groupIdx}-${row.itemIdx}`}
-                className="border-osrs-bronze/10 bg-osrs-surface-1 w-max min-w-full border-t"
+                className="border-osrs-bronze/10 bg-osrs-surface-1 border-t"
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: gridTemplate,
+                  ...rowBase,
                   contentVisibility: "auto",
                   containIntrinsicSize: iconTabs ? "auto 48px" : "auto 37px",
                 }}

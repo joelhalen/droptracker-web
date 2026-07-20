@@ -165,41 +165,60 @@ export function SectionInfoCard({
       ? groupClearPoints(set.groups[groupIdx]!, set.decay_percent, set.decay_mode)
       : sectionClearPoints(set);
   const max = sectionMaxPoints(set);
+
+  // Split the items so it's obvious which ones you actually need for a clear:
+  // gating items (1 of each = a clear) vs BONUS/PET items that score on their
+  // own but are never part of the set requirement.
+  const all = groups.flatMap((g, gi) =>
+    g.items.map((it, ii) => ({ it, key: `${gi}-${ii}` })),
+  );
+  const required = all.filter(({ it }) => it.counts_for_group !== false);
+  const bonus = all.filter(({ it }) => it.counts_for_group === false);
+
+  const renderItem = ({ it, key }: (typeof all)[number]) => {
+    const isBonus = it.counts_for_group === false;
+    return (
+      <li key={key} className="flex items-center gap-2 text-xs">
+        <IconCluster ids={iconIdsOf(it)} size={18} max={3} />
+        <span className="text-osrs-parchment min-w-0 flex-1 truncate">
+          {it.item_name}
+          {(it.required ?? 1) > 1 && (
+            <span className="text-osrs-parchment-dark/50"> ×{it.required}</span>
+          )}
+          {isBonus && (
+            <span className="text-osrs-gold/60 ml-1 text-[9px] uppercase">
+              {it.source === "pet" ? "pet" : "bonus"}
+            </span>
+          )}
+        </span>
+        <span className="text-osrs-gold-bright shrink-0 tabular-nums">{fmt(it.points)}</span>
+      </li>
+    );
+  };
+
+  const caption = "text-osrs-parchment-dark/50 text-[10px] font-medium uppercase tracking-wider";
   return (
     <div className="p-3 text-sm">
       <p className="text-osrs-gold truncate font-semibold">{title}</p>
       <p className="text-osrs-parchment-dark/60 mt-0.5 text-xs">
         Clear it for <span className="text-osrs-gold-bright font-medium">{fmt(clear)} pts</span>
-        {groupIdx == null && <> · up to {fmt(max)} with duplicates</>}
+        <span className="text-osrs-parchment-dark/50">
+          {" "}
+          — clear it again for less each time (decays {set.decay_percent}%)
+          {groupIdx == null && <>, up to {fmt(max)} total</>}
+        </span>
       </p>
       <div className={CARD_SECTION_CLASS}>
-        <ul className="space-y-1.5">
-          {groups.flatMap((g, gi) =>
-            g.items.map((it, ii) => {
-              const ids = iconIdsOf(it);
-              const bonus = it.counts_for_group === false;
-              return (
-                <li key={`${gi}-${ii}`} className="flex items-center gap-2 text-xs">
-                  <IconCluster ids={ids} size={18} max={3} />
-                  <span className="text-osrs-parchment min-w-0 flex-1 truncate">
-                    {it.item_name}
-                    {(it.required ?? 1) > 1 && (
-                      <span className="text-osrs-parchment-dark/50"> ×{it.required}</span>
-                    )}
-                    {bonus && (
-                      <span className="text-osrs-gold/60 ml-1 text-[9px] uppercase">
-                        {it.source === "pet" ? "pet" : "bonus"}
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-osrs-gold-bright shrink-0 tabular-nums">
-                    {fmt(it.points)}
-                  </span>
-                </li>
-              );
-            }),
-          )}
-        </ul>
+        {bonus.length === 0 ? (
+          <ul className="space-y-1.5">{all.map(renderItem)}</ul>
+        ) : (
+          <>
+            <p className={`${caption} mb-1.5`}>Need to clear · 1 of each</p>
+            <ul className="space-y-1.5">{required.map(renderItem)}</ul>
+            <p className={`${caption} mb-1.5 mt-3`}>Bonus · extra points, not required</p>
+            <ul className="space-y-1.5">{bonus.map(renderItem)}</ul>
+          </>
+        )}
       </div>
     </div>
   );

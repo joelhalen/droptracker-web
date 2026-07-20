@@ -3,9 +3,11 @@
 /**
  * Loot Sweep set editor (v2) — the authoring side of a `loot_sweep` task. A set
  * is one or more **groups** (sub-sets): each group ties items to its source
- * NPC(s), awards a bonus when its items are collected once, and the whole set
- * awards a bonus when every group is done. Items decay in batches
- * (`awardsPerTier`) — the live preview shows the exact sequence.
+ * NPC(s) and awards a bonus each time its items are collected once, and the
+ * whole set awards a bonus each time every group is cleared. Those clear
+ * bonuses are repeatable and DECAY like an item (full, then −% per repeat, up
+ * to `bonusMax`/`setBonusMax` clears). Items decay in batches (`awardsPerTier`)
+ * — the live preview shows the exact sequence.
  *
  * Controlled: the parent (event-task-form) owns a `LootSweepDraft` and turns it
  * into the task `config` via {@link lootSweepToConfig}.
@@ -57,11 +59,16 @@ export type LootSweepDraft = {
   groups: LootSweepGroupDraft[];
 };
 
+// Clear bonuses decay + repeat like an item, so by default they can pay over
+// the 5 decay tiers (full, 80%, 60%, 40%, 20%). Mirrors the backend default
+// (services.loot_sweep.DEFAULT_{GROUP,SET}_BONUS_MAX).
+const DEFAULT_BONUS_MAX = 5;
+
 const emptyGroup = (): LootSweepGroupDraft => ({
   label: "",
   npcs: [],
   bonusPoints: 0,
-  bonusMax: 1,
+  bonusMax: DEFAULT_BONUS_MAX,
   items: [],
   imageUrl: null,
 });
@@ -71,7 +78,7 @@ export function emptyLootSweepDraft(): LootSweepDraft {
     decayPercent: 20,
     decayMode: "linear",
     setBonusPoints: 0,
-    setBonusMax: 1,
+    setBonusMax: DEFAULT_BONUS_MAX,
     groups: [emptyGroup()],
   };
 }
@@ -92,7 +99,7 @@ export function lootSweepFromConfig(config: Record<string, unknown> | null | und
       id: null,
     })),
     bonusPoints: typeof g.bonus_points === "number" ? g.bonus_points : 0,
-    bonusMax: typeof g.bonus_max === "number" ? g.bonus_max : 1,
+    bonusMax: typeof g.bonus_max === "number" ? g.bonus_max : DEFAULT_BONUS_MAX,
     imageUrl: typeof g.image_url === "string" ? g.image_url : null,
     items: (Array.isArray(g.items) ? (g.items as Record<string, unknown>[]) : []).map((it) => ({
       name: String(it.item_name ?? it.name ?? ""),
@@ -111,7 +118,7 @@ export function lootSweepFromConfig(config: Record<string, unknown> | null | und
     decayPercent: typeof c.decay_percent === "number" ? c.decay_percent : 20,
     decayMode: c.decay_mode === "geometric" ? "geometric" : "linear",
     setBonusPoints: typeof c.set_bonus_points === "number" ? c.set_bonus_points : 0,
-    setBonusMax: typeof c.set_bonus_max === "number" ? c.set_bonus_max : 1,
+    setBonusMax: typeof c.set_bonus_max === "number" ? c.set_bonus_max : DEFAULT_BONUS_MAX,
     groups: rawGroups.length ? rawGroups.map(group) : [emptyGroup()],
   };
 }
@@ -445,7 +452,7 @@ function GroupCard({
       {/* group bonus */}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="grid gap-1 text-xs">
-          <span className="text-osrs-parchment-dark/80">Group bonus (all items once)</span>
+          <span className="text-osrs-parchment-dark/80">Group clear bonus</span>
           <QuantityInput
             min={0}
             emptyAs={0}
@@ -453,10 +460,11 @@ function GroupCard({
             onChange={(n) => patch({ bonusPoints: n })}
             disabled={disabled}
             className={field}
+            title="Points for collecting one of every gating item in this group (a 'clear'). Repeatable — each repeat clear scores less (decays like an item)."
           />
         </label>
         <label className="grid gap-1 text-xs">
-          <span className="text-osrs-parchment-dark/80">Group bonus max</span>
+          <span className="text-osrs-parchment-dark/80">Clears that score</span>
           <QuantityInput
             min={1}
             max={100}
@@ -464,6 +472,7 @@ function GroupCard({
             onChange={(n) => patch({ bonusMax: n })}
             disabled={disabled || group.bonusPoints <= 0}
             className={field}
+            title="How many times clearing this group can score. Each clear decays (full, then −% per repeat); at 20% linear it fades to 0 by the 5th, so 5 is the usual value."
           />
         </label>
       </div>
@@ -752,7 +761,7 @@ export function LootSweepEditor({
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="grid gap-1 text-xs">
-            <span className="text-osrs-parchment-dark/80">Full-set bonus (all groups)</span>
+            <span className="text-osrs-parchment-dark/80">Full-set clear bonus</span>
             <QuantityInput
               min={0}
               emptyAs={0}
@@ -760,11 +769,11 @@ export function LootSweepEditor({
               onChange={(n) => patch({ setBonusPoints: n })}
               disabled={disabled}
               className={field}
-              title="Points for completing every group. 0 = no whole-set bonus (fine for a single-boss set)."
+              title="Points for clearing every group. Repeatable — each repeat clear of the whole set scores less (decays). 0 = no whole-set bonus (fine for a single-boss set)."
             />
           </label>
           <label className="grid gap-1 text-xs">
-            <span className="text-osrs-parchment-dark/80">Full-set bonus max</span>
+            <span className="text-osrs-parchment-dark/80">Clears that score</span>
             <QuantityInput
               min={1}
               max={100}
@@ -772,6 +781,7 @@ export function LootSweepEditor({
               onChange={(n) => patch({ setBonusMax: n })}
               disabled={disabled || value.setBonusPoints <= 0}
               className={field}
+              title="How many times clearing the whole set can score, each repeat decaying. At 20% linear it fades to 0 by the 5th."
             />
           </label>
         </div>

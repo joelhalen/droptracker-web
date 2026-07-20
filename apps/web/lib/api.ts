@@ -33,6 +33,8 @@ import {
   type LootSweepBoard,
   LootSweepReceiptsSchema,
   type LootSweepReceipts,
+  LootSweepSummarySchema,
+  type LootSweepSummary,
   BoardRollResultSchema,
   type BoardRollResult,
   BoardSettingsSchema,
@@ -643,6 +645,100 @@ export interface EventDiscordChannelList {
   stale: boolean;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Completion history + manager audit log (web57a).                            */
+/* -------------------------------------------------------------------------- */
+
+/** GET /events/{id}/completions/history — public completion timeline. Hidden
+ * players are masked to "Hidden player" for non-admin viewers server-side. */
+const CompletionHistoryEntrySchema = z.object({
+  completion_id: z.number(),
+  task_id: z.number(),
+  task_label: z.string().nullable(),
+  task_type: z.string().nullable(),
+  task_points: z.number(),
+  team_id: z.number().nullable(),
+  team_name: z.string().nullable(),
+  player_id: z.number().nullable(),
+  player_name: z.string().nullable(),
+  hidden: z.boolean(),
+  matched_target: z.string().nullable(),
+  quantity: z.number(),
+  points: z.number(),
+  source_type: z.string().nullable(),
+  status: z.string(),
+  proof_url: z.string().nullable(),
+  created_at: z.number().nullable(),
+});
+const CompletionHistorySchema = z.object({
+  event_id: z.number(),
+  kind: z.string(),
+  is_admin: z.boolean(),
+  entries: z.array(CompletionHistoryEntrySchema),
+  meta: z.object({ page: z.number(), limit: z.number(), total: z.number() }),
+});
+export type CompletionHistory = z.infer<typeof CompletionHistorySchema>;
+export type CompletionHistoryEntry = z.infer<typeof CompletionHistoryEntrySchema>;
+
+/** GET /events/{id}/audit — event-scoped manager audit timeline (admin only). */
+const AuditActorSchema = z.object({
+  user_id: z.number(),
+  discord_id: z.string().nullable(),
+  username: z.string().nullable(),
+});
+const AuditEntrySchema = z.object({
+  id: z.string(),
+  source: z.enum(["ledger", "audit"]),
+  category: z.string(),
+  action: z.string(),
+  completion_id: z.number().nullable(),
+  created_at: z.number().nullable(),
+  actor: AuditActorSchema.nullable(),
+  task_id: z.number().nullable(),
+  task_label: z.string().nullable(),
+  team_id: z.number().nullable(),
+  team_name: z.string().nullable(),
+  player_id: z.number().nullable(),
+  player_name: z.string().nullable(),
+  matched_target: z.string().nullable(),
+  quantity: z.number().nullable(),
+  source_type: z.string().nullable(),
+  status: z.string().nullable(),
+  proof_url: z.string().nullable(),
+  note: z.string().nullable(),
+  before: z.string().nullable(),
+  after: z.string().nullable(),
+  target: z.string().nullable(),
+  summary: z.string(),
+});
+const EventAuditSchema = z.object({
+  event_id: z.number(),
+  entries: z.array(AuditEntrySchema),
+  meta: z.object({
+    page: z.number(),
+    limit: z.number(),
+    total: z.number(),
+    capped: z.boolean(),
+  }),
+});
+export type EventAudit = z.infer<typeof EventAuditSchema>;
+export type AuditEntry = z.infer<typeof AuditEntrySchema>;
+
+export interface EventAuditParams {
+  page?: number;
+  limit?: number;
+  category?: string[];
+  actorUserId?: number;
+  playerId?: number;
+  teamId?: number;
+  taskId?: number;
+  sourceType?: string;
+  hasProof?: boolean;
+  from?: number;
+  to?: number;
+  q?: string;
+}
+
 export const api = {
   async playerLeaderboard(params: {
     period?: string;
@@ -759,6 +855,17 @@ export const api = {
   async eventBoardForRender(eventId: number, token: string): Promise<BoardDetail> {
     return BoardDetailSchema.parse(
       await apiGet(`/events/${eventId}/board`, { internalToken: token }),
+    );
+  },
+
+  /** Compact Loot Sweep standings for the render page (internal render token) —
+   * the leaderboard the Discord board image screenshots. */
+  async eventLootSweepSummaryForRender(
+    eventId: number,
+    token: string,
+  ): Promise<LootSweepSummary> {
+    return LootSweepSummarySchema.parse(
+      await apiGet(`/events/${eventId}/loot-sweep/summary`, { internalToken: token }),
     );
   },
 
@@ -1137,6 +1244,58 @@ export const api = {
           await apiGet(`/events/${eventId}/loot-sweep/receipts?${q}`, { authed: true }),
         ),
       () => mockEventLootSweepReceipts(eventId, taskId, item),
+    );
+  },
+
+  /** Public completion timeline (loot_sweep + every kind). Forwards the session
+   * when present so admins see hidden tasks / the real RSN behind masked rows. */
+  async eventCompletionHistory(
+    eventId: number,
+    params: { page?: number; teamId?: number; taskId?: number; player?: string } = {},
+  ): Promise<CompletionHistory> {
+    const q = new URLSearchParams();
+    if (params.page) q.set("page", String(params.page));
+    if (params.teamId) q.set("teamId", String(params.teamId));
+    if (params.taskId) q.set("taskId", String(params.taskId));
+    if (params.player) q.set("player", params.player);
+    return withFallback(
+      async () =>
+        CompletionHistorySchema.parse(
+          await apiGet(`/events/${eventId}/completions/history?${q}`, { authed: true }),
+        ),
+      () => ({
+        event_id: eventId,
+        kind: "standard",
+        is_admin: false,
+        entries: [],
+        meta: { page: 1, limit: 50, total: 0 },
+      }),
+    );
+  },
+
+  /** Event-scoped manager audit log: merged ledger + admin actions. Admin only. */
+  async eventAudit(eventId: number, params: EventAuditParams = {}): Promise<EventAudit> {
+    const p = new URLSearchParams();
+    if (params.page) p.set("page", String(params.page));
+    if (params.limit) p.set("limit", String(params.limit));
+    if (params.category?.length) p.set("category", params.category.join(","));
+    if (params.actorUserId) p.set("actor_user_id", String(params.actorUserId));
+    if (params.playerId) p.set("player_id", String(params.playerId));
+    if (params.teamId) p.set("team_id", String(params.teamId));
+    if (params.taskId) p.set("task_id", String(params.taskId));
+    if (params.sourceType) p.set("source_type", params.sourceType);
+    if (params.hasProof) p.set("has_proof", "1");
+    if (params.from) p.set("from", String(params.from));
+    if (params.to) p.set("to", String(params.to));
+    if (params.q) p.set("q", params.q);
+    return withFallback(
+      async () =>
+        EventAuditSchema.parse(await apiGet(`/events/${eventId}/audit?${p}`, { authed: true })),
+      () => ({
+        event_id: eventId,
+        entries: [],
+        meta: { page: 1, limit: 50, total: 0, capped: false },
+      }),
     );
   },
 

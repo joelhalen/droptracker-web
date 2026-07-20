@@ -77,16 +77,20 @@ export function sectionClearPoints(set: LootSweepSet): number {
 }
 
 /** Theoretical maximum a set can yield (every item maxed, all bonuses at their
- * repeat cap) — the tooltip's "up to N". */
+ * repeat cap) — the tooltip's "up to N". Set/section completions decay like an
+ * item (full, then 80%, 60% …) across their `bonus_max` completions, so their
+ * ceiling is a decayed sum, not `bonus_points × cap`. */
 export function sectionMaxPoints(set: LootSweepSet): number {
   let pts = 0;
   for (const g of set.groups) {
     for (const it of g.items) {
       pts += itemTotal(it.points, maxAwardsOf(it), maxAwardsOf(it), set.decay_percent, it.awards_per_tier ?? 1, set.decay_mode);
     }
-    pts += g.bonus_points * (g.bonus_max ?? 1);
+    const gMax = g.bonus_max ?? 1;
+    pts += itemTotal(g.bonus_points, gMax, gMax, set.decay_percent, 1, set.decay_mode);
   }
-  return round2(pts + set.set_bonus_points * (set.set_bonus_max ?? 1));
+  const sMax = set.set_bonus_max ?? 1;
+  return round2(pts + itemTotal(set.set_bonus_points, sMax, sMax, set.decay_percent, 1, set.decay_mode));
 }
 
 function round2(n: number): number {

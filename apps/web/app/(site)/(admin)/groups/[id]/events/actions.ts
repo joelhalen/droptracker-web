@@ -41,7 +41,7 @@ import {
   type EventBuyinStatus,
   type EventPrizeDistribution,
 } from "@droptracker/api-types";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type EventAuditParams } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
 
@@ -714,6 +714,17 @@ export async function revokeEventCompletion(
   revalidatePath(eventAdminPath(groupId, eventId));
   revalidatePath(`/events/${eventId}`);
   return { ok: true as const };
+}
+
+/** Event manager audit log — the merged ledger + admin-action timeline, with
+ * server-side filters. Read-only, so no revalidation. */
+export async function eventAuditLog(
+  groupId: EventGroupId,
+  eventId: number,
+  params: EventAuditParams = {},
+) {
+  await assertCanManageEvent(groupId);
+  return api.eventAudit(eventId, params);
 }
 
 // --- Discord destinations (Task 19) ----------------------------------------

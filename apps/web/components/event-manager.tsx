@@ -59,6 +59,7 @@ import { EventTaskForm } from "@/components/event-task-form";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
 import { EventTemplateSaver } from "@/components/event-template-saver";
 import { EventReview } from "@/components/event-review";
+import { EventAuditLog } from "@/components/event-audit-log";
 import { LocalTime, TimezoneNote } from "@/components/local-time";
 
 const field =
@@ -100,6 +101,7 @@ const MANAGER_TABS = [
   { key: "prizes", label: "Prize Pot" },
   { key: "discord", label: "Discord" },
   { key: "review", label: "Review" },
+  { key: "audit", label: "Audit" },
 ] as const;
 type ManagerTab = (typeof MANAGER_TABS)[number]["key"];
 
@@ -1482,6 +1484,12 @@ export function EventManager({
       <div className={tab === "review" ? "" : "hidden"}>
         <EventReview groupId={groupId} eventId={event.id} tasks={tasks} teams={teams} />
       </div>
+
+      {/* Full event audit log — every point + admin action, filterable (web57a) */}
+      <section className={tab === "audit" ? "" : "hidden"}>
+        <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Audit log</h3>
+        <EventAuditLog groupId={groupId} eventId={event.id} />
+      </section>
     </div>
   );
 }

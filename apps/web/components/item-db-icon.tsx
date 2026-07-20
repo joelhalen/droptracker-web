@@ -24,6 +24,11 @@ export function ItemDbIcon({
       alt=""
       width={size}
       height={size}
+      // Boards render thousands of these (every receipt tab); defer decode +
+      // off-screen loading so scrolling doesn't pay for icons that aren't
+      // visible. width/height are set, so lazy loading causes no layout shift.
+      loading="lazy"
+      decoding="async"
       className={`inline-block shrink-0 object-contain ${className}`}
       onError={(e) => {
         (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
