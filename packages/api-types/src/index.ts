@@ -2111,10 +2111,13 @@ export const BoardSettingsSchema = z.object({
   shop: z
     .object({
       enabled: z.boolean(),
-      /** Shop restock cadence (web50a): "none" never refreshes; "turns"/"hours"
-       * restock every `refresh_interval` turns/hours. Defaulted for back-compat. */
-      refresh_mode: z.enum(["none", "turns", "hours"]).default("none"),
+      /** Shop restock cadence: "none" never refreshes; "turns"/"hours"/"days"
+       * restock every `refresh_interval` of that unit. Defaulted for back-compat. */
+      refresh_mode: z.enum(["none", "turns", "hours", "days"]).default("none"),
       refresh_interval: z.number().default(0),
+      /** Time modes only (web61a): jitter each restock to a random moment in
+       * 50–150% of the interval so players can't time it. */
+      refresh_random: z.boolean().default(false),
     })
     .passthrough(),
   /** Item/power-up config (web45a+). Kept permissive so older/newer backend
@@ -2185,6 +2188,22 @@ export const BoardPositionSchema = z.object({
     .nullable()
     .optional(),
   mercy_deadline: z.number().int().nullable().optional(),
+  /** Live buffs/debuffs sitting on this team (web61a) — frozen, shield armed,
+   * coin boost, extra dice, … — so the view can badge what's affecting a team.
+   * `kind` is "buff" | "debuff"; `icon` is a plain emoji; `detail` is optional
+   * context (e.g. "2 rolls left"). */
+  active_effects: z
+    .array(
+      z.object({
+        effect_type: z.string(),
+        label: z.string(),
+        kind: z.string(),
+        icon: z.string(),
+        detail: z.string().nullable().optional(),
+      }),
+    )
+    .optional()
+    .default([]),
   /** Pending task choice (web50a — choose_task items like Cache of Runes):
    * the backend rolled N candidate tasks and parked them on the position; the
    * team picks one via POST /events/{id}/board/choice before it can proceed. */
@@ -2531,8 +2550,11 @@ export type BoardShopConfigItem = z.infer<typeof BoardShopConfigItemSchema>;
 /** GET /events/{id}/board/shop/config — the refresh cadence (mirrored from
  * settings.shop) plus a row per active catalog item. */
 export const BoardShopConfigSchema = z.object({
-  refresh_mode: z.enum(["none", "turns", "hours"]).default("none"),
+  refresh_mode: z.enum(["none", "turns", "hours", "days"]).default("none"),
   refresh_interval: z.number().int().default(0),
+  /** Time modes only: jitter each restock to a random moment in 50–150% of the
+   * interval so players can't time it (web61a). */
+  refresh_random: z.boolean().default(false),
   items: z.array(BoardShopConfigItemSchema),
 });
 export type BoardShopConfig = z.infer<typeof BoardShopConfigSchema>;

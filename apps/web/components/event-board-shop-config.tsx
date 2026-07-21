@@ -91,8 +91,9 @@ export function EventBoardShopConfig({
 }) {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<ItemRow[]>([]);
-  const [refreshMode, setRefreshMode] = useState<"none" | "turns" | "hours">("none");
+  const [refreshMode, setRefreshMode] = useState<"none" | "turns" | "hours" | "days">("none");
   const [refreshInterval, setRefreshInterval] = useState<string>("0");
+  const [refreshRandom, setRefreshRandom] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +108,7 @@ export function EventBoardShopConfig({
         setRows(rowsFromConfig(config));
         setRefreshMode(config.refresh_mode);
         setRefreshInterval(String(config.refresh_interval));
+        setRefreshRandom(Boolean(config.refresh_random));
         setError(null);
       })
       .catch((err) => {
@@ -143,7 +145,11 @@ export function EventBoardShopConfig({
     try {
       // 1) refresh cadence rides on the board-settings patch.
       await saveEventBoardSettings(groupId, eventId, {
-        shop: { refresh_mode: refreshMode, refresh_interval: interval },
+        shop: {
+          refresh_mode: refreshMode,
+          refresh_interval: interval,
+          refresh_random: refreshRandom,
+        },
       });
       // 2) per-item overrides through the dedicated config PUT.
       const config = await saveBoardShopConfig(groupId, eventId, {
@@ -159,6 +165,7 @@ export function EventBoardShopConfig({
       setRows(rowsFromConfig(config));
       setRefreshMode(config.refresh_mode);
       setRefreshInterval(String(config.refresh_interval));
+      setRefreshRandom(Boolean(config.refresh_random));
       setSaved(true);
     } catch (err) {
       setError(getErrorMessage(err, "Couldn't save the shop configuration."));
@@ -199,19 +206,20 @@ export function EventBoardShopConfig({
               value={refreshMode}
               onChange={(e) => {
                 setSaved(false);
-                setRefreshMode(e.target.value as "none" | "turns" | "hours");
+                setRefreshMode(e.target.value as "none" | "turns" | "hours" | "days");
               }}
               className={`${field} w-40`}
             >
               <option value="none">Never</option>
               <option value="turns">Every N turns</option>
               <option value="hours">Every N hours</option>
+              <option value="days">Every N days</option>
             </select>
           </label>
           {refreshMode !== "none" && (
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-                Interval ({refreshMode === "turns" ? "turns" : "hours"})
+                Interval ({refreshMode})
               </span>
               <input
                 type="number"
@@ -223,6 +231,19 @@ export function EventBoardShopConfig({
                 }}
                 className={`${field} w-24`}
               />
+            </label>
+          )}
+          {(refreshMode === "hours" || refreshMode === "days") && (
+            <label className="text-osrs-parchment-dark/80 flex cursor-pointer items-center gap-1.5 pb-1.5 text-xs">
+              <input
+                type="checkbox"
+                checked={refreshRandom}
+                onChange={(e) => {
+                  setSaved(false);
+                  setRefreshRandom(e.target.checked);
+                }}
+              />
+              Restock at a random time (harder to game)
             </label>
           )}
         </div>

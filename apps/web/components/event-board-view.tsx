@@ -113,6 +113,8 @@ const EFFECT_DESCRIPTIONS: Record<string, string> = {
   knockback: "Knock a rival team back several tiles.",
   freeze_opponent: "Freeze a rival so their next roll doesn't move them.",
   roadblock: "Drop a roadblock on a tile to stall whoever hits it.",
+  advance: "Teleport forward without completing a task.",
+  shield: "Absorbs the next offensive item aimed at you.",
 };
 import { getErrorMessage } from "@/lib/errors";
 import { teamColorMap } from "@/lib/events";
@@ -272,6 +274,20 @@ export function EventBoardView({
   return (
     <div className="space-y-3">
       {error && <Alert variant="error">{error}</Alert>}
+
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-osrs-parchment-dark/60 text-[11px]">
+          Complete your task → earn coins → roll → move. First to the finish wins.
+        </p>
+        <a
+          href="https://www.droptracker.io/docs/events-board"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-osrs-parchment-dark/70 hover:text-osrs-gold shrink-0 text-[11px] underline"
+        >
+          How to play ↗
+        </a>
+      </div>
 
       <div
         className="border-osrs-bronze/30 relative w-full overflow-hidden rounded border bg-black/30"
@@ -581,9 +597,40 @@ export function EventBoardView({
                 ) : p.status === "awaiting_roll" ? (
                   <p className="text-osrs-parchment-dark/70 mt-2 text-xs">
                     Task complete — waiting for the dice roll.
+                    {mine && manual && rollerRule === "group_admin" && (
+                      <span className="text-osrs-parchment-dark/50 mt-0.5 block">
+                        An event admin rolls for your team.
+                      </span>
+                    )}
+                  </p>
+                ) : p.status === "blocked" ? (
+                  <p className="text-osrs-parchment-dark/70 mt-2 text-xs">
+                    🚧 Stalled by a roadblock — roll to serve the stall.
                   </p>
                 ) : (
                   <p className="text-osrs-parchment-dark/60 mt-2 text-xs">No active task.</p>
+                )}
+
+                {p.active_effects && p.active_effects.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {p.active_effects.map((e, i) => (
+                      <span
+                        key={`${e.effect_type}-${i}`}
+                        title={e.detail ? `${e.label} — ${e.detail}` : e.label}
+                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] ${
+                          e.kind === "debuff"
+                            ? "bg-red-900/40 text-red-200"
+                            : "bg-emerald-900/40 text-emerald-200"
+                        }`}
+                      >
+                        <span>{e.icon}</span>
+                        <span>
+                          {e.label}
+                          {e.detail ? ` (${e.detail})` : ""}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
                 )}
 
                 {couldRoll && (

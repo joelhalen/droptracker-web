@@ -1308,7 +1308,10 @@ function BoardSettingsSection({
             checked={settings.shop.enabled}
             onChange={(e) => patch({ shop: { enabled: e.target.checked } })}
           />
-          Shop enabled <span className="text-osrs-parchment-dark/50 text-xs">(coming soon)</span>
+          Shop enabled{" "}
+          <span className="text-osrs-parchment-dark/50 text-xs">
+            (coins, power-ups &amp; PvP — configure items under Shop)
+          </span>
         </label>
       </div>
 
