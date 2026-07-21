@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { requireUser } from "@/lib/auth";
+import { requireGroupAdminPage } from "@/lib/auth";
 import { AuthorizedUsersManager } from "@/components/authorized-users-manager";
 
 type Params = Promise<{ id: string }>;
@@ -12,8 +12,9 @@ export default async function AuthorizedUsersPage({ params }: { params: Params }
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
 
-  // Layout guards admin access; we need the viewer's identity for self-checks.
-  const user = await requireUser(`/groups/${groupId}/authorized`);
+  // web64a: the shared layout now admits event managers, so this admin-only
+  // page must re-assert full group admin (and gives us the viewer identity).
+  const user = await requireGroupAdminPage(groupId);
   const initial = await api.groupAuthorizedUsers(groupId);
 
   return (

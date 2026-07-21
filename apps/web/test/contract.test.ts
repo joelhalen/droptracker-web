@@ -28,6 +28,7 @@ import {
   LootSweepReceiptsSchema,
   ItemDetailSchema,
   MeSchema,
+  EventManagersResponseSchema,
   NpcDetailSchema,
   NpcDropTableSchema,
   PbBossBoardSchema,
@@ -65,6 +66,7 @@ import {
   mockMyTickets,
   mockTicket,
   mockMe,
+  mockEventManagers,
   mockPbBoard,
   mockPbBosses,
   mockPlayerLeaderboard,
@@ -103,6 +105,7 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => PlayerLootTrackerSchema.parse(mockPlayerLoot(42)));
   assert.doesNotThrow(() => AnnouncementPageSchema.parse(mockAnnouncements()));
   assert.doesNotThrow(() => MeSchema.parse(mockMe()));
+  assert.doesNotThrow(() => EventManagersResponseSchema.parse(mockEventManagers()));
   assert.doesNotThrow(() => ServiceStatusSchema.array().parse(mockServices()));
   assert.doesNotThrow(() => BackupOverviewSchema.parse(mockBackupOverview()));
   assert.doesNotThrow(() => BackupOffsiteSchema.parse(mockBackupOffsite()));

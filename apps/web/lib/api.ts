@@ -79,6 +79,10 @@ import {
   type EventPopulateResult,
   EventTeamDetailSchema,
   type EventTeamDetail,
+  EventPlayersResponseSchema,
+  type EventPlayersResponse,
+  EventPlayerDetailSchema,
+  type EventPlayerDetail,
   TaskBreakdownSchema,
   type TaskBreakdown,
   EventSummarySchema,
@@ -221,6 +225,8 @@ import {
   type SubscriptionTierInput,
   type AuthorizedUsersResponse,
   AuthorizedUsersResponseSchema,
+  type EventManagersResponse,
+  EventManagersResponseSchema,
   type UserSubscription,
   UserSubscriptionSchema,
   type WomGroupPreview,
@@ -284,9 +290,12 @@ import {
   mockAdminSubscriptionsOverview,
   mockGuildStatus,
   mockAuthorizedUsers,
+  mockEventManagers,
   mockUserSubscription,
   mockEvent,
   mockEventTeam,
+  mockEventPlayers,
+  mockEventPlayerDetail,
   mockEventCompletions,
   mockEventDiscord,
   mockEventTeamDiscord,
@@ -903,6 +912,41 @@ export const api = {
           await apiGet(`/events/${eventId}/teams/${teamId}`, { authed: true }),
         ),
       () => mockEventTeam(eventId, teamId),
+    );
+  },
+
+  /** Event-wide player contribution leaderboard (Players tab), cached. */
+  async eventPlayers(eventId: number): Promise<EventPlayersResponse> {
+    return withFallback(
+      async () =>
+        EventPlayersResponseSchema.parse(
+          await apiGet(`/events/${eventId}/players`, { revalidate: 15 }),
+        ),
+      () => mockEventPlayers(eventId),
+    );
+  },
+
+  /** Authed variant — session cookie so members can see the Players tab on a
+   * draft (pre-publication) event. Uncached (viewer-specific). */
+  async eventPlayersAuthed(eventId: number): Promise<EventPlayersResponse> {
+    return withFallback(
+      async () =>
+        EventPlayersResponseSchema.parse(
+          await apiGet(`/events/${eventId}/players`, { authed: true }),
+        ),
+      () => mockEventPlayers(eventId),
+    );
+  },
+
+  /** One player's full contribution drill-down (items + per-task + activity).
+   * Authed (draft visibility); fetched on-demand when a row is expanded. */
+  async eventPlayerDetail(eventId: number, playerId: number): Promise<EventPlayerDetail> {
+    return withFallback(
+      async () =>
+        EventPlayerDetailSchema.parse(
+          await apiGet(`/events/${eventId}/players/${playerId}`, { authed: true }),
+        ),
+      () => mockEventPlayerDetail(eventId, playerId),
     );
   },
 
@@ -2822,6 +2866,44 @@ export const api = {
           await apiSend("DELETE", `/groups/${groupId}/authorized-users`, target),
         ),
       () => mockAuthorizedUsers(),
+    );
+  },
+
+  // --- Event managers (web64a: full event control, no group admin) --------
+  async groupEventManagers(groupId: number): Promise<EventManagersResponse> {
+    return withFallback(
+      async () =>
+        EventManagersResponseSchema.parse(
+          await apiGet(`/groups/${groupId}/event-managers`, { authed: true }),
+        ),
+      () => mockEventManagers(),
+    );
+  },
+
+  /** Add by Discord ID (snowflake) or DropTracker username. */
+  async addGroupEventManager(
+    groupId: number,
+    identifier: string,
+  ): Promise<EventManagersResponse> {
+    return withFallback(
+      async () =>
+        EventManagersResponseSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/event-managers`, { identifier }),
+        ),
+      () => mockEventManagers(),
+    );
+  },
+
+  async removeGroupEventManager(
+    groupId: number,
+    userId: number,
+  ): Promise<EventManagersResponse> {
+    return withFallback(
+      async () =>
+        EventManagersResponseSchema.parse(
+          await apiSend("DELETE", `/groups/${groupId}/event-managers`, { user_id: userId }),
+        ),
+      () => mockEventManagers(),
     );
   },
 

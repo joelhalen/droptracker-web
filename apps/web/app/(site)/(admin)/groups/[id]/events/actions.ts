@@ -42,7 +42,7 @@ import {
   type EventPrizeDistribution,
 } from "@droptracker/api-types";
 import { api, ApiError, type EventAuditParams } from "@/lib/api";
-import { getUser, canAdminGroup } from "@/lib/auth";
+import { getUser, canAdminGroup, canManageEvents } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
 
 /** Event scope: a group id, or `null` for global events (superadmin-only —
@@ -60,8 +60,8 @@ async function assertEventsEntitlement(groupId: EventGroupId) {
     }
     return user;
   }
-  if (!canAdminGroup(user, groupId)) {
-    throw new Error("Forbidden: you do not administer this group.");
+  if (!canManageEvents(user, groupId)) {
+    throw new Error("Forbidden: you cannot manage this group's events.");
   }
   if (!user.is_superadmin) {
     const sub = await api.groupSubscription(groupId);
@@ -91,8 +91,8 @@ async function assertCanManageEvent(groupId: EventGroupId) {
     }
     return user;
   }
-  if (!canAdminGroup(user, groupId)) {
-    throw new Error("Forbidden: you do not administer this group.");
+  if (!canManageEvents(user, groupId)) {
+    throw new Error("Forbidden: you cannot manage this group's events.");
   }
   return user;
 }

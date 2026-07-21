@@ -12,6 +12,9 @@ import type {
   EventCompletion,
   EventDetail,
   EventTeamDetail,
+  EventPlayersResponse,
+  EventPlayerRow,
+  EventPlayerDetail,
   EventSummary,
   EventTaskLibraryItem,
   EventTemplateSummary,
@@ -21,6 +24,7 @@ import type {
   GroupMembersPage,
   GroupProfile,
   AuthorizedUsersResponse,
+  EventManagersResponse,
   GroupSubscription,
   GroupSubscriptionSummary,
   AdminSubscriptionsOverview,
@@ -355,14 +359,17 @@ export function mockMe(): Me {
       { id: 1338, name: "Zezima Alt", global_rank: 482, total_loot: money(86_000_000) },
     ],
     groups: [
-      { id: 2, name: "Global", role: "member" },
+      { id: 2, name: "Global", role: "member", can_manage_events: false },
       {
         id: 101,
         name: "Clan 1",
         role: "owner",
+        can_manage_events: true,
         flair: { tier_key: "premium", tier_name: "Premium", style: "gold" },
       },
-      { id: 102, name: "Clan 2", role: "admin" },
+      { id: 102, name: "Clan 2", role: "admin", can_manage_events: true },
+      // A group where the user is only an event manager (member + the flag).
+      { id: 103, name: "Clan 3", role: "member", can_manage_events: true },
     ],
   };
 }
@@ -871,6 +878,14 @@ export function mockAuthorizedUsers(): AuthorizedUsersResponse {
         role: "admin",
         sources: ["discord"],
       },
+    ],
+  };
+}
+
+export function mockEventManagers(): EventManagersResponse {
+  return {
+    managers: [
+      { user_id: 3, discord_id: "339175417668501504", username: "mockeventmgr" },
     ],
   };
 }
@@ -2000,6 +2015,130 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
         player_name: "B0aty",
         quantity: 1,
         source_type: "kc",
+        created_at: now - 5400,
+      },
+    ],
+  };
+}
+
+/** Event-wide player contribution leaderboard (Players tab). */
+export function mockEventPlayers(eventId: number): EventPlayersResponse {
+  const event = mockEvents().find((e) => e.id === eventId) ?? mockEvents()[0]!;
+  const players: EventPlayerRow[] = [
+    {
+      player_id: 2001,
+      player_name: "Woox",
+      team_id: 1,
+      team_name: "Team Alpha",
+      team_color: "#c0392b",
+      role: "leader",
+      points: 42.5,
+      completions: 8,
+      quantity: 190,
+      tasks_contributed: 5,
+      items: [
+        { name: "Twisted bow", item_id: 20997, quantity: 1, drops: 1 },
+        { name: "Dragon claws", item_id: 13652, quantity: 3, drops: 2 },
+      ],
+    },
+    {
+      player_id: 1337,
+      player_name: "Zezima",
+      team_id: 1,
+      team_name: "Team Alpha",
+      team_color: "#c0392b",
+      role: null,
+      points: 21,
+      completions: 5,
+      quantity: 88,
+      tasks_contributed: 3,
+      items: [{ name: "Bandos chestplate", item_id: 11832, quantity: 1, drops: 1 }],
+    },
+    {
+      player_id: 2002,
+      player_name: "B0aty",
+      team_id: 2,
+      team_name: "Team Bravo",
+      team_color: "#2980b9",
+      role: "leader",
+      points: 12.33,
+      completions: 3,
+      quantity: 40,
+      tasks_contributed: 2,
+      items: [],
+    },
+  ];
+  return {
+    event,
+    players,
+    totals: {
+      contributors: players.length,
+      participants: 6,
+      completions: 16,
+      points: 75.83,
+      tasks: 4,
+    },
+  };
+}
+
+/** One player's contribution drill-down (Players tab row expand). */
+export function mockEventPlayerDetail(eventId: number, playerId: number): EventPlayerDetail {
+  const now = Math.floor(Date.now() / 1000);
+  const event = mockEvents().find((e) => e.id === eventId) ?? mockEvents()[0]!;
+  const roster = mockEventPlayers(eventId).players;
+  const p = roster.find((x) => x.player_id === playerId) ?? roster[0]!;
+  return {
+    event,
+    player: {
+      player_id: p.player_id,
+      player_name: p.player_name,
+      team_id: p.team_id,
+      team_name: p.team_name,
+      team_color: p.team_color,
+      role: p.role,
+      points: p.points,
+      completions: p.completions,
+      quantity: p.quantity,
+      tasks_contributed: p.tasks_contributed,
+    },
+    items: p.items.length
+      ? p.items
+      : [{ name: "Twisted bow", item_id: 20997, quantity: 1, drops: 1 }],
+    tasks: [
+      {
+        task_id: 12,
+        task_label: "Obtain a Twisted bow",
+        task_type: "item_collection",
+        completions: 1,
+        quantity: 1,
+        points: 20,
+      },
+      {
+        task_id: 11,
+        task_label: "Vorkath 50 KC",
+        task_type: "kc_target",
+        completions: 4,
+        quantity: 4,
+        points: 22.5,
+      },
+    ],
+    activity: [
+      {
+        id: 900,
+        task_id: 12,
+        task_label: "Obtain a Twisted bow",
+        quantity: 1,
+        source_type: "drop",
+        matched_target: "Twisted bow",
+        created_at: now - 3600,
+      },
+      {
+        id: 899,
+        task_id: 11,
+        task_label: "Vorkath 50 KC",
+        quantity: 1,
+        source_type: "kc",
+        matched_target: null,
         created_at: now - 5400,
       },
     ],

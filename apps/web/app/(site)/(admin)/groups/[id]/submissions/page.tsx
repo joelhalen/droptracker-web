@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { requireGroupAdminPage } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { ManualSubmissionsReview } from "@/components/manual-submissions-review";
 
@@ -9,6 +10,7 @@ type Params = Promise<{ id: string }>;
 export default async function GroupSubmissionsPage({ params }: { params: Params }) {
   const { id } = await params;
   const groupId = Number(id);
+  await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
   const queue = await api.manualSubmissions(groupId);

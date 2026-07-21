@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { getUser, requireGroupAdminPage } from "@/lib/auth";
 import { ConfigEditor } from "@/components/config-editor";
 import { GroupIconCard } from "@/components/group-icon-card";
 import { TimeframeBoardCard } from "@/components/timeframe-board-card";
@@ -15,6 +15,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
   const { id } = await params;
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
+  await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
 
   const [config, subscription, tiers, user, group, seasonal] = await Promise.all([
     api.groupConfig(groupId),

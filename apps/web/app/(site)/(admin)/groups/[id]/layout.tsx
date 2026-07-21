@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { requireUser, canAdminGroup } from "@/lib/auth";
+import { requireUser, canAdminGroup, canManageEvents } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
 import { TabNav, type NavTab } from "@/components/tab-nav";
 import { NameTile, SubscriptionStatusBadge, TierBadge } from "@/components/ui";
@@ -28,7 +28,12 @@ export default async function GroupAdminLayout({
   // a signed-in non-admin gets the 403 interrupt page (web57a) — which links
   // back to the group's public profile — instead of a silent bounce there.
   const user = await requireUser(`/groups/${groupId}/admin`);
-  if (!canAdminGroup(user, groupId)) forbidden();
+  // web64a: full group admins reach every tab; event managers reach ONLY the
+  // Events subtree. Every non-events admin page re-gates on canAdminGroup (and
+  // the backend independently enforces both), so admitting a manager here can
+  // never expose a group-admin action.
+  const isAdmin = canAdminGroup(user, groupId);
+  if (!isAdmin && !canManageEvents(user, groupId)) forbidden();
 
   const group = await api.group(groupId);
   // Tier badge in the admin header — makes the group's plan visible from every
@@ -41,40 +46,47 @@ export default async function GroupAdminLayout({
     api.manualSubmissions(groupId).catch(() => null),
   ]);
 
-  const tabs: NavTab[] = [
-    { href: `/groups/${groupId}/admin`, label: "Overview" },
-    { href: `/groups/${groupId}/settings`, label: "Settings" },
-    {
-      href: `/groups/${groupId}/embeds`,
-      label: "Embeds",
-      locked: !hasEntitlement(subscription, "custom_embeds", { isSuperadmin: user.is_superadmin }),
-    },
-    { href: `/groups/${groupId}/announcements`, label: "Announcements" },
-    { href: `/groups/${groupId}/members`, label: "Members" },
-    {
-      href: `/groups/${groupId}/submissions`,
-      label: "Submissions",
-      badge: manualQueue?.pending_count ?? 0,
-    },
-    { href: `/groups/${groupId}/authorized`, label: "Authorized users" },
-    {
-      href: `/groups/${groupId}/events`,
-      label: "Events",
-      matchPrefix: true,
-      locked: !hasEntitlement(subscription, "events", { isSuperadmin: user.is_superadmin }),
-    },
-    {
-      // /points/manage, not /points: the XF-era /groups/:id/points URL was
-      // permanently redirected (308) to the profile until 2026-07-08, and
-      // browsers cache permanent redirects — a tab pointing at /points would
-      // silently bounce those visitors back to the profile forever.
-      href: `/groups/${groupId}/points/manage`,
-      label: "Points",
-      locked: !hasEntitlement(subscription, "custom_points", { isSuperadmin: user.is_superadmin }),
-    },
-    { href: `/groups/${groupId}/subscription`, label: "Subscription" },
-    { href: `/groups/${groupId}/diagnostics`, label: "Diagnostics" },
-  ];
+  const eventsTab: NavTab = {
+    href: `/groups/${groupId}/events`,
+    label: "Events",
+    matchPrefix: true,
+    locked: !hasEntitlement(subscription, "events", { isSuperadmin: user.is_superadmin }),
+  };
+
+  // A pure event manager (not a full admin) only ever sees the Events tab; the
+  // group-admin tabs are hidden and their pages 403.
+  const tabs: NavTab[] = isAdmin
+    ? [
+        { href: `/groups/${groupId}/admin`, label: "Overview" },
+        { href: `/groups/${groupId}/settings`, label: "Settings" },
+        {
+          href: `/groups/${groupId}/embeds`,
+          label: "Embeds",
+          locked: !hasEntitlement(subscription, "custom_embeds", { isSuperadmin: user.is_superadmin }),
+        },
+        { href: `/groups/${groupId}/announcements`, label: "Announcements" },
+        { href: `/groups/${groupId}/members`, label: "Members" },
+        {
+          href: `/groups/${groupId}/submissions`,
+          label: "Submissions",
+          badge: manualQueue?.pending_count ?? 0,
+        },
+        { href: `/groups/${groupId}/authorized`, label: "Authorized users" },
+        { href: `/groups/${groupId}/event-managers`, label: "Event managers" },
+        eventsTab,
+        {
+          // /points/manage, not /points: the XF-era /groups/:id/points URL was
+          // permanently redirected (308) to the profile until 2026-07-08, and
+          // browsers cache permanent redirects — a tab pointing at /points would
+          // silently bounce those visitors back to the profile forever.
+          href: `/groups/${groupId}/points/manage`,
+          label: "Points",
+          locked: !hasEntitlement(subscription, "custom_points", { isSuperadmin: user.is_superadmin }),
+        },
+        { href: `/groups/${groupId}/subscription`, label: "Subscription" },
+        { href: `/groups/${groupId}/diagnostics`, label: "Diagnostics" },
+      ]
+    : [eventsTab];
 
   return (
     <div className="space-y-6">

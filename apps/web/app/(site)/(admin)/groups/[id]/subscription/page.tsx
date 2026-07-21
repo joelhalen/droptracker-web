@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireGroupAdminPage } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { SubscriptionManager } from "@/components/subscription-manager";
@@ -20,6 +21,7 @@ export default async function GroupSubscriptionPage({
   // Optional deep-link from /premium: ?tier=<key> highlights that plan card.
   const { tier } = await searchParams;
   const groupId = Number(id);
+  await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
   const [tiers, subscription] = await Promise.all([

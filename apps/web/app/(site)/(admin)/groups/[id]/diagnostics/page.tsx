@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireGroupAdminPage } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { EmptyState } from "@/components/ui";
@@ -19,6 +20,7 @@ function ago(ts: number | null): string {
 export default async function GroupDiagnosticsPage({ params }: { params: Params }) {
   const { id } = await params;
   const groupId = Number(id);
+  await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
   const diag = await api.diagnostics(groupId);

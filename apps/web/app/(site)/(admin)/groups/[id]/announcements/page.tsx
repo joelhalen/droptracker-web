@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireGroupAdminPage } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { AnnouncementComposer } from "@/components/announcement-composer";
@@ -11,6 +12,7 @@ type Params = Promise<{ id: string }>;
 export default async function GroupAnnouncementsPage({ params }: { params: Params }) {
   const { id } = await params;
   const groupId = Number(id);
+  await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
   const existing = await api.announcements(`group:${groupId}`);

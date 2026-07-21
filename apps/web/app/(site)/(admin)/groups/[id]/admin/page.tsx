@@ -1,4 +1,5 @@
 import type { Metadata, Route } from "next";
+import { requireGroupAdminPage } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
@@ -19,6 +20,7 @@ const CARDS = [
 export default async function GroupAdminOverview({ params }: { params: Params }) {
   const { id } = await params;
   const groupId = Number(id);
+  await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
   const group = await api.group(groupId);

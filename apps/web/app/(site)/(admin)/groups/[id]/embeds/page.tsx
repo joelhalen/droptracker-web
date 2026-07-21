@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { getUser, requireGroupAdminPage } from "@/lib/auth";
 import { FeatureGate } from "@/components/feature-gate";
 import { EmbedEditor } from "@/components/embed-editor";
 
@@ -15,6 +15,7 @@ export default async function GroupEmbedsPage({ params }: { params: Params }) {
   const { id } = await params;
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
+  await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
 
   const [embeds, subscription, tiers, user] = await Promise.all([
     api.groupEmbeds(groupId).catch(() => null),

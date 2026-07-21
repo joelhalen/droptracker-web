@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { requireGroupAdminPage } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { MembersManager } from "@/components/members-manager";
@@ -17,6 +18,7 @@ export default async function GroupMembersAdminPage({
 }) {
   const { id } = await params;
   const groupId = Number(id);
+  await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
   const { page: pageParam } = await searchParams;

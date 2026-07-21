@@ -647,6 +647,10 @@ export const MeSchema = z.object({
         id: z.number().int(),
         name: z.string(),
         role: z.enum(["owner", "admin", "member"]),
+        /** web64a: the user can fully manage this group's EVENTS (group admin
+         * OR a granted event-manager) without necessarily being a group admin.
+         * Drives canManageEvents; a pure manager has role "member" + this true. */
+        can_manage_events: z.boolean().default(false),
         /** Group tier flair, present for subscribed groups. */
         flair: GroupFlairSchema.optional(),
       }),
@@ -973,6 +977,20 @@ export const AuthorizedUsersResponseSchema = z.object({
   users: z.array(AuthorizedUserSchema),
 });
 export type AuthorizedUsersResponse = z.infer<typeof AuthorizedUsersResponseSchema>;
+
+/** web64a: a group event manager — full event control, no group-admin access.
+ * Web-only (keyed on a DropTracker user id; no Discord bot grant). */
+export const EventManagerSchema = z.object({
+  user_id: z.number().int(),
+  discord_id: z.string().nullable(),
+  username: z.string().nullable(),
+});
+export type EventManager = z.infer<typeof EventManagerSchema>;
+
+export const EventManagersResponseSchema = z.object({
+  managers: z.array(EventManagerSchema),
+});
+export type EventManagersResponse = z.infer<typeof EventManagersResponseSchema>;
 
 /** Pipeline heartbeat for the admin diagnostics panel (FRONTEND_PLAN.md §9). */
 export const GroupDiagnosticsSchema = z.object({
@@ -2775,6 +2793,95 @@ export const EventTeamDetailSchema = z.object({
     .optional(),
 });
 export type EventTeamDetail = z.infer<typeof EventTeamDetailSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Event-wide player contribution — GET /events/{id}/players[/{playerId}]      */
+/* Per-player rollup aggregated ACROSS teams: split points, completions, the   */
+/* items they pulled (with icon ids), and per-task contribution.               */
+/* -------------------------------------------------------------------------- */
+
+/** An item a player contributed toward a task. `item_id` resolves the icon
+ * (`/img/itemdb/{id}.png` via `<ItemDbIcon>`); null when the item name didn't
+ * resolve (non-drop credits carry no item). */
+export const EventPlayerItemSchema = z.object({
+  name: z.string(),
+  item_id: z.number().int().nullable(),
+  quantity: z.number().int().default(0),
+  drops: z.number().int().default(0),
+});
+export type EventPlayerItem = z.infer<typeof EventPlayerItemSchema>;
+
+/** One row of the event-wide contribution leaderboard. */
+export const EventPlayerRowSchema = z.object({
+  player_id: z.number().int(),
+  player_name: z.string(),
+  team_id: z.number().int().nullable().optional(),
+  team_name: z.string().nullable().optional(),
+  team_color: z.string().nullable().optional(),
+  role: z.enum(EVENT_TEAM_ROLES).nullable().optional(),
+  points: z.number().default(0),
+  completions: z.number().int().default(0),
+  quantity: z.number().int().default(0),
+  tasks_contributed: z.number().int().default(0),
+  /** Top contributed items (icon strip); full list is on the detail endpoint. */
+  items: z.array(EventPlayerItemSchema).default([]),
+});
+export type EventPlayerRow = z.infer<typeof EventPlayerRowSchema>;
+
+export const EventPlayersResponseSchema = z.object({
+  event: EventSummarySchema,
+  players: z.array(EventPlayerRowSchema).default([]),
+  totals: z.object({
+    contributors: z.number().int().default(0),
+    participants: z.number().int().default(0),
+    completions: z.number().int().default(0),
+    points: z.number().default(0),
+    tasks: z.number().int().default(0),
+  }),
+});
+export type EventPlayersResponse = z.infer<typeof EventPlayersResponseSchema>;
+
+/** One task a player contributed to (drill-down). */
+export const EventPlayerTaskSchema = z.object({
+  task_id: z.number().int(),
+  task_label: z.string().nullable().optional(),
+  task_type: z.string().nullable().optional(),
+  completions: z.number().int().default(0),
+  quantity: z.number().int().default(0),
+  points: z.number().default(0),
+});
+export type EventPlayerTask = z.infer<typeof EventPlayerTaskSchema>;
+
+/** Per-player drill-down: full item list + per-task contribution + activity. */
+export const EventPlayerDetailSchema = z.object({
+  event: EventSummarySchema,
+  player: z.object({
+    player_id: z.number().int(),
+    player_name: z.string(),
+    team_id: z.number().int().nullable().optional(),
+    team_name: z.string().nullable().optional(),
+    team_color: z.string().nullable().optional(),
+    role: z.enum(EVENT_TEAM_ROLES).nullable().optional(),
+    points: z.number().default(0),
+    completions: z.number().int().default(0),
+    quantity: z.number().int().default(0),
+    tasks_contributed: z.number().int().default(0),
+  }),
+  items: z.array(EventPlayerItemSchema).default([]),
+  tasks: z.array(EventPlayerTaskSchema).default([]),
+  activity: z.array(
+    z.object({
+      id: z.number().int(),
+      task_id: z.number().int(),
+      task_label: z.string().nullable().optional(),
+      quantity: z.number().int().default(1),
+      source_type: z.string().nullable().optional(),
+      matched_target: z.string().nullable().optional(),
+      created_at: z.number().int().nullable(),
+    }),
+  ).default([]),
+});
+export type EventPlayerDetail = z.infer<typeof EventPlayerDetailSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Task detail breakdown — GET /events/{id}/tasks/{taskId}/breakdown          */

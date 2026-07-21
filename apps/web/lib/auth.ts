@@ -64,3 +64,27 @@ export function canAdminGroup(user: Me, groupId: number): boolean {
   const role = groupRole(user, groupId);
   return role === "owner" || role === "admin";
 }
+
+/**
+ * Whether the user may manage this group's EVENTS (web64a): any group admin, or
+ * a member granted the event-manager role (`can_manage_events` on the `/me`
+ * group entry). Event managers reach the Events admin surface WITHOUT full
+ * group-admin access — every non-events admin page still gates on
+ * `canAdminGroup`, and the backend independently enforces both.
+ */
+export function canManageEvents(user: Me, groupId: number): boolean {
+  if (canAdminGroup(user, groupId)) return true;
+  return user.groups.find((g) => g.id === groupId)?.can_manage_events === true;
+}
+
+/**
+ * Guard a NON-events group-admin page (settings, members, subscription, …).
+ * The shared `(admin)/groups/[id]` layout now admits event managers so they can
+ * reach the Events subtree, so every other admin page must re-assert full group
+ * admin here (web64a). Returns the user or renders the 403 interrupt.
+ */
+export async function requireGroupAdminPage(groupId: number): Promise<Me> {
+  const user = await requireUser(`/groups/${groupId}/admin`);
+  if (!canAdminGroup(user, groupId)) forbidden();
+  return user;
+}

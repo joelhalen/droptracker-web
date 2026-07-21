@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { requireGroupAdminPage } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { PointsManager } from "@/components/points-manager";
 
@@ -9,6 +10,7 @@ export const metadata = { title: "Points" };
 export default async function GroupPointsPage({ params }: { params: Params }) {
   const { id } = await params;
   const groupId = Number(id);
+  await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
   // Layout guards admin access. Reads work without the entitlement so a lapsed
