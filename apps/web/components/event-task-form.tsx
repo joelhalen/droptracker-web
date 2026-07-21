@@ -12,6 +12,11 @@
  * points / review flag / visibility AND the item-list config (the API
  * revalidates the whole goal), so lists are edited in place — only the task
  * type itself is fixed after creation.
+ *
+ * Draft mode (`onDraftSubmit`) skips the API entirely and hands the built
+ * EventTaskInput to the caller — the bingo cell editor embeds the form this
+ * way so inline cell tasks get every option (item pickers, admin review,
+ * source restrictions…) while staying deferred until the board PUT.
  */
 
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -370,15 +375,31 @@ export function EventTaskForm({
   initial,
   onSaved,
   onCancel,
+  onDraftSubmit,
+  omitTypes,
+  hideDifficulty,
+  submitLabel,
 }: {
   groupId: number | null;
   eventId: number;
-  /** Present ⇒ edit mode (the task type is fixed; everything else edits). */
+  /** Present ⇒ edit mode (the task type is fixed; everything else edits).
+   * In draft mode it only pre-fills the form — the type stays editable. */
   initial?: EventTask;
-  onSaved: (task: EventTask) => void;
+  onSaved?: (task: EventTask) => void;
   onCancel?: () => void;
+  /** Draft mode: submit hands the built input to the caller instead of
+   * calling the API (nothing is persisted here). */
+  onDraftSubmit?: (input: EventTaskInput) => void;
+  /** Task types to leave out of the type picker (e.g. loot_sweep makes no
+   * sense on a bingo cell — it never completes). */
+  omitTypes?: EventTask["type"][];
+  /** Hide the board-game difficulty tier (meaningless outside dice boards). */
+  hideDifficulty?: boolean;
+  /** Override the submit button text. */
+  submitLabel?: string;
 }) {
-  const editing = initial != null;
+  const draftMode = onDraftSubmit != null;
+  const editing = !draftMode && initial != null;
   const initialItems: PickerEntry[] = initial
     ? taskConfigItems(initial).map((it) => ({
         name: it.item_name,
@@ -802,6 +823,10 @@ export function EventTaskForm({
     }
     setError(null);
     const input = buildInput();
+    if (onDraftSubmit) {
+      onDraftSubmit(input);
+      return;
+    }
     startTransition(async () => {
       try {
         if (editing) {
@@ -817,14 +842,14 @@ export function EventTaskForm({
             // the API revalidates the whole goal either way.
             config: input.config ?? null,
           });
-          onSaved({ ...initial, ...input, config: input.config ?? null });
+          onSaved?.({ ...initial, ...input, config: input.config ?? null });
         } else {
           const res = await addEventTask(groupId, eventId, input);
           if (!res.ok) {
             setError(res.error);
             return;
           }
-          onSaved({
+          onSaved?.({
             ...input,
             id: res.id,
             points: input.points ?? 0,
@@ -869,7 +894,7 @@ export function EventTaskForm({
             disabled={editing}
             className={field}
           >
-            {EVENT_TASK_TYPES.map((tt) => (
+            {EVENT_TASK_TYPES.filter((tt) => !omitTypes?.includes(tt)).map((tt) => (
               <option key={tt} value={tt}>
                 {TASK_TYPE_LABELS[tt]}
               </option>
@@ -1202,24 +1227,26 @@ export function EventTaskForm({
             <QuantityInput min={0} value={points} onChange={setPoints} className={`${field} w-24`} />
           </label>
         )}
-        <label className="grid gap-1 text-sm">
-          <span className="text-osrs-parchment-dark/80">Difficulty</span>
-          <select
-            value={difficulty ?? ""}
-            onChange={(e) =>
-              setDifficulty((e.target.value || null) as typeof difficulty)
-            }
-            className={field}
-            title="Board-game tier: difficulty tiles roll random tasks from this tier's pool"
-          >
-            <option value="">— none —</option>
-            {EVENT_TASK_DIFFICULTIES.map((d) => (
-              <option key={d} value={d}>
-                {TASK_DIFFICULTY_LABELS[d]}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!hideDifficulty && (
+          <label className="grid gap-1 text-sm">
+            <span className="text-osrs-parchment-dark/80">Difficulty</span>
+            <select
+              value={difficulty ?? ""}
+              onChange={(e) =>
+                setDifficulty((e.target.value || null) as typeof difficulty)
+              }
+              className={field}
+              title="Board-game tier: difficulty tiles roll random tasks from this tier's pool"
+            >
+              <option value="">— none —</option>
+              {EVENT_TASK_DIFFICULTIES.map((d) => (
+                <option key={d} value={d}>
+                  {TASK_DIFFICULTY_LABELS[d]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="grid gap-1 text-sm">
           <span className="text-osrs-parchment-dark/80">Task library</span>
           <select
@@ -1259,7 +1286,7 @@ export function EventTaskForm({
             title={validate() ?? undefined}
             className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            {editing ? "Save task" : "Add task"}
+            {submitLabel ?? (editing ? "Save task" : "Add task")}
           </button>
         </div>
       </div>

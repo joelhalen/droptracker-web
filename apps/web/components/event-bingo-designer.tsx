@@ -25,11 +25,13 @@ import {
   type BingoCellInput,
   type EventDetail,
   type EventTask,
+  type EventTaskInput,
   type EventTaskLibraryItem,
 } from "@droptracker/api-types";
 import { TASK_TYPE_LABELS } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
+import { EventTaskForm } from "@/components/event-task-form";
 import { QuantityInput } from "@/components/quantity-input";
 import {
   saveEventBingo,
@@ -40,14 +42,6 @@ import {
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
 
-type CustomTaskDraft = {
-  type: EventTask["type"];
-  label: string;
-  target: string;
-  targetValue: string;
-  points: string;
-};
-
 /** Local editing model for one cell. Exactly one binding (or none = free). */
 type DesignerCell = {
   label: string;
@@ -55,7 +49,10 @@ type DesignerCell = {
   library: EventTaskLibraryItem | null;
   /** Points override for a library pick. */
   points: number | null;
-  newTask: { type: EventTask["type"]; label: string; target?: string; target_value?: number; points: number } | null;
+  /** Inline custom task, built by the full EventTaskForm in draft mode —
+   * the complete input (config, review flag, visibility…) rides in the
+   * board PUT as `new_task`. */
+  newTask: EventTaskInput | null;
 };
 
 const FREE_CELL: DesignerCell = { label: "", taskId: null, library: null, points: null, newTask: null };
@@ -100,7 +97,8 @@ function cellBindingSummary(cell: DesignerCell, tasks: EventTask[]): string {
     return task ? `Task: ${task.label}` : `Task #${cell.taskId}`;
   }
   if (cell.library) return `Library: ${cell.library.name}`;
-  if (cell.newTask) return `New ${TASK_TYPE_LABELS[cell.newTask.type]} task`;
+  if (cell.newTask)
+    return `New ${TASK_TYPE_LABELS[cell.newTask.type]} task: ${cell.newTask.label}`;
   return "Free cell";
 }
 
@@ -180,13 +178,9 @@ export function EventBingoDesigner({
         out.library_item_id = cell.library.id;
         if (cell.points != null) out.points = cell.points;
       } else if (cell.newTask) {
-        out.new_task = {
-          type: cell.newTask.type,
-          label: cell.newTask.label,
-          target: cell.newTask.target || undefined,
-          target_value: cell.newTask.target_value,
-          points: cell.newTask.points,
-        };
+        // The full draft input — the API validates it like a task POST and
+        // dedupes identical resubmissions across autosaves.
+        out.new_task = cell.newTask;
       }
       return out;
     }),
@@ -428,6 +422,7 @@ export function EventBingoDesigner({
           <CellEditor
             key={selected}
             groupId={groupId}
+            eventId={event.id}
             idx={selected}
             size={size}
             cell={selectedCell}
@@ -485,7 +480,7 @@ function CellEditorModal({ onClose, children }: { onClose: () => void; children:
         role="dialog"
         aria-modal="true"
         aria-label="Configure bingo cell"
-        className="card-pop menu-in relative max-h-[85vh] w-full max-w-2xl overflow-y-auto p-4"
+        className="card-pop menu-in relative max-h-[85vh] w-full max-w-3xl overflow-y-auto p-4"
       >
         {children}
       </div>
@@ -494,8 +489,24 @@ function CellEditorModal({ onClose, children }: { onClose: () => void; children:
   );
 }
 
+/** Pre-fill shape for the draft-mode EventTaskForm: a cell's saved draft
+ * input dressed up as an EventTask (the id is never used in draft mode). */
+function taskFromDraft(input: EventTaskInput): EventTask {
+  return {
+    id: -1,
+    ...input,
+    target: input.target ?? null,
+    target_value: input.target_value ?? null,
+    requires_confirmation: input.requires_confirmation ?? false,
+    visibility: input.visibility ?? "private",
+    difficulty: input.difficulty ?? null,
+    config: input.config ?? null,
+  };
+}
+
 function CellEditor({
   groupId,
+  eventId,
   idx,
   size,
   cell,
@@ -504,6 +515,7 @@ function CellEditor({
   onClose,
 }: {
   groupId: number | null;
+  eventId: number;
   idx: number;
   size: number;
   cell: DesignerCell;
@@ -513,7 +525,9 @@ function CellEditor({
 }) {
   const row = Math.floor(idx / size);
   const col = idx % size;
-  const [tab, setTab] = useState<"library" | "existing" | "custom">("library");
+  const [tab, setTab] = useState<"library" | "existing" | "custom">(
+    cell.newTask ? "custom" : "library",
+  );
 
   // Library search state.
   const [query, setQuery] = useState("");
@@ -521,14 +535,6 @@ function CellEditor({
   const [results, setResults] = useState<EventTaskLibraryItem[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-
-  const [custom, setCustom] = useState<CustomTaskDraft>({
-    type: "item_collection",
-    label: "",
-    target: "",
-    targetValue: "",
-    points: "0",
-  });
 
   const doSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -545,24 +551,6 @@ function CellEditor({
     } finally {
       setSearching(false);
     }
-  };
-
-  const useCustom = () => {
-    if (!custom.label.trim()) return;
-    const targetValue = custom.targetValue.trim() ? Number(custom.targetValue) : undefined;
-    const points = Number(custom.points) || 0;
-    onChange({
-      taskId: null,
-      library: null,
-      points: null,
-      newTask: {
-        type: custom.type,
-        label: custom.label.trim(),
-        target: custom.target.trim() || undefined,
-        target_value: Number.isInteger(targetValue) && targetValue! >= 0 ? targetValue : undefined,
-        points: Number.isInteger(points) && points >= 0 ? points : 0,
-      },
-    });
   };
 
   const tabBtn = (key: typeof tab, label: string) => (
@@ -737,53 +725,23 @@ function CellEditor({
       )}
 
       {tab === "custom" && (
-        <div className="grid gap-2 sm:grid-cols-[9rem_1fr_8rem_6rem_5rem_auto]">
-          <select
-            value={custom.type}
-            onChange={(e) => setCustom((c) => ({ ...c, type: e.target.value as EventTask["type"] }))}
-            className={field}
-          >
-            {EVENT_TASK_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {TASK_TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
-          <input
-            value={custom.label}
-            onChange={(e) => setCustom((c) => ({ ...c, label: e.target.value }))}
-            placeholder="Label"
-            className={field}
+        <div className="space-y-2">
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            The full task form — item/NPC pickers, collection modes, admin review and library
+            sharing all work exactly like the Tasks section. The task is created when the board
+            saves and appears under Tasks too.
+          </p>
+          <EventTaskForm
+            groupId={groupId}
+            eventId={eventId}
+            initial={cell.newTask ? taskFromDraft(cell.newTask) : undefined}
+            onDraftSubmit={(input) =>
+              onChange({ taskId: null, library: null, points: null, newTask: input })
+            }
+            omitTypes={["loot_sweep"]}
+            hideDifficulty
+            submitLabel={cell.newTask ? "Update cell task" : "Use this task"}
           />
-          <input
-            value={custom.target}
-            onChange={(e) => setCustom((c) => ({ ...c, target: e.target.value }))}
-            placeholder="Target"
-            className={field}
-          />
-          <input
-            type="number"
-            min={0}
-            value={custom.targetValue}
-            onChange={(e) => setCustom((c) => ({ ...c, targetValue: e.target.value }))}
-            placeholder="Goal #"
-            className={field}
-          />
-          <input
-            type="number"
-            min={0}
-            value={custom.points}
-            onChange={(e) => setCustom((c) => ({ ...c, points: e.target.value }))}
-            placeholder="Pts"
-            className={field}
-          />
-          <button
-            onClick={useCustom}
-            disabled={!custom.label.trim()}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
-          >
-            Use task
-          </button>
         </div>
       )}
     </div>
