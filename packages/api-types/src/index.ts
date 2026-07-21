@@ -1831,6 +1831,25 @@ export const AdminEventTypeSchema = z.object({
 });
 export type AdminEventType = z.infer<typeof AdminEventTypeSchema>;
 
+/** Sentinel `type_key` on an event rate limit: the rule caps the tier's TOTAL
+ * events across every kind, not one kind. */
+export const EVENT_RATE_LIMIT_ALL_TYPES = "*" as const;
+
+/** One per-tier event frequency cap (GET/PUT /admin/event-rate-limits,
+ * web65a): groups on `tier_key` may activate at most `max_events` events of
+ * `type_key` ("*" = all kinds combined) per rolling `window_days` days. No
+ * rule = unlimited; an enabled rule > 0 also grants rate-limited event access
+ * to tiers without the events entitlement. */
+export const AdminEventRateLimitSchema = z.object({
+  id: z.number().int(),
+  tier_key: z.string(),
+  type_key: z.string(),
+  max_events: z.number().int().nonnegative(),
+  window_days: z.number().int().positive(),
+  enabled: z.boolean(),
+});
+export type AdminEventRateLimit = z.infer<typeof AdminEventRateLimitSchema>;
+
 /** Clan-vs-clan participant roster (web_event_groups). */
 export const EVENT_PARTICIPANT_ROLES = ["host", "opponent"] as const;
 export const EVENT_PARTICIPANT_STATUSES = ["invited", "accepted", "declined"] as const;

@@ -49,6 +49,8 @@ import {
   type AdminShopItem,
   AdminEventTypeSchema,
   type AdminEventType,
+  AdminEventRateLimitSchema,
+  type AdminEventRateLimit,
   EventChannelConfigSchema,
   EventTeamDiscordConfigSchema,
   type EventTeamDiscordConfig,
@@ -3392,6 +3394,36 @@ export const api = {
         {},
       ),
     );
+  },
+
+  // --- Event rate limits (web65a) ----------------------------------------
+  /** Every configured per-tier event frequency cap. */
+  async adminEventRateLimits(): Promise<AdminEventRateLimit[]> {
+    return withFallback(
+      async () =>
+        AdminEventRateLimitSchema.array().parse(
+          await apiGet(`/admin/event-rate-limits`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
+  /** Upsert one cap, keyed by (tier_key, type_key); returns the stored row. */
+  async adminPutEventRateLimit(input: {
+    tier_key: string;
+    type_key: string;
+    max_events: number;
+    window_days: number;
+    enabled?: boolean;
+  }): Promise<AdminEventRateLimit> {
+    return AdminEventRateLimitSchema.parse(
+      await apiSend("PUT", `/admin/event-rate-limits`, input),
+    );
+  },
+
+  /** Delete one cap (that scope reverts to unlimited). */
+  async adminDeleteEventRateLimit(id: number): Promise<void> {
+    await apiSend("DELETE", `/admin/event-rate-limits/${id}`, {});
   },
 
   async adminServices(): Promise<ServiceStatus[]> {
