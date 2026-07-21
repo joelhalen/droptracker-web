@@ -2090,7 +2090,7 @@ export function mockEventPlayerDetail(eventId: number, playerId: number): EventP
   return {
     event,
     player: {
-      player_id: p.player_id,
+      player_id: p.player_id ?? playerId,
       player_name: p.player_name,
       team_id: p.team_id,
       team_name: p.team_name,

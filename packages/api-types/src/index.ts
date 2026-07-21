@@ -2811,9 +2811,10 @@ export const EventPlayerItemSchema = z.object({
 });
 export type EventPlayerItem = z.infer<typeof EventPlayerItemSchema>;
 
-/** One row of the event-wide contribution leaderboard. */
+/** One row of the event-wide contribution leaderboard. `player_id` is null for
+ * a privacy-opted-out contributor (masked to "Hidden player", not linkable). */
 export const EventPlayerRowSchema = z.object({
-  player_id: z.number().int(),
+  player_id: z.number().int().nullable(),
   player_name: z.string(),
   team_id: z.number().int().nullable().optional(),
   team_name: z.string().nullable().optional(),

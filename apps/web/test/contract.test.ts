@@ -29,6 +29,8 @@ import {
   ItemDetailSchema,
   MeSchema,
   EventManagersResponseSchema,
+  EventPlayersResponseSchema,
+  EventPlayerDetailSchema,
   NpcDetailSchema,
   NpcDropTableSchema,
   PbBossBoardSchema,
@@ -67,6 +69,8 @@ import {
   mockTicket,
   mockMe,
   mockEventManagers,
+  mockEventPlayers,
+  mockEventPlayerDetail,
   mockPbBoard,
   mockPbBosses,
   mockPlayerLeaderboard,
@@ -106,6 +110,8 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => AnnouncementPageSchema.parse(mockAnnouncements()));
   assert.doesNotThrow(() => MeSchema.parse(mockMe()));
   assert.doesNotThrow(() => EventManagersResponseSchema.parse(mockEventManagers()));
+  assert.doesNotThrow(() => EventPlayersResponseSchema.parse(mockEventPlayers(1)));
+  assert.doesNotThrow(() => EventPlayerDetailSchema.parse(mockEventPlayerDetail(1, 2001)));
   assert.doesNotThrow(() => ServiceStatusSchema.array().parse(mockServices()));
   assert.doesNotThrow(() => BackupOverviewSchema.parse(mockBackupOverview()));
   assert.doesNotThrow(() => BackupOffsiteSchema.parse(mockBackupOffsite()));
