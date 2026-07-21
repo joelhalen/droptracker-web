@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
+  EVENT_TASK_DIFFICULTIES,
   EVENT_TASK_TYPES,
   type EventMetaEntry,
   type EventTask,
@@ -25,6 +26,7 @@ import {
   OSRS_SKILLS,
   PET_CATEGORY_KEYS,
   PET_CATEGORY_LABELS,
+  TASK_DIFFICULTY_LABELS,
   TASK_TYPE_HELP,
   TASK_TYPE_LABELS,
   formatSeconds,
@@ -413,10 +415,14 @@ export function EventTaskForm({
     setPaths((prev) => prev.map((p, i) => (i === pi ? { ...p, ...patch } : p)));
 
   // kc / pb / xp / skill / loot / ehp / ehb
+  // kc_target may carry several NPCs (config.npcs) — a kill of ANY of them
+  // counts; pb_target stays single-NPC.
   const [npcSel, setNpcSel] = useState<PickerEntry[]>(
-    initial && ["kc_target", "pb_target"].includes(initial.type) && initial.target
-      ? [{ name: initial.target }]
-      : [],
+    initial?.type === "kc_target" && Array.isArray(initialConfig.npcs)
+      ? (initialConfig.npcs as string[]).map((name) => ({ name }))
+      : initial && ["kc_target", "pb_target"].includes(initial.type) && initial.target
+        ? [{ name: initial.target }]
+        : [],
   );
   const [numericGoal, setNumericGoal] = useState<number>(
     initial && !["pb_target", "item_collection"].includes(initial.type)
@@ -511,7 +517,7 @@ export function EventTaskForm({
         }
         break;
       case "kc_target":
-        if (!npcName) return "Pick an NPC.";
+        if (!npcSel.length) return "Pick at least one NPC.";
         if (numericGoal < 1) return "Set a kill count.";
         break;
       case "pb_target":
@@ -585,7 +591,7 @@ export function EventTaskForm({
             .join(" OR ");
         return `${pointsGoal.toLocaleString()} collection points`;
       case "kc_target":
-        return `${numericGoal}× ${npcName}`;
+        return `${numericGoal}× ${npcSel.map((n) => n.name).join(" / ")}`;
       case "pb_target":
         return `${npcName} in ${timeText}`;
       case "xp_target":
@@ -661,8 +667,17 @@ export function EventTaskForm({
                 : listItems.map((i) => i.name),
           }),
         };
-      case "kc_target":
-        return { ...base, target: npcName, target_value: numericGoal };
+      case "kc_target": {
+        // Several NPCs ride in config.npcs ("either counts"); a single NPC
+        // keeps plain target semantics (the API collapses a 1-list anyway).
+        const npcs = npcSel.map((n) => n.name);
+        return {
+          ...base,
+          target: npcs[0],
+          target_value: numericGoal,
+          config: npcs.length > 1 ? JSON.stringify({ npcs }) : undefined,
+        };
+      }
       case "pb_target":
         return { ...base, target: npcName, target_value: parseTimeToSeconds(timeText) ?? 0 };
       case "xp_target":
@@ -943,12 +958,17 @@ export function EventTaskForm({
           </div>
           <ItemNpcPicker
             kind="npc"
-            mode="single"
+            mode={type === "kc_target" ? "list" : "single"}
             selected={npcSel}
             onChange={setNpcSel}
             search={searchNpcs}
             resolve={resolveNpcs}
-            selectionTitle="Target NPC"
+            selectionTitle={type === "kc_target" ? "Target NPC(s)" : "Target NPC"}
+            emptyHint={
+              type === "kc_target"
+                ? "Add one or more NPCs — a kill of any of them counts toward the goal."
+                : undefined
+            }
           />
         </div>
       )}
@@ -1110,10 +1130,11 @@ export function EventTaskForm({
             title="Board-game tier: difficulty tiles roll random tasks from this tier's pool"
           >
             <option value="">— none —</option>
-            <option value="air">Air (easy)</option>
-            <option value="water">Water</option>
-            <option value="earth">Earth</option>
-            <option value="fire">Fire (hard)</option>
+            {EVENT_TASK_DIFFICULTIES.map((d) => (
+              <option key={d} value={d}>
+                {TASK_DIFFICULTY_LABELS[d]}
+              </option>
+            ))}
           </select>
         </label>
         <label className="grid gap-1 text-sm">

@@ -1213,6 +1213,8 @@ function WizardTasksStep({
 }) {
   const [adding, setAdding] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  /** Task id being edited inline (same flow as the event manager). */
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
 
   return (
     <div className="space-y-4">
@@ -1232,6 +1234,7 @@ function WizardTasksStep({
           onClick={() => {
             setAdding((v) => !v);
             setShowLibrary(false);
+            setEditingTaskId(null);
           }}
           className={primaryBtn}
         >
@@ -1242,6 +1245,7 @@ function WizardTasksStep({
           onClick={() => {
             setShowLibrary((v) => !v);
             setAdding(false);
+            setEditingTaskId(null);
           }}
           className={ghostBtn}
         >
@@ -1277,26 +1281,55 @@ function WizardTasksStep({
 
       {tasks.length ? (
         <ul className="divide-osrs-bronze/10 border-osrs-bronze/20 divide-y rounded border">
-          {tasks.map((t) => (
-            <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-              <div className="min-w-0">
-                <p className="text-osrs-parchment/90 truncate font-medium">{t.label}</p>
-                <p className="text-osrs-parchment-dark/50 truncate text-xs">
-                  {TASK_TYPE_LABELS[t.type]}
-                  {taskGoal(t) ? ` · ${taskGoal(t)}` : ""}
-                  {t.points ? ` · ${t.points} pts` : ""}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onRemoveTask(t.id)}
-                disabled={pending}
-                className="text-osrs-red hover:bg-osrs-red/10 shrink-0 rounded px-2 py-1 text-xs disabled:opacity-50"
-              >
-                Remove
-              </button>
-            </li>
-          ))}
+          {tasks.map((t) =>
+            editingTaskId === t.id ? (
+              <li key={t.id} className="px-3 py-2">
+                <EventTaskForm
+                  groupId={groupId}
+                  eventId={detail.id}
+                  initial={t}
+                  onSaved={(updated) => {
+                    onTaskSaved(updated);
+                    setEditingTaskId(null);
+                  }}
+                  onCancel={() => setEditingTaskId(null)}
+                />
+              </li>
+            ) : (
+              <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="text-osrs-parchment/90 truncate font-medium">{t.label}</p>
+                  <p className="text-osrs-parchment-dark/50 truncate text-xs">
+                    {TASK_TYPE_LABELS[t.type]}
+                    {taskGoal(t) ? ` · ${taskGoal(t)}` : ""}
+                    {t.points ? ` · ${t.points} pts` : ""}
+                  </p>
+                </div>
+                <span className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingTaskId(t.id);
+                      setAdding(false);
+                      setShowLibrary(false);
+                    }}
+                    disabled={pending}
+                    className="text-osrs-parchment-dark/70 hover:bg-osrs-bronze/15 rounded px-2 py-1 text-xs disabled:opacity-50"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onRemoveTask(t.id)}
+                    disabled={pending}
+                    className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </span>
+              </li>
+            ),
+          )}
         </ul>
       ) : (
         <EmptyState

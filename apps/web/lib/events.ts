@@ -1,4 +1,4 @@
-import type { EventDetail, EventTask } from "@droptracker/api-types";
+import type { EventDetail, EventTask, EventTaskDifficulty } from "@droptracker/api-types";
 
 /** Default per-team accent palette, indexed by roster order — the fallback
  * when a team has no admin-assigned `color`. Shared by the bingo board, task
@@ -99,7 +99,8 @@ export const TASK_TYPE_LABELS: Record<EventTask["type"], string> = {
 export const TASK_TYPE_HELP: Record<EventTask["type"], string> = {
   item_collection:
     "Collect a specific item — or any / all / points-worth from a list. Credited from drops and collection log entries.",
-  kc_target: "Kill a specific NPC a number of times. Kills are counted from tracked drops.",
+  kc_target:
+    "Kill an NPC a number of times — list several NPCs and a kill of any of them counts. Kills are counted from tracked drops.",
   xp_target: "Gain an amount of XP in a skill during the event.",
   ehp_target: "Reach an efficient-hours-played goal. Completed manually via an admin award.",
   ehb_target: "Reach an efficient-hours-bossed goal. Completed manually via an admin award.",
@@ -111,6 +112,16 @@ export const TASK_TYPE_HELP: Record<EventTask["type"], string> = {
   loot_sweep:
     "One boss/“set” worth of items (Loot Sweep events only). Each item scores points that decay on every repeat receipt (capped per item); collecting the whole set awards a bonus. Never “completes” — it accrues points until the event ends.",
   custom: "Anything else. Completed manually via an admin award.",
+};
+
+/** Difficulty-tier display names. The stored values are the legacy
+ * board-game rune elements (air easiest → fire hardest) — kept for DB/API
+ * compat — but every dropdown/badge shows the plain difficulty instead. */
+export const TASK_DIFFICULTY_LABELS: Record<EventTaskDifficulty, string> = {
+  air: "Easy",
+  water: "Medium",
+  earth: "Hard",
+  fire: "Elite",
 };
 
 /** Pet categories the engine can gate on (utils/osrs_pets.py). `misc` is
@@ -250,8 +261,13 @@ export function taskGoal(
   const target = task.target ?? "";
   const tv = task.target_value;
   switch (task.type) {
-    case "kc_target":
-      return tv != null ? `${target} · ${tv.toLocaleString()} KC` : target;
+    case "kc_target": {
+      // Multi-NPC tasks (config.npcs, "either counts") show every NPC.
+      const npcs = taskConfig(task).npcs;
+      const who =
+        Array.isArray(npcs) && npcs.length > 1 ? (npcs as string[]).join(" / ") : target;
+      return tv != null ? `${who} · ${tv.toLocaleString()} KC` : who;
+    }
     case "pb_target":
       return tv != null ? `${target} · sub ${formatSeconds(tv)}` : target;
     case "xp_target":

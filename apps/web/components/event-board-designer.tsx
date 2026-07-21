@@ -36,6 +36,7 @@ import {
   uploadEventBoardBackground,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
+import { TASK_DIFFICULTY_LABELS } from "@/lib/events";
 import { Alert } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
 
@@ -55,12 +56,8 @@ const SAMPLE_BOARD = {
   height: 1600,
 };
 
-const DIFFICULTY_LABELS: Record<EventTaskDifficulty, string> = {
-  air: "Air (easy)",
-  water: "Water",
-  earth: "Earth",
-  fire: "Fire (hard)",
-};
+// Plain difficulty names (the stored values remain the legacy rune elements).
+const DIFFICULTY_LABELS = TASK_DIFFICULTY_LABELS;
 
 type DesignerTile = {
   x: number;
@@ -386,7 +383,7 @@ export function EventBoardDesigner({
     flushRef.current();
   };
 
-  // "Auto-set tile type": air→water→earth→fire cycling across all tiles.
+  // "Auto-set tile type": easy→medium→hard→elite cycling across all tiles.
   const autoSetTileTypes = () => {
     const mismatched = tiles.filter(
       (t, i) => t.taskId != null || (t.difficulty && t.difficulty !== cycleDifficulty(i)),
@@ -395,7 +392,7 @@ export function EventBoardDesigner({
       mismatched > 0 &&
       !window.confirm(
         `Auto-set will overwrite the difficulty on ${mismatched} tile(s) ` +
-          "(air → water → earth → fire, repeating). Pinned tasks are unpinned. Continue?",
+          "(easy → medium → hard → elite, repeating). Pinned tasks are unpinned. Continue?",
       )
     ) {
       return;
@@ -599,7 +596,7 @@ export function EventBoardDesigner({
           onClick={autoSetTileTypes}
           disabled={!editable || tiles.length === 0}
           className="border-osrs-bronze/40 hover:border-osrs-gold rounded border px-3 py-1.5 text-sm disabled:opacity-50"
-          title="Cycle air → water → earth → fire across every tile in order"
+          title="Cycle easy → medium → hard → elite across every tile in order"
         >
           Auto-set tile type
         </button>
@@ -643,7 +640,7 @@ export function EventBoardDesigner({
           <h4 className="text-osrs-gold text-sm font-semibold">Procedural board generator</h4>
           <p className="text-osrs-parchment-dark/60 text-xs">
             Rolls a full board — winding path art plus every tile placed in order (start → finish,
-            difficulty cycling air → water → earth → fire). Replaces the current layout and
+            difficulty cycling easy → medium → hard → elite). Replaces the current layout and
             background; you can still edit any tile afterward.
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

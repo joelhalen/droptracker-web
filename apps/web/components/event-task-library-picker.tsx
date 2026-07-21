@@ -103,10 +103,12 @@ export function EventTaskLibraryPicker({
           // Board-game tier rides along so difficulty-tile roll pools see
           // the copied task (web44a).
           ...(item.difficulty ? { difficulty: item.difficulty } : {}),
-          // The copy is this event's own task. "public" is the sitewide
-          // default; the API dedupes by requirements, so re-sharing a preset
-          // that already exists never creates a second public library row.
-          visibility: "public" as const,
+          // The copy is this event's own PRIVATE task, fully independent of
+          // the template it came from: editing it later must never rewrite
+          // the shared library row other clans pick from. (The API also
+          // dedupes by requirements, so the copy never duplicates the
+          // library entry itself.)
+          visibility: "private" as const,
         };
         const res = await addEventTask(groupId, eventId, input);
         if (!res.ok) {

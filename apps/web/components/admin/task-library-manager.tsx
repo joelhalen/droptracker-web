@@ -20,6 +20,7 @@ import {
 } from "@droptracker/api-types";
 import {
   OSRS_SKILLS,
+  TASK_DIFFICULTY_LABELS,
   TASK_TYPE_HELP,
   TASK_TYPE_LABELS,
   formatSeconds,
@@ -309,8 +310,8 @@ export function TaskLibraryManager({ initial }: { initial: EventTaskLibraryItem[
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
                     {item.difficulty && (
-                      <span className="text-osrs-gold-bright/70 text-xs capitalize">
-                        {item.difficulty}
+                      <span className="text-osrs-gold-bright/70 text-xs">
+                        {TASK_DIFFICULTY_LABELS[item.difficulty] ?? item.difficulty}
                       </span>
                     )}
                     <span className="text-osrs-parchment-dark/60 text-xs">
@@ -873,8 +874,8 @@ function PresetForm({
           >
             <option value="">None</option>
             {EVENT_TASK_DIFFICULTIES.map((d) => (
-              <option key={d} value={d} className="capitalize">
-                {d}
+              <option key={d} value={d}>
+                {TASK_DIFFICULTY_LABELS[d]}
               </option>
             ))}
           </select>
