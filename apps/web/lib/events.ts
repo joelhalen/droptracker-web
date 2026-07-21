@@ -214,12 +214,43 @@ export function taskConfigPaths(task: Pick<EventTask, "config">): TaskConfigPath
   }));
 }
 
+/** Optional per-item source-NPC restriction (`config.item_npcs`, a flat
+ * `{item_name: [npc, ...]}` map used by multi-item tasks so it reaches groups /
+ * any_path whose stored item lists are bare name strings). Keys keep their
+ * stored (canonical) casing. */
+function parseItemNpcs(raw: unknown): Record<string, string[]> {
+  if (!raw || typeof raw !== "object") return {};
+  const out: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (Array.isArray(v)) {
+      const npcs = v.filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+      if (npcs.length) out[k] = npcs;
+    }
+  }
+  return out;
+}
+
+/** Per-item source restriction for a multi-item task (`{item_name: [npc]}`). */
+export function taskItemNpcs(task: Pick<EventTask, "config">): Record<string, string[]> {
+  return parseItemNpcs(taskConfig(task).item_npcs);
+}
+
+/** Task-level source restriction for a single-item task (`config.source_npcs`). */
+export function taskSourceNpcs(task: Pick<EventTask, "config">): string[] {
+  const raw = taskConfig(task).source_npcs;
+  return Array.isArray(raw) ? raw.filter((n): n is string => typeof n === "string") : [];
+}
+
 /** Items in an item-list config, for display chips (groups and either-or
- * paths are flattened; paths may share items, so names are de-duplicated). */
+ * paths are flattened; paths may share items, so names are de-duplicated).
+ * `npcs` carries the item's source restriction, if any. */
 export function taskConfigItems(
   task: Pick<EventTask, "config">,
-): { item_name: string; points?: number }[] {
+): { item_name: string; points?: number; npcs?: string[] }[] {
   const cfg = taskConfig(task);
+  const itemNpcs = parseItemNpcs(cfg.item_npcs);
+  const npcByLower: Record<string, string[]> = {};
+  for (const [k, v] of Object.entries(itemNpcs)) npcByLower[k.toLowerCase()] = v;
   const items = Array.isArray(cfg.items)
     ? cfg.items
     : cfg.kind === "any_path"
@@ -228,18 +259,20 @@ export function taskConfigItems(
   if (!Array.isArray(items)) return [];
   const seen = new Set<string>();
   return items.flatMap((it) => {
-    if (typeof it === "string") {
-      const key = it.toLowerCase();
-      if (seen.has(key)) return [];
-      seen.add(key);
-      return [{ item_name: it }];
-    }
-    const entry = it as { item_name?: string; points?: number };
-    if (!entry.item_name) return [];
-    const key = entry.item_name.toLowerCase();
+    const name = typeof it === "string" ? it : (it as { item_name?: string } | null)?.item_name;
+    if (!name) return [];
+    const key = name.toLowerCase();
     if (seen.has(key)) return [];
     seen.add(key);
-    return [{ item_name: entry.item_name, points: entry.points }];
+    const points = typeof it === "object" && it ? (it as { points?: number }).points : undefined;
+    const npcs = npcByLower[key];
+    return [
+      {
+        item_name: name,
+        ...(points !== undefined ? { points } : {}),
+        ...(npcs ? { npcs } : {}),
+      },
+    ];
   });
 }
 
@@ -281,10 +314,13 @@ export function taskGoal(
       return tv != null ? `${tv.toLocaleString()} GP${from}` : "";
     }
     case "item_collection": {
+      // Per-item source restriction (multi-item tasks) shows as a count suffix.
+      const lockedCount = Object.keys(taskItemNpcs(task)).length;
+      const lockSuffix = lockedCount ? ` · ${lockedCount} source-locked` : "";
       const paths = taskConfigPaths(task);
       if (paths.length) {
         // e.g. "Full set OR Any 5 pieces" (dryness protection).
-        return paths.map(pathSummary).join(" OR ");
+        return paths.map(pathSummary).join(" OR ") + lockSuffix;
       }
       const groups = taskConfigGroups(task);
       if (groups.length) {
@@ -292,7 +328,7 @@ export function taskGoal(
         const parts = groups.map((g) =>
           g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
         );
-        return `${parts.join(" + ")} items`;
+        return `${parts.join(" + ")} items${lockSuffix}`;
       }
       const items = taskConfigItems(task);
       if (items.length) {
@@ -301,9 +337,15 @@ export function taskGoal(
           taskConfig(task).kind === "any_of" && tv != null && tv > 1
             ? ` · ${tv.toLocaleString()} needed`
             : "";
-        return `${kind} · ${items.length} items${need}`;
+        return `${kind} · ${items.length} items${need}${lockSuffix}`;
       }
-      if (target) return tv != null && tv > 1 ? `${target} · ${tv.toLocaleString()}×` : target;
+      if (target) {
+        // Single item — mirror the loot_value " from <NPC>" idiom.
+        const sources = taskSourceNpcs(task);
+        const from = sources.length ? ` from ${sources.join(", ")}` : "";
+        const qty = tv != null && tv > 1 ? ` · ${tv.toLocaleString()}×` : "";
+        return `${target}${qty}${from}`;
+      }
       return "";
     }
     case "pet_collection": {

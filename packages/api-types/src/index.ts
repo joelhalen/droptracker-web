@@ -3236,6 +3236,35 @@ export const EventMetaEntrySchema = z.object({
 });
 export type EventMetaEntry = z.infer<typeof EventMetaEntrySchema>;
 
+/** One NPC that drops an item, from the ingested OSRS Wiki drop table
+ * (`xenforo.dt_npc_loot`). `tracked` = we've observed real drops from this NPC
+ * (so the source-restriction picker can warn on never-seen sources). */
+export const EventItemSourceNpcSchema = z.object({
+  npc_id: z.number().int(),
+  name: z.string(),
+  icon_url: z.string(),
+  quantity: z.string(),
+  rarity: z.number(),
+  rolls: z.number().int(),
+  tracked: z.boolean(),
+});
+export type EventItemSourceNpc = z.infer<typeof EventItemSourceNpcSchema>;
+
+/** GET /events/meta/item-sources — the NPC drop sources for one item, for the
+ * task-form "restrict to specific sources" picker (an item task can require the
+ * item to have dropped from a chosen NPC). Response is one entry per requested
+ * item name that resolved. */
+export const EventItemSourceSchema = z.object({
+  item_name: z.string(),
+  item_id: z.number().int(),
+  total: z.number().int(),
+  npcs: EventItemSourceNpcSchema.array(),
+});
+export type EventItemSource = z.infer<typeof EventItemSourceSchema>;
+
+export const EventItemSourcesSchema = EventItemSourceSchema.array();
+export type EventItemSources = z.infer<typeof EventItemSourcesSchema>;
+
 /** POST /event-task-library — create a curated site-wide preset (superadmin).
  * Goal fields (target/target_value/config) are revalidated per type exactly
  * like an event task, so a preset that saves is a preset that instantiates. */

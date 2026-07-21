@@ -83,6 +83,8 @@ import {
   type TaskBreakdown,
   EventSummarySchema,
   EventMetaEntrySchema,
+  EventItemSourcesSchema,
+  type EventItemSources,
   EventTaskLibraryItemSchema,
   EventTemplateSummarySchema,
   type EventTemplateSummary,
@@ -1633,6 +1635,21 @@ export const api = {
       async () =>
         EventMetaEntrySchema.array().parse(
           await apiGet(`/events/meta/npcs?q=${encodeURIComponent(query)}`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
+  /** NPC drop sources for one or more items — backs the task-form
+   * "restrict to specific NPC sources" picker (names are |-separated exact
+   * in-game names, no pipes). Unresolved names are simply absent. */
+  async itemSources(names: string[]): Promise<EventItemSources> {
+    if (!names.length) return [];
+    const q = new URLSearchParams({ items: names.slice(0, 50).join("|") });
+    return withFallback(
+      async () =>
+        EventItemSourcesSchema.parse(
+          await apiGet(`/events/meta/item-sources?${q}`, { authed: true }),
         ),
       () => [],
     );

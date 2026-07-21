@@ -653,6 +653,13 @@ export async function resolveEventMetaNames(
   return api.resolveEventMeta(kind, names);
 }
 
+/** NPC drop sources for item(s) — backs the task-form "restrict to specific
+ * NPC sources" picker (an item task can require a drop from a chosen NPC). */
+export async function fetchItemSources(groupId: EventGroupId, names: string[]) {
+  await assertCanManageEvent(groupId);
+  return api.itemSources(names);
+}
+
 // --- Verification queue & manual actions (Task 18) --------------------------
 
 /** Admin-only completion ledger read (used by the Review section refresh). */

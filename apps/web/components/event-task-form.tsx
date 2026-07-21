@@ -33,10 +33,12 @@ import {
   parseTimeToSeconds,
   taskConfig,
   taskConfigItems,
+  taskSourceNpcs,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
+import { ItemSourceRestriction } from "@/components/item-source-restriction";
 import {
   LootSweepEditor,
   type LootSweepDraft,
@@ -47,6 +49,7 @@ import {
 import { QuantityInput } from "@/components/quantity-input";
 import {
   addEventTask,
+  fetchItemSources,
   resolveEventMetaNames,
   searchEventItems,
   searchEventNpcs,
@@ -102,28 +105,45 @@ type GroupDraft = { mode: "all_of" | "any_of"; need: number; items: PickerEntry[
 /** One alternative of an "Either-or" task — its own set of requirement groups. */
 type PathDraft = { label: string; groups: GroupDraft[] };
 
-function parseGroupDrafts(raw: unknown): GroupDraft[] {
+/** Lower-cased `{item_name: [npc]}` restriction lookup from a stored config. */
+function itemNpcsLookup(config: Record<string, unknown>): Record<string, string[]> {
+  const raw = config.item_npcs;
+  const out: Record<string, string[]> = {};
+  if (raw && typeof raw === "object") {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (Array.isArray(v)) {
+        const npcs = v.filter((n): n is string => typeof n === "string");
+        if (npcs.length) out[k.toLowerCase()] = npcs;
+      }
+    }
+  }
+  return out;
+}
+
+function parseGroupDrafts(raw: unknown, itemNpcs: Record<string, string[]> = {}): GroupDraft[] {
   if (!Array.isArray(raw)) return [];
   return (raw as { mode?: string; need?: number; items?: unknown[] }[]).map((g) => ({
     mode: g.mode === "any_of" ? "any_of" : "all_of",
     need: typeof g.need === "number" && g.need >= 1 ? g.need : 1,
     items: (Array.isArray(g.items) ? g.items : []).flatMap((it): PickerEntry[] => {
-      if (typeof it === "string") return [{ name: it }];
-      const name = (it as { item_name?: string } | null)?.item_name;
-      return name ? [{ name }] : [];
+      const name = typeof it === "string" ? it : (it as { item_name?: string } | null)?.item_name;
+      if (!name) return [];
+      const npcs = itemNpcs[name.toLowerCase()];
+      return [{ name, ...(npcs ? { npcs } : {}) }];
     }),
   }));
 }
 
 function groupsFromConfig(config: Record<string, unknown>): GroupDraft[] {
-  return parseGroupDrafts(config.groups);
+  return parseGroupDrafts(config.groups, itemNpcsLookup(config));
 }
 
 function pathsFromConfig(config: Record<string, unknown>): PathDraft[] {
   if (config.kind !== "any_path" || !Array.isArray(config.paths)) return [];
+  const itemNpcs = itemNpcsLookup(config);
   return (config.paths as { label?: unknown; groups?: unknown }[]).map((p) => ({
     label: typeof p.label === "string" ? p.label : "",
-    groups: parseGroupDrafts(p.groups),
+    groups: parseGroupDrafts(p.groups, itemNpcs),
   }));
 }
 
@@ -137,6 +157,17 @@ function serializeGroups(groups: GroupDraft[]) {
 
 const groupsNeed = (groups: GroupDraft[]) =>
   groups.reduce((n, g) => n + (g.mode === "all_of" ? g.items.length : g.need), 0);
+
+/** Flat `{item_name: [npc]}` source-restriction map from picked entries — only
+ * the items that carry a restriction. Used for every multi-item config kind so
+ * it survives groups/any_path (whose serialized item lists are bare strings). */
+function itemNpcsFromEntries(items: PickerEntry[]): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const it of items) {
+    if (it.npcs && it.npcs.length) out[it.name] = it.npcs;
+  }
+  return out;
+}
 
 /** null ⇒ valid; the shared group-list checks for groups mode and each path. */
 function validateGroupDrafts(groups: GroupDraft[], where = ""): string | null {
@@ -158,11 +189,13 @@ function GroupListEditor({
   onChange,
   search,
   resolve,
+  renderEntryExtra,
 }: {
   groups: GroupDraft[];
   onChange: (groups: GroupDraft[]) => void;
   search: (q: string) => Promise<EventMetaEntry[]>;
   resolve: (names: string[]) => Promise<EventMetaEntry[]>;
+  renderEntryExtra?: (entry: PickerEntry, setNpcs: (npcs: string[]) => void) => React.ReactNode;
 }) {
   const patch = (gi: number, p: Partial<GroupDraft>) =>
     onChange(groups.map((g, i) => (i === gi ? { ...g, ...p } : g)));
@@ -214,6 +247,7 @@ function GroupListEditor({
             onChange={(items) => patch(gi, { items })}
             search={search}
             resolve={resolve}
+            renderEntryExtra={renderEntryExtra}
           />
         </div>
       ))}
@@ -346,7 +380,11 @@ export function EventTaskForm({
 }) {
   const editing = initial != null;
   const initialItems: PickerEntry[] = initial
-    ? taskConfigItems(initial).map((it) => ({ name: it.item_name, points: it.points }))
+    ? taskConfigItems(initial).map((it) => ({
+        name: it.item_name,
+        points: it.points,
+        ...(it.npcs ? { npcs: it.npcs } : {}),
+      }))
     : [];
   const initialConfig = initial ? taskConfig(initial) : {};
 
@@ -377,7 +415,14 @@ export function EventTaskForm({
           : "single",
   );
   const [singleItem, setSingleItem] = useState<PickerEntry[]>(
-    initial?.type === "item_collection" && initial.target ? [{ name: initial.target }] : [],
+    initial?.type === "item_collection" && initial.target
+      ? [
+          {
+            name: initial.target,
+            ...(taskSourceNpcs(initial).length ? { npcs: taskSourceNpcs(initial) } : {}),
+          },
+        ]
+      : [],
   );
   const [quantity, setQuantity] = useState(
     initial?.type === "item_collection" ? (initial.target_value ?? 1) : 1,
@@ -485,6 +530,19 @@ export function EventTaskForm({
   const searchNpcs = (q: string) => searchEventNpcs(groupId, q);
   const resolveItems = (names: string[]) => resolveEventMetaNames(groupId, "item", names);
   const resolveNpcs = (names: string[]) => resolveEventMetaNames(groupId, "npc", names);
+  const fetchSources = (name: string) =>
+    fetchItemSources(groupId, [name]).then((rows) => rows[0]?.npcs ?? []);
+  // Per-item "restrict to specific NPC sources" control, reused by every item
+  // picker (single, flat list, groups, either-or paths).
+  const renderSourceRestriction = (entry: PickerEntry, setNpcs: (npcs: string[]) => void) => (
+    <ItemSourceRestriction
+      itemName={entry.name}
+      npcs={entry.npcs ?? []}
+      onChange={setNpcs}
+      fetchSources={fetchSources}
+      disabled={pending}
+    />
+  );
 
   const itemName = singleItem[0]?.name ?? "";
   const npcName = npcSel[0]?.name ?? "";
@@ -629,15 +687,31 @@ export function EventTaskForm({
     };
     switch (type) {
       case "item_collection":
-        if (itemMode === "single") return { ...base, target: itemName, target_value: quantity };
-        if (itemMode === "groups")
+        if (itemMode === "single") {
+          // Single-item source restriction rides in config.source_npcs.
+          const src = singleItem[0]?.npcs ?? [];
+          return {
+            ...base,
+            target: itemName,
+            target_value: quantity,
+            config: src.length ? JSON.stringify({ source_npcs: src }) : undefined,
+          };
+        }
+        if (itemMode === "groups") {
+          const itemNpcs = itemNpcsFromEntries(groups.flatMap((g) => g.items));
           return {
             ...base,
             // Display value; the API recomputes the threshold from the groups.
             target_value: groupsNeed(groups),
-            config: JSON.stringify({ kind: "groups", groups: serializeGroups(groups) }),
+            config: JSON.stringify({
+              kind: "groups",
+              groups: serializeGroups(groups),
+              ...(Object.keys(itemNpcs).length ? { item_npcs: itemNpcs } : {}),
+            }),
           };
-        if (itemMode === "any_path")
+        }
+        if (itemMode === "any_path") {
+          const itemNpcs = itemNpcsFromEntries(paths.flatMap((p) => p.groups.flatMap((g) => g.items)));
           return {
             ...base,
             // Either-or progress is a percentage of the closest path; the
@@ -649,24 +723,30 @@ export function EventTaskForm({
                 ...(p.label.trim() ? { label: p.label.trim() } : {}),
                 groups: serializeGroups(p.groups),
               })),
+              ...(Object.keys(itemNpcs).length ? { item_npcs: itemNpcs } : {}),
             }),
           };
-        return {
-          ...base,
-          target_value:
-            itemMode === "point_collection"
-              ? pointsGoal
-              : itemMode === "any_of"
-                ? anyOfQty
-                : listItems.length,
-          config: JSON.stringify({
-            kind: itemMode,
-            items:
+        }
+        {
+          const itemNpcs = itemNpcsFromEntries(listItems);
+          return {
+            ...base,
+            target_value:
               itemMode === "point_collection"
-                ? listItems.map((i) => ({ item_name: i.name, points: i.points ?? 1 }))
-                : listItems.map((i) => i.name),
-          }),
-        };
+                ? pointsGoal
+                : itemMode === "any_of"
+                  ? anyOfQty
+                  : listItems.length,
+            config: JSON.stringify({
+              kind: itemMode,
+              items:
+                itemMode === "point_collection"
+                  ? listItems.map((i) => ({ item_name: i.name, points: i.points ?? 1 }))
+                  : listItems.map((i) => i.name),
+              ...(Object.keys(itemNpcs).length ? { item_npcs: itemNpcs } : {}),
+            }),
+          };
+        }
       case "kc_target": {
         // Several NPCs ride in config.npcs ("either counts"); a single NPC
         // keeps plain target semantics (the API collapses a 1-list anyway).
@@ -862,6 +942,7 @@ export function EventTaskForm({
               onChange={setGroups}
               search={searchItems}
               resolve={resolveItems}
+              renderEntryExtra={renderSourceRestriction}
             />
           ) : itemMode === "any_path" ? (
             <div className="grid gap-2">
@@ -906,6 +987,7 @@ export function EventTaskForm({
                       onChange={(gs) => patchPath(pi, { groups: gs })}
                       search={searchItems}
                       resolve={resolveItems}
+                      renderEntryExtra={renderSourceRestriction}
                     />
                   </div>
                 </div>
@@ -934,6 +1016,7 @@ export function EventTaskForm({
               onChange={itemMode === "single" ? setSingleItem : setListItems}
               search={searchItems}
               resolve={resolveItems}
+              renderEntryExtra={renderSourceRestriction}
             />
           )}
         </div>

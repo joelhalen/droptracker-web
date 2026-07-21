@@ -13,7 +13,7 @@
  * `resolve` back-fills them when editing a task that only stored names.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { EventMetaEntry } from "@droptracker/api-types";
 import { QuantityInput } from "@/components/quantity-input";
 
@@ -25,6 +25,9 @@ export type PickerEntry = {
   id?: number | null;
   /** Per-item weight (point-collection lists only). */
   points?: number;
+  /** Source-NPC restriction (item tasks): the item only counts when it drops
+   * from one of these NPCs. Empty/absent = any source. */
+  npcs?: string[];
 };
 
 function EntityIcon({
@@ -66,6 +69,7 @@ export function ItemNpcPicker({
   placeholder,
   selectionTitle,
   emptyHint,
+  renderEntryExtra,
 }: {
   kind: "item" | "npc";
   /** "single" keeps at most one entry (picking another replaces it). */
@@ -82,6 +86,9 @@ export function ItemNpcPicker({
   selectionTitle?: string;
   /** Hint inside an empty selection panel. */
   emptyHint?: string;
+  /** Extra UI rendered under each selected row (e.g. a per-item source-NPC
+   * restriction); `setNpcs` writes that entry's `npcs`. */
+  renderEntryExtra?: (entry: PickerEntry, setNpcs: (npcs: string[]) => void) => ReactNode;
 }) {
   const noun = kind === "item" ? "item" : "NPC";
   const [query, setQuery] = useState("");
@@ -174,6 +181,10 @@ export function ItemNpcPicker({
 
   const setPoints = (name: string, points: number) => {
     onChange(selected.map((s) => (s.name === name ? { ...s, points } : s)));
+  };
+
+  const setEntryNpcs = (name: string, npcs: string[]) => {
+    onChange(selected.map((s) => (s.name === name ? { ...s, npcs } : s)));
   };
 
   const paneBase =
@@ -334,53 +345,59 @@ export function ItemNpcPicker({
         <ul className="max-h-56 flex-1 overflow-y-auto p-1">
           {selected.length ? (
             selected.map((s) => (
-              <li
-                key={s.name}
-                draggable={!disabled}
-                onDragStart={(e) => {
-                  dragEntry.current = s;
-                  droppedInSelection.current = false;
-                  setDragging({ from: "selection" });
-                  e.dataTransfer.effectAllowed = "move";
-                  e.dataTransfer.setData("text/plain", s.name);
-                }}
-                onDragEnd={() => {
-                  // Dragged out of the panel (anywhere) = remove.
-                  if (!droppedInSelection.current && dragEntry.current) {
-                    remove(dragEntry.current.name);
-                  }
-                  setDragging(null);
-                  dragEntry.current = null;
-                }}
-                className="hover:bg-osrs-bronze/10 flex cursor-grab items-center gap-2 rounded px-2 py-1.5 text-sm active:cursor-grabbing"
-                title="Drag out (or ×) to remove"
-              >
-                <EntityIcon kind={kind} id={s.id} />
-                <span className="text-osrs-parchment min-w-0 flex-1 truncate">{s.name}</span>
-                {withPoints && (
-                  <label className="flex shrink-0 items-center gap-1">
-                    <QuantityInput
-                      min={0.1}
-                      integer={false}
-                      value={s.points ?? 1}
-                      disabled={disabled}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(points) => setPoints(s.name, points)}
-                      className="bg-osrs-brown-dark/80 border-osrs-bronze/30 text-osrs-parchment w-16 rounded border px-1 py-0.5 text-center text-xs"
-                      title={`Points one ${s.name} is worth`}
-                    />
-                    <span className="text-osrs-parchment-dark/50 text-[10px]">pts</span>
-                  </label>
-                )}
-                {!disabled && (
-                  <button
-                    type="button"
-                    onClick={() => remove(s.name)}
-                    className="text-osrs-parchment-dark/60 hover:text-osrs-red shrink-0 rounded px-1.5 text-sm"
-                    aria-label={`Remove ${s.name}`}
-                  >
-                    ×
-                  </button>
+              <li key={s.name} className="rounded">
+                <div
+                  draggable={!disabled}
+                  onDragStart={(e) => {
+                    dragEntry.current = s;
+                    droppedInSelection.current = false;
+                    setDragging({ from: "selection" });
+                    e.dataTransfer.effectAllowed = "move";
+                    e.dataTransfer.setData("text/plain", s.name);
+                  }}
+                  onDragEnd={() => {
+                    // Dragged out of the panel (anywhere) = remove.
+                    if (!droppedInSelection.current && dragEntry.current) {
+                      remove(dragEntry.current.name);
+                    }
+                    setDragging(null);
+                    dragEntry.current = null;
+                  }}
+                  className="hover:bg-osrs-bronze/10 flex cursor-grab items-center gap-2 rounded px-2 py-1.5 text-sm active:cursor-grabbing"
+                  title="Drag out (or ×) to remove"
+                >
+                  <EntityIcon kind={kind} id={s.id} />
+                  <span className="text-osrs-parchment min-w-0 flex-1 truncate">{s.name}</span>
+                  {withPoints && (
+                    <label className="flex shrink-0 items-center gap-1">
+                      <QuantityInput
+                        min={0.1}
+                        integer={false}
+                        value={s.points ?? 1}
+                        disabled={disabled}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(points) => setPoints(s.name, points)}
+                        className="bg-osrs-brown-dark/80 border-osrs-bronze/30 text-osrs-parchment w-16 rounded border px-1 py-0.5 text-center text-xs"
+                        title={`Points one ${s.name} is worth`}
+                      />
+                      <span className="text-osrs-parchment-dark/50 text-[10px]">pts</span>
+                    </label>
+                  )}
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={() => remove(s.name)}
+                      className="text-osrs-parchment-dark/60 hover:text-osrs-red shrink-0 rounded px-1.5 text-sm"
+                      aria-label={`Remove ${s.name}`}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                {renderEntryExtra && (
+                  <div className="px-2 pb-1.5">
+                    {renderEntryExtra(s, (npcs) => setEntryNpcs(s.name, npcs))}
+                  </div>
                 )}
               </li>
             ))
