@@ -132,6 +132,11 @@ function TierCard({
         >
           {hasEvents ? "Full Events access" : "No Events entitlement"}
         </span>
+        {isFallback && (
+          <span className="bg-osrs-gold-bright/15 text-osrs-gold-bright rounded px-2 py-0.5 text-xs">
+            Non-premium fallback
+          </span>
+        )}
       </div>
       <p className="text-osrs-parchment-dark/60 mb-4 text-xs">
         {hasEvents
@@ -142,7 +147,8 @@ function TierCard({
           <>
             {" "}
             <span className="text-osrs-gold-bright/80">
-              Groups without an active subscription also resolve to this tier.
+              Groups without an active subscription resolve to this tier — set a cap here to give
+              regular non-premium groups a limited number of trial events.
             </span>
           </>
         )}

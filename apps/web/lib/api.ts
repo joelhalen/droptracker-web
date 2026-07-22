@@ -1686,6 +1686,30 @@ export const api = {
     );
   },
 
+  /** Pet-name autocomplete for the task form — names from the pet taxonomy
+   * (guaranteed to validate as pets), ids from the item DB for icons. */
+  async searchEventPets(query: string): Promise<EventMetaEntry[]> {
+    return withFallback(
+      async () =>
+        EventMetaEntrySchema.array().parse(
+          await apiGet(`/events/meta/pets?q=${encodeURIComponent(query)}`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
+  /** Items on one NPC's drop table — the task form's "import a boss's drops"
+   * helper (wiki table → boss-family fallback → observed tracked drops). */
+  async eventNpcDropItems(npcId: number): Promise<EventMetaEntry[]> {
+    return withFallback(
+      async () =>
+        EventMetaEntrySchema.array().parse(
+          await apiGet(`/events/meta/npc-drops?npc_id=${npcId}`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
   /** NPC drop sources for one or more items — backs the task-form
    * "restrict to specific NPC sources" picker (names are |-separated exact
    * in-game names, no pipes). Unresolved names are simply absent. */
@@ -3133,12 +3157,20 @@ export const api = {
   },
 
   // --- Group subscriptions / upgrades -----------------------------------
-  /** Group tiers by default; pass "user" or "all" to widen (e.g. admin). */
-  async subscriptionTiers(scope: "group" | "user" | "all" = "group"): Promise<SubscriptionTier[]> {
+  /**
+   * Group tiers by default; pass "user" or "all" to widen (e.g. admin).
+   * `includeFree` surfaces $0 fallback tiers (the non-premium plan) — admin
+   * only; public listings hide them so they never render as a checkout option.
+   */
+  async subscriptionTiers(
+    scope: "group" | "user" | "all" = "group",
+    opts?: { includeFree?: boolean },
+  ): Promise<SubscriptionTier[]> {
+    const qs = `?scope=${scope}${opts?.includeFree ? "&include_free=1" : ""}`;
     return withFallback(
       async () =>
         SubscriptionTierSchema.array().parse(
-          await apiGet(`/subscriptions/tiers?scope=${scope}`, { revalidate: 300 }),
+          await apiGet(`/subscriptions/tiers${qs}`, { revalidate: 300 }),
         ),
       () => mockSubscriptionTiers(),
     );

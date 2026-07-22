@@ -5,7 +5,9 @@ import { TierManager } from "@/components/tier-manager";
 export const metadata: Metadata = { title: "Subscription tiers" };
 
 export default async function AdminTiersPage() {
-  const tiers = await api.subscriptionTiers("all");
+  // include_free so the $0 fallback tier (the non-premium plan configured on
+  // /admin/event-limits) is visible and editable here too.
+  const tiers = await api.subscriptionTiers("all", { includeFree: true });
 
   return (
     <div className="max-w-2xl">
