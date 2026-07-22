@@ -40,6 +40,7 @@ import type { DiscordChannel, EventDiscordGuild } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { CollapsibleSection } from "@/components/collapsible-section";
+import { EventLayoutOverrides } from "@/components/event-layout-editor";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { DiscordRolePicker } from "@/components/discord-role-picker";
 import {
@@ -1161,6 +1162,15 @@ export function EventDiscordSettings({
               onChange={(v) => patchLeaderboard({ show_tasks: v })}
             />
           </div>
+        </CollapsibleSection>
+      )}
+
+      {scope === null && (
+        <CollapsibleSection
+          title="Message layouts"
+          hint="Customize how this event's Discord messages look — overrides your group's default layouts for this event only. Saved instantly, separate from the config below."
+        >
+          <EventLayoutOverrides groupId={groupId} eventId={eventId} />
         </CollapsibleSection>
       )}
 
