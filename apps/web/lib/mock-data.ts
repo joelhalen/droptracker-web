@@ -12,8 +12,10 @@ import type {
   EventCompletion,
   EventDetail,
   EventTeamDetail,
+  EventTeamsResponse,
   EventPlayersResponse,
   EventPlayerRow,
+  EventPlayerItem,
   EventPlayerDetail,
   EventSummary,
   EventTaskLibraryItem,
@@ -21,6 +23,10 @@ import type {
   EventTemplateDetail,
   GroupDiagnostics,
   GroupEmbedsResponse,
+  EventLayoutMeta,
+  EventLayoutsResponse,
+  EventMessageLayout,
+  GroupEventLayoutsResponse,
   GroupMembersPage,
   GroupProfile,
   AuthorizedUsersResponse,
@@ -1131,6 +1137,67 @@ export function mockGroupEmbeds(): GroupEmbedsResponse {
   };
 }
 
+const MOCK_LAYOUT_TYPES = ["event_started", "event_ended", "event_completion"] as const;
+
+function mockLayoutBlocks(messageType: string): EventMessageLayout {
+  return {
+    message_type: messageType,
+    accent_color: "#FFD700",
+    blocks: [
+      { type: "text", content: `## 🏁 {event_name} — ${messageType.replace(/_/g, " ")}` },
+      { type: "separator" },
+      { type: "text", content: "{description}" },
+      {
+        type: "buttons",
+        buttons: [{ label: "View event", url: "{event_url}" }],
+      },
+    ],
+  };
+}
+
+export function mockEventLayoutMeta(): EventLayoutMeta {
+  return {
+    types: MOCK_LAYOUT_TYPES.map((key) => ({
+      key,
+      label: key.replace(/^event_/, "").replace(/_/g, " "),
+      group: "Lifecycle",
+      description: "Mock event message type.",
+      supports_standings: key === "event_ended",
+      tokens: [
+        { token: "event_name", help: "The event's name", sample: "Summer Loot Sweep" },
+        { token: "event_url", help: "Event page URL", sample: "https://www.droptracker.io/events/42" },
+        { token: "description", help: "Event description", sample: "Six weeks of loot." },
+      ],
+    })),
+    limits: { max_blocks: 15, max_text_len: 2000, max_buttons: 5 },
+    sample_standings: [
+      { name: "Team Bandos", score: 120 },
+      { name: "Team Zamorak", score: 95 },
+    ],
+    schema_version: 1,
+  };
+}
+
+export function mockGroupEventLayouts(): GroupEventLayoutsResponse {
+  return {
+    layouts: MOCK_LAYOUT_TYPES.map((message_type) => ({
+      message_type,
+      custom: message_type === "event_started" ? mockLayoutBlocks(message_type) : null,
+      default: mockLayoutBlocks(message_type),
+    })),
+  };
+}
+
+export function mockEventLayouts(): EventLayoutsResponse {
+  return {
+    layouts: MOCK_LAYOUT_TYPES.map((message_type) => ({
+      message_type,
+      override: null,
+      effective: mockLayoutBlocks(message_type),
+    })),
+  };
+}
+
 export function mockServices(): ServiceStatus[] {
   const now = Math.floor(Date.now() / 1000);
   // Mirrors the backend SERVICE_REGISTRY (web_api/routes/admin.py): every app
@@ -1973,13 +2040,21 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
       rank,
       team_count: event.teams.length,
       member_count: team.member_count,
+      coins: 0,
+      loot_gp: money(312_500_000),
     },
     members: (team.members ?? []).map((m, i) => ({
       ...m,
       completions: 3 - (i % 3),
       quantity: 40 - i * 12,
       points: [7.5, 2.33, 0][i % 3]!,
+      loot_gp: money([120_000_000, 88_400_000, 12_000_000][i % 3]!),
     })),
+    items: [
+      { name: "Twisted bow", item_id: 20997, quantity: 1, drops: 1 },
+      { name: "Dragon claws", item_id: 13652, quantity: 3, drops: 2 },
+      { name: "Bandos chestplate", item_id: 11832, quantity: 1, drops: 1 },
+    ],
     tasks: event.tasks.map((t, i) => ({
       ...t,
       progress: [35, 1, 0, 4_250_000][i] ?? 0,
@@ -2036,6 +2111,7 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       completions: 8,
       quantity: 190,
       tasks_contributed: 5,
+      loot_gp: money(184_000_000),
       items: [
         { name: "Twisted bow", item_id: 20997, quantity: 1, drops: 1 },
         { name: "Dragon claws", item_id: 13652, quantity: 3, drops: 2 },
@@ -2052,6 +2128,7 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       completions: 5,
       quantity: 88,
       tasks_contributed: 3,
+      loot_gp: money(96_500_000),
       items: [{ name: "Bandos chestplate", item_id: 11832, quantity: 1, drops: 1 }],
     },
     {
@@ -2065,6 +2142,7 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       completions: 3,
       quantity: 40,
       tasks_contributed: 2,
+      loot_gp: money(41_200_000),
       items: [],
     },
   ];
@@ -2077,6 +2155,53 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       completions: 16,
       points: 75.83,
       tasks: 4,
+      loot_gp: money(321_700_000),
+    },
+  };
+}
+
+/** Teams-tab standings rollup (GET /events/{id}/teams). */
+export function mockEventTeams(eventId: number): EventTeamsResponse {
+  const event = mockEvents().find((e) => e.id === eventId) ?? mockEvents()[0]!;
+  const detail = mockEvent(eventId);
+  const ranked = [...detail.teams].sort((a, b) => b.score - a.score);
+  const itemSets: EventPlayerItem[][] = [
+    [
+      { name: "Twisted bow", item_id: 20997, quantity: 1, drops: 1 },
+      { name: "Dragon claws", item_id: 13652, quantity: 3, drops: 2 },
+    ],
+    [{ name: "Bandos chestplate", item_id: 11832, quantity: 1, drops: 1 }],
+  ];
+  const contributors = [
+    [
+      { player_id: 2001, player_name: "Woox", points: 42.5 },
+      { player_id: 1337, player_name: "Zezima", points: 21 },
+    ],
+    [{ player_id: 2002, player_name: "B0aty", points: 12.33 }],
+  ];
+  return {
+    event,
+    teams: ranked.map((t, i) => ({
+      id: t.id,
+      name: t.name,
+      score: t.score,
+      rank: i + 1,
+      group_id: t.group_id ?? null,
+      color: t.color ?? null,
+      coins: t.coins ?? 0,
+      piece_item_id: t.piece_item_id ?? null,
+      member_count: t.member_count,
+      tasks_done: [3, 1][i] ?? 0,
+      loot_gp: money([312_500_000, 41_200_000][i] ?? 0),
+      pot_total: t.pot_total ?? money(0),
+      items: itemSets[i] ?? [],
+      top_contributors: contributors[i] ?? [],
+    })),
+    totals: {
+      teams: ranked.length,
+      players: ranked.reduce((n, t) => n + t.member_count, 0),
+      tasks: detail.tasks.length,
+      loot_gp: money(353_700_000),
     },
   };
 }
@@ -2100,6 +2225,7 @@ export function mockEventPlayerDetail(eventId: number, playerId: number): EventP
       completions: p.completions,
       quantity: p.quantity,
       tasks_contributed: p.tasks_contributed,
+      loot_gp: p.loot_gp ?? money(96_500_000),
     },
     items: p.items.length
       ? p.items

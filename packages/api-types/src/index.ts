@@ -2751,6 +2751,18 @@ export const EventReadinessSchema = z.object({
 });
 export type EventReadiness = z.infer<typeof EventReadinessSchema>;
 
+/** An item credited toward event tasks (per player or per team). `item_id`
+ * resolves the icon (`/img/itemdb/{id}.png` via `<ItemDbIcon>`); null when the
+ * name didn't resolve (non-drop credits carry no item). Declared ahead of the
+ * team payloads so both the team and player surfaces share it. */
+export const EventPlayerItemSchema = z.object({
+  name: z.string(),
+  item_id: z.number().int().nullable(),
+  quantity: z.number().int().default(0),
+  drops: z.number().int().default(0),
+});
+export type EventPlayerItem = z.infer<typeof EventPlayerItemSchema>;
+
 /** GET /events/{id}/teams/{teamId} — public team page payload. */
 export const EventTeamTaskSchema = EventTaskSchema.extend({
   progress: z.number().default(0),
@@ -2765,6 +2777,9 @@ export const EventTeamMemberStatsSchema = EventMemberSchema.extend({
   quantity: z.number().int().default(0),
   /** Contribution points: sum of (task points × net share) over completed tasks. */
   points: z.number().default(0),
+  /** Total tracked loot over the event window — ALL sources, not just
+   * task-credited drops (hourly-rollup granularity). */
+  loot_gp: MoneySchema.optional(),
 });
 export type EventTeamMemberStats = z.infer<typeof EventTeamMemberStatsSchema>;
 
@@ -2795,8 +2810,14 @@ export const EventTeamDetailSchema = z.object({
     rank: z.number().int(),
     team_count: z.number().int(),
     member_count: z.number().int().default(0),
+    /** Board-game coin wallet (0 for other kinds). */
+    coins: z.number().int().default(0),
+    /** Roster total tracked loot over the event window (all sources). */
+    loot_gp: MoneySchema.optional(),
   }),
   members: z.array(EventTeamMemberStatsSchema).default([]),
+  /** Everything the team pulled to earn points (applied ledger, capped). */
+  items: z.array(EventPlayerItemSchema).default([]),
   tasks: z.array(EventTeamTaskSchema).default([]),
   activity: z.array(EventTeamActivitySchema).default([]),
   /** Signed-in roster context (web48a): the viewer's player on THIS team,
@@ -2813,22 +2834,58 @@ export const EventTeamDetailSchema = z.object({
 });
 export type EventTeamDetail = z.infer<typeof EventTeamDetailSchema>;
 
+/** One team on the GET /events/{id}/teams standings rollup (Teams tab):
+ * rank/score plus tasks-done, prize-pot share, event-window loot GP, the top
+ * items its members pulled to earn points, and its top contributors. */
+export const EventTeamsRowSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  score: z.number().default(0),
+  rank: z.number().int(),
+  group_id: z.number().int().nullable().optional(),
+  color: z.string().nullable().optional(),
+  /** Board-game coin wallet (0 for other kinds). */
+  coins: z.number().int().default(0),
+  piece_item_id: z.number().int().nullable().optional(),
+  member_count: z.number().int().default(0),
+  tasks_done: z.number().int().default(0),
+  /** Roster total tracked loot over the event window (all sources). */
+  loot_gp: MoneySchema.optional(),
+  pot_total: MoneySchema.optional(),
+  /** Top task-credited items (icon strip; full list on the team detail). */
+  items: z.array(EventPlayerItemSchema).default([]),
+  /** Top contributors by split points; player_id null = privacy-masked. */
+  top_contributors: z
+    .array(
+      z.object({
+        player_id: z.number().int().nullable(),
+        player_name: z.string(),
+        points: z.number().default(0),
+      }),
+    )
+    .default([]),
+});
+export type EventTeamsRow = z.infer<typeof EventTeamsRowSchema>;
+
+/** GET /events/{id}/teams — self-sufficient Teams-tab payload. */
+export const EventTeamsResponseSchema = z.object({
+  event: EventSummarySchema,
+  teams: z.array(EventTeamsRowSchema).default([]),
+  totals: z.object({
+    teams: z.number().int().default(0),
+    players: z.number().int().default(0),
+    tasks: z.number().int().default(0),
+    loot_gp: MoneySchema.optional(),
+  }),
+});
+export type EventTeamsResponse = z.infer<typeof EventTeamsResponseSchema>;
+
 /* -------------------------------------------------------------------------- */
 /* Event-wide player contribution — GET /events/{id}/players[/{playerId}]      */
 /* Per-player rollup aggregated ACROSS teams: split points, completions, the   */
 /* items they pulled (with icon ids), and per-task contribution.               */
+/* (EventPlayerItemSchema is declared above the team payloads, which share it.)*/
 /* -------------------------------------------------------------------------- */
-
-/** An item a player contributed toward a task. `item_id` resolves the icon
- * (`/img/itemdb/{id}.png` via `<ItemDbIcon>`); null when the item name didn't
- * resolve (non-drop credits carry no item). */
-export const EventPlayerItemSchema = z.object({
-  name: z.string(),
-  item_id: z.number().int().nullable(),
-  quantity: z.number().int().default(0),
-  drops: z.number().int().default(0),
-});
-export type EventPlayerItem = z.infer<typeof EventPlayerItemSchema>;
 
 /** One row of the event-wide contribution leaderboard. `player_id` is null for
  * a privacy-opted-out contributor (masked to "Hidden player", not linkable). */
@@ -2843,6 +2900,9 @@ export const EventPlayerRowSchema = z.object({
   completions: z.number().int().default(0),
   quantity: z.number().int().default(0),
   tasks_contributed: z.number().int().default(0),
+  /** Total tracked loot over the event window — ALL sources, not just
+   * task-credited drops (hourly-rollup granularity). */
+  loot_gp: MoneySchema.optional(),
   /** Top contributed items (icon strip); full list is on the detail endpoint. */
   items: z.array(EventPlayerItemSchema).default([]),
 });
@@ -2857,6 +2917,7 @@ export const EventPlayersResponseSchema = z.object({
     completions: z.number().int().default(0),
     points: z.number().default(0),
     tasks: z.number().int().default(0),
+    loot_gp: MoneySchema.optional(),
   }),
 });
 export type EventPlayersResponse = z.infer<typeof EventPlayersResponseSchema>;
@@ -2886,6 +2947,8 @@ export const EventPlayerDetailSchema = z.object({
     completions: z.number().int().default(0),
     quantity: z.number().int().default(0),
     tasks_contributed: z.number().int().default(0),
+    /** Total tracked loot over the event window (all sources). */
+    loot_gp: MoneySchema.optional(),
   }),
   items: z.array(EventPlayerItemSchema).default([]),
   tasks: z.array(EventPlayerTaskSchema).default([]),
@@ -3396,6 +3459,10 @@ export const EventItemSourceNpcSchema = z.object({
   rarity: z.number(),
   rolls: z.number().int(),
   tracked: z.boolean(),
+  /** Present on a merged display alias (e.g. "Wintertodt"): the real NPC
+   * names its drops are recorded under. Restrictions must store these —
+   * the engine matches drops by the recorded source name. */
+  members: z.string().array().optional(),
 });
 export type EventItemSourceNpc = z.infer<typeof EventItemSourceNpcSchema>;
 
@@ -4014,6 +4081,126 @@ export const PointsAdjustResultSchema = z.object({
   new_total: z.number().int(),
 });
 export type PointsAdjustResult = z.infer<typeof PointsAdjustResultSchema>;
+
+// --- Event message layouts (web66a) ---------------------------------------
+// The Components-V2 block DSL rendered by the bot for event Discord messages
+// (backend services/event_message_layouts.py). Groups customize per-type
+// layouts (event_id 0) and events may carry one-event overrides; resolution
+// at send time is event -> group -> system default.
+
+export const EVENT_LAYOUT_BLOCK_TYPES = [
+  "text",
+  "section",
+  "separator",
+  "standings",
+  "buttons",
+] as const;
+export type EventLayoutBlockType = (typeof EVENT_LAYOUT_BLOCK_TYPES)[number];
+
+export const EventLayoutButtonSchema = z.object({
+  label: z.string().min(1).max(80),
+  /** URL button: http(s) or `{token}`-bearing. Absent on launch buttons. */
+  url: z.string().max(500).optional(),
+  /** Launch button: opens the Discord Activity deep-linked to the event. */
+  launch: z.boolean().optional(),
+  /** Optional in-app screen for launch buttons (e.g. "review"). */
+  view: z.string().max(32).optional(),
+});
+export type EventLayoutButton = z.infer<typeof EventLayoutButtonSchema>;
+
+export const EventLayoutBlockSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), content: z.string().min(1).max(2000) }),
+  z.object({
+    type: z.literal("section"),
+    content: z.string().min(1).max(2000),
+    thumbnail: z.string().max(500).nullish(),
+  }),
+  z.object({ type: z.literal("separator") }),
+  z.object({
+    type: z.literal("standings"),
+    limit: z.number().int().min(1).max(25).nullish(),
+    title: z.string().max(200).nullish(),
+  }),
+  z.object({
+    type: z.literal("buttons"),
+    buttons: z.array(EventLayoutButtonSchema).min(1).max(5),
+  }),
+]);
+export type EventLayoutBlock = z.infer<typeof EventLayoutBlockSchema>;
+
+export const EventMessageLayoutSchema = z.object({
+  message_type: z.string(),
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable(),
+  blocks: z.array(EventLayoutBlockSchema),
+});
+export type EventMessageLayout = z.infer<typeof EventMessageLayoutSchema>;
+
+/** PUT body for both the group-level and per-event layout endpoints. */
+export const EventMessageLayoutInputSchema = z.object({
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Accent must be a hex color like #FFD700")
+    .nullable()
+    .optional(),
+  blocks: z.array(EventLayoutBlockSchema).min(1).max(15),
+});
+export type EventMessageLayoutInput = z.infer<typeof EventMessageLayoutInputSchema>;
+
+export const GroupEventLayoutsResponseSchema = z.object({
+  layouts: z.array(
+    z.object({
+      message_type: z.string(),
+      /** The group's own layout, or null when it uses the default. */
+      custom: EventMessageLayoutSchema.nullable(),
+      /** The system default (template group 1 row, else code default). */
+      default: EventMessageLayoutSchema,
+    }),
+  ),
+});
+export type GroupEventLayoutsResponse = z.infer<typeof GroupEventLayoutsResponseSchema>;
+
+export const EventLayoutsResponseSchema = z.object({
+  layouts: z.array(
+    z.object({
+      message_type: z.string(),
+      /** This event's override, or null when it follows the group. */
+      override: EventMessageLayoutSchema.nullable(),
+      /** What the event renders without an override (group -> default). */
+      effective: EventMessageLayoutSchema,
+    }),
+  ),
+});
+export type EventLayoutsResponse = z.infer<typeof EventLayoutsResponseSchema>;
+
+export const EventLayoutTokenDocSchema = z.object({
+  token: z.string(),
+  help: z.string(),
+  sample: z.string(),
+});
+export type EventLayoutTokenDoc = z.infer<typeof EventLayoutTokenDocSchema>;
+
+export const EventLayoutTypeMetaSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  /** Display grouping: Lifecycle / Progress / Loot Sweep / Board game / … */
+  group: z.string(),
+  description: z.string(),
+  /** Whether the sender passes real standings to this type's layout. */
+  supports_standings: z.boolean(),
+  tokens: z.array(EventLayoutTokenDocSchema),
+});
+export type EventLayoutTypeMeta = z.infer<typeof EventLayoutTypeMetaSchema>;
+
+export const EventLayoutMetaSchema = z.object({
+  types: z.array(EventLayoutTypeMetaSchema),
+  limits: z.record(z.string(), z.number()),
+  sample_standings: z.array(z.object({ name: z.string(), score: z.number() })),
+  schema_version: z.number().int(),
+});
+export type EventLayoutMeta = z.infer<typeof EventLayoutMetaSchema>;
 
 export * from "./group-config";
 export * from "./entitlements";

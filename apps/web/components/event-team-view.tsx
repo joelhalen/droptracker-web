@@ -21,6 +21,7 @@ import { useEventStream } from "@/lib/use-event-stream";
 import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/format";
 import { LocalTime } from "@/components/local-time";
+import { ItemDbIcon } from "@/components/item-db-icon";
 import { EmptyState } from "@/components/ui";
 import { EventMemberList } from "@/components/event-member-list";
 import { TeamNotificationsButton } from "@/components/event-teams-panel";
@@ -35,7 +36,24 @@ function formatContributionPoints(p: number): string {
   return (Math.round(p * 100) / 100).toString();
 }
 
-export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live: boolean }) {
+export function EventTeamView({
+  detail,
+  live,
+  readOnly = false,
+  onBack,
+  onOpenPlayer,
+}: {
+  detail: EventTeamDetail;
+  live: boolean;
+  /** Discord Activity: hide notification/leadership controls (their server
+   * actions can't run from the iframe) and render a read-only roster. */
+  readOnly?: boolean;
+  /** Discord Activity: replaces the ← event back-link (site route) with an
+   * in-app stack pop. */
+  onBack?: () => void;
+  /** Discord Activity: swaps player links for in-app view pushes. */
+  onOpenPlayer?: (playerId: number) => void;
+}) {
   const { event, team, members, tasks } = detail;
 
   const [score, setScore] = useState(team.score);
@@ -214,12 +232,22 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
     <div className="space-y-8">
       {/* ── header ──────────────────────────────────────────────────────── */}
       <header>
-        <Link
-          href={`/events/${event.id}`}
-          className="text-osrs-parchment-dark/60 text-sm hover:text-osrs-gold-bright"
-        >
-          ← {event.name}
-        </Link>
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-osrs-parchment-dark/60 text-sm hover:text-osrs-gold-bright"
+          >
+            ← {event.name}
+          </button>
+        ) : (
+          <Link
+            href={`/events/${event.id}`}
+            className="text-osrs-parchment-dark/60 text-sm hover:text-osrs-gold-bright"
+          >
+            ← {event.name}
+          </Link>
+        )}
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
           <h1 className="text-osrs-gold flex items-center gap-2.5 text-3xl font-bold">
             {team.color && (
@@ -231,7 +259,7 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
             )}
             {team.name}
           </h1>
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
             <span className="text-osrs-parchment-dark/70">
               Rank{" "}
               <span className="text-osrs-parchment text-lg font-semibold tabular-nums">
@@ -252,12 +280,29 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
               </span>
               <span className="text-osrs-parchment-dark/50"> / {tasks.length}</span>
             </span>
+            <span
+              className="text-osrs-parchment-dark/70"
+              title="Total tracked loot across the roster during the event — all sources, not just task-credited drops"
+            >
+              Loot{" "}
+              <span className="text-osrs-gold text-lg font-semibold tabular-nums">
+                {team.loot_gp?.value_formatted ?? "0"}
+              </span>
+            </span>
+            {event.kind === "board_game" && (
+              <span className="text-osrs-parchment-dark/70">
+                Coins{" "}
+                <span className="text-osrs-parchment text-lg font-semibold tabular-nums">
+                  🪙 {team.coins.toLocaleString()}
+                </span>
+              </span>
+            )}
           </div>
         </div>
         {/* Captains (and event admins) tune what this team's auto-provisioned
             Discord channel receives (web53a) — the Web API enforces the
             captain_config / leadership rules on save. */}
-        {(isAdmin || viewerRole === "leader" || viewerRole === "co_leader") && (
+        {!readOnly && (isAdmin || viewerRole === "leader" || viewerRole === "co_leader") && (
           <div className="mt-1.5">
             <TeamNotificationsButton eventId={event.id} teamId={team.id} teamName={team.name} />
           </div>
@@ -310,6 +355,39 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
             )}
           </div>
 
+          {/* ── items earned (applied ledger, aggregated) ─────────────────── */}
+          {detail.items.length > 0 && (
+            <div>
+              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+                Items earned
+                <span className="text-osrs-parchment-dark/50 ml-2 text-sm font-normal">
+                  {detail.items.length}
+                </span>
+              </h2>
+              <div className="flex flex-wrap gap-1.5">
+                {detail.items.map((it) => (
+                  <span
+                    key={it.name}
+                    className="bg-osrs-surface-2/40 border-osrs-bronze/15 flex items-center gap-1.5 rounded border px-2 py-1 text-xs"
+                    title={`${it.name} — ${it.quantity.toLocaleString()} total across ${it.drops.toLocaleString()} drop${it.drops === 1 ? "" : "s"}`}
+                  >
+                    {it.item_id != null ? (
+                      <ItemDbIcon itemId={it.item_id} size={20} />
+                    ) : (
+                      <span className="text-osrs-parchment-dark/40">•</span>
+                    )}
+                    <span className="text-osrs-parchment max-w-[10rem] truncate">{it.name}</span>
+                    {it.quantity > 1 && (
+                      <span className="text-osrs-parchment-dark/60 tabular-nums">
+                        ×{it.quantity.toLocaleString()}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* ── activity feed ─────────────────────────────────────────────── */}
           <div>
             <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
@@ -323,12 +401,22 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                     <li key={a.id} className="flex items-center justify-between gap-3 py-2">
                       <span className="min-w-0 truncate">
                         {a.player_id != null && a.player_name ? (
-                          <Link
-                            href={entityPath("players", a.player_id, a.player_name)}
-                            className="text-osrs-parchment hover:text-osrs-gold-bright"
-                          >
-                            {a.player_name}
-                          </Link>
+                          onOpenPlayer ? (
+                            <button
+                              type="button"
+                              onClick={() => onOpenPlayer(a.player_id!)}
+                              className="text-osrs-parchment hover:text-osrs-gold-bright"
+                            >
+                              {a.player_name}
+                            </button>
+                          ) : (
+                            <Link
+                              href={entityPath("players", a.player_id, a.player_name)}
+                              className="text-osrs-parchment hover:text-osrs-gold-bright"
+                            >
+                              {a.player_name}
+                            </Link>
+                          )
                         ) : (
                           <span className="text-osrs-parchment">
                             {a.player_name ?? (a.source_type === "manual" ? "Admin award" : "Team")}
@@ -390,17 +478,20 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                 // Per-row leadership controls (web48a) — the Web API is the
                 // real gatekeeper; these mirror its rules so we only show
                 // buttons that can succeed.
-                const canMakeLeader = leadership.enabled && isAdmin && role !== "leader";
+                const canMakeLeader =
+                  !readOnly && leadership.enabled && isAdmin && role !== "leader";
                 const canMakeCoLeader =
+                  !readOnly &&
                   leadership.enabled &&
                   leadership.co_leaders &&
                   (isAdmin || viewerRole === "leader") &&
                   role !== "co_leader";
                 const canRemoveRole =
+                  !readOnly &&
                   leadership.enabled &&
                   role != null &&
                   (isAdmin || (viewerRole === "leader" && role === "co_leader") || isSelf);
-                const showVote = canVote;
+                const showVote = !readOnly && canVote;
                 const hasControls = canMakeLeader || canMakeCoLeader || canRemoveRole || showVote;
                 return (
                   <li
@@ -409,12 +500,22 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-1.5">
-                        <Link
-                          href={entityPath("players", m.player_id, m.player_name)}
-                          className="hover:text-osrs-gold-bright truncate font-medium"
-                        >
-                          {m.player_name}
-                        </Link>
+                        {onOpenPlayer ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenPlayer(m.player_id)}
+                            className="hover:text-osrs-gold-bright truncate text-left font-medium"
+                          >
+                            {m.player_name}
+                          </button>
+                        ) : (
+                          <Link
+                            href={entityPath("players", m.player_id, m.player_name)}
+                            className="hover:text-osrs-gold-bright truncate font-medium"
+                          >
+                            {m.player_name}
+                          </Link>
+                        )}
                         {leadership.enabled && role === "leader" && (
                           <span className="border-osrs-gold/40 bg-osrs-gold/15 text-osrs-gold shrink-0 rounded border px-1.5 py-px text-[10px] font-semibold">
                             👑 Leader
@@ -443,11 +544,21 @@ export function EventTeamView({ detail, live }: { detail: EventTeamDetail; live:
                         </span>
                       </span>
                     </div>
-                    {m.joined_at && (
-                      <div className="text-osrs-parchment-dark/50 mt-0.5 text-xs">
-                        joined <LocalTime unix={m.joined_at} mode="date" />
-                      </div>
-                    )}
+                    <div className="text-osrs-parchment-dark/50 mt-0.5 flex flex-wrap items-center gap-x-2 text-xs">
+                      {m.joined_at && (
+                        <span>
+                          joined <LocalTime unix={m.joined_at} mode="date" />
+                        </span>
+                      )}
+                      {(m.loot_gp?.value ?? 0) > 0 && (
+                        <span
+                          className="text-osrs-gold/90 tabular-nums"
+                          title="Tracked loot during the event (all sources)"
+                        >
+                          {m.loot_gp!.value_formatted} loot
+                        </span>
+                      )}
+                    </div>
                     {hasControls && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                         {showVote &&

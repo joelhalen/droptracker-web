@@ -31,20 +31,20 @@ export default async function EventTeamsIndexPage({ params }: { params: Params }
   if ("denied" in loaded) return loaded.denied;
   const { event } = loaded;
 
-  // Top-contributor chips per team come from the event-wide player rollup.
-  const playersData = user
-    ? await api.eventPlayersAuthed(eventId).catch(() => null)
-    : await api.eventPlayers(eventId).catch(() => null);
+  // Self-sufficient standings rollup: rank/score + tasks-done, pot share,
+  // event-window loot GP, top task-credited items, and top contributors.
+  const teamsData = user
+    ? await api.eventTeamsAuthed(eventId).catch(() => null)
+    : await api.eventTeams(eventId).catch(() => null);
 
   return (
     <div className="space-y-8">
       <EventPageHeader event={event} />
       <EventTeamsBoard
         eventId={eventId}
-        teams={event.teams}
-        progress={event.progress}
+        kind={event.kind}
+        data={teamsData}
         taskCount={event.tasks.length}
-        players={playersData?.players ?? []}
         potEnabled={event.prize_pot?.enabled}
         viewerTeamId={event.viewer?.team_id ?? null}
       />

@@ -303,9 +303,12 @@ export function EventView({
       {standings.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {standings.map((t, i) => (
-            <span
+            <button
               key={t.id}
-              className="border-osrs-bronze/30 bg-osrs-brown-dark/40 inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs"
+              type="button"
+              onClick={() => nav.push({ name: "event-team", id: eventId, teamId: t.id })}
+              title={`Open ${t.name} — roster, items and task progress`}
+              className="border-osrs-bronze/30 bg-osrs-brown-dark/40 hover:border-osrs-gold/50 inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs transition-colors"
             >
               <span className="text-osrs-parchment-dark/50">#{i + 1}</span>
               <span
@@ -323,10 +326,45 @@ export function EventView({
                 {t.name}
               </span>
               <span className="text-osrs-gold tabular-nums">{t.score.toLocaleString()}</span>
-            </span>
+            </button>
           ))}
         </div>
       )}
+
+      {/* Mirror of the site's Players/Teams tabs — full standings live in
+          their own pushed views (podium + GP + items, team rollup cards). */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => nav.push({ name: "event-players", id: eventId })}
+          className="border-osrs-bronze/30 bg-osrs-surface-1/70 hover:border-osrs-gold/60 flex-1 rounded-lg border px-3 py-2 text-left transition-colors"
+        >
+          <span className="text-osrs-parchment block text-[13px] font-semibold">🏆 Players</span>
+          <span className="text-osrs-parchment-dark/55 block text-[11px]">
+            Podium, points &amp; loot earned
+          </span>
+        </button>
+        {standings.length > 0 && (
+          <button
+            type="button"
+            onClick={() =>
+              nav.push({
+                name: "event-team",
+                id: eventId,
+                teamId: event.viewer?.team_id ?? standings[0]!.id,
+              })
+            }
+            className="border-osrs-bronze/30 bg-osrs-surface-1/70 hover:border-osrs-gold/60 flex-1 rounded-lg border px-3 py-2 text-left transition-colors"
+          >
+            <span className="text-osrs-parchment block text-[13px] font-semibold">
+              🛡️ {event.viewer?.team_id ? "My team" : "Top team"}
+            </span>
+            <span className="text-osrs-parchment-dark/55 block text-[11px]">
+              Roster, items earned &amp; progress
+            </span>
+          </button>
+        )}
+      </div>
 
       {pot && pot.enabled && (
         <PrizePotPanel pot={pot} actions={potActions} onChanged={loadPot} />

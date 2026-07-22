@@ -80,7 +80,9 @@ import {
   type EventRandomizeResult,
   type EventPopulateResult,
   EventTeamDetailSchema,
+  EventTeamsResponseSchema,
   type EventTeamDetail,
+  type EventTeamsResponse,
   EventPlayersResponseSchema,
   type EventPlayersResponse,
   EventPlayerDetailSchema,
@@ -105,6 +107,15 @@ import {
   LootboardSchema,
   GroupEmbedSchema,
   GroupEmbedsResponseSchema,
+  EventLayoutMetaSchema,
+  EventLayoutsResponseSchema,
+  EventMessageLayoutSchema,
+  GroupEventLayoutsResponseSchema,
+  type EventLayoutMeta,
+  type EventLayoutsResponse,
+  type EventMessageLayout,
+  type EventMessageLayoutInput,
+  type GroupEventLayoutsResponse,
   GroupSubscriptionSchema,
   MyNitroBoostSchema,
   NotificationPrefsSchema,
@@ -287,6 +298,9 @@ import {
   mockGroupMembers,
   mockGroupProfile,
   mockGroupEmbeds,
+  mockEventLayoutMeta,
+  mockEventLayouts,
+  mockGroupEventLayouts,
   mockGroupSubscription,
   mockGroupSubscriptionSummary,
   mockAdminSubscriptionsOverview,
@@ -296,6 +310,7 @@ import {
   mockUserSubscription,
   mockEvent,
   mockEventTeam,
+  mockEventTeams,
   mockEventPlayers,
   mockEventPlayerDetail,
   mockEventCompletions,
@@ -914,6 +929,31 @@ export const api = {
           await apiGet(`/events/${eventId}/teams/${teamId}`, { authed: true }),
         ),
       () => mockEventTeam(eventId, teamId),
+    );
+  },
+
+  /** Teams-tab standings rollup: rank/score plus tasks-done, pot share,
+   * event-window loot GP, top task-credited items, and top contributors per
+   * team — one self-sufficient payload. Cached. */
+  async eventTeams(eventId: number): Promise<EventTeamsResponse> {
+    return withFallback(
+      async () =>
+        EventTeamsResponseSchema.parse(
+          await apiGet(`/events/${eventId}/teams`, { revalidate: 15 }),
+        ),
+      () => mockEventTeams(eventId),
+    );
+  },
+
+  /** Authed variant — session cookie so members can see the Teams tab on a
+   * draft (pre-publication) event. Uncached (viewer-specific). */
+  async eventTeamsAuthed(eventId: number): Promise<EventTeamsResponse> {
+    return withFallback(
+      async () =>
+        EventTeamsResponseSchema.parse(
+          await apiGet(`/events/${eventId}/teams`, { authed: true }),
+        ),
+      () => mockEventTeams(eventId),
     );
   },
 
@@ -3264,6 +3304,101 @@ export const api = {
     return withFallback(
       async () => {
         await apiSend("DELETE", `/groups/${groupId}/embeds/${embedType}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  // --- Event message layouts (web66a, subscription-gated) ----------------
+  /** Editor metadata: message types, token docs, limits, sample standings. */
+  async eventLayoutMeta(): Promise<EventLayoutMeta> {
+    return withFallback(
+      async () => EventLayoutMetaSchema.parse(await apiGet(`/event-layouts/meta`, { authed: true })),
+      () => mockEventLayoutMeta(),
+    );
+  },
+
+  /** Per-type event message layouts: the group's custom layout + system default. */
+  async groupEventLayouts(groupId: number): Promise<GroupEventLayoutsResponse> {
+    return withFallback(
+      async () =>
+        GroupEventLayoutsResponseSchema.parse(
+          await apiGet(`/groups/${groupId}/event-layouts`, { authed: true }),
+        ),
+      () => mockGroupEventLayouts(),
+    );
+  },
+
+  /** Save the group's layout for one event message type. Requires `custom_embeds`. */
+  async saveGroupEventLayout(
+    groupId: number,
+    messageType: string,
+    input: EventMessageLayoutInput,
+  ): Promise<EventMessageLayout> {
+    return withFallback(
+      async () => {
+        const res = (await apiSend("PUT", `/groups/${groupId}/event-layouts/${messageType}`, input)) as {
+          layout: unknown;
+        };
+        return EventMessageLayoutSchema.parse(res.layout);
+      },
+      () =>
+        EventMessageLayoutSchema.parse({
+          message_type: messageType,
+          accent_color: input.accent_color ?? null,
+          blocks: input.blocks,
+        }),
+    );
+  },
+
+  /** Remove the group's layout for one type (reverts to the system default). */
+  async deleteGroupEventLayout(groupId: number, messageType: string): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/groups/${groupId}/event-layouts/${messageType}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** One event's layout overrides + the effective (group-level) layouts. */
+  async eventLayouts(eventId: number): Promise<EventLayoutsResponse> {
+    return withFallback(
+      async () =>
+        EventLayoutsResponseSchema.parse(await apiGet(`/events/${eventId}/layouts`, { authed: true })),
+      () => mockEventLayouts(),
+    );
+  },
+
+  /** Save a one-event layout override. Requires the host group's `custom_embeds`. */
+  async saveEventLayout(
+    eventId: number,
+    messageType: string,
+    input: EventMessageLayoutInput,
+  ): Promise<EventMessageLayout> {
+    return withFallback(
+      async () => {
+        const res = (await apiSend("PUT", `/events/${eventId}/layouts/${messageType}`, input)) as {
+          layout: unknown;
+        };
+        return EventMessageLayoutSchema.parse(res.layout);
+      },
+      () =>
+        EventMessageLayoutSchema.parse({
+          message_type: messageType,
+          accent_color: input.accent_color ?? null,
+          blocks: input.blocks,
+        }),
+    );
+  },
+
+  /** Remove a one-event override (reverts to the group's layout). */
+  async deleteEventLayout(eventId: number, messageType: string): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/events/${eventId}/layouts/${messageType}`, {});
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,

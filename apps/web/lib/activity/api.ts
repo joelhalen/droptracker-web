@@ -15,8 +15,12 @@ import {
   BoardShopStateSchema,
   EventCompletionSchema,
   EventDetailSchema,
+  EventPlayerDetailSchema,
+  EventPlayersResponseSchema,
   EventPrizePotSchema,
   EventSummarySchema,
+  EventTeamDetailSchema,
+  EventTeamsResponseSchema,
   GroupProfileSchema,
   LeaderboardPageSchema,
   LootSweepBoardSchema,
@@ -33,7 +37,11 @@ import {
   type BoardShopState,
   type EventCompletion,
   type EventDetail,
+  type EventPlayerDetail,
+  type EventPlayersResponse,
   type EventPrizePot,
+  type EventTeamDetail,
+  type EventTeamsResponse,
   type TaskBreakdown,
   type EventSummary,
   type GroupProfile,
@@ -151,6 +159,49 @@ export async function taskBreakdown(
   const q = teamId != null ? `?team_id=${teamId}` : "";
   return TaskBreakdownSchema.parse(
     await get(`/api/activity/events/${eventId}/tasks/${taskId}/breakdown${q}`, sessionToken),
+  );
+}
+
+/** Event-wide player contribution leaderboard (mirror of the site's Players
+ * tab): split points, event-window loot GP, item strips per player. */
+export async function eventPlayers(
+  eventId: number,
+  sessionToken: string | null,
+): Promise<EventPlayersResponse> {
+  return EventPlayersResponseSchema.parse(
+    await get(`/api/activity/events/${eventId}/players`, sessionToken),
+  );
+}
+
+/** One player's event drill-down: full items + per-task + activity + GP. */
+export async function eventPlayerDetail(
+  eventId: number,
+  playerId: number,
+  sessionToken: string | null,
+): Promise<EventPlayerDetail> {
+  return EventPlayerDetailSchema.parse(
+    await get(`/api/activity/events/${eventId}/players/${playerId}`, sessionToken),
+  );
+}
+
+/** Teams-tab standings rollup (mirror of the site's Teams tab). */
+export async function eventTeams(
+  eventId: number,
+  sessionToken: string | null,
+): Promise<EventTeamsResponse> {
+  return EventTeamsResponseSchema.parse(
+    await get(`/api/activity/events/${eventId}/teams`, sessionToken),
+  );
+}
+
+/** Full team detail: roster + loot GP + items + task progress + activity. */
+export async function eventTeam(
+  eventId: number,
+  teamId: number,
+  sessionToken: string | null,
+): Promise<EventTeamDetail> {
+  return EventTeamDetailSchema.parse(
+    await get(`/api/activity/events/${eventId}/teams/${teamId}`, sessionToken),
   );
 }
 

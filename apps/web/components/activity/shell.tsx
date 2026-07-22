@@ -27,6 +27,8 @@ import { GroupView } from "@/components/activity/group-view";
 import { PbBoardView } from "@/components/activity/pb-board-view";
 import { EventView } from "@/components/activity/event-view";
 import { EventReviewView } from "@/components/activity/review-view";
+import { ActivityEventPlayersView } from "@/components/activity/event-players-view";
+import { ActivityEventTeamView } from "@/components/activity/event-team-view";
 import { PendingReviewPrompt } from "@/components/activity/pending-review-prompt";
 
 const TABS: { key: ActivityTab; label: string; root: ActivityView; icon: React.ReactNode }[] = [
@@ -91,6 +93,8 @@ function viewMaxWidth(view: ActivityView): string {
       return "max-w-4xl";
     case "event":
     case "event-review":
+    case "event-players":
+    case "event-team":
       return "max-w-3xl";
     default:
       return "max-w-2xl";
@@ -106,6 +110,10 @@ function presenceLabel(view: ActivityView): string {
       return "Watching a clan event";
     case "event-review":
       return "Reviewing event completions";
+    case "event-players":
+      return "Checking event standings";
+    case "event-team":
+      return "Checking their team";
     case "player":
       return "Viewing a player profile";
     case "group":
@@ -137,6 +145,10 @@ function renderView(
       return <EventView eventId={view.id} guildId={guildId} onBack={onBack} />;
     case "event-review":
       return <EventReviewView eventId={view.id} />;
+    case "event-players":
+      return <ActivityEventPlayersView eventId={view.id} />;
+    case "event-team":
+      return <ActivityEventTeamView eventId={view.id} teamId={view.teamId} />;
     case "player":
       return <PlayerView id={view.id} />;
     case "group":
