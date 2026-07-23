@@ -7,7 +7,7 @@
  * recent drops/clogs/PBs and badge history across accounts. Extracted from the
  * Me tab so the home hub's personal hero can share one fetch shape.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Me, PlayerBadge, PlayerProfile, Submission } from "@droptracker/api-types";
 import { gpAmount } from "@/lib/activity/money";
 import { activityMe, playerProfile } from "@/lib/activity/api";
@@ -27,6 +27,8 @@ export type MyProfile = {
   bestRank: number | null;
   loading: boolean;
   failed: boolean;
+  /** Re-fetch everything (e.g. after claiming an RSN in-app). */
+  refresh: () => void;
 };
 
 export function useMyProfile(): MyProfile {
@@ -36,6 +38,13 @@ export function useMyProfile(): MyProfile {
   const [profiles, setProfiles] = useState<PlayerProfile[]>([]);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Bumping the counter re-runs the fetch effect with fresh state.
+  const [reloadSeq, setReloadSeq] = useState(0);
+  const refresh = useCallback(() => {
+    setFailed(false);
+    setLoading(true);
+    setReloadSeq((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     if (!sessionToken) {
@@ -61,7 +70,7 @@ export function useMyProfile(): MyProfile {
     return () => {
       cancelled = true;
     };
-  }, [sessionToken]);
+  }, [sessionToken, reloadSeq]);
 
   const recent = useMemo<Submission[]>(
     () =>
@@ -85,5 +94,5 @@ export function useMyProfile(): MyProfile {
     return ranks.length ? Math.min(...ranks) : null;
   }, [me]);
 
-  return { me, profiles, recent, badges, totalLoot, bestRank, loading, failed };
+  return { me, profiles, recent, badges, totalLoot, bestRank, loading, failed, refresh };
 }

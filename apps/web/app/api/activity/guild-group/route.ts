@@ -18,9 +18,15 @@ export async function GET(req: NextRequest) {
   if (!/^\d+$/.test(guildId)) {
     return NextResponse.json({ error: "guildId required" }, { status: 400 });
   }
+  // fresh=1 bypasses the anonymous 5-minute cache — the group-setup wizard
+  // uses it right after creating a group so the new clan resolves immediately.
+  const fresh = req.nextUrl.searchParams.get("fresh") === "1";
   try {
     const group = GuildGroupSchema.parse(
-      await upstreamGet(`/groups/by-guild/${guildId}`, { revalidate: 300 }),
+      await upstreamGet(
+        `/groups/by-guild/${guildId}`,
+        fresh ? { revalidate: 0 } : { revalidate: 300 },
+      ),
     );
     return NextResponse.json(rewriteImgUrls(group));
   } catch (err) {

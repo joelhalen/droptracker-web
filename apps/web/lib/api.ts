@@ -123,9 +123,19 @@ import {
   NotificationPrefsSchema,
   GroupSubscriptionSummarySchema,
   AdminSubscriptionsOverviewSchema,
+  BotInviteSchema,
+  ClaimPreviewSchema,
+  ClaimResultSchema,
+  CreateGroupResultSchema,
   GuildStatusSchema,
   LeaderboardPageSchema,
   MeSchema,
+  MyGuildsSchema,
+  type BotInvite,
+  type ClaimPreview,
+  type ClaimResult,
+  type CreateGroupResult,
+  type MyGuilds,
   PlayerLootTrackerSchema,
   PlayerProfileSchema,
   SearchResultsSchema,
@@ -350,6 +360,10 @@ import {
   mockBackupOverview,
   mockServiceLogs,
   mockServices,
+  mockBotInvite,
+  mockClaimPreview,
+  mockClaimResult,
+  mockManageableGuilds,
   mockSubscriptionTiers,
   mockSupporters,
   mockWomLookup,
@@ -3193,20 +3207,76 @@ export const api = {
     );
   },
 
-  async guildStatus(guildId: string): Promise<GuildStatus> {
+  async guildStatus(guildId: string, opts?: { refresh?: boolean }): Promise<GuildStatus> {
+    // refresh=1 busts the backend's 5-minute bot-presence cache — used by the
+    // wizard's invite-the-bot poll so a fresh invite is detected promptly.
+    const suffix = opts?.refresh ? "?refresh=1" : "";
     return withFallback(
       async () =>
         GuildStatusSchema.parse(
-          await apiGet(`/groups/guild-status/${encodeURIComponent(guildId)}`, { authed: true }),
+          await apiGet(`/groups/guild-status/${encodeURIComponent(guildId)}${suffix}`, {
+            authed: true,
+          }),
         ),
       () => mockGuildStatus(guildId),
     );
   },
 
-  async createGroup(input: CreateGroupInput): Promise<{ id: number }> {
+  async createGroup(input: CreateGroupInput): Promise<CreateGroupResult> {
     return withFallback(
-      async () => (await apiSend("POST", `/groups`, input)) as { id: number },
-      () => ({ id: Math.floor(100 + Math.random() * 900) }),
+      async () => CreateGroupResultSchema.parse(await apiSend("POST", `/groups`, input)),
+      () => ({
+        id: Math.floor(100 + Math.random() * 900),
+        name: input.name,
+        wom_id: input.wom_id,
+        guild_id: input.guild_id,
+      }),
+    );
+  },
+
+  /** Discord servers the caller can manage (wizard server picker). */
+  async manageableGuilds(): Promise<MyGuilds> {
+    return withFallback(
+      async () => MyGuildsSchema.parse(await apiGet(`/me/guilds`, { authed: true })),
+      () => ({ guilds: mockManageableGuilds(), cached: true }),
+    );
+  },
+
+  /** Public bot application info for the wizard's "Invite the bot" button. */
+  async botInvite(): Promise<BotInvite> {
+    return withFallback(
+      async () => BotInviteSchema.parse(await apiGet(`/meta/bot-invite`, { revalidate: 3600 })),
+      () => mockBotInvite(),
+    );
+  },
+
+  // --- RSN claim flow ----------------------------------------------------
+  async claimPreview(rsn: string, guildId?: string): Promise<ClaimPreview> {
+    const q = new URLSearchParams({ rsn });
+    if (guildId) q.set("guild_id", guildId);
+    return withFallback(
+      async () =>
+        ClaimPreviewSchema.parse(
+          await apiGet(`/me/players/claim-preview?${q.toString()}`, { authed: true }),
+        ),
+      () => mockClaimPreview(rsn),
+    );
+  },
+
+  async claimPlayer(input: { rsn: string; guild_id?: string }): Promise<ClaimResult> {
+    return withFallback(
+      async () => ClaimResultSchema.parse(await apiSend("POST", `/me/players/claim`, input)),
+      () => mockClaimResult(input.rsn),
+    );
+  },
+
+  async unclaimPlayer(playerId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/me/players/${playerId}/claim`, undefined);
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
     );
   },
 

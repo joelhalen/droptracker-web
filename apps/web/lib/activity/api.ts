@@ -13,6 +13,13 @@ import {
   BoardDetailSchema,
   BoardRollResultSchema,
   BoardShopStateSchema,
+  BotInviteSchema,
+  ClaimPreviewSchema,
+  ClaimResultSchema,
+  CreateGroupResultSchema,
+  GuildStatusSchema,
+  MyGuildsSchema,
+  WomGroupPreviewSchema,
   EventCompletionSchema,
   EventDetailSchema,
   EventPlayerDetailSchema,
@@ -54,6 +61,14 @@ import {
   type PendingReviewEvent,
   type PlayerProfile,
   type SearchResults,
+  type BotInvite,
+  type ClaimPreview,
+  type ClaimResult,
+  type CreateGroupInput,
+  type CreateGroupResult,
+  type GuildStatus,
+  type MyGuilds,
+  type WomGroupPreview,
 } from "@droptracker/api-types";
 import { z } from "zod";
 
@@ -517,12 +532,114 @@ export async function eventByChannel(channelId: string): Promise<number | null> 
   return data.event_id;
 }
 
-/** The DropTracker group linked to the launch guild; null when unregistered. */
-export async function guildGroup(guildId: string): Promise<GuildGroup | null> {
-  const res = await fetch(`/api/activity/guild-group?guildId=${encodeURIComponent(guildId)}`, {
+/** The DropTracker group linked to the launch guild; null when unregistered.
+ * `fresh` bypasses the 5-minute BFF cache (used right after group creation). */
+export async function guildGroup(guildId: string, fresh = false): Promise<GuildGroup | null> {
+  const q = new URLSearchParams({ guildId });
+  if (fresh) q.set("fresh", "1");
+  const res = await fetch(`/api/activity/guild-group?${q.toString()}`, {
     headers: { accept: "application/json" },
   });
   if (res.status === 404) return null;
   if (!res.ok) throw new ActivityApiError(res.status, `guild-group → ${res.status}`);
   return GuildGroupSchema.parse(await res.json());
+}
+
+// --- RSN claim + group setup — bearer twins of the site's server actions,
+// --- shaped to satisfy the shared setup components' ports (components/setup).
+
+/** Read-only claim status for an RSN (as-you-type feedback). */
+export async function claimPreview(
+  rsn: string,
+  sessionToken: string,
+  guildId?: string,
+): Promise<ClaimPreview> {
+  const q = new URLSearchParams({ rsn });
+  if (guildId) q.set("guildId", guildId);
+  return ClaimPreviewSchema.parse(await get(`/api/activity/claim?${q.toString()}`, sessionToken));
+}
+
+/** Claim an RSN (mirrors Discord /claim-rsn; guild_id joins the launch clan). */
+export async function claimRsn(
+  input: { rsn: string; guild_id?: string },
+  sessionToken: string,
+): Promise<ClaimResult> {
+  return ClaimResultSchema.parse(await send(`/api/activity/claim`, sessionToken, input));
+}
+
+/** Discord servers the caller can manage (group-setup entry + server step). */
+export async function manageableGuilds(sessionToken: string): Promise<MyGuilds> {
+  return MyGuildsSchema.parse(await get(`/api/activity/group-setup/guilds`, sessionToken));
+}
+
+/** Public bot application info for the wizard's invite button. */
+export async function setupBotInvite(): Promise<BotInvite> {
+  return BotInviteSchema.parse(await get(`/api/activity/group-setup/bot-invite`, null));
+}
+
+/** Guild registration/bot-presence status; refresh busts the presence cache. */
+export async function setupGuildStatus(
+  guildId: string,
+  sessionToken: string,
+  opts?: { refresh?: boolean },
+): Promise<GuildStatus> {
+  const q = new URLSearchParams({ guildId });
+  if (opts?.refresh) q.set("refresh", "1");
+  return GuildStatusSchema.parse(
+    await get(`/api/activity/group-setup/guild-status?${q.toString()}`, sessionToken),
+  );
+}
+
+/** WOM group preview for the group-setup wizard. */
+export async function setupWomLookup(
+  womId: number,
+  sessionToken: string,
+): Promise<WomGroupPreview> {
+  return WomGroupPreviewSchema.parse(
+    await get(`/api/activity/group-setup/wom-lookup?womId=${womId}`, sessionToken),
+  );
+}
+
+/** Create the group (upstream POST /groups). */
+export async function setupCreateGroup(
+  input: CreateGroupInput,
+  sessionToken: string,
+): Promise<CreateGroupResult> {
+  return CreateGroupResultSchema.parse(
+    await send(`/api/activity/group-setup/create`, sessionToken, input),
+  );
+}
+
+/** Matches lib/api.ts's DiscordChannel interface (position defaulted so the
+ * shared channel picker's required shape is satisfied). */
+const SetupChannelsSchema = z.object({
+  channels: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      position: z.number().int().default(0),
+      type: z.enum(["text", "thread", "forum"]).optional(),
+      parent_id: z.string().optional(),
+    }),
+  ),
+  cached: z.boolean(),
+});
+
+/** The bot's cached Discord channel list for the new group. */
+export async function setupChannels(
+  groupId: number,
+  sessionToken: string,
+): Promise<z.infer<typeof SetupChannelsSchema>> {
+  return SetupChannelsSchema.parse(
+    await get(`/api/activity/group-setup/channels?groupId=${groupId}`, sessionToken),
+  );
+}
+
+/** Save wizard config keys (channel ids). */
+export async function setupSaveConfig(
+  groupId: number,
+  patch: Record<string, string | null>,
+  sessionToken: string,
+): Promise<void> {
+  await sendMethod("PATCH", `/api/activity/group-setup/config?groupId=${groupId}`, sessionToken, patch);
 }

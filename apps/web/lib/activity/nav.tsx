@@ -24,6 +24,7 @@ export type ActivityView =
   | { name: "event-team"; id: number; teamId: number }
   | { name: "player"; id: number }
   | { name: "group"; id: number }
+  | { name: "group-setup" }
   | { name: "pb-board"; npcId: number; bossName: string };
 
 export type ActivityTab = "home" | "ranks" | "events" | "me";

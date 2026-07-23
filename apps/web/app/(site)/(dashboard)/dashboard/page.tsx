@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { entityPath } from "@/lib/slug";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
+import { SiteClaimRsn } from "@/components/setup/claim-rsn-site";
 import { EmptyState, EntityChip, RoleBadge } from "@/components/ui";
 
 export const metadata: Metadata = { title: "My accounts" };
@@ -41,13 +42,15 @@ export default async function DashboardPage() {
         ) : (
           <EmptyState
             title="No linked accounts yet"
-            hint="Link an OSRS account through the RuneLite plugin to see it here."
+            hint="Claim your RuneScape name below — once you've received loot with the DropTracker RuneLite plugin, it takes ten seconds."
           />
         )}
-        <p className="text-osrs-parchment-dark/60 mt-4 text-sm">
-          Linking is plugin-assisted: generate a code here and enter it in the RuneLite plugin to
-          claim an account (FRONTEND_PLAN.md §7.3). Coming in a later iteration.
-        </p>
+        <div className="border-osrs-bronze/30 mt-4 rounded border p-4">
+          <h3 className="text-osrs-gold mb-2 text-sm font-semibold">
+            {user.players.length ? "Claim another account" : "Claim your account"}
+          </h3>
+          <SiteClaimRsn compact />
+        </div>
       </section>
 
       <section>

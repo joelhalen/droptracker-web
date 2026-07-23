@@ -35,7 +35,11 @@ import type {
   GroupSubscriptionSummary,
   AdminSubscriptionsOverview,
   UserSubscription,
+  BotInvite,
+  ClaimPreview,
+  ClaimResult,
   GuildStatus,
+  ManageableGuild,
   LeaderboardPage,
   Lootboard,
   LootSweepBoard,
@@ -563,12 +567,95 @@ export function mockWomLookup(womId: number): WomGroupPreview {
   };
 }
 
+/** Guild ids ending in "0" simulate the invite-bot flow: absent for the first
+ * two polls, then present — so the wizard's poll-until-present path is
+ * exercisable in mock mode. */
+const guildStatusPolls = new Map<string, number>();
+
 export function mockGuildStatus(guildId: string): GuildStatus {
+  let botPresent = true;
+  if (guildId.endsWith("0")) {
+    const polls = (guildStatusPolls.get(guildId) ?? 0) + 1;
+    guildStatusPolls.set(guildId, polls);
+    botPresent = polls > 2;
+  }
   return {
     guild_id: guildId,
-    bot_present: true,
-    owns_group: false,
-    group_id: null,
+    bot_present: botPresent,
+    owns_group: guildId.endsWith("9"),
+    group_id: guildId.endsWith("9") ? 1 : null,
+  };
+}
+
+export function mockManageableGuilds(): ManageableGuild[] {
+  return [
+    {
+      id: "207526562331885568",
+      name: "Mock Clan HQ",
+      icon_url: null,
+      has_group: false,
+      group_id: null,
+    },
+    {
+      id: "207526562331885560",
+      name: "Botless Server",
+      icon_url: null,
+      has_group: false,
+      group_id: null,
+    },
+    {
+      id: "207526562331885569",
+      name: "Already Registered",
+      icon_url: null,
+      has_group: true,
+      group_id: 1,
+    },
+  ];
+}
+
+export function mockBotInvite(): BotInvite {
+  return {
+    client_id: "1172933457010245762",
+    permissions: null,
+    invite_url:
+      "https://discord.com/oauth2/authorize?client_id=1172933457010245762&scope=bot+applications.commands",
+  };
+}
+
+/** Magic RSN prefixes exercise every claim branch in mock mode:
+ * "new…" -> not_found, "taken…" -> claimed_by_other, "mine…" -> already_yours,
+ * anything else -> claimable (with a clan attach when it starts with "clan"). */
+function claimStatusFor(rsn: string): ClaimPreview["status"] {
+  const r = rsn.trim().toLowerCase();
+  if (r.startsWith("new")) return "not_found";
+  if (r.startsWith("taken")) return "claimed_by_other";
+  if (r.startsWith("mine")) return "already_yours";
+  return "claimable";
+}
+
+export function mockClaimPreview(rsn: string): ClaimPreview {
+  const status = claimStatusFor(rsn);
+  return {
+    status,
+    player: status === "not_found" ? null : { id: 4242, name: rsn.trim() },
+    group:
+      status === "claimable" && rsn.trim().toLowerCase().startsWith("clan")
+        ? { id: 7, name: "Mock Clan" }
+        : null,
+  };
+}
+
+export function mockClaimResult(rsn: string): ClaimResult {
+  const preview = mockClaimPreview(rsn);
+  const status = preview.status === "claimable" ? "claimed" : preview.status;
+  return {
+    status,
+    player: preview.player,
+    group: status === "claimed" ? preview.group : null,
+    players:
+      status === "claimed" || status === "already_yours"
+        ? [{ id: 4242, name: rsn.trim() }]
+        : [],
   };
 }
 

@@ -23,11 +23,12 @@ import {
   SectionHeading,
   SubmissionRow,
 } from "@/components/activity/bits";
+import { ActivityClaimRsn } from "@/components/activity/claim-rsn";
 
 export function MeView() {
   const { sessionToken, user } = useActivityAuth();
   const nav = useActivityNav();
-  const { me, recent, badges, totalLoot, bestRank, loading, failed } = useMyProfile();
+  const { me, recent, badges, totalLoot, bestRank, loading, failed, refresh } = useMyProfile();
 
   if (!sessionToken) {
     return (
@@ -81,10 +82,7 @@ export function MeView() {
         <div>
           <SectionHeading>Your accounts</SectionHeading>
           {me.players.length === 0 ? (
-            <ErrorNote>
-              No OSRS accounts linked yet — claim your RSN with <code>/claim-rsn</code> in Discord or on
-              the website.
-            </ErrorNote>
+            <ActivityClaimRsn onClaimed={refresh} />
           ) : (
             <Card padding="p-1.5">
               {me.players.map((p) => (

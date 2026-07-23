@@ -24,6 +24,7 @@ import { EventsView } from "@/components/activity/events-view";
 import { MeView } from "@/components/activity/me-view";
 import { PlayerView } from "@/components/activity/player-view";
 import { GroupView } from "@/components/activity/group-view";
+import { GroupSetupView } from "@/components/activity/group-setup-view";
 import { PbBoardView } from "@/components/activity/pb-board-view";
 import { EventView } from "@/components/activity/event-view";
 import { EventReviewView } from "@/components/activity/review-view";
@@ -96,6 +97,8 @@ function viewMaxWidth(view: ActivityView): string {
     case "event-players":
     case "event-team":
       return "max-w-3xl";
+    case "group-setup":
+      return "max-w-2xl";
     default:
       return "max-w-2xl";
   }
@@ -122,6 +125,8 @@ function presenceLabel(view: ActivityView): string {
       return "Comparing boss times";
     case "me":
       return "Checking their progress";
+    case "group-setup":
+      return "Setting up their clan";
     default:
       return "Browsing the tracker";
   }
@@ -153,6 +158,8 @@ function renderView(
       return <PlayerView id={view.id} />;
     case "group":
       return <GroupView id={view.id} />;
+    case "group-setup":
+      return <GroupSetupView />;
     case "pb-board":
       return <PbBoardView npcId={view.npcId} bossName={view.bossName} />;
   }

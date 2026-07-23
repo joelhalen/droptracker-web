@@ -14,7 +14,7 @@ import { CountUp } from "@/components/count-up";
 import { HoverCard, CardStatLine, CARD_SECTION_CLASS } from "@/components/hover-card";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp, formatRelativeTime } from "@/lib/format";
-import { guildEvents, myEvents, recentFeed, searchAll } from "@/lib/activity/api";
+import { guildEvents, manageableGuilds, myEvents, recentFeed, searchAll } from "@/lib/activity/api";
 import { toActivityFeedRow, type ActivityFeedRow } from "@/lib/activity/feed";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityData } from "@/lib/activity/data-context";
@@ -24,6 +24,7 @@ import { openExternal } from "@/lib/activity/discord-sdk";
 import { discordAvatar } from "@/lib/activity/img";
 import { gpAmount, gpText } from "@/lib/activity/money";
 import { SectionHeading } from "@/components/activity/bits";
+import { ActivityClaimRsn } from "@/components/activity/claim-rsn";
 
 const SUBMISSION_KIND: Record<Submission["type"], string> = {
   drop: "Drop",
@@ -158,12 +159,7 @@ function PersonalPanel({ my }: { my: MyProfile }) {
 
       {/* Linked accounts */}
       {me.players.length === 0 ? (
-        <Card padding="p-3.5">
-          <p className="text-osrs-parchment-dark/60 text-[12px] leading-snug">
-            No OSRS accounts linked yet — claim your RSN with <code>/claim-rsn</code> in Discord or
-            on the website.
-          </p>
-        </Card>
+        <ActivityClaimRsn onClaimed={() => my.refresh()} />
       ) : (
         <Card padding="p-1.5">
           {me.players.slice(0, 4).map((p) => (
@@ -283,6 +279,26 @@ export function HomeView() {
   const [feed, setFeed] = useState<ActivityFeedRow[]>([]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
+  // Unregistered launch guild + the viewer manages it → offer in-app setup.
+  const [canSetupGuild, setCanSetupGuild] = useState(false);
+
+  useEffect(() => {
+    if (group || !guildId || !sessionToken) {
+      setCanSetupGuild(false);
+      return;
+    }
+    let cancelled = false;
+    manageableGuilds(sessionToken)
+      .then((res) => {
+        if (!cancelled) {
+          setCanSetupGuild(res.guilds.some((g) => g.id === guildId && !g.has_group));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [group, guildId, sessionToken]);
 
   // Active events power the Events card's live pill. No guild context (an
   // Activity Link opened from a DM) → the user's events across their groups.
@@ -379,6 +395,25 @@ export function HomeView() {
             )}
           </div>
         </Card>
+
+        {/* Unregistered server + viewer manages it → in-app group setup. */}
+        {!group && canSetupGuild && (
+          <Card padding="p-4" className="border-osrs-gold/40">
+            <p className="text-osrs-gold font-serif text-[15px] font-semibold">
+              This server isn&apos;t on DropTracker yet
+            </p>
+            <p className="text-osrs-parchment-dark/60 mt-1 text-[12px] leading-snug">
+              Bring loot tracking, leaderboards, and events to your community — setup takes about
+              two minutes.
+            </p>
+            <button
+              onClick={() => nav.push({ name: "group-setup" })}
+              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-2.5 rounded-lg px-3 py-1.5 text-[12px] font-semibold"
+            >
+              Set it up →
+            </button>
+          </Card>
+        )}
       </div>
 
       {/* Hub content */}

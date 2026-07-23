@@ -1020,12 +1020,79 @@ export const GuildStatusSchema = z.object({
 export type GuildStatus = z.infer<typeof GuildStatusSchema>;
 
 export const CreateGroupInputSchema = z.object({
-  name: z.string().min(1).max(100),
+  // groups.group_name is VARCHAR(30); the backend rejects longer names.
+  name: z.string().min(1).max(30),
   wom_id: z.number().int().positive(),
   guild_id: z.string().min(1),
   discord_url: z.string().url().optional().or(z.literal("")),
 });
 export type CreateGroupInput = z.infer<typeof CreateGroupInputSchema>;
+
+export const CreateGroupResultSchema = z.object({
+  id: z.number().int(),
+  name: z.string().optional(),
+  wom_id: z.number().int().nullable().optional(),
+  guild_id: z.string().nullable().optional(),
+});
+export type CreateGroupResult = z.infer<typeof CreateGroupResultSchema>;
+
+/** Discord servers the caller can manage (GET /me/guilds — wizard server picker). */
+export const ManageableGuildSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  icon_url: z.string().nullable().optional(),
+  has_group: z.boolean(),
+  group_id: z.number().int().nullable().optional(),
+});
+export type ManageableGuild = z.infer<typeof ManageableGuildSchema>;
+
+export const MyGuildsSchema = z.object({
+  guilds: z.array(ManageableGuildSchema),
+  /** False when the login-time guild cache is cold (old session / declined scope). */
+  cached: z.boolean(),
+});
+export type MyGuilds = z.infer<typeof MyGuildsSchema>;
+
+/** GET /meta/bot-invite — public bot application info for "Invite the bot". */
+export const BotInviteSchema = z.object({
+  client_id: z.string(),
+  permissions: z.string().nullable().optional(),
+  invite_url: z.string(),
+});
+export type BotInvite = z.infer<typeof BotInviteSchema>;
+
+/**
+ * RSN claim flow (mirrors the Discord /claim-rsn rules: players exist only via
+ * plugin submissions; claimed accounts are refused — disputes via tickets).
+ */
+export const ClaimStatusSchema = z.enum([
+  "not_found",
+  "claimable",
+  "claimed",
+  "claimed_by_other",
+  "already_yours",
+]);
+export type ClaimStatus = z.infer<typeof ClaimStatusSchema>;
+
+const ClaimPlayerRefSchema = z.object({ id: z.number().int(), name: z.string() });
+const ClaimGroupRefSchema = z.object({ id: z.number().int(), name: z.string() });
+
+export const ClaimPreviewSchema = z.object({
+  status: ClaimStatusSchema,
+  player: ClaimPlayerRefSchema.nullable(),
+  /** Group a claim would attach to (guild context only; global fallback omitted). */
+  group: ClaimGroupRefSchema.nullable(),
+});
+export type ClaimPreview = z.infer<typeof ClaimPreviewSchema>;
+
+export const ClaimResultSchema = z.object({
+  status: ClaimStatusSchema,
+  player: ClaimPlayerRefSchema.nullable(),
+  group: ClaimGroupRefSchema.nullable(),
+  /** The caller's refreshed linked accounts. */
+  players: z.array(ClaimPlayerRefSchema),
+});
+export type ClaimResult = z.infer<typeof ClaimResultSchema>;
 
 /**
  * Group recurring subscriptions / upgrades (FRONTEND_PLAN.md §14.1 `/Upgrades/`,

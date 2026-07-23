@@ -42,6 +42,10 @@ import {
   ResolveResultSchema,
   ServiceStatusSchema,
   SupportersSchema,
+  BotInviteSchema,
+  ClaimPreviewSchema,
+  ClaimResultSchema,
+  MyGuildsSchema,
   allConfigKeys,
   getConfigField,
 } from "@droptracker/api-types";
@@ -81,6 +85,10 @@ import {
   mockResolve,
   mockServices,
   mockSupporters,
+  mockBotInvite,
+  mockClaimPreview,
+  mockClaimResult,
+  mockManageableGuilds,
 } from "../lib/mock-data";
 
 // Contract test: every path the BFF client calls must exist in the published
@@ -149,6 +157,13 @@ test("mock payloads validate against shared schemas", () => {
   // Slug resolution: a single match and an ambiguous (disambiguation) result.
   assert.doesNotThrow(() => ResolveResultSchema.parse(mockResolve("npc", "vorkath")));
   assert.doesNotThrow(() => ResolveResultSchema.parse(mockResolve("group", "dup-clan")));
+  // RSN claim + group wizard support (every magic-RSN branch stays in contract).
+  assert.doesNotThrow(() => MyGuildsSchema.parse({ guilds: mockManageableGuilds(), cached: true }));
+  assert.doesNotThrow(() => BotInviteSchema.parse(mockBotInvite()));
+  for (const rsn of ["new player", "taken name", "mine rsn", "clan mate", "Regular Rsn"]) {
+    assert.doesNotThrow(() => ClaimPreviewSchema.parse(mockClaimPreview(rsn)));
+    assert.doesNotThrow(() => ClaimResultSchema.parse(mockClaimResult(rsn)));
+  }
 });
 
 // Older API deployments answer /search without npcs/items — the schema must
