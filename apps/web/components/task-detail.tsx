@@ -26,6 +26,7 @@ import {
   type TaskBreakdownContributor,
   type TaskBreakdownGroup,
   type TaskBreakdownItem,
+  type TaskBreakdownPath,
 } from "@droptracker/api-types";
 import { TASK_TYPE_LABELS, taskGoal } from "@/lib/events";
 import { tileIconUrl } from "@/components/bingo-tile";
@@ -212,6 +213,63 @@ function MeterBar({ pct, color, done }: { pct: number; color?: string; done?: bo
         className="h-full rounded-full transition-[width] duration-700"
         style={{ width: `${pct}%`, backgroundColor: color ?? "#e0b34c", opacity: done ? 1 : 0.85 }}
       />
+    </div>
+  );
+}
+
+/** Body of a metric either-or path (any_path v2): a KC / GP meter with the
+ * raw got/need totals and the NPCs it's scoped to — no item checklist. */
+function MetricPathBody({ path, color }: { path: TaskBreakdownPath; color?: string }) {
+  const done = path.pct >= 100;
+  const pendingDone = !done && path.pending_satisfied === true;
+  return (
+    <div className="grid gap-1">
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <MeterBar pct={Math.min(path.pct, 100)} color={color} done={done} />
+        </div>
+        <span
+          className={`shrink-0 text-[10px] tabular-nums ${
+            done ? "text-osrs-green" : "text-osrs-parchment-dark/60"
+          }`}
+        >
+          {done
+            ? "✓ done"
+            : `${path.got.toLocaleString()} / ${path.need.toLocaleString()}${path.unit ? ` ${path.unit}` : ""}`}
+        </span>
+      </div>
+      {(path.pending ?? 0) > 0 && !done && (
+        <p className="text-right text-[10px] text-amber-400 tabular-nums">
+          +{(path.pending ?? 0).toLocaleString()}
+          {path.unit ? ` ${path.unit}` : ""} awaiting review
+          {pendingDone ? " · would finish this path" : ""}
+        </p>
+      )}
+      {(path.npcs ?? []).length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          {(path.npcs ?? []).map((n, i) => {
+            const url = n.icon ? tileIconUrl(n.icon) : null;
+            return (
+              <span
+                key={`${n.name}-${i}`}
+                className="border-osrs-bronze/25 bg-osrs-brown-dark/50 text-osrs-parchment-dark/80 flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px]"
+              >
+                {url && (
+                  <img
+                    src={url}
+                    alt=""
+                    className="size-4 object-contain"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                )}
+                {n.name}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -433,9 +491,11 @@ export function TaskDetailContent({
                           <span className="text-osrs-parchment-dark/50 text-[10px] tabular-nums">{p.pct}%</span>
                         </div>
                         <div className="grid gap-1">
-                          {p.groups.map((g, gi) => (
-                            <RequirementGroup key={gi} group={g} />
-                          ))}
+                          {p.metric ? (
+                            <MetricPathBody path={p} color={selColor} />
+                          ) : (
+                            p.groups.map((g, gi) => <RequirementGroup key={gi} group={g} />)
+                          )}
                         </div>
                       </div>
                     </div>

@@ -98,7 +98,9 @@ export const TASK_TYPE_LABELS: Record<EventTask["type"], string> = {
 /** What each task type means / how the engine completes it (task-form help). */
 export const TASK_TYPE_HELP: Record<EventTask["type"], string> = {
   item_collection:
-    "Collect a specific item — or any / all / points-worth from a list. Credited from drops and collection log entries.",
+    "Collect a specific item — or any / all / points-worth from a list. Credited from drops and " +
+    "collection log entries. Lists can also include pets (use the Pets search tab) — those are " +
+    "credited from pet submissions.",
   kc_target:
     "Kill an NPC a number of times — list several NPCs and a kill of any of them counts. Kills are counted from tracked drops.",
   xp_target: "Gain an amount of XP in a skill during the event.",
@@ -200,18 +202,42 @@ export function taskConfigGroups(task: Pick<EventTask, "config">): TaskConfigGro
   return parseConfigGroups(cfg.groups);
 }
 
-/** One alternative of a `kind: "any_path"` (either-or) config. */
-export type TaskConfigPath = { label: string | null; groups: TaskConfigGroup[] };
+/** Metric alternatives an either-or path may be instead of an item list
+ * ("boss pet OR 5,000 GWD kills"): kill count, or GP of drops. */
+export type PathMetric = "kc" | "loot_value";
+
+/** One alternative of a `kind: "any_path"` (either-or) config. Item paths
+ * carry `groups`; metric paths carry `metric` + `need` (+ optional `npcs`). */
+export type TaskConfigPath = {
+  label: string | null;
+  groups: TaskConfigGroup[];
+  metric?: PathMetric;
+  need?: number;
+  npcs?: string[];
+};
 
 /** Structured paths of an either-or config, [] otherwise. Completing ANY
  * path completes the task ("dryness protection", suggestion #52). */
 export function taskConfigPaths(task: Pick<EventTask, "config">): TaskConfigPath[] {
   const cfg = taskConfig(task);
   if (cfg.kind !== "any_path" || !Array.isArray(cfg.paths)) return [];
-  return (cfg.paths as { label?: unknown; groups?: unknown }[]).map((p) => ({
-    label: typeof p.label === "string" && p.label.trim() ? p.label : null,
-    groups: parseConfigGroups(p.groups),
-  }));
+  return (
+    cfg.paths as { label?: unknown; groups?: unknown; metric?: unknown; need?: unknown; npcs?: unknown }[]
+  ).map((p) => {
+    const label = typeof p.label === "string" && p.label.trim() ? p.label : null;
+    if (p.metric === "kc" || p.metric === "loot_value") {
+      return {
+        label,
+        groups: [],
+        metric: p.metric,
+        need: typeof p.need === "number" && p.need >= 1 ? p.need : 1,
+        npcs: Array.isArray(p.npcs)
+          ? p.npcs.filter((n): n is string => typeof n === "string" && n.trim().length > 0)
+          : [],
+      };
+    }
+    return { label, groups: parseConfigGroups(p.groups) };
+  });
 }
 
 /** Optional per-item source-NPC restriction (`config.item_npcs`, a flat
@@ -233,6 +259,19 @@ function parseItemNpcs(raw: unknown): Record<string, string[]> {
 /** Per-item source restriction for a multi-item task (`{item_name: [npc]}`). */
 export function taskItemNpcs(task: Pick<EventTask, "config">): Record<string, string[]> {
   return parseItemNpcs(taskConfig(task).item_npcs);
+}
+
+/** Lower-cased names in an item-list config flagged as PETS
+ * (`config.pet_items`): credited from pet submissions, not drops/clogs. */
+export function taskConfigPetNames(task: Pick<EventTask, "config">): Set<string> {
+  const raw = taskConfig(task).pet_items;
+  return new Set(
+    Array.isArray(raw)
+      ? raw
+          .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
+          .map((n) => n.toLowerCase())
+      : [],
+  );
 }
 
 /** Task-level source restriction for a single-item task (`config.source_npcs`). */
@@ -276,10 +315,15 @@ export function taskConfigItems(
   });
 }
 
-/** Short human summary of one either-or path, e.g. "all 3 items" or its
- * authored label. */
+/** Short human summary of one either-or path, e.g. "all 3 items",
+ * "5,000 KC at Kree'arra", or its authored label. */
 export function pathSummary(p: TaskConfigPath): string {
   if (p.label) return p.label;
+  if (p.metric) {
+    const amount = (p.need ?? 1).toLocaleString();
+    const at = p.npcs && p.npcs.length ? ` at ${p.npcs.join(" / ")}` : "";
+    return p.metric === "kc" ? `${amount} KC${at}` : `${amount} GP${at}`;
+  }
   const parts = p.groups.map((g) =>
     g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
   );

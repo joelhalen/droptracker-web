@@ -3007,7 +3007,9 @@ export const TaskBreakdownGroupSchema = z.object({
 export type TaskBreakdownGroup = z.infer<typeof TaskBreakdownGroupSchema>;
 
 /** One either-or path of an `any_path` task. `closest` marks the path the team
- * is furthest along (dryness-protection tasks complete when ANY path fills). */
+ * is furthest along (dryness-protection tasks complete when ANY path fills).
+ * A METRIC path ("boss pet OR 5,000 GWD kills") carries `metric`/`unit`/`npcs`
+ * and no item groups — its `got`/`need` are raw KC or GP totals. */
 export const TaskBreakdownPathSchema = z.object({
   label: z.string(),
   closest: z.boolean().default(false),
@@ -3015,6 +3017,23 @@ export const TaskBreakdownPathSchema = z.object({
   need: z.number().int().default(0),
   got: z.number().int().default(0),
   groups: z.array(TaskBreakdownGroupSchema).default([]),
+  /** Metric alternative (any_path v2): kill count or GP instead of items. */
+  metric: z.enum(["kc", "loot_value"]).optional(),
+  /** Unit for got/need on a metric path ("KC" / "GP"). */
+  unit: z.string().optional(),
+  /** NPCs a metric path is scoped to (empty/absent = any source for GP). */
+  npcs: z
+    .array(
+      z.object({
+        name: z.string(),
+        icon: TaskTileIconSchema.nullable().optional(),
+      }),
+    )
+    .optional(),
+  /** Pending-review overlay: amount awaiting review on this path, and whether
+   * confirming it would finish the path. */
+  pending: z.number().int().optional(),
+  pending_satisfied: z.boolean().optional(),
 });
 export type TaskBreakdownPath = z.infer<typeof TaskBreakdownPathSchema>;
 

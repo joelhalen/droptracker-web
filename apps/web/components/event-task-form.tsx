@@ -38,11 +38,16 @@ import {
   parseTimeToSeconds,
   taskConfig,
   taskConfigItems,
+  taskConfigPetNames,
   taskSourceNpcs,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
-import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
+import {
+  ItemNpcPicker,
+  type BossImportApi,
+  type PickerEntry,
+} from "@/components/item-npc-picker";
 import { ItemSourceRestriction } from "@/components/item-source-restriction";
 import {
   LootSweepEditor,
@@ -55,9 +60,11 @@ import { QuantityInput } from "@/components/quantity-input";
 import {
   addEventTask,
   fetchItemSources,
+  fetchNpcDropItems,
   resolveEventMetaNames,
   searchEventItems,
   searchEventNpcs,
+  searchEventPets,
   updateEventTask,
   uploadLootSweepImage,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
@@ -85,8 +92,9 @@ const ITEM_MODE_HELP: Record<ItemMode, string> = {
   groups:
     "Combine lists: every group must be satisfied — e.g. ALL three godsword shards plus ANY one hilt.",
   any_path:
-    "Dryness protection: completing ANY one path finishes the task — e.g. the full Justiciar " +
-    "set OR any 5 Justiciar items. The same item can appear in more than one path.",
+    "Completing ANY one path finishes the task. Paths can be item lists (the full Justiciar " +
+    "set OR any 5 Justiciar items) or metric goals — e.g. a Godwars boss pet OR 5,000 kills " +
+    "at Godwars bosses OR 100M GP of drops.",
 };
 
 /** How a pet_collection task is scoped. */
@@ -107,8 +115,33 @@ const PET_MODE_HELP: Record<PetMode, string> = {
 /** One sub-requirement of a "Combined requirements" task. */
 type GroupDraft = { mode: "all_of" | "any_of"; need: number; items: PickerEntry[] };
 
-/** One alternative of an "Either-or" task — its own set of requirement groups. */
-type PathDraft = { label: string; groups: GroupDraft[] };
+/** What one "Either-or" path requires: an item checklist, a kill count at
+ * chosen NPC(s), or a GP total of drops (optionally NPC-scoped). */
+type PathKind = "items" | "kc" | "loot_value";
+
+const PATH_KIND_LABELS: Record<PathKind, string> = {
+  items: "Items",
+  kc: "Kill count",
+  loot_value: "Loot value (GP)",
+};
+
+/** One alternative of an "Either-or" task — its own requirement groups
+ * (items), or a metric goal (`kc` / `loot_value`: npcs + need). */
+type PathDraft = {
+  label: string;
+  kind: PathKind;
+  groups: GroupDraft[];
+  npcs: PickerEntry[];
+  need: number;
+};
+
+const emptyPathDraft = (kind: PathKind, groupMode: "all_of" | "any_of" = "any_of"): PathDraft => ({
+  label: "",
+  kind,
+  groups: kind === "items" ? [{ mode: groupMode, need: 1, items: [] }] : [],
+  npcs: [],
+  need: 1,
+});
 
 /** Lower-cased `{item_name: [npc]}` restriction lookup from a stored config. */
 function itemNpcsLookup(config: Record<string, unknown>): Record<string, string[]> {
@@ -125,7 +158,11 @@ function itemNpcsLookup(config: Record<string, unknown>): Record<string, string[
   return out;
 }
 
-function parseGroupDrafts(raw: unknown, itemNpcs: Record<string, string[]> = {}): GroupDraft[] {
+function parseGroupDrafts(
+  raw: unknown,
+  itemNpcs: Record<string, string[]> = {},
+  petNames: Set<string> = new Set(),
+): GroupDraft[] {
   if (!Array.isArray(raw)) return [];
   return (raw as { mode?: string; need?: number; items?: unknown[] }[]).map((g) => ({
     mode: g.mode === "any_of" ? "any_of" : "all_of",
@@ -134,22 +171,53 @@ function parseGroupDrafts(raw: unknown, itemNpcs: Record<string, string[]> = {})
       const name = typeof it === "string" ? it : (it as { item_name?: string } | null)?.item_name;
       if (!name) return [];
       const npcs = itemNpcs[name.toLowerCase()];
-      return [{ name, ...(npcs ? { npcs } : {}) }];
+      return [
+        {
+          name,
+          ...(npcs ? { npcs } : {}),
+          ...(petNames.has(name.toLowerCase()) ? { isPet: true } : {}),
+        },
+      ];
     }),
   }));
 }
 
-function groupsFromConfig(config: Record<string, unknown>): GroupDraft[] {
-  return parseGroupDrafts(config.groups, itemNpcsLookup(config));
+function groupsFromConfig(config: Record<string, unknown>, petNames: Set<string>): GroupDraft[] {
+  return parseGroupDrafts(config.groups, itemNpcsLookup(config), petNames);
 }
 
-function pathsFromConfig(config: Record<string, unknown>): PathDraft[] {
+function pathsFromConfig(config: Record<string, unknown>, petNames: Set<string>): PathDraft[] {
   if (config.kind !== "any_path" || !Array.isArray(config.paths)) return [];
   const itemNpcs = itemNpcsLookup(config);
-  return (config.paths as { label?: unknown; groups?: unknown }[]).map((p) => ({
-    label: typeof p.label === "string" ? p.label : "",
-    groups: parseGroupDrafts(p.groups, itemNpcs),
-  }));
+  return (
+    config.paths as {
+      label?: unknown;
+      groups?: unknown;
+      metric?: unknown;
+      npcs?: unknown;
+      need?: unknown;
+    }[]
+  ).map((p) => {
+    const label = typeof p.label === "string" ? p.label : "";
+    if (p.metric === "kc" || p.metric === "loot_value") {
+      return {
+        label,
+        kind: p.metric,
+        groups: [],
+        npcs: (Array.isArray(p.npcs) ? p.npcs : [])
+          .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
+          .map((name) => ({ name })),
+        need: typeof p.need === "number" && p.need >= 1 ? p.need : 1,
+      };
+    }
+    return {
+      label,
+      kind: "items" as const,
+      groups: parseGroupDrafts(p.groups, itemNpcs, petNames),
+      npcs: [],
+      need: 1,
+    };
+  });
 }
 
 function serializeGroups(groups: GroupDraft[]) {
@@ -165,11 +233,26 @@ const groupsNeed = (groups: GroupDraft[]) =>
 
 /** Flat `{item_name: [npc]}` source-restriction map from picked entries — only
  * the items that carry a restriction. Used for every multi-item config kind so
- * it survives groups/any_path (whose serialized item lists are bare strings). */
+ * it survives groups/any_path (whose serialized item lists are bare strings).
+ * Pets are skipped: they have no drop source (they ride in `pet_items`). */
 function itemNpcsFromEntries(items: PickerEntry[]): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const it of items) {
-    if (it.npcs && it.npcs.length) out[it.name] = it.npcs;
+    if (!it.isPet && it.npcs && it.npcs.length) out[it.name] = it.npcs;
+  }
+  return out;
+}
+
+/** Flat `pet_items` list from picked entries — the names flagged as pets
+ * (credited from pet submissions). Same flat-map rationale as item_npcs. */
+function petItemsFromEntries(items: PickerEntry[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const it of items) {
+    if (it.isPet && !seen.has(it.name.toLowerCase())) {
+      seen.add(it.name.toLowerCase());
+      out.push(it.name);
+    }
   }
   return out;
 }
@@ -195,12 +278,16 @@ function GroupListEditor({
   search,
   resolve,
   renderEntryExtra,
+  bossImport,
+  searchPets,
 }: {
   groups: GroupDraft[];
   onChange: (groups: GroupDraft[]) => void;
   search: (q: string) => Promise<EventMetaEntry[]>;
   resolve: (names: string[]) => Promise<EventMetaEntry[]>;
   renderEntryExtra?: (entry: PickerEntry, setNpcs: (npcs: string[]) => void) => React.ReactNode;
+  bossImport?: BossImportApi;
+  searchPets?: (q: string) => Promise<EventMetaEntry[]>;
 }) {
   const patch = (gi: number, p: Partial<GroupDraft>) =>
     onChange(groups.map((g, i) => (i === gi ? { ...g, ...p } : g)));
@@ -253,6 +340,8 @@ function GroupListEditor({
             search={search}
             resolve={resolve}
             renderEntryExtra={renderEntryExtra}
+            bossImport={bossImport}
+            searchPets={searchPets}
           />
         </div>
       ))}
@@ -400,11 +489,13 @@ export function EventTaskForm({
 }) {
   const draftMode = onDraftSubmit != null;
   const editing = !draftMode && initial != null;
+  const initialPetNames = initial ? taskConfigPetNames(initial) : new Set<string>();
   const initialItems: PickerEntry[] = initial
     ? taskConfigItems(initial).map((it) => ({
         name: it.item_name,
         points: it.points,
         ...(it.npcs ? { npcs: it.npcs } : {}),
+        ...(initialPetNames.has(it.item_name.toLowerCase()) ? { isPet: true } : {}),
       }))
     : [];
   const initialConfig = initial ? taskConfig(initial) : {};
@@ -424,8 +515,8 @@ export function EventTaskForm({
   );
 
   // item_collection
-  const initialGroups = groupsFromConfig(initialConfig);
-  const initialPaths = pathsFromConfig(initialConfig);
+  const initialGroups = groupsFromConfig(initialConfig, initialPetNames);
+  const initialPaths = pathsFromConfig(initialConfig, initialPetNames);
   const [itemMode, setItemMode] = useState<ItemMode>(
     initialPaths.length
       ? "any_path"
@@ -468,14 +559,12 @@ export function EventTaskForm({
         ],
   );
   // Either-or starter mirrors the dryness-protection use case: a full set
-  // OR any N pieces (the same items usually fill both paths).
+  // OR any N pieces (the same items usually fill both paths). Paths can also
+  // be metric goals — "boss pet OR 5,000 KC" — via the per-path type picker.
   const [paths, setPaths] = useState<PathDraft[]>(
     initialPaths.length
       ? initialPaths
-      : [
-          { label: "", groups: [{ mode: "all_of", need: 1, items: [] }] },
-          { label: "", groups: [{ mode: "any_of", need: 1, items: [] }] },
-        ],
+      : [emptyPathDraft("items", "all_of"), emptyPathDraft("items", "any_of")],
   );
   const patchPath = (pi: number, patch: Partial<PathDraft>) =>
     setPaths((prev) => prev.map((p, i) => (i === pi ? { ...p, ...patch } : p)));
@@ -549,10 +638,16 @@ export function EventTaskForm({
 
   const searchItems = (q: string) => searchEventItems(groupId, q);
   const searchNpcs = (q: string) => searchEventNpcs(groupId, q);
+  const searchPets = (q: string) => searchEventPets(groupId, q);
   const resolveItems = (names: string[]) => resolveEventMetaNames(groupId, "item", names);
   const resolveNpcs = (names: string[]) => resolveEventMetaNames(groupId, "npc", names);
   const fetchSources = (name: string) =>
     fetchItemSources(groupId, [name]).then((rows) => rows[0]?.npcs ?? []);
+  // "Type a boss, add its drops" helper for every item-list picker.
+  const bossImport: BossImportApi = {
+    searchNpcs,
+    fetchDrops: (npcId) => fetchNpcDropItems(groupId, npcId),
+  };
   // Per-item "restrict to specific NPC sources" control, reused by every item
   // picker (single, flat list, groups, either-or paths).
   const renderSourceRestriction = (entry: PickerEntry, setNpcs: (npcs: string[]) => void) => (
@@ -586,8 +681,15 @@ export function EventTaskForm({
         } else if (itemMode === "any_path") {
           if (paths.length < 2) return "Add at least two paths — either-or needs alternatives.";
           for (const [pi, p] of paths.entries()) {
-            const bad = validateGroupDrafts(p.groups, `Path ${pi + 1}: `);
-            if (bad) return bad;
+            if (p.kind === "kc") {
+              if (!p.npcs.length) return `Path ${pi + 1}: pick at least one NPC to count kills at.`;
+              if (p.need < 1) return `Path ${pi + 1}: set a kill count.`;
+            } else if (p.kind === "loot_value") {
+              if (p.need < 1) return `Path ${pi + 1}: set a GP goal.`;
+            } else {
+              const bad = validateGroupDrafts(p.groups, `Path ${pi + 1}: `);
+              if (bad) return bad;
+            }
           }
         } else {
           if (listItems.length < 2) return "Add at least two items to the list.";
@@ -655,18 +757,22 @@ export function EventTaskForm({
             .join(" + ")}`;
         if (itemMode === "any_path")
           return paths
-            .map(
-              (p, pi) =>
-                p.label.trim() ||
+            .map((p, pi) => {
+              if (p.label.trim()) return p.label.trim();
+              if (p.kind === "kc")
+                return `${p.need.toLocaleString()} KC${p.npcs.length ? ` at ${p.npcs.map((n) => n.name).join(" / ")}` : ""}`;
+              if (p.kind === "loot_value")
+                return `${p.need.toLocaleString()} GP${p.npcs.length ? ` from ${p.npcs.map((n) => n.name).join(" / ")}` : ""}`;
+              return (
                 p.groups
                   .map((g) =>
                     g.mode === "all_of"
                       ? `all ${g.items.length}`
                       : `any ${g.need} of ${g.items.length}`,
                   )
-                  .join(" + ") ||
-                `path ${pi + 1}`,
-            )
+                  .join(" + ") || `path ${pi + 1}`
+              );
+            })
             .join(" OR ");
         return `${pointsGoal.toLocaleString()} collection points`;
       case "kc_target":
@@ -719,7 +825,9 @@ export function EventTaskForm({
           };
         }
         if (itemMode === "groups") {
-          const itemNpcs = itemNpcsFromEntries(groups.flatMap((g) => g.items));
+          const groupItems = groups.flatMap((g) => g.items);
+          const itemNpcs = itemNpcsFromEntries(groupItems);
+          const petItems = petItemsFromEntries(groupItems);
           return {
             ...base,
             // Display value; the API recomputes the threshold from the groups.
@@ -728,11 +836,16 @@ export function EventTaskForm({
               kind: "groups",
               groups: serializeGroups(groups),
               ...(Object.keys(itemNpcs).length ? { item_npcs: itemNpcs } : {}),
+              ...(petItems.length ? { pet_items: petItems } : {}),
             }),
           };
         }
         if (itemMode === "any_path") {
-          const itemNpcs = itemNpcsFromEntries(paths.flatMap((p) => p.groups.flatMap((g) => g.items)));
+          const pathItems = paths
+            .filter((p) => p.kind === "items")
+            .flatMap((p) => p.groups.flatMap((g) => g.items));
+          const itemNpcs = itemNpcsFromEntries(pathItems);
+          const petItems = petItemsFromEntries(pathItems);
           return {
             ...base,
             // Either-or progress is a percentage of the closest path; the
@@ -740,16 +853,26 @@ export function EventTaskForm({
             target_value: 100,
             config: JSON.stringify({
               kind: "any_path",
-              paths: paths.map((p) => ({
-                ...(p.label.trim() ? { label: p.label.trim() } : {}),
-                groups: serializeGroups(p.groups),
-              })),
+              paths: paths.map((p) => {
+                const label = p.label.trim() ? { label: p.label.trim() } : {};
+                if (p.kind === "kc" || p.kind === "loot_value") {
+                  return {
+                    ...label,
+                    metric: p.kind,
+                    need: p.need,
+                    ...(p.npcs.length ? { npcs: p.npcs.map((n) => n.name) } : {}),
+                  };
+                }
+                return { ...label, groups: serializeGroups(p.groups) };
+              }),
               ...(Object.keys(itemNpcs).length ? { item_npcs: itemNpcs } : {}),
+              ...(petItems.length ? { pet_items: petItems } : {}),
             }),
           };
         }
         {
           const itemNpcs = itemNpcsFromEntries(listItems);
+          const petItems = petItemsFromEntries(listItems);
           return {
             ...base,
             target_value:
@@ -765,6 +888,7 @@ export function EventTaskForm({
                   ? listItems.map((i) => ({ item_name: i.name, points: i.points ?? 1 }))
                   : listItems.map((i) => i.name),
               ...(Object.keys(itemNpcs).length ? { item_npcs: itemNpcs } : {}),
+              ...(petItems.length ? { pet_items: petItems } : {}),
             }),
           };
         }
@@ -968,6 +1092,8 @@ export function EventTaskForm({
               search={searchItems}
               resolve={resolveItems}
               renderEntryExtra={renderSourceRestriction}
+              bossImport={bossImport}
+              searchPets={searchPets}
             />
           ) : itemMode === "any_path" ? (
             <div className="grid gap-2">
@@ -985,6 +1111,32 @@ export function EventTaskForm({
                       <span className="text-osrs-gold-bright/80 self-center text-xs font-semibold uppercase">
                         Path {pi + 1}
                       </span>
+                      <label className="grid gap-1 text-sm">
+                        <span className="text-osrs-parchment-dark/70 text-xs">Counts</span>
+                        <select
+                          value={p.kind}
+                          onChange={(e) => {
+                            const kind = e.target.value as PathKind;
+                            patchPath(pi, {
+                              ...emptyPathDraft(kind),
+                              label: p.label,
+                              // Keep whatever the admin already built in case
+                              // they toggle back.
+                              ...(kind === "items" && p.groups.length
+                                ? { groups: p.groups }
+                                : {}),
+                            });
+                          }}
+                          className={field}
+                          disabled={pending}
+                        >
+                          {(Object.keys(PATH_KIND_LABELS) as PathKind[]).map((k) => (
+                            <option key={k} value={k}>
+                              {PATH_KIND_LABELS[k]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                       <label className="grid grow gap-1 text-sm">
                         <span className="text-osrs-parchment-dark/70 text-xs">
                           Path name (optional, shown to players)
@@ -992,7 +1144,7 @@ export function EventTaskForm({
                         <input
                           value={p.label}
                           onChange={(e) => patchPath(pi, { label: e.target.value })}
-                          placeholder={pi === 0 ? "e.g. Full set" : "e.g. Any 5 pieces"}
+                          placeholder={pi === 0 ? "e.g. Full set" : "e.g. 5,000 kills"}
                           maxLength={80}
                           className={field}
                         />
@@ -1007,25 +1159,56 @@ export function EventTaskForm({
                         </button>
                       )}
                     </div>
-                    <GroupListEditor
-                      groups={p.groups}
-                      onChange={(gs) => patchPath(pi, { groups: gs })}
-                      search={searchItems}
-                      resolve={resolveItems}
-                      renderEntryExtra={renderSourceRestriction}
-                    />
+                    {p.kind === "items" ? (
+                      <GroupListEditor
+                        groups={p.groups}
+                        onChange={(gs) => patchPath(pi, { groups: gs })}
+                        search={searchItems}
+                        resolve={resolveItems}
+                        renderEntryExtra={renderSourceRestriction}
+                        bossImport={bossImport}
+                        searchPets={searchPets}
+                      />
+                    ) : (
+                      <div className="grid gap-2">
+                        <label className="grid gap-1 text-sm sm:max-w-56">
+                          <span className="text-osrs-parchment-dark/80">
+                            {p.kind === "kc" ? "Kill count" : "GP goal"}
+                          </span>
+                          <QuantityInput
+                            value={p.need}
+                            onChange={(need) => patchPath(pi, { need })}
+                            className={field}
+                            title={
+                              p.kind === "kc"
+                                ? "Kills of the listed NPC(s) that complete this path."
+                                : "Total GP of qualifying drops that completes this path."
+                            }
+                          />
+                        </label>
+                        <ItemNpcPicker
+                          kind="npc"
+                          mode="list"
+                          selected={p.npcs}
+                          onChange={(npcs) => patchPath(pi, { npcs })}
+                          search={searchNpcs}
+                          resolve={resolveNpcs}
+                          selectionTitle={p.kind === "kc" ? "Count kills at" : "Only drops from"}
+                          emptyHint={
+                            p.kind === "kc"
+                              ? "Add one or more NPCs — a kill of any of them counts."
+                              : "Optional — leave empty to count drops from any source."
+                          }
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
               {paths.length < 4 && (
                 <button
                   type="button"
-                  onClick={() =>
-                    setPaths((prev) => [
-                      ...prev,
-                      { label: "", groups: [{ mode: "any_of", need: 1, items: [] }] },
-                    ])
-                  }
+                  onClick={() => setPaths((prev) => [...prev, emptyPathDraft("items")])}
                   className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright justify-self-start rounded border px-3 py-1.5 text-xs"
                 >
                   + Add path
@@ -1042,6 +1225,8 @@ export function EventTaskForm({
               search={searchItems}
               resolve={resolveItems}
               renderEntryExtra={renderSourceRestriction}
+              bossImport={bossImport}
+              searchPets={searchPets}
             />
           )}
         </div>
