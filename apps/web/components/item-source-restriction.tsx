@@ -18,6 +18,12 @@ import { formatRarity } from "@/lib/format";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 
+/** The real recorded NPC names a source chip stands for — a merged display
+ * alias ("Wintertodt") carries its reward containers in `members`, and the
+ * restriction must store those (the engine matches drops by recorded name). */
+const chipNames = (src: EventItemSourceNpc): string[] =>
+  src.members?.length ? src.members : [src.name];
+
 export function ItemSourceRestriction({
   itemName,
   npcs,
@@ -46,7 +52,7 @@ export function ItemSourceRestriction({
     // cleared the selection) — re-seed from cache instead of refetching so the
     // "start from all sources" convenience runs every time it's turned on.
     if (fetchedFor.current === itemName && sources !== null) {
-      if (npcs.length === 0 && sources.length) onChange(sources.map((r) => r.name));
+      if (npcs.length === 0 && sources.length) onChange(sources.flatMap(chipNames));
       return;
     }
     fetchedFor.current = itemName;
@@ -59,7 +65,8 @@ export function ItemSourceRestriction({
         setSources(rows);
         // Turning restriction on with no prior selection starts from ALL known
         // sources — the configurator then removes the ones they don't want.
-        if (npcs.length === 0 && rows.length) onChange(rows.map((r) => r.name));
+        // Alias chips ("Wintertodt") expand to their real recorded names.
+        if (npcs.length === 0 && rows.length) onChange(rows.flatMap(chipNames));
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -74,10 +81,12 @@ export function ItemSourceRestriction({
   }, [open, itemName]);
 
   const allowed = new Set(npcs.map((n) => n.toLowerCase()));
-  const toggle = (name: string) => {
-    const key = name.toLowerCase();
-    if (allowed.has(key)) onChange(npcs.filter((n) => n.toLowerCase() !== key));
-    else onChange([...npcs, name]);
+  const chipOn = (src: EventItemSourceNpc) =>
+    chipNames(src).some((n) => allowed.has(n.toLowerCase()));
+  const toggle = (src: EventItemSourceNpc) => {
+    const keys = new Set(chipNames(src).map((n) => n.toLowerCase()));
+    if (chipOn(src)) onChange(npcs.filter((n) => !keys.has(n.toLowerCase())));
+    else onChange([...npcs, ...chipNames(src).filter((n) => !allowed.has(n.toLowerCase()))]);
   };
 
   return (
@@ -99,7 +108,7 @@ export function ItemSourceRestriction({
         <span className="text-osrs-parchment-dark/80">Only count drops from specific NPCs</span>
         {open && sources && sources.length > 0 && (
           <span className="text-osrs-gold-bright ml-auto shrink-0">
-            {npcs.length}/{sources.length}
+            {sources.filter(chipOn).length}/{sources.length}
           </span>
         )}
       </label>
@@ -114,12 +123,12 @@ export function ItemSourceRestriction({
             <>
               <div className="flex flex-wrap gap-1.5">
                 {sources.map((src) => {
-                  const on = allowed.has(src.name.toLowerCase());
+                  const on = chipOn(src);
                   return (
                     <button
                       type="button"
                       key={src.npc_id}
-                      onClick={() => toggle(src.name)}
+                      onClick={() => toggle(src)}
                       aria-pressed={on}
                       disabled={disabled}
                       title={`${src.name} · ${formatRarity(src.rarity)}${

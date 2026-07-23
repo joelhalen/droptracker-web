@@ -28,6 +28,16 @@ export type PickerEntry = {
   /** Source-NPC restriction (item tasks): the item only counts when it drops
    * from one of these NPCs. Empty/absent = any source. */
   npcs?: string[];
+  /** This entry is a PET: it credits from a pet submission (config.pet_items),
+   * not from drops/clogs, and has no drop-source restriction. */
+  isPet?: boolean;
+};
+
+/** Backing calls for the "import a boss's drops" helper: NPC autocomplete +
+ * that NPC's droppable items (wiki table with tracked-drop fallback). */
+export type BossImportApi = {
+  searchNpcs: (q: string) => Promise<EventMetaEntry[]>;
+  fetchDrops: (npcId: number) => Promise<EventMetaEntry[]>;
 };
 
 function EntityIcon({
@@ -57,6 +67,213 @@ function EntityIcon({
   );
 }
 
+/** Collapsible "type a boss, get its drops" panel under the item picker —
+ * search an NPC, list its droppable items, add them per-item or all at once
+ * instead of hunting each item down individually. */
+function BossDropsImport({
+  api,
+  selectedNames,
+  onToggleEntry,
+  onAddMany,
+  disabled,
+}: {
+  api: BossImportApi;
+  selectedNames: Set<string>;
+  /** Click on one drop chip: add when absent, remove when present. */
+  onToggleEntry: (entry: EventMetaEntry, isSelected: boolean) => void;
+  onAddMany: (entries: EventMetaEntry[]) => void;
+  disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [npcResults, setNpcResults] = useState<EventMetaEntry[]>([]);
+  const [npcOpen, setNpcOpen] = useState(false);
+  const [npc, setNpc] = useState<EventMetaEntry | null>(null);
+  const [drops, setDrops] = useState<EventMetaEntry[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const seq = useRef(0);
+
+  // Debounced NPC autocomplete (same pattern as the main search pane).
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setNpcResults([]);
+      return;
+    }
+    const mine = ++seq.current;
+    const t = setTimeout(async () => {
+      try {
+        const rows = await api.searchNpcs(q);
+        if (seq.current === mine) {
+          setNpcResults(rows);
+          setNpcOpen(true);
+        }
+      } catch {
+        if (seq.current === mine) setNpcResults([]);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  const pickNpc = async (entry: EventMetaEntry) => {
+    setNpc(entry);
+    setQuery("");
+    setNpcResults([]);
+    setNpcOpen(false);
+    setDrops(null);
+    setFailed(false);
+    setLoading(true);
+    try {
+      setDrops(await api.fetchDrops(entry.id));
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const missing = (drops ?? []).filter((d) => !selectedNames.has(d.name));
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright justify-self-start rounded border px-3 py-1.5 text-xs"
+      >
+        + Import a boss&apos;s drop table
+      </button>
+    );
+  }
+
+  return (
+    <div className="border-osrs-bronze/25 bg-osrs-brown-dark/30 grid gap-2 rounded-lg border p-3">
+      <div className="flex items-center gap-2">
+        <span className="text-osrs-parchment-dark/80 text-xs font-medium">
+          Import a boss&apos;s drop table
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setNpc(null);
+            setDrops(null);
+            setQuery("");
+          }}
+          className="text-osrs-parchment-dark/50 hover:text-osrs-red ml-auto text-xs"
+        >
+          Close
+        </button>
+      </div>
+      <div className="relative">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => npcResults.length && setNpcOpen(true)}
+          onBlur={() => setTimeout(() => setNpcOpen(false), 150)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (npcResults[0]) void pickNpc(npcResults[0]);
+            }
+          }}
+          placeholder="Search a boss… (e.g. Zulrah, Wintertodt)"
+          disabled={disabled}
+          className="bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 focus:ring-osrs-gold/60 w-full rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1"
+        />
+        {npcOpen && npcResults.length > 0 && (
+          <ul className="bg-osrs-brown-dark border-osrs-bronze/40 absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded border shadow-lg">
+            {npcResults.map((r) => (
+              <li key={r.id}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void pickNpc(r)}
+                  className="text-osrs-parchment hover:bg-osrs-bronze/20 flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm"
+                >
+                  <EntityIcon kind="npc" id={r.id} size={20} />
+                  {r.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {loading ? (
+        <p className="text-osrs-parchment-dark/50 text-xs">Loading drop table…</p>
+      ) : failed ? (
+        <p className="text-osrs-red/80 text-xs">Couldn&apos;t load the drop table — try again.</p>
+      ) : npc && drops ? (
+        drops.length ? (
+          <>
+            <div className="flex items-center gap-2">
+              <EntityIcon kind="npc" id={npc.id} size={20} />
+              <span className="text-osrs-gold-bright text-xs font-semibold">
+                {npc.name} — {drops.length} item{drops.length === 1 ? "" : "s"}
+              </span>
+              <button
+                type="button"
+                onClick={() => onAddMany(missing)}
+                disabled={disabled || !missing.length}
+                className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright ml-auto rounded border px-2 py-1 text-xs disabled:opacity-50"
+              >
+                {missing.length ? `Add all (${missing.length})` : "All added ✓"}
+              </button>
+            </div>
+            <ul className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto">
+              {drops.map((d) => {
+                const isSelected = selectedNames.has(d.name);
+                const untracked = d.tracked === false;
+                return (
+                  <li key={d.id}>
+                    <button
+                      type="button"
+                      onClick={() => onToggleEntry(d, isSelected)}
+                      disabled={disabled}
+                      title={
+                        isSelected
+                          ? `Remove ${d.name}`
+                          : untracked
+                            ? `${d.name} has never been recorded as a drop — a task requiring it may be impossible to complete`
+                            : `Add ${d.name}`
+                      }
+                      className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${
+                        isSelected
+                          ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
+                          : "border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold"
+                      }`}
+                    >
+                      <EntityIcon kind="item" id={d.id} size={16} />
+                      <span>{d.name}</span>
+                      {untracked && (
+                        <span className="text-amber-500" title="Never seen in tracked drops">
+                          ⚠
+                        </span>
+                      )}
+                      {isSelected && <span>✓</span>}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        ) : (
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            No known drops for {npc.name}.
+          </p>
+        )
+      ) : (
+        <p className="text-osrs-parchment-dark/40 text-xs">
+          Pick a boss to list its drops, then add them one by one or all at once.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function ItemNpcPicker({
   kind,
   mode = "list",
@@ -70,6 +287,8 @@ export function ItemNpcPicker({
   selectionTitle,
   emptyHint,
   renderEntryExtra,
+  bossImport,
+  searchPets,
 }: {
   kind: "item" | "npc";
   /** "single" keeps at most one entry (picking another replaces it). */
@@ -89,12 +308,22 @@ export function ItemNpcPicker({
   /** Extra UI rendered under each selected row (e.g. a per-item source-NPC
    * restriction); `setNpcs` writes that entry's `npcs`. */
   renderEntryExtra?: (entry: PickerEntry, setNpcs: (npcs: string[]) => void) => ReactNode;
+  /** Enables the "import a boss's drops" helper (item lists only): search an
+   * NPC, then bulk-add its droppable items. */
+  bossImport?: BossImportApi;
+  /** Enables the Items/Pets search toggle (item lists only): pet results add
+   * `isPet` entries, credited from pet submissions instead of drops. */
+  searchPets?: (q: string) => Promise<EventMetaEntry[]>;
 }) {
   const noun = kind === "item" ? "item" : "NPC";
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<EventMetaEntry[]>([]);
   const [searching, setSearching] = useState(false);
   const [searched, setSearched] = useState(false);
+  /** Which database the search box hits ("pet" only when searchPets is set). */
+  const [searchKind, setSearchKind] = useState<"item" | "pet">("item");
+  const petsEnabled = searchPets != null && kind === "item" && mode === "list";
+  const petMode = petsEnabled && searchKind === "pet";
   /** What's being dragged: a search result in, or a selected row out. */
   const [dragging, setDragging] = useState<null | { from: "results" | "selection" }>(null);
   const [overSelection, setOverSelection] = useState(false);
@@ -119,7 +348,7 @@ export function ItemNpcPicker({
     const mine = ++seq.current;
     const t = setTimeout(async () => {
       try {
-        const rows = await search(q);
+        const rows = await (petMode && searchPets ? searchPets(q) : search(q));
         if (seq.current === mine) {
           setResults(rows);
           setSearched(true);
@@ -131,7 +360,8 @@ export function ItemNpcPicker({
       }
     }, 250);
     return () => clearTimeout(t);
-  }, [query]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, petMode]);
 
   // Back-fill icon ids for entries loaded from a stored task (names only).
   useEffect(() => {
@@ -158,10 +388,11 @@ export function ItemNpcPicker({
     };
   }, [selected, resolve]);
 
-  const add = (entry: { name: string; id?: number | null }) => {
+  const add = (entry: { name: string; id?: number | null; isPet?: boolean }) => {
     if (disabled) return;
+    const pet = entry.isPet ? { isPet: true as const } : {};
     if (mode === "single") {
-      onChange([{ name: entry.name, id: entry.id }]);
+      onChange([{ name: entry.name, id: entry.id, ...pet }]);
       setQuery("");
       setResults([]);
       setSearched(false);
@@ -170,13 +401,24 @@ export function ItemNpcPicker({
     if (selectedNames.has(entry.name)) return;
     onChange([
       ...selected,
-      withPoints ? { name: entry.name, id: entry.id, points: 1 } : { name: entry.name, id: entry.id },
+      { name: entry.name, id: entry.id, ...(withPoints ? { points: 1 } : {}), ...pet },
     ]);
   };
 
   const remove = (name: string) => {
     if (disabled) return;
     onChange(selected.filter((s) => s.name !== name));
+  };
+
+  /** Bulk add (boss-drops import) — one onChange so React state stays sane. */
+  const addMany = (entries: { name: string; id?: number | null }[]) => {
+    if (disabled || mode === "single") return;
+    const additions = entries
+      .filter((e) => !selectedNames.has(e.name))
+      .map((e) =>
+        withPoints ? { name: e.name, id: e.id, points: 1 } : { name: e.name, id: e.id },
+      );
+    if (additions.length) onChange([...selected, ...additions]);
   };
 
   const setPoints = (name: string, points: number) => {
@@ -212,7 +454,31 @@ export function ItemNpcPicker({
           setOverResults(false);
         }}
       >
-        <div className="border-osrs-bronze/20 border-b p-2">
+        <div className="border-osrs-bronze/20 flex gap-2 border-b p-2">
+          {petsEnabled && (
+            <div className="border-osrs-bronze/30 flex shrink-0 overflow-hidden rounded border text-xs">
+              {(["item", "pet"] as const).map((k) => (
+                <button
+                  type="button"
+                  key={k}
+                  onClick={() => setSearchKind(k)}
+                  aria-pressed={searchKind === k}
+                  title={
+                    k === "pet"
+                      ? "Search pets — a pet on the list is credited from its pet submission"
+                      : "Search the item database"
+                  }
+                  className={`px-2 py-1 ${
+                    searchKind === k
+                      ? "bg-osrs-gold/15 text-osrs-gold-bright"
+                      : "text-osrs-parchment-dark/60 hover:text-osrs-parchment"
+                  }`}
+                >
+                  {k === "item" ? "Items" : "Pets"}
+                </button>
+              ))}
+            </div>
+          )}
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -220,10 +486,11 @@ export function ItemNpcPicker({
               // Enter = take the top result (keyboard fast path).
               if (e.key === "Enter") {
                 e.preventDefault();
-                if (results[0]) add(results[0]);
+                if (results[0])
+                  add({ name: results[0].name, id: results[0].id, isPet: petMode || undefined });
               }
             }}
-            placeholder={placeholder ?? `Search ${noun}s…`}
+            placeholder={petMode ? "Search pets…" : (placeholder ?? `Search ${noun}s…`)}
             disabled={disabled}
             className="bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 focus:ring-osrs-gold/60 w-full rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1"
           />
@@ -245,7 +512,7 @@ export function ItemNpcPicker({
                     type="button"
                     draggable={!disabled && !isSelected}
                     onDragStart={(e) => {
-                      dragEntry.current = { name: r.name, id: r.id };
+                      dragEntry.current = { name: r.name, id: r.id, isPet: petMode || undefined };
                       droppedInSelection.current = false;
                       setDragging({ from: "results" });
                       e.dataTransfer.effectAllowed = "copy";
@@ -255,7 +522,11 @@ export function ItemNpcPicker({
                       setDragging(null);
                       dragEntry.current = null;
                     }}
-                    onClick={() => (isSelected ? remove(r.name) : add(r))}
+                    onClick={() =>
+                      isSelected
+                        ? remove(r.name)
+                        : add({ name: r.name, id: r.id, isPet: petMode || undefined })
+                    }
                     disabled={disabled}
                     title={
                       isSelected
@@ -293,7 +564,7 @@ export function ItemNpcPicker({
             </li>
           ) : (
             <li className="text-osrs-parchment-dark/40 px-2 py-2 text-xs">
-              Type at least 2 letters to search the {noun} database.
+              Type at least 2 letters to search the {petMode ? "pet" : noun} database.
             </li>
           )}
         </ul>
@@ -368,11 +639,18 @@ export function ItemNpcPicker({
                 >
                   <EntityIcon kind={kind} id={s.id} />
                   <span className="text-osrs-parchment min-w-0 flex-1 truncate">{s.name}</span>
+                  {s.isPet && (
+                    <span
+                      className="border-osrs-gold/40 text-osrs-gold-bright/80 shrink-0 rounded border px-1 text-[10px] uppercase"
+                      title="Credited from a pet submission (not drops)"
+                    >
+                      pet
+                    </span>
+                  )}
                   {withPoints && (
                     <label className="flex shrink-0 items-center gap-1">
                       <QuantityInput
-                        min={0.1}
-                        integer={false}
+                        min={1}
                         value={s.points ?? 1}
                         disabled={disabled}
                         onClick={(e) => e.stopPropagation()}
@@ -394,7 +672,9 @@ export function ItemNpcPicker({
                     </button>
                   )}
                 </div>
-                {renderEntryExtra && (
+                {/* Pets have no drop source — the source restriction (or any
+                    per-item extra) doesn't apply to them. */}
+                {renderEntryExtra && !s.isPet && (
                   <div className="px-2 pb-1.5">
                     {renderEntryExtra(s, (npcs) => setEntryNpcs(s.name, npcs))}
                   </div>
@@ -411,6 +691,21 @@ export function ItemNpcPicker({
           )}
         </ul>
       </div>
+
+      {/* ── boss-drops import (item lists only) ──────────────────────────── */}
+      {bossImport && kind === "item" && mode === "list" && (
+        <div className="sm:col-span-2">
+          <BossDropsImport
+            api={bossImport}
+            selectedNames={selectedNames}
+            onToggleEntry={(entry, isSelected) =>
+              isSelected ? remove(entry.name) : add(entry)
+            }
+            onAddMany={addMany}
+            disabled={disabled}
+          />
+        </div>
+      )}
     </div>
   );
 }

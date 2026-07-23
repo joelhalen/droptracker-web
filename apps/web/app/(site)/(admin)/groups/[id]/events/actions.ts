@@ -642,6 +642,18 @@ export async function searchEventNpcs(groupId: EventGroupId, q: string) {
   return api.searchEventNpcs(q.trim());
 }
 
+/** Items on one NPC's drop table — the task form's boss-import helper. */
+export async function fetchNpcDropItems(groupId: EventGroupId, npcId: number) {
+  await assertCanManageEvent(groupId);
+  return api.eventNpcDropItems(npcId);
+}
+
+/** Pet-name autocomplete for the task form's item-list "Pets" search tab. */
+export async function searchEventPets(groupId: EventGroupId, q: string) {
+  await assertCanManageEvent(groupId);
+  return api.searchEventPets(q.trim());
+}
+
 /** Batch exact-name → game-id lookup — icon hydration for the task form's
  * selection chips when editing a task that only stores names. */
 export async function resolveEventMetaNames(
