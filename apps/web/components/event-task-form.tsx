@@ -36,10 +36,12 @@ import {
   TASK_TYPE_LABELS,
   formatSeconds,
   parseTimeToSeconds,
+  pbRequirement,
   taskConfig,
   taskConfigItems,
   taskConfigPetNames,
   taskSourceNpcs,
+  type PbRequirementMode,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
@@ -114,6 +116,24 @@ const PET_MODE_HELP: Record<PetMode, string> = {
 
 /** One sub-requirement of a "Combined requirements" task. */
 type GroupDraft = { mode: "all_of" | "any_of"; need: number; items: PickerEntry[] };
+
+/** How a pb task completes: once (legacy), a kill count of qualifying beats,
+ * N unique players, or every rostered member of the team. */
+type PbChoice = "once" | PbRequirementMode;
+
+const PB_CHOICE_LABELS: Record<PbChoice, string> = {
+  once: "Beaten once",
+  times: "Beaten a number of times",
+  unique_players: "Beaten by N unique players",
+  whole_team: "Beaten by every team member",
+};
+
+const PB_CHOICE_HELP: Record<PbChoice, string> = {
+  once: "The first qualifying kill completes the task.",
+  times: "Every kill under the time counts — teammates on one kill each count, and one player may repeat.",
+  unique_players: "That many different players must each record a qualifying time.",
+  whole_team: "Every player rostered on the team must record a qualifying time — the target scales to each team's size.",
+};
 
 /** What one "Either-or" path requires: an item checklist, a kill count at
  * chosen NPC(s), or a GP total of drops (optionally NPC-scoped). */
@@ -589,6 +609,14 @@ export function EventTaskForm({
       ? formatSeconds(initial.target_value)
       : "",
   );
+  // pb completion requirement: once (legacy) / N times / N unique players /
+  // every rostered team member.
+  const initialPbReq =
+    initial?.type === "pb_target" ? pbRequirement(initial) : { mode: "times" as const, need: 1 };
+  const [pbChoice, setPbChoice] = useState<PbChoice>(
+    initialPbReq.mode === "times" && initialPbReq.need <= 1 ? "once" : initialPbReq.mode,
+  );
+  const [pbNeed, setPbNeed] = useState(Math.max(initialPbReq.need, 1));
   const [skill, setSkill] = useState(
     initial && ["xp_target", "skill_target"].includes(initial.type)
       ? (initial.target ?? "Attack")
@@ -705,6 +733,10 @@ export function EventTaskForm({
         if (!npcName) return "Pick an NPC.";
         if (parseTimeToSeconds(timeText) == null || parseTimeToSeconds(timeText)! < 1)
           return "Enter the time limit as mm:ss (or h:mm:ss).";
+        if ((pbChoice === "times" || pbChoice === "unique_players") && pbNeed < 1)
+          return pbChoice === "unique_players"
+            ? "Set how many unique players must beat it."
+            : "Set how many times it must be beaten.";
         break;
       case "xp_target":
         if (numericGoal < 1) return "Set an XP goal.";
@@ -777,8 +809,12 @@ export function EventTaskForm({
         return `${pointsGoal.toLocaleString()} collection points`;
       case "kc_target":
         return `${numericGoal}× ${npcSel.map((n) => n.name).join(" / ")}`;
-      case "pb_target":
-        return `${npcName} in ${timeText}`;
+      case "pb_target": {
+        const base = `${npcName} in ${timeText}`;
+        if (pbChoice === "whole_team") return `${base} — whole team`;
+        if (pbChoice === "unique_players") return `${base} — ${pbNeed} unique players`;
+        return pbChoice === "times" && pbNeed > 1 ? `${base} ×${pbNeed}` : base;
+      }
       case "xp_target":
         return `${numericGoal.toLocaleString()} ${skill} XP`;
       case "skill_target":
@@ -903,8 +939,24 @@ export function EventTaskForm({
           config: npcs.length > 1 ? JSON.stringify({ npcs }) : undefined,
         };
       }
-      case "pb_target":
-        return { ...base, target: npcName, target_value: parseTimeToSeconds(timeText) ?? 0 };
+      case "pb_target": {
+        // Completion requirement rides in config; "beat it once" stays the
+        // legacy config-free shape (the API collapses times ×1 anyway).
+        const pbConfig =
+          pbChoice === "whole_team"
+            ? { mode: "whole_team" }
+            : pbChoice === "unique_players"
+              ? { mode: "unique_players", need: pbNeed }
+              : pbChoice === "times" && pbNeed > 1
+                ? { mode: "times", need: pbNeed }
+                : null;
+        return {
+          ...base,
+          target: npcName,
+          target_value: parseTimeToSeconds(timeText) ?? 0,
+          config: pbConfig ? JSON.stringify(pbConfig) : undefined,
+        };
+      }
       case "xp_target":
       case "skill_target":
         return { ...base, target: skill, target_value: numericGoal };
@@ -1238,17 +1290,50 @@ export function EventTaskForm({
             {type === "kc_target" ? (
               goalField("Kill count", "e.g. 50")
             ) : (
-              <label className="grid gap-1 text-sm">
-                <span className="text-osrs-parchment-dark/80">Time limit (mm:ss or h:mm:ss)</span>
-                <input
-                  value={timeText}
-                  onChange={(e) => setTimeText(e.target.value)}
-                  placeholder="e.g. 1:10"
-                  className={field}
-                />
-              </label>
+              <>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-osrs-parchment-dark/80">Time limit (mm:ss or h:mm:ss)</span>
+                  <input
+                    value={timeText}
+                    onChange={(e) => setTimeText(e.target.value)}
+                    placeholder="e.g. 1:10"
+                    className={field}
+                  />
+                </label>
+                <label className="grid gap-1 text-sm">
+                  <span className="text-osrs-parchment-dark/80">The time must be…</span>
+                  <select
+                    value={pbChoice}
+                    onChange={(e) => setPbChoice(e.target.value as PbChoice)}
+                    className={field}
+                    disabled={pending}
+                  >
+                    {(Object.keys(PB_CHOICE_LABELS) as PbChoice[]).map((c) => (
+                      <option key={c} value={c}>
+                        {PB_CHOICE_LABELS[c]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {(pbChoice === "times" || pbChoice === "unique_players") && (
+                  <label className="grid gap-1 text-sm">
+                    <span className="text-osrs-parchment-dark/80">
+                      {pbChoice === "times" ? "Times to beat it" : "Unique players needed"}
+                    </span>
+                    <QuantityInput
+                      value={pbNeed}
+                      onChange={setPbNeed}
+                      className={field}
+                      title={PB_CHOICE_HELP[pbChoice]}
+                    />
+                  </label>
+                )}
+              </>
             )}
           </div>
+          {type === "pb_target" && (
+            <p className="text-osrs-parchment-dark/50 text-xs">{PB_CHOICE_HELP[pbChoice]}</p>
+          )}
           <ItemNpcPicker
             kind="npc"
             mode={type === "kc_target" ? "list" : "single"}

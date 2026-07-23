@@ -1284,7 +1284,7 @@ export function EventManager({
                                 }
                               >
                                 {formatProgressValue(t, p?.progress ?? 0)} /{" "}
-                                {formatProgressValue(t, target)}
+                                {formatProgressValue(t, p?.target ?? target)}
                               </span>
                             )}
                           </td>

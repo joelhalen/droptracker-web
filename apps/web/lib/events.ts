@@ -280,6 +280,23 @@ export function taskSourceNpcs(task: Pick<EventTask, "config">): string[] {
   return Array.isArray(raw) ? raw.filter((n): n is string => typeof n === "string") : [];
 }
 
+/** pb_target completion requirement (config `{mode, need}`): beat the time N
+ * times / N unique players each beat it / every rostered team member beats
+ * it. Config-less tasks are the legacy `times` ×1 (complete on first beat). */
+export type PbRequirementMode = "times" | "unique_players" | "whole_team";
+
+export function pbRequirement(
+  task: Pick<EventTask, "config">,
+): { mode: PbRequirementMode; need: number } {
+  const cfg = taskConfig(task);
+  const mode =
+    cfg.mode === "unique_players" || cfg.mode === "whole_team" || cfg.mode === "times"
+      ? (cfg.mode as PbRequirementMode)
+      : "times";
+  const need = typeof cfg.need === "number" && cfg.need >= 1 ? Math.floor(cfg.need) : 1;
+  return { mode, need };
+}
+
 /** Items in an item-list config, for display chips (groups and either-or
  * paths are flattened; paths may share items, so names are de-duplicated).
  * `npcs` carries the item's source restriction, if any. */
@@ -345,8 +362,14 @@ export function taskGoal(
         Array.isArray(npcs) && npcs.length > 1 ? (npcs as string[]).join(" / ") : target;
       return tv != null ? `${who} · ${tv.toLocaleString()} KC` : who;
     }
-    case "pb_target":
-      return tv != null ? `${target} · sub ${formatSeconds(tv)}` : target;
+    case "pb_target": {
+      const base = tv != null ? `${target} · sub ${formatSeconds(tv)}` : target;
+      const { mode, need } = pbRequirement(task);
+      if (mode === "whole_team") return `${base} · whole team`;
+      if (mode === "unique_players") return `${base} · ${need} unique player${need === 1 ? "" : "s"}`;
+      if (need > 1) return `${base} ×${need}`;
+      return base;
+    }
     case "xp_target":
       return tv != null ? `${target} · ${tv.toLocaleString()} XP` : target;
     case "skill_target":

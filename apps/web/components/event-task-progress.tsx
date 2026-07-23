@@ -14,7 +14,7 @@
 import { useMemo, useState } from "react";
 import type { EventProgress, EventTask } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
-import { TASK_TYPE_LABELS, taskConfig, taskGoal, teamColorMap } from "@/lib/events";
+import { TASK_TYPE_LABELS, pbRequirement, taskConfig, taskGoal, teamColorMap } from "@/lib/events";
 import { formatGp } from "@/lib/format";
 import { TaskDetailContent, type BreakdownFetcher } from "@/components/task-detail";
 
@@ -24,6 +24,9 @@ export type ProgressCell = {
   progress: number;
   completed: boolean;
   completed_at?: number | null;
+  /** Team-aware threshold from the backend (whole_team pb tasks scale to
+   * the roster) — preferred over the client's pure mirror when present. */
+  target?: number;
   /** Pending-review overlay (web53a): ledger rows awaiting manual review. */
   pending?: number;
   /** Confirming every pending row would finish the task. */
@@ -34,9 +37,15 @@ export type ProgressMap = Map<string, ProgressCell>;
 const key = (taskId: number, teamId: number) => `${taskId}:${teamId}`;
 
 /** Completion threshold as the engine computes it (services/event_engine.py):
- * pb/skill tasks complete on the first qualifying entry. */
-export function taskThreshold(task: Pick<EventTask, "type" | "target_value">): number {
-  if (task.type === "pb_target" || task.type === "skill_target") return 1;
+ * skill tasks complete on the first qualifying entry; pb tasks on their
+ * configured requirement (times / unique players — whole_team is roster-sized
+ * and unknowable here, so prefer a server-supplied `ProgressCell.target`). */
+export function taskThreshold(task: Pick<EventTask, "type" | "target_value" | "config">): number {
+  if (task.type === "pb_target") {
+    const { mode, need } = pbRequirement(task);
+    return mode === "whole_team" ? 1 : Math.max(need, 1);
+  }
+  if (task.type === "skill_target") return 1;
   return Math.max(task.target_value ?? 0, 1);
 }
 
@@ -53,6 +62,7 @@ export function initialProgressMap(progress: EventProgress[] | undefined): Progr
       progress: p.progress,
       completed: p.completed,
       completed_at: p.completed_at,
+      target: p.target,
       pending: p.pending,
       pending_complete: p.pending_complete,
     });
@@ -76,6 +86,7 @@ export function useLiveProgress(
       task_id?: number | null;
       team_id?: number | null;
       progress?: number;
+      target?: number;
       completed?: boolean;
       pending?: number;
       pending_complete?: boolean;
@@ -83,6 +94,7 @@ export function useLiveProgress(
     };
     if (typeof data.task_id !== "number" || typeof data.team_id !== "number") return;
     const k = key(data.task_id, data.team_id);
+    const frameTarget = typeof data.target === "number" ? data.target : undefined;
     if (data.kind === "progress" || data.kind === "completion") {
       const completed = data.kind === "completion";
       const progress = typeof data.progress === "number" ? data.progress : null;
@@ -93,6 +105,7 @@ export function useLiveProgress(
           progress: progress ?? existing?.progress ?? 0,
           completed: completed || (existing?.completed ?? false),
           completed_at: completed ? Math.floor(Date.now() / 1000) : existing?.completed_at,
+          target: frameTarget ?? existing?.target,
           // A confirmed completion supersedes the pending-review overlay.
           pending: completed ? undefined : existing?.pending,
           pending_complete: completed ? undefined : existing?.pending_complete,
@@ -112,6 +125,7 @@ export function useLiveProgress(
           progress: progress ?? existing?.progress ?? 0,
           completed: existing?.completed ?? false,
           completed_at: existing?.completed_at,
+          target: existing?.target,
           pending: pending > 0 ? pending : undefined,
           pending_complete: pendingComplete ? true : undefined,
         });
@@ -128,6 +142,7 @@ export function useLiveProgress(
           progress,
           completed,
           completed_at: completed ? existing?.completed_at : null,
+          target: frameTarget ?? existing?.target,
           pending: existing?.pending,
           pending_complete: existing?.pending_complete,
         });
@@ -153,7 +168,9 @@ export function TaskProgressBar({
   /** Optional leading label (team name on the event page). */
   label?: string;
 }) {
-  const target = taskThreshold(task);
+  // Prefer the backend's team-aware threshold (whole_team pb tasks scale to
+  // the roster); the pure client mirror covers rows with no progress yet.
+  const target = cell?.target ?? taskThreshold(task);
   const done = cell?.completed ?? false;
   const value = Math.min(cell?.progress ?? 0, target);
   const pct = done ? 100 : Math.min(100, Math.floor((value / target) * 100));

@@ -2696,6 +2696,10 @@ export const EventProgressSchema = z.object({
   progress: z.number().default(0),
   completed: z.boolean().default(false),
   completed_at: z.number().int().nullable().optional(),
+  /** Team-aware completion threshold (whole_team pb tasks scale to the
+   * roster; counted pb goals carry their times/players need). Absent on
+   * older payloads — the client falls back to its pure threshold mirror. */
+  target: z.number().int().optional(),
   /** Pending-review overlay (web53a): how many ledger rows await manual
    * review, and whether confirming them all would finish the task. Absent
    * when nothing is pending (the common case). */
