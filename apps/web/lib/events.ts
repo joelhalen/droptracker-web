@@ -419,6 +419,13 @@ export function taskGoal(
       const count = tv != null && tv > 1 ? ` · ${tv.toLocaleString()}×` : "";
       // Specific pet by name.
       if (target) return `${target}${count}`;
+      // Explicit allow list (customized category preset) — name the pets when
+      // short, else just the count of eligible ones.
+      const pets = taskConfig(task).pets;
+      if (Array.isArray(pets) && pets.length) {
+        if (pets.length <= 3) return `Any of ${(pets as string[]).join(" / ")}${count}`;
+        return `Any of ${pets.length} listed pets${count}`;
+      }
       // Category gate, else "any pet".
       const cats = taskConfig(task).categories;
       if (Array.isArray(cats) && cats.length) {

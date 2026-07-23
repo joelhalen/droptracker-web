@@ -24,6 +24,7 @@ import {
   EVENT_TASK_DIFFICULTIES,
   EVENT_TASK_TYPES,
   type EventMetaEntry,
+  type EventPetCategory,
   type EventTask,
   type EventTaskInput,
 } from "@droptracker/api-types";
@@ -50,6 +51,7 @@ import {
   type BossImportApi,
   type PickerEntry,
 } from "@/components/item-npc-picker";
+import { ItemDbIcon } from "@/components/item-db-icon";
 import { ItemSourceRestriction } from "@/components/item-source-restriction";
 import {
   LootSweepEditor,
@@ -61,6 +63,7 @@ import {
 import { QuantityInput } from "@/components/quantity-input";
 import {
   addEventTask,
+  fetchEventPetCategories,
   fetchItemSources,
   fetchNpcDropItems,
   resolveEventMetaNames,
@@ -100,17 +103,20 @@ const ITEM_MODE_HELP: Record<ItemMode, string> = {
 };
 
 /** How a pet_collection task is scoped. */
-type PetMode = "specific" | "category" | "any";
+type PetMode = "specific" | "category" | "custom" | "any";
 
 const PET_MODE_LABELS: Record<PetMode, string> = {
   specific: "A specific pet",
   category: "Any pet from a category",
+  custom: "A custom list of pets",
   any: "Any pet",
 };
 
 const PET_MODE_HELP: Record<PetMode, string> = {
   specific: "One named pet (e.g. Baby mole). Credited from that pet's submission.",
   category: "Any pet in the chosen categories counts (boss / skilling / raids / misc).",
+  custom:
+    "Only pets on the list count. Start from a category preset, then remove or add individual pets.",
   any: "Any pet at all — but trivial/stackable 'misc' pets are excluded. Pick the category mode and add 'Misc pets' to include them.",
 };
 
@@ -634,19 +640,28 @@ export function EventTaskForm({
     initial?.type === "pet_collection" && Array.isArray(initialConfig.categories)
       ? (initialConfig.categories as string[])
       : [];
+  const initialPetList =
+    initial?.type === "pet_collection" && Array.isArray(initialConfig.pets)
+      ? (initialConfig.pets as unknown[]).filter((n): n is string => typeof n === "string")
+      : [];
   const [petMode, setPetMode] = useState<PetMode>(
     initial?.type === "pet_collection"
       ? initial.target
         ? "specific"
-        : initialPetCategories.length
-          ? "category"
-          : "any"
+        : initialPetList.length
+          ? "custom"
+          : initialPetCategories.length
+            ? "category"
+            : "any"
       : "specific",
   );
   const [petItem, setPetItem] = useState<PickerEntry[]>(
     initial?.type === "pet_collection" && initial.target ? [{ name: initial.target }] : [],
   );
   const [petCategories, setPetCategories] = useState<string[]>(initialPetCategories);
+  const [petList, setPetList] = useState<PickerEntry[]>(
+    initialPetList.map((name) => ({ name })),
+  );
   const [petCount, setPetCount] = useState(
     initial?.type === "pet_collection" ? (initial.target_value ?? 1) : 1,
   );
@@ -655,6 +670,57 @@ export function EventTaskForm({
     setPetCategories((prev) =>
       prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key],
     );
+
+  // Category → member-pets catalog, fetched once the first time a mode that
+  // uses the presets is shown (seeds and previews the customizable list).
+  const [petCatalog, setPetCatalog] = useState<EventPetCategory[] | null>(null);
+  const petCatalogWanted =
+    type === "pet_collection" && (petMode === "category" || petMode === "custom");
+  useEffect(() => {
+    if (!petCatalogWanted || petCatalog !== null) return;
+    let cancelled = false;
+    fetchEventPetCategories(groupId)
+      .then((rows) => {
+        if (!cancelled) setPetCatalog(rows);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [petCatalogWanted, petCatalog, groupId]);
+
+  /** Deduped picker entries for the pets in the given categories (raids
+   * overlaps boss — Olmlet & co. appear once). */
+  const petsForCategories = (keys: string[]): PickerEntry[] => {
+    const out: PickerEntry[] = [];
+    const seen = new Set<string>();
+    for (const cat of petCatalog ?? []) {
+      if (!keys.includes(cat.key)) continue;
+      for (const p of cat.pets) {
+        const k = p.name.toLowerCase();
+        if (!seen.has(k)) {
+          seen.add(k);
+          out.push({ name: p.name, id: p.id });
+        }
+      }
+    }
+    return out;
+  };
+
+  /** "+ Boss pets" preset: merge that category's pets into the custom list. */
+  const addPetPreset = (key: string) =>
+    setPetList((prev) => {
+      const seen = new Set(prev.map((p) => p.name.toLowerCase()));
+      const added = petsForCategories([key]).filter((p) => !seen.has(p.name.toLowerCase()));
+      return added.length ? [...prev, ...added] : prev;
+    });
+
+  /** Category mode → custom list, seeded with the chosen categories' pets so
+   * individual ones can be removed (or extras added). */
+  const customizePetList = () => {
+    setPetList(petsForCategories(petCategories));
+    setPetMode("custom");
+  };
 
   // loot_sweep (one boss "set")
   const [lootSweep, setLootSweep] = useState<LootSweepDraft>(
@@ -755,6 +821,8 @@ export function EventTaskForm({
         if (petMode === "specific" && !petName) return "Pick a pet.";
         if (petMode === "category" && petCategories.length === 0)
           return "Choose at least one pet category.";
+        if (petMode === "custom" && petList.length === 0)
+          return "Add at least one pet to the list.";
         if (petMode !== "specific" && petCount < 1) return "Number of pets must be at least 1.";
         break;
       case "loot_sweep":
@@ -826,6 +894,10 @@ export function EventTaskForm({
         if (petMode === "specific") return `${n}${petName}`;
         if (petMode === "category")
           return `${n}Any ${petCategories.map((c) => PET_CATEGORY_LABELS[c] ?? c).join(" / ").toLowerCase()}`;
+        if (petMode === "custom")
+          return petList.length <= 3
+            ? `${n}Any of ${petList.map((p) => p.name).join(" / ")}`
+            : `${n}Any of ${petList.length} pets`;
         return petCount > 1 ? `Any ${petCount} pets` : "Any pet";
       }
       case "loot_sweep": {
@@ -979,6 +1051,12 @@ export function EventTaskForm({
             ...base,
             target_value: petCount,
             config: JSON.stringify({ categories: petCategories }),
+          };
+        if (petMode === "custom")
+          return {
+            ...base,
+            target_value: petCount,
+            config: JSON.stringify({ pets: petList.map((p) => p.name) }),
           };
         return { ...base, target_value: petCount }; // any pet (misc excluded)
       case "loot_sweep":
@@ -1429,30 +1507,106 @@ export function EventTaskForm({
               mode="single"
               selected={petItem}
               onChange={setPetItem}
-              search={searchItems}
+              search={searchPets}
               resolve={resolveItems}
               selectionTitle="Pet"
             />
           ) : petMode === "category" ? (
-            <div className="flex flex-wrap gap-2">
-              {PET_CATEGORY_KEYS.map((key) => {
-                const on = petCategories.includes(key);
-                return (
+            <div className="grid gap-2">
+              <div className="flex flex-wrap gap-2">
+                {PET_CATEGORY_KEYS.map((key) => {
+                  const on = petCategories.includes(key);
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      onClick={() => togglePetCategory(key)}
+                      aria-pressed={on}
+                      className={`rounded border px-3 py-1.5 text-sm ${
+                        on
+                          ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
+                          : "border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold"
+                      }`}
+                    >
+                      {PET_CATEGORY_LABELS[key]}
+                    </button>
+                  );
+                })}
+              </div>
+              {petCategories.length > 0 &&
+                petCatalog &&
+                (() => {
+                  const included = petsForCategories(petCategories);
+                  return (
+                    <div className="border-osrs-bronze/30 grid gap-2 rounded border p-2.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-osrs-parchment-dark/60 text-xs">
+                          {included.length} pets currently count — new pets released into
+                          these categories count automatically.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={customizePetList}
+                          disabled={pending}
+                          className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-2.5 py-1 text-xs"
+                          title="Copy these pets into an editable list — remove some or add extras."
+                        >
+                          Customize this list…
+                        </button>
+                      </div>
+                      <ul className="flex flex-wrap gap-1.5">
+                        {included.map((p) => (
+                          <li
+                            key={p.name}
+                            className="border-osrs-bronze/30 text-osrs-parchment-dark/80 flex items-center gap-1.5 rounded border px-2 py-0.5 text-xs"
+                          >
+                            <ItemDbIcon itemId={p.id} size={16} />
+                            {p.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
+            </div>
+          ) : petMode === "custom" ? (
+            <div className="grid gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-osrs-parchment-dark/60 text-xs">Add a preset:</span>
+                {PET_CATEGORY_KEYS.map((key) => (
                   <button
                     type="button"
                     key={key}
-                    onClick={() => togglePetCategory(key)}
-                    aria-pressed={on}
-                    className={`rounded border px-3 py-1.5 text-sm ${
-                      on
-                        ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
-                        : "border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold"
-                    }`}
+                    onClick={() => addPetPreset(key)}
+                    disabled={pending || !petCatalog}
+                    className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold rounded border px-2.5 py-1 text-xs disabled:opacity-50"
+                    title={`Add every ${(PET_CATEGORY_LABELS[key] ?? key).toLowerCase()} to the list (already-listed pets are skipped).`}
                   >
-                    {PET_CATEGORY_LABELS[key]}
+                    + {PET_CATEGORY_LABELS[key] ?? key}
                   </button>
-                );
-              })}
+                ))}
+                {petList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPetList([])}
+                    disabled={pending}
+                    className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright text-xs underline"
+                  >
+                    Clear list
+                  </button>
+                )}
+              </div>
+              <ItemNpcPicker
+                kind="item"
+                mode="list"
+                selected={petList}
+                onChange={setPetList}
+                search={searchPets}
+                resolve={resolveItems}
+                disabled={pending}
+                selectionTitle="Pets that count"
+                emptyHint="Add a category preset above, or search for individual pets."
+              />
             </div>
           ) : null}
         </div>

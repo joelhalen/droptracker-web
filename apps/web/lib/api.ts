@@ -91,6 +91,8 @@ import {
   type TaskBreakdown,
   EventSummarySchema,
   EventMetaEntrySchema,
+  EventPetCategorySchema,
+  type EventPetCategory,
   EventItemSourcesSchema,
   type EventItemSources,
   EventTaskLibraryItemSchema,
@@ -1733,6 +1735,18 @@ export const api = {
       async () =>
         EventMetaEntrySchema.array().parse(
           await apiGet(`/events/meta/pets?q=${encodeURIComponent(query)}`, { authed: true }),
+        ),
+      () => [],
+    );
+  },
+
+  /** Full pet taxonomy (every category with its member pets) — backs the
+   * task form's category presets for the customizable pet list. */
+  async eventPetCategories(): Promise<EventPetCategory[]> {
+    return withFallback(
+      async () =>
+        EventPetCategorySchema.array().parse(
+          await apiGet(`/events/meta/pet-categories`, { authed: true }),
         ),
       () => [],
     );

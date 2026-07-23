@@ -654,6 +654,13 @@ export async function searchEventPets(groupId: EventGroupId, q: string) {
   return api.searchEventPets(q.trim());
 }
 
+/** Full pet taxonomy (category → member pets) — the task form's category
+ * presets that seed/preview a customizable pet list. */
+export async function fetchEventPetCategories(groupId: EventGroupId) {
+  await assertCanManageEvent(groupId);
+  return api.eventPetCategories();
+}
+
 /** Batch exact-name → game-id lookup — icon hydration for the task form's
  * selection chips when editing a task that only stores names. */
 export async function resolveEventMetaNames(

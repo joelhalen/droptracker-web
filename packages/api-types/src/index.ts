@@ -3471,6 +3471,22 @@ export const EventMetaEntrySchema = z.object({
 });
 export type EventMetaEntry = z.infer<typeof EventMetaEntrySchema>;
 
+/** GET /events/meta/pet-categories — the full pet taxonomy, one row per
+ * category (utils/osrs_pets.py), so the task builder can seed a customizable
+ * pet list from a category preset. Unlike the autocomplete, `id` is nullable:
+ * a preset must never silently drop a pet that lacks an item row (the id only
+ * keys the itemdb icon). */
+export const EventPetCategorySchema = z.object({
+  key: z.string(),
+  pets: z
+    .object({
+      id: z.number().int().nullable(),
+      name: z.string(),
+    })
+    .array(),
+});
+export type EventPetCategory = z.infer<typeof EventPetCategorySchema>;
+
 /** One NPC that drops an item, from the ingested OSRS Wiki drop table
  * (`xenforo.dt_npc_loot`). `tracked` = we've observed real drops from this NPC
  * (so the source-restriction picker can warn on never-seen sources). */
