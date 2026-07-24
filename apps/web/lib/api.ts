@@ -1088,6 +1088,7 @@ export const api = {
         | "formation_mode"
         | "join_code"
         | "requires_confirmation"
+        | "allow_live_edits"
         | "submission_policy"
         | "bonus_line_points"
         | "bonus_blackout_points"
@@ -1813,10 +1814,17 @@ export const api = {
     );
   },
 
-  async deleteEventTask(eventId: number, taskId: number): Promise<{ ok: true }> {
+  async deleteEventTask(
+    eventId: number,
+    taskId: number,
+    /** web68a: "keep_scores" lets teams keep points the task already granted
+     * (active events); default = full unwind ("revoke"). */
+    retro?: "revoke" | "keep_scores",
+  ): Promise<{ ok: true }> {
+    const q = retro ? `?retro=${retro}` : "";
     return withFallback(
       async () => {
-        await apiSend("DELETE", `/events/${eventId}/tasks/${taskId}`, {});
+        await apiSend("DELETE", `/events/${eventId}/tasks/${taskId}${q}`, {});
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,

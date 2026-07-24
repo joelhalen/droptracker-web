@@ -114,6 +114,9 @@ export function EventBoardDesigner({
   tasks: EventTask[];
   onSaved?: (board: BoardDetail) => void;
 }) {
+  // Deliberately stricter than the bingo board's live-edit unlock (web68a):
+  // piece positions reference tiles, so replacing the layout mid-game would
+  // strand pieces. Board *settings* stay live-tunable in their own panel.
   const editable = event.status === "draft";
   const [board, setBoard] = useState<BoardDetail | null>(null);
   const [tiles, setTiles] = useState<DesignerTile[]>([]);

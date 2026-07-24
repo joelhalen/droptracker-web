@@ -61,6 +61,7 @@ import {
   lootSweepToConfig,
 } from "@/components/loot-sweep-editor";
 import { QuantityInput } from "@/components/quantity-input";
+import { isForwardOnlyTask, taskScoringDirty } from "@/lib/event-live-edit";
 import {
   addEventTask,
   fetchEventPetCategories,
@@ -527,6 +528,7 @@ export function EventTaskForm({
   omitTypes,
   hideDifficulty,
   submitLabel,
+  liveEvent,
 }: {
   groupId: number | null;
   eventId: number;
@@ -545,6 +547,10 @@ export function EventTaskForm({
   hideDifficulty?: boolean;
   /** Override the submit button text. */
   submitLabel?: string;
+  /** web68a: the event is ACTIVE — a scoring-affecting edit asks the editor
+   * whether to re-score recorded progress ("recompute") or apply the change
+   * going forward ("keep") before saving. */
+  liveEvent?: boolean;
 }) {
   const draftMode = onDraftSubmit != null;
   const editing = !draftMode && initial != null;
@@ -1117,6 +1123,45 @@ export function EventTaskForm({
     }
   };
 
+  /** web68a: a pending scoring-affecting edit awaiting the editor's
+   * retroactivity choice (shown as an inline prompt over the actions row). */
+  const [retroPrompt, setRetroPrompt] = useState<EventTaskInput | null>(null);
+
+  const saveEdit = (input: EventTaskInput, retro?: "recompute" | "keep") => {
+    if (!initial) return;
+    setRetroPrompt(null);
+    startTransition(async () => {
+      try {
+        const res = await updateEventTask(groupId, eventId, initial.id, {
+          label: input.label,
+          target: input.target ?? null,
+          target_value: input.target_value ?? null,
+          points: input.points,
+          requires_confirmation: input.requires_confirmation,
+          visibility: input.visibility,
+          difficulty: input.difficulty ?? null,
+          // Explicit null clears a list config (e.g. back to single item);
+          // the API revalidates the whole goal either way.
+          config: input.config ?? null,
+          ...(retro ? { retro } : {}),
+        });
+        if (!res.ok) {
+          // Backstop: the server compares post-normalization, so it can
+          // demand a choice our textual dirty-check missed.
+          if (res.code === "retro_required") {
+            setRetroPrompt(input);
+            return;
+          }
+          setError(res.error);
+          return;
+        }
+        onSaved?.({ ...initial, ...input, config: input.config ?? null });
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't save the task. Please try again."));
+      }
+    });
+  };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const invalid = validate();
@@ -1130,38 +1175,49 @@ export function EventTaskForm({
       onDraftSubmit(input);
       return;
     }
-    startTransition(async () => {
-      try {
-        if (editing) {
-          await updateEventTask(groupId, eventId, initial.id, {
-            label: input.label,
+    if (editing) {
+      // Live scoring edit → the editor chooses what happens to recorded
+      // progress before anything is saved (web68a).
+      if (
+        liveEvent &&
+        !isForwardOnlyTask(type) &&
+        taskScoringDirty(
+          {
             target: input.target ?? null,
             target_value: input.target_value ?? null,
-            points: input.points,
-            requires_confirmation: input.requires_confirmation,
-            visibility: input.visibility,
-            difficulty: input.difficulty ?? null,
-            // Explicit null clears a list config (e.g. back to single item);
-            // the API revalidates the whole goal either way.
-            config: input.config ?? null,
-          });
-          onSaved?.({ ...initial, ...input, config: input.config ?? null });
-        } else {
-          const res = await addEventTask(groupId, eventId, input);
-          if (!res.ok) {
-            setError(res.error);
-            return;
-          }
-          onSaved?.({
-            ...input,
-            id: res.id,
             points: input.points ?? 0,
-            requires_confirmation: input.requires_confirmation ?? false,
-            // The API may demote a public save to private when its
-            // requirements duplicate an existing public preset.
-            visibility: res.visibility ?? input.visibility ?? "private",
-          });
+            config: input.config ?? null,
+          },
+          {
+            target: initial?.target ?? null,
+            target_value: initial?.target_value ?? null,
+            points: initial?.points ?? 0,
+            config: initial?.config ?? null,
+          },
+        )
+      ) {
+        setRetroPrompt(input);
+        return;
+      }
+      saveEdit(input);
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const res = await addEventTask(groupId, eventId, input);
+        if (!res.ok) {
+          setError(res.error);
+          return;
         }
+        onSaved?.({
+          ...input,
+          id: res.id,
+          points: input.points ?? 0,
+          requires_confirmation: input.requires_confirmation ?? false,
+          // The API may demote a public save to private when its
+          // requirements duplicate an existing public preset.
+          visibility: res.visibility ?? input.visibility ?? "private",
+        });
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't save the task. Please try again."));
       }
@@ -1796,6 +1852,48 @@ export function EventTaskForm({
           </button>
         </div>
       </div>
+      {/* web68a: live scoring edit — the editor decides what happens to the
+          progress teams have already recorded before the save goes through. */}
+      {retroPrompt && (
+        <div className="border-osrs-gold/40 bg-osrs-gold/5 rounded border p-3 text-sm">
+          <p className="text-osrs-parchment/90 font-medium">
+            This event is live and the change affects scoring.
+          </p>
+          <p className="text-osrs-parchment-dark/70 mt-1 text-xs">
+            <strong>Re-score</strong> recomputes every team&apos;s progress against the new goal —
+            completions and points can be awarded <em>and</em> taken away right now.{" "}
+            <strong>Keep</strong> leaves recorded progress and points as they stand and applies the
+            change going forward (item-list progress may still adjust when the next submission
+            arrives).
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => saveEdit(retroPrompt, "recompute")}
+              disabled={pending}
+              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+            >
+              Re-score existing progress
+            </button>
+            <button
+              type="button"
+              onClick={() => saveEdit(retroPrompt, "keep")}
+              disabled={pending}
+              className="border-osrs-bronze/50 text-osrs-parchment hover:border-osrs-gold rounded border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+            >
+              Keep progress, apply going forward
+            </button>
+            <button
+              type="button"
+              onClick={() => setRetroPrompt(null)}
+              disabled={pending}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-parchment rounded px-2 py-1.5 text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {error && <Alert variant="error">{error}</Alert>}
     </form>
   );

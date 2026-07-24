@@ -2736,6 +2736,10 @@ export const EventSummarySchema = z.object({
     .default({ enabled: false, co_leaders: false, selection: "admin" }),
   /** clan_vs_clan: each accepted clan runs its own Discord config (web48a). */
   per_group_discord: z.boolean().default(false),
+  /** Live edits (web68a): opt-in toggle that keeps the bingo board editable
+   * after activation. Flippable at any status via PATCH; audited. Defaulted
+   * for payloads predating the column. */
+  allow_live_edits: z.boolean().default(false),
   activated_at: z.number().int().nullable().optional(),
   ended_at: z.number().int().nullable().optional(),
 });
@@ -3180,6 +3184,9 @@ export const EventInputSchema = z.object({
   ends_at: z.number().int().nullable().optional(),
   formation_mode: z.enum(EVENT_FORMATION_MODES).optional(),
   requires_confirmation: z.boolean().optional(),
+  /** Live edits (web68a): keep the bingo board editable after activation.
+   * Flippable at any status; every change is audited. */
+  allow_live_edits: z.boolean().optional(),
   submission_policy: z.enum(EVENT_SUBMISSION_POLICIES).optional(),
   join_code: z.string().max(32).nullable().optional(),
   board_size: z.number().int().min(3).max(7).optional(),
@@ -3232,6 +3239,12 @@ export const EventTaskPatchSchema = z.object({
    * server-side). Explicit null switches an item_collection back to
    * single-item semantics; absent ⇒ unchanged. */
   config: z.string().nullable().optional(),
+  /** Live-edit retroactivity (web68a). Required by the backend when a
+   * scoring-affecting field (target/target_value/config/points) changes on an
+   * ACTIVE event that already has recorded progress: "recompute" re-folds
+   * every team's progress/score against the new goal (awarding AND revoking);
+   * "keep" leaves recorded state alone and applies forward-only. */
+  retro: z.enum(["recompute", "keep"]).optional(),
 });
 export type EventTaskPatch = z.infer<typeof EventTaskPatchSchema>;
 

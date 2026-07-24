@@ -206,6 +206,11 @@ export function EventSetupWizard({
   const [requiresConfirmation, setRequiresConfirmation] = useState(
     initialEvent?.requires_confirmation ?? false,
   );
+  // Live edits (web68a): opt-in; keeps the bingo board editable after the
+  // event starts. Default OFF — flippable later in event settings, audited.
+  const [allowLiveEdits, setAllowLiveEdits] = useState(
+    initialEvent?.allow_live_edits ?? false,
+  );
   // Prize pot (web52a): optional, configured on the "Joining & rules" step and
   // refined later in the manager's Prize Pot tab.
   const [potEnabled, setPotEnabled] = useState(initialEvent?.prize_pot?.enabled ?? false);
@@ -361,6 +366,7 @@ export function EventSetupWizard({
             join_code: formationMode === "self_join" ? joinCode.trim() || null : null,
             submission_policy: submissionPolicy,
             requires_confirmation: requiresConfirmation,
+            allow_live_edits: allowLiveEdits,
           });
           // Prize pot config rides its own action (not part of EventInput).
           // confirm_disable_buyins is safe here — a wizard draft has no records.
@@ -899,6 +905,22 @@ export function EventSetupWizard({
               <span className="text-osrs-parchment-dark/50 block text-xs">
                 Completions queue in Review instead of counting instantly. You can also set this
                 per task — leave it off unless you want to check everything by hand.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={allowLiveEdits}
+              onChange={(e) => setAllowLiveEdits(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              Allow live edits after the event starts
+              <span className="text-osrs-parchment-dark/50 block text-xs">
+                Keeps the bingo board editable while the event runs. Tasks and teams are always
+                adjustable mid-event — scoring changes ask whether to re-score existing progress.
+                Every change is audited. You can flip this any time in event settings.
               </span>
             </span>
           </label>

@@ -111,9 +111,13 @@ function cellDisplayLabel(cell: DesignerCell, tasks: EventTask[]): string {
 }
 
 /** Mirrors the API's edit gate: draft, or never activated with a start still
- * in the future. Task 21's explicit lifecycle tightens this to draft-only. */
+ * in the future — or (web68a) a LIVE event whose "Allow live edits" toggle is
+ * on. The live-replace path reconciles cell completions and line/blackout
+ * bonuses server-side, so mid-event board changes keep scores honest. */
 export function boardEditable(event: EventDetail): boolean {
   if (event.status === "draft") return true;
+  if (event.status === "active" && event.allow_live_edits) return true;
+  if (event.status === "past") return false;
   const now = Math.floor(Date.now() / 1000);
   return event.activated_at == null && (event.starts_at == null || event.starts_at > now);
 }
@@ -309,8 +313,12 @@ export function EventBingoDesigner({
     return (
       <div className="space-y-3">
         <Alert variant="info">
-          The event has started, so the bingo board is locked. Cell completions now come from the
-          engine and the Review queue.
+          {event.status === "past"
+            ? "The event has ended — the bingo board is a frozen record."
+            : "The event has started, so the bingo board is locked. Cell completions now come " +
+              "from the engine and the Review queue. Need to fix the board mid-event? Turn on " +
+              "“Allow live edits” in the event settings (Edit, next to the event name) — changes " +
+              "re-check every team's cells and line bonuses, and everything is audited."}
         </Alert>
         {event.bingo ? (
           <div

@@ -41,7 +41,7 @@ import {
   type EventBuyinStatus,
   type EventPrizeDistribution,
 } from "@droptracker/api-types";
-import { api, ApiError, type EventAuditParams } from "@/lib/api";
+import { api, ApiError, apiErrorCode, type EventAuditParams } from "@/lib/api";
 import { getUser, canAdminGroup, canManageEvents } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
 
@@ -144,6 +144,7 @@ export async function updateGroupEvent(
       | "formation_mode"
       | "join_code"
       | "requires_confirmation"
+      | "allow_live_edits"
       | "submission_policy"
       | "bonus_line_points"
       | "bonus_blackout_points"
@@ -279,9 +280,16 @@ export async function addEventTask(
   }
 }
 
-export async function removeEventTask(groupId: EventGroupId, eventId: number, taskId: number) {
+export async function removeEventTask(
+  groupId: EventGroupId,
+  eventId: number,
+  taskId: number,
+  /** web68a: "keep_scores" lets teams keep points the task already granted;
+   * default = full unwind. */
+  retro?: "revoke" | "keep_scores",
+) {
   await assertCanManageEvent(groupId);
-  await api.deleteEventTask(eventId, taskId);
+  await api.deleteEventTask(eventId, taskId, retro);
   return { ok: true as const };
 }
 
@@ -842,16 +850,27 @@ export async function saveTeamNotifications(
 }
 
 /** Per-task edits (requires_confirmation toggle, points, label, target…).
- * No revalidatePath — same reasoning as addEventTask (client-owned state). */
+ * No revalidatePath — same reasoning as addEventTask (client-owned state).
+ * Returns a discriminated result (not a throw) so the API's descriptive 422s
+ * — `retro_required` / `forward_only` on live scoring edits (web68a) — reach
+ * the client with their machine code instead of Next's prod redaction. */
 export async function updateEventTask(
   groupId: EventGroupId,
   eventId: number,
   taskId: number,
   patch: EventTaskPatch,
-) {
+): Promise<{ ok: true } | { ok: false; error: string; code: string | null }> {
   await assertCanManageEvent(groupId);
   const parsed = EventTaskPatchSchema.parse(patch);
-  return api.updateEventTask(eventId, taskId, parsed);
+  try {
+    await api.updateEventTask(eventId, taskId, parsed);
+    return { ok: true as const };
+  } catch (err) {
+    if (err instanceof ApiError) {
+      return { ok: false as const, error: err.message, code: apiErrorCode(err) };
+    }
+    throw err;
+  }
 }
 
 // --- Event templates (save/rerun events) ------------------------------------

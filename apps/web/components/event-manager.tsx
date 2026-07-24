@@ -291,6 +291,7 @@ export function EventManager({
     joinCode: event.join_code ?? "",
     isPrivate: event.visibility === "private",
     requiresConfirmation: event.requires_confirmation,
+    allowLiveEdits: event.allow_live_edits,
     submissionPolicy: event.submission_policy,
     leadershipEnabled: event.leadership.enabled,
     coLeaders: event.leadership.co_leaders,
@@ -308,6 +309,7 @@ export function EventManager({
       joinCode: event.join_code ?? "",
       isPrivate: event.visibility === "private",
       requiresConfirmation: event.requires_confirmation,
+      allowLiveEdits: event.allow_live_edits,
       submissionPolicy: event.submission_policy,
       leadershipEnabled: event.leadership.enabled,
       coLeaders: event.leadership.co_leaders,
@@ -330,6 +332,7 @@ export function EventManager({
           join_code: eventDraft.joinCode.trim() || null,
           visibility: eventDraft.isPrivate ? "private" : "public",
           requires_confirmation: eventDraft.requiresConfirmation,
+          allow_live_edits: eventDraft.allowLiveEdits,
           submission_policy: eventDraft.submissionPolicy,
           leadership: {
             enabled: eventDraft.leadershipEnabled,
@@ -451,6 +454,13 @@ export function EventManager({
   };
 
   const isClanVsClan = event.mode === "clan_vs_clan";
+  /** web68a: an ended event is a frozen record — task/team structure locks
+   * (the backend 409s `event_past`; this mirrors it client-side). */
+  const structuralFrozen = event.status === "past";
+  /** web68a: scoring-affecting task edits on a LIVE event prompt for the
+   * retroactivity choice (board-game progress is turn-entangled — always
+   * forward-only, no prompt). */
+  const liveTaskEvent = event.status === "active" && event.kind !== "board_game";
   const acceptedParticipantIds = participants
     .filter((p) => p.status === "accepted")
     .map((p) => p.group_id);
@@ -474,7 +484,10 @@ export function EventManager({
     setError(null);
     startTransition(async () => {
       try {
-        await updateEventTask(groupId, event.id, t.id, { requires_confirmation: next });
+        const res = await updateEventTask(groupId, event.id, t.id, {
+          requires_confirmation: next,
+        });
+        if (!res.ok) throw new Error(res.error);
       } catch (err) {
         setTasks((prev) =>
           prev.map((x) => (x.id === t.id ? { ...x, requires_confirmation: !next } : x)),
@@ -487,14 +500,21 @@ export function EventManager({
   /** Task id awaiting delete confirmation (destructive: erases progress). */
   const [confirmRemoveTask, setConfirmRemoveTask] = useState<number | null>(null);
 
-  const onRemoveTask = (taskId: number) => {
+  /** web68a: whether this task's delete confirm offers the points choice —
+   * only meaningful on a LIVE event where the task has completed rollups
+   * (i.e. points may already sit in team scores). */
+  const taskHasScoredProgress = (taskId: number) =>
+    event.status === "active" &&
+    (event.progress ?? []).some((p) => p.task_id === taskId && p.completed);
+
+  const onRemoveTask = (taskId: number, retro?: "revoke" | "keep_scores") => {
     setConfirmRemoveTask(null);
     const prevTasks = tasks;
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     setError(null);
     startTransition(async () => {
       try {
-        await removeEventTask(groupId, event.id, taskId);
+        await removeEventTask(groupId, event.id, taskId, retro);
       } catch (err) {
         setTasks(prevTasks);
         setError(getErrorMessage(err, "Couldn't remove the task. Please try again."));
@@ -691,6 +711,24 @@ export function EventManager({
               <span className="text-osrs-parchment-dark/60 block text-xs">
                 All automatic completions queue in Review until an admin confirms them. You can also
                 require review per task below.
+              </span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={eventDraft.allowLiveEdits}
+              onChange={(e) =>
+                setEventDraft((d) => ({ ...d, allowLiveEdits: e.target.checked }))
+              }
+              className="mt-0.5 size-4"
+            />
+            <span>
+              Allow live edits after the event starts
+              <span className="text-osrs-parchment-dark/60 block text-xs">
+                Keeps the bingo board editable while the event runs. Tasks and teams are always
+                adjustable mid-event — scoring changes ask whether to re-score existing progress.
+                Every change is audited.
               </span>
             </span>
           </label>
@@ -1081,7 +1119,13 @@ export function EventManager({
         <div className="mb-4 flex items-center justify-between">
           <h3 className="heading-rule text-osrs-gold pb-1 text-lg font-semibold">Tasks</h3>
           <span className="flex items-center gap-2">
-            {!libraryOpen && (
+            {/* web68a: ended events are frozen records — no structural edits. */}
+            {structuralFrozen && (
+              <span className="text-osrs-parchment-dark/50 text-xs">
+                Event ended — tasks are locked.
+              </span>
+            )}
+            {!libraryOpen && !structuralFrozen && (
               <button
                 onClick={() => {
                   setLibraryOpen(true);
@@ -1093,7 +1137,7 @@ export function EventManager({
                 From library
               </button>
             )}
-            {taskFormFor !== -1 && (
+            {taskFormFor !== -1 && !structuralFrozen && (
               <button
                 onClick={() => {
                   setTaskFormFor(-1);
@@ -1121,6 +1165,7 @@ export function EventManager({
             <EventTaskForm
               groupId={groupId}
               eventId={event.id}
+              liveEvent={liveTaskEvent}
               onSaved={(t) => {
                 setTasks((prev) => [...prev, t]);
                 setTaskFormFor(null);
@@ -1139,6 +1184,7 @@ export function EventManager({
                     groupId={groupId}
                     eventId={event.id}
                     initial={t}
+                    liveEvent={liveTaskEvent}
                     onSaved={(updated) => {
                       setTasks((prev) => prev.map((x) => (x.id === t.id ? updated : x)));
                       setTaskFormFor(null);
@@ -1178,7 +1224,7 @@ export function EventManager({
                           type="checkbox"
                           checked={t.requires_confirmation}
                           onChange={() => onToggleTaskReview(t)}
-                          disabled={pending}
+                          disabled={pending || structuralFrozen}
                           className="size-3.5"
                         />
                         review
@@ -1188,13 +1234,14 @@ export function EventManager({
                           setTaskFormFor(t.id);
                           setConfirmRemoveTask(null);
                         }}
-                        className="text-osrs-parchment-dark/70 hover:bg-osrs-bronze/15 rounded px-2 py-1 text-xs"
+                        disabled={structuralFrozen}
+                        className="text-osrs-parchment-dark/70 hover:bg-osrs-bronze/15 rounded px-2 py-1 text-xs disabled:opacity-50"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => setConfirmRemoveTask(t.id)}
-                        disabled={pending}
+                        disabled={pending || structuralFrozen}
                         className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
                       >
                         Remove
@@ -1211,23 +1258,59 @@ export function EventManager({
                           : ""}
                         . This can&apos;t be undone.
                       </p>
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => onRemoveTask(t.id)}
-                          disabled={pending}
-                          className="bg-osrs-red/80 hover:bg-osrs-red text-osrs-parchment rounded px-3 py-1 text-xs font-medium disabled:opacity-50"
-                        >
-                          Remove task
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmRemoveTask(null)}
-                          className="text-osrs-parchment-dark/70 hover:text-osrs-parchment rounded px-2 py-1 text-xs"
-                        >
-                          Cancel
-                        </button>
-                      </div>
+                      {taskHasScoredProgress(t.id) ? (
+                        /* web68a: teams already scored this task — the person
+                           removing it decides what happens to those points. */
+                        <>
+                          <p className="text-osrs-parchment-dark/70 mt-1">
+                            Teams have already earned points from this task. Take those points back,
+                            or let the scores stand?
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => onRemoveTask(t.id, "revoke")}
+                              disabled={pending}
+                              className="bg-osrs-red/80 hover:bg-osrs-red text-osrs-parchment rounded px-3 py-1 text-xs font-medium disabled:opacity-50"
+                            >
+                              Remove &amp; revoke points
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onRemoveTask(t.id, "keep_scores")}
+                              disabled={pending}
+                              className="border-osrs-red/50 text-osrs-red hover:bg-osrs-red/10 rounded border px-3 py-1 text-xs font-medium disabled:opacity-50"
+                            >
+                              Remove, keep scores
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmRemoveTask(null)}
+                              className="text-osrs-parchment-dark/70 hover:text-osrs-parchment rounded px-2 py-1 text-xs"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onRemoveTask(t.id)}
+                            disabled={pending}
+                            className="bg-osrs-red/80 hover:bg-osrs-red text-osrs-parchment rounded px-3 py-1 text-xs font-medium disabled:opacity-50"
+                          >
+                            Remove task
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRemoveTask(null)}
+                            className="text-osrs-parchment-dark/70 hover:text-osrs-parchment rounded px-2 py-1 text-xs"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </li>
@@ -1342,11 +1425,13 @@ export function EventManager({
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
             placeholder="Team name"
-            className={`${field} min-w-[10rem] flex-1`}
+            disabled={structuralFrozen}
+            className={`${field} min-w-[10rem] flex-1 disabled:opacity-50`}
           />
           <button
             type="submit"
-            disabled={pending || !teamName.trim()}
+            disabled={pending || !teamName.trim() || structuralFrozen}
+            title={structuralFrozen ? "Event ended — teams are locked." : undefined}
             className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
           >
             Add team
