@@ -2627,6 +2627,7 @@ export function mockEventTeamDiscord(
     channels_enabled: true,
     roles_enabled: true,
     forum_channel_id: null,
+    category_channel_id: null,
     retention: "delete_48h",
     captain_config: true,
     teams: [
@@ -2705,6 +2706,7 @@ export function mockEventDiscordChannels(_guildId: string) {
         type: "thread" as const,
         parent_id: "666666666666666666",
       },
+      { id: "888888888888888888", name: "Event Teams", position: 4, type: "category" as const },
     ],
     stale: false,
   };

@@ -285,6 +285,7 @@ test("EventTeamDiscordConfig parse", () => {
       channels_enabled: true,
       roles_enabled: true,
       forum_channel_id: "666666666666666666",
+      category_channel_id: "777777777777777777",
       retention: "delete_48h",
       captain_config: true,
       teams: [

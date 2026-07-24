@@ -641,9 +641,11 @@ export interface DiscordChannel {
   name: string;
   position: number;
   /** "text" (also the implied default for pre-migration cache entries),
-   * "forum" (not directly messageable — only its threads are), or "thread"
-   * (a forum post / channel thread; sendable exactly like a channel). */
-  type?: "text" | "forum" | "thread";
+   * "forum" (not directly messageable — only its threads are), "thread"
+   * (a forum post / channel thread; sendable exactly like a channel), or
+   * "category" (a channel group — not messageable; a container target for
+   * per-team channels). */
+  type?: "text" | "forum" | "thread" | "category";
   /** Threads only: id of the parent forum/text channel. */
   parent_id?: string;
 }

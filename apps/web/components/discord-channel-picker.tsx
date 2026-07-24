@@ -40,11 +40,11 @@ export function DiscordChannelPicker({
   onChange: (v: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  /** "sendable" (default): text channels + threads — forums excluded, they
-   * aren't messageable. "forum": ONLY forum channels, flat list — for fields
-   * that target a container rather than a destination (e.g. the per-team
-   * thread parent in the team-channels config, web53a). */
-  mode?: "sendable" | "forum";
+  /** "sendable" (default): text channels + threads — forums AND categories
+   * excluded, they aren't messageable. "forum": ONLY forum channels, flat
+   * list — the per-team thread parent. "category": ONLY channel categories,
+   * flat list — the parent for per-team private channels. */
+  mode?: "sendable" | "forum" | "category";
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -56,14 +56,17 @@ export function DiscordChannelPicker({
   const [manualOverride, setManualOverride] = useState<boolean | null>(null);
 
   const byId = useMemo(() => new Map(channels.map((c) => [c.id, c])), [channels]);
-  // Sendable mode: forums are not messageable — they exist in the list only
-  // to prefix their threads' labels, so they never appear as options.
-  // Forum mode inverts that: forums are the ONLY options (no thread rows).
+  // Sendable mode: forums and categories are not messageable — forums exist
+  // in the list only to prefix their threads' labels, categories not at all,
+  // so neither appears as an option. Forum/category modes invert that: only
+  // that container type is listed (no thread rows).
   const selectable = useMemo(
     () =>
       mode === "forum"
         ? channels.filter((c) => c.type === "forum")
-        : channels.filter((c) => c.type !== "forum"),
+        : mode === "category"
+          ? channels.filter((c) => c.type === "category")
+          : channels.filter((c) => c.type !== "forum" && c.type !== "category"),
     [channels, mode],
   );
   const manual = manualOverride ?? selectable.length === 0;
@@ -124,7 +127,13 @@ export function DiscordChannelPicker({
           setOpen(true);
         }}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder={mode === "forum" ? "Search forum channels…" : "Search channels…"}
+        placeholder={
+          mode === "forum"
+            ? "Search forum channels…"
+            : mode === "category"
+              ? "Search categories…"
+              : "Search channels…"
+        }
         disabled={disabled}
         className={`${input} w-full disabled:cursor-not-allowed disabled:opacity-60`}
       />

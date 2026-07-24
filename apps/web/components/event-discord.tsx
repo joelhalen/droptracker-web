@@ -389,6 +389,8 @@ export function EventDiscordSettings({
       input.roles_enabled = teamDiscord.roles_enabled;
     if (teamDiscord.forum_channel_id !== teamDiscordBase.forum_channel_id)
       input.forum_channel_id = teamDiscord.forum_channel_id;
+    if (teamDiscord.category_channel_id !== teamDiscordBase.category_channel_id)
+      input.category_channel_id = teamDiscord.category_channel_id;
     if (teamDiscord.retention !== teamDiscordBase.retention)
       input.retention = teamDiscord.retention;
     if (teamDiscord.captain_config !== teamDiscordBase.captain_config)
@@ -770,36 +772,75 @@ export function EventDiscordSettings({
             />
             <ToggleRow
               label="Create team channels"
-              hint="A private text channel per team (visible to the team role), or threads inside a forum channel."
+              hint="A private text channel per team (visible to the team role) — optionally grouped under a category — or non-private threads inside a forum channel."
               checked={teamDiscord.channels_enabled}
               onChange={(v) => patchTeamDiscord({ channels_enabled: v })}
               disabled={!hasGuild && !teamDiscord.channels_enabled}
             />
 
             {teamDiscord.channels_enabled && (
-              <div className="block pl-4 text-sm sm:max-w-md">
-                <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-                  Forum channel (optional)
-                </span>
-                <DiscordChannelPicker
-                  channels={channelList}
-                  mode="forum"
-                  value={teamDiscord.forum_channel_id ?? ""}
-                  onChange={(v) => patchTeamDiscord({ forum_channel_id: v.trim() || null })}
-                  placeholder="Forum channel id"
-                />
-                <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
-                  When set, the bot creates one thread per team inside this forum instead of
-                  separate text channels.
-                </span>
-                {teamDiscord.forum_channel_id && (
-                  <button
-                    type="button"
-                    onClick={() => patchTeamDiscord({ forum_channel_id: null })}
-                    className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright mt-1 text-xs"
-                  >
-                    Clear — use separate text channels instead
-                  </button>
+              <div className="grid gap-4 pl-4 text-sm sm:max-w-md">
+                {/* Category → private, role-restricted channel per team. */}
+                <div className="block">
+                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                    Channel category (recommended — private per team)
+                  </span>
+                  <DiscordChannelPicker
+                    channels={channelList}
+                    mode="category"
+                    value={teamDiscord.category_channel_id ?? ""}
+                    onChange={(v) => patchTeamDiscord({ category_channel_id: v.trim() || null })}
+                    placeholder="Category id"
+                  />
+                  <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
+                    Each team gets its own text channel inside this category, restricted to that
+                    team&apos;s role — teams can&apos;t see each other&apos;s channels. Needs
+                    &ldquo;Create team roles&rdquo; on for the per-team restriction to apply.
+                  </span>
+                  {teamDiscord.category_channel_id && (
+                    <button
+                      type="button"
+                      onClick={() => patchTeamDiscord({ category_channel_id: null })}
+                      className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright mt-1 text-xs"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {/* Forum → threads. No per-thread permissions: warn loudly. */}
+                <div className="block">
+                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                    Forum channel (threads — not private)
+                  </span>
+                  <DiscordChannelPicker
+                    channels={channelList}
+                    mode="forum"
+                    value={teamDiscord.forum_channel_id ?? ""}
+                    onChange={(v) => patchTeamDiscord({ forum_channel_id: v.trim() || null })}
+                    placeholder="Forum channel id"
+                  />
+                  <span className="mt-1 block rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-xs text-amber-300/90">
+                    ⚠️ Discord threads have no per-thread permissions — every participant can read
+                    every team&apos;s thread. For private team channels, use a category above
+                    instead. When both are set, the forum wins.
+                  </span>
+                  {teamDiscord.forum_channel_id && (
+                    <button
+                      type="button"
+                      onClick={() => patchTeamDiscord({ forum_channel_id: null })}
+                      className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright mt-1 text-xs"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                {!teamDiscord.category_channel_id && !teamDiscord.forum_channel_id && (
+                  <p className="text-osrs-parchment-dark/50 text-xs">
+                    Neither set — the bot creates a private text channel per team at the server
+                    root (still restricted to the team role). Pick a category to keep them tidy.
+                  </p>
                 )}
               </div>
             )}

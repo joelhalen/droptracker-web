@@ -3446,8 +3446,12 @@ export const EventTeamDiscordConfigSchema = z.object({
   guild_id: z.string().nullable(),
   channels_enabled: z.boolean(),
   roles_enabled: z.boolean(),
-  /** Forum-channel snowflake ⇒ team channels are threads inside it. */
+  /** Forum-channel snowflake ⇒ team channels are threads inside it (NO
+   * per-thread permissions — every team can read every thread). */
   forum_channel_id: z.string().nullable(),
+  /** Category-channel snowflake ⇒ each team gets a private text channel inside
+   * it, role-restricted so only that team can see it. */
+  category_channel_id: z.string().nullable(),
   retention: z.enum(EVENT_TEAM_DISCORD_RETENTIONS),
   /** Team captains (leadership feature) may tune their team's toggles. */
   captain_config: z.boolean(),
@@ -3467,6 +3471,7 @@ export const EventTeamDiscordInputSchema = z.object({
   channels_enabled: z.boolean().optional(),
   roles_enabled: z.boolean().optional(),
   forum_channel_id: z.string().regex(/^\d+$/).nullable().optional(),
+  category_channel_id: z.string().regex(/^\d+$/).nullable().optional(),
   retention: z.enum(EVENT_TEAM_DISCORD_RETENTIONS).optional(),
   captain_config: z.boolean().optional(),
   teams: z
