@@ -17,6 +17,7 @@ import type {
   EventPlayerRow,
   EventPlayerItem,
   EventPlayerDetail,
+  EventSignup,
   EventSummary,
   EventTaskLibraryItem,
   EventTemplateSummary,
@@ -981,6 +982,32 @@ export function mockEventManagers(): EventManagersResponse {
       { user_id: 3, discord_id: "339175417668501504", username: "mockeventmgr" },
     ],
   };
+}
+
+/** Sign-up pool for a `signup_pool` event, enriched with the ability fields the
+ * admin sorts on (EHB / total level / monthly loot). Half unassigned, a spread
+ * of EHB so sorting/filtering is visible; a couple of `null` EHB rows exercise
+ * the "unknown" ("—") rendering. */
+export function mockEventSignups(): EventSignup[] {
+  const now = Math.floor(Date.now() / 1000);
+  const ehbs: (number | null)[] = [1842.5, 934.2, 2610, null, 512.8, 88.4, 1420, 305.1, null, 61.7];
+  const levels = [2277, 2201, 2154, 1983, 2050, 1621, 2277, 1875, 1402, 1290];
+  const loot = [
+    412_000_000, 88_500_000, 1_240_000_000, 0, 26_400_000, 4_100_000, 305_000_000,
+    12_900_000, 0, 780_000,
+  ];
+  return NAMES.map((name, i) => ({
+    player_id: 1000 + i,
+    player_name: name,
+    group_id: i % 3 === 0 ? 2 : 1,
+    group_name: i % 3 === 0 ? "Rivals" : "Mock Clan",
+    team_id: i % 2 === 0 ? null : (i % 4 === 1 ? 101 : 102),
+    source: i % 4 === 0 ? ("discord" as const) : ("web" as const),
+    signed_up_at: now - i * 3600,
+    ehb: ehbs[i] ?? null,
+    total_level: levels[i] ?? null,
+    monthly_loot: money(loot[i] ?? 0),
+  }));
 }
 
 export function mockGroupSubscription(groupId: number): GroupSubscription {

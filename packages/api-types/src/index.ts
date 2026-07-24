@@ -3844,7 +3844,11 @@ export type EventRecruitingItem = z.infer<typeof EventRecruitingItemSchema>;
 // --- Sign-up pool (formation_mode === "signup_pool") -------------------------
 
 /** One entry in the sign-up pool (GET /events/{id}/signups): a player who
- * opted in, with their current team placement (null while unassigned). */
+ * opted in, with their current team placement (null while unassigned) plus the
+ * roster-building context an admin sorts on — `ehb` (WOM efficient hours
+ * bossed), `total_level`, and `monthly_loot` (current-month GP). The three
+ * ability fields are optional/nullable: null means "unknown / never fetched",
+ * which the UI renders as "—" rather than 0. */
 export const EventSignupSchema = z.object({
   player_id: z.number().int(),
   player_name: z.string(),
@@ -3853,6 +3857,9 @@ export const EventSignupSchema = z.object({
   team_id: z.number().int().nullable(),
   source: z.enum(["web", "discord"]).default("web"),
   signed_up_at: z.number().int().nullable().optional(),
+  ehb: z.number().nullable().optional(),
+  total_level: z.number().int().nullable().optional(),
+  monthly_loot: MoneySchema.nullable().optional(),
 });
 export type EventSignup = z.infer<typeof EventSignupSchema>;
 

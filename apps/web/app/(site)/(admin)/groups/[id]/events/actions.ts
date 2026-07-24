@@ -946,6 +946,19 @@ export async function assignEventSignup(
   return { ok: true as const };
 }
 
+/** Move a signed-up player back to the pool (undo a mis-assignment). */
+export async function unassignEventSignup(
+  groupId: EventGroupId,
+  eventId: number,
+  playerId: number,
+) {
+  await assertCanManageEvent(groupId);
+  await api.unassignEventSignup(eventId, playerId);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const };
+}
+
 /** Randomly (re)distribute the pool across teams; optional clan scope. */
 export async function randomizeEventSignups(
   groupId: EventGroupId,

@@ -319,6 +319,7 @@ import {
   mockGuildStatus,
   mockAuthorizedUsers,
   mockEventManagers,
+  mockEventSignups,
   mockUserSubscription,
   mockEvent,
   mockEventTeam,
@@ -2107,7 +2108,7 @@ export const api = {
         EventSignupSchema.array().parse(
           await apiGet(`/events/${eventId}/signups`, { authed: true }),
         ),
-      () => [],
+      () => mockEventSignups(),
     );
   },
 
@@ -2118,6 +2119,20 @@ export const api = {
         await apiSend("POST", `/events/${eventId}/signups/assign`, {
           player_id: playerId,
           team_id: teamId,
+        });
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Move a signed-up player back to the pool (drop their team placement but
+   * keep the sign-up) — undo a mis-assignment without withdrawing them. */
+  async unassignEventSignup(eventId: number, playerId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/signups/unassign`, {
+          player_id: playerId,
         });
         return { ok: true } as const;
       },
