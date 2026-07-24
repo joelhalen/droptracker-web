@@ -98,8 +98,8 @@ const ITEM_MODE_HELP: Record<ItemMode, string> = {
     "Combine lists: every group must be satisfied — e.g. ALL three godsword shards plus ANY one hilt.",
   any_path:
     "Completing ANY one path finishes the task. Paths can be item lists (the full Justiciar " +
-    "set OR any 5 Justiciar items) or metric goals — e.g. a Godwars boss pet OR 5,000 kills " +
-    "at Godwars bosses OR 100M GP of drops.",
+    "set OR any 5 Justiciar items), a weighted points race, or metric goals — e.g. a Godwars " +
+    "boss pet OR 5,000 kills at Godwars bosses OR 500 points of listed drops.",
 };
 
 /** How a pet_collection task is scoped. */
@@ -141,22 +141,26 @@ const PB_CHOICE_HELP: Record<PbChoice, string> = {
   whole_team: "Every player rostered on the team must record a qualifying time — the target scales to each team's size.",
 };
 
-/** What one "Either-or" path requires: an item checklist, a kill count at
- * chosen NPC(s), or a GP total of drops (optionally NPC-scoped). */
-type PathKind = "items" | "kc" | "loot_value";
+/** What one "Either-or" path requires: an item checklist, a points race over
+ * a weighted item list, a kill count at chosen NPC(s), or a GP total of drops
+ * (optionally NPC-scoped). */
+type PathKind = "items" | "points" | "kc" | "loot_value";
 
 const PATH_KIND_LABELS: Record<PathKind, string> = {
   items: "Items",
+  points: "Points from a list",
   kc: "Kill count",
   loot_value: "Loot value (GP)",
 };
 
 /** One alternative of an "Either-or" task — its own requirement groups
- * (items), or a metric goal (`kc` / `loot_value`: npcs + need). */
+ * (`items`), a weighted item list raced to a points goal (`points`: items +
+ * need), or a metric goal (`kc` / `loot_value`: npcs + need). */
 type PathDraft = {
   label: string;
   kind: PathKind;
   groups: GroupDraft[];
+  items: PickerEntry[];
   npcs: PickerEntry[];
   need: number;
 };
@@ -165,6 +169,7 @@ const emptyPathDraft = (kind: PathKind, groupMode: "all_of" | "any_of" = "any_of
   label: "",
   kind,
   groups: kind === "items" ? [{ mode: groupMode, need: 1, items: [] }] : [],
+  items: [],
   npcs: [],
   need: 1,
 });
@@ -222,6 +227,8 @@ function pathsFromConfig(config: Record<string, unknown>, petNames: Set<string>)
       metric?: unknown;
       npcs?: unknown;
       need?: unknown;
+      kind?: unknown;
+      items?: unknown;
     }[]
   ).map((p) => {
     const label = typeof p.label === "string" ? p.label : "";
@@ -230,9 +237,34 @@ function pathsFromConfig(config: Record<string, unknown>, petNames: Set<string>)
         label,
         kind: p.metric,
         groups: [],
+        items: [],
         npcs: (Array.isArray(p.npcs) ? p.npcs : [])
           .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
           .map((name) => ({ name })),
+        need: typeof p.need === "number" && p.need >= 1 ? p.need : 1,
+      };
+    }
+    if (p.kind === "points") {
+      return {
+        label,
+        kind: "points" as const,
+        groups: [],
+        items: (Array.isArray(p.items) ? p.items : []).flatMap((it): PickerEntry[] => {
+          const name =
+            typeof it === "string" ? it : (it as { item_name?: string } | null)?.item_name;
+          if (!name) return [];
+          const pts = typeof it === "object" && it ? (it as { points?: number }).points : undefined;
+          const npcs = itemNpcs[name.toLowerCase()];
+          return [
+            {
+              name,
+              points: typeof pts === "number" && pts >= 1 ? pts : 1,
+              ...(npcs ? { npcs } : {}),
+              ...(petNames.has(name.toLowerCase()) ? { isPet: true } : {}),
+            },
+          ];
+        }),
+        npcs: [],
         need: typeof p.need === "number" && p.need >= 1 ? p.need : 1,
       };
     }
@@ -240,6 +272,7 @@ function pathsFromConfig(config: Record<string, unknown>, petNames: Set<string>)
       label,
       kind: "items" as const,
       groups: parseGroupDrafts(p.groups, itemNpcs, petNames),
+      items: [],
       npcs: [],
       need: 1,
     };
@@ -780,6 +813,9 @@ export function EventTaskForm({
               if (p.need < 1) return `Path ${pi + 1}: set a kill count.`;
             } else if (p.kind === "loot_value") {
               if (p.need < 1) return `Path ${pi + 1}: set a GP goal.`;
+            } else if (p.kind === "points") {
+              if (p.items.length < 1) return `Path ${pi + 1}: add at least one item to the points list.`;
+              if (p.need < 1) return `Path ${pi + 1}: set a points goal.`;
             } else {
               const bad = validateGroupDrafts(p.groups, `Path ${pi + 1}: `);
               if (bad) return bad;
@@ -863,6 +899,7 @@ export function EventTaskForm({
                 return `${p.need.toLocaleString()} KC${p.npcs.length ? ` at ${p.npcs.map((n) => n.name).join(" / ")}` : ""}`;
               if (p.kind === "loot_value")
                 return `${p.need.toLocaleString()} GP${p.npcs.length ? ` from ${p.npcs.map((n) => n.name).join(" / ")}` : ""}`;
+              if (p.kind === "points") return `${p.need.toLocaleString()} pts`;
               return (
                 p.groups
                   .map((g) =>
@@ -949,9 +986,13 @@ export function EventTaskForm({
           };
         }
         if (itemMode === "any_path") {
-          const pathItems = paths
-            .filter((p) => p.kind === "items")
-            .flatMap((p) => p.groups.flatMap((g) => g.items));
+          const pathItems = paths.flatMap((p) =>
+            p.kind === "items"
+              ? p.groups.flatMap((g) => g.items)
+              : p.kind === "points"
+                ? p.items
+                : [],
+          );
           const itemNpcs = itemNpcsFromEntries(pathItems);
           const petItems = petItemsFromEntries(pathItems);
           return {
@@ -969,6 +1010,14 @@ export function EventTaskForm({
                     metric: p.kind,
                     need: p.need,
                     ...(p.npcs.length ? { npcs: p.npcs.map((n) => n.name) } : {}),
+                  };
+                }
+                if (p.kind === "points") {
+                  return {
+                    ...label,
+                    kind: "points",
+                    need: p.need,
+                    items: p.items.map((i) => ({ item_name: i.name, points: i.points ?? 1 })),
                   };
                 }
                 return { ...label, groups: serializeGroups(p.groups) };
@@ -1255,6 +1304,9 @@ export function EventTaskForm({
                               ...(kind === "items" && p.groups.length
                                 ? { groups: p.groups }
                                 : {}),
+                              ...(kind === "points" && p.items.length
+                                ? { items: p.items }
+                                : {}),
                             });
                           }}
                           className={field}
@@ -1299,6 +1351,36 @@ export function EventTaskForm({
                         bossImport={bossImport}
                         searchPets={searchPets}
                       />
+                    ) : p.kind === "points" ? (
+                      <div className="grid gap-2">
+                        <label className="grid gap-1 text-sm sm:max-w-56">
+                          <span className="text-osrs-parchment-dark/80">Points goal</span>
+                          <QuantityInput
+                            min={1}
+                            emptyAs={0}
+                            value={p.need}
+                            onChange={(need) => patchPath(pi, { need })}
+                            className={field}
+                            title="Weighted point total the team must reach to finish this path."
+                          />
+                        </label>
+                        <p className="text-osrs-parchment-dark/50 text-xs">
+                          Each item is worth points — the team races to the goal. Weight rare
+                          drops higher.
+                        </p>
+                        <ItemNpcPicker
+                          kind="item"
+                          mode="list"
+                          withPoints
+                          selected={p.items}
+                          onChange={(items) => patchPath(pi, { items })}
+                          search={searchItems}
+                          resolve={resolveItems}
+                          renderEntryExtra={renderSourceRestriction}
+                          bossImport={bossImport}
+                          searchPets={searchPets}
+                        />
+                      </div>
                     ) : (
                       <div className="grid gap-2">
                         <label className="grid gap-1 text-sm sm:max-w-56">

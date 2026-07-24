@@ -207,13 +207,16 @@ export function taskConfigGroups(task: Pick<EventTask, "config">): TaskConfigGro
 export type PathMetric = "kc" | "loot_value";
 
 /** One alternative of a `kind: "any_path"` (either-or) config. Item paths
- * carry `groups`; metric paths carry `metric` + `need` (+ optional `npcs`). */
+ * carry `groups`; metric paths carry `metric` + `need` (+ optional `npcs`);
+ * points paths carry `kind: "points"` + a weighted `items` list + `need`. */
 export type TaskConfigPath = {
   label: string | null;
   groups: TaskConfigGroup[];
   metric?: PathMetric;
   need?: number;
   npcs?: string[];
+  kind?: "points";
+  items?: { item_name: string; points: number }[];
 };
 
 /** Structured paths of an either-or config, [] otherwise. Completing ANY
@@ -222,7 +225,15 @@ export function taskConfigPaths(task: Pick<EventTask, "config">): TaskConfigPath
   const cfg = taskConfig(task);
   if (cfg.kind !== "any_path" || !Array.isArray(cfg.paths)) return [];
   return (
-    cfg.paths as { label?: unknown; groups?: unknown; metric?: unknown; need?: unknown; npcs?: unknown }[]
+    cfg.paths as {
+      label?: unknown;
+      groups?: unknown;
+      metric?: unknown;
+      need?: unknown;
+      npcs?: unknown;
+      kind?: unknown;
+      items?: unknown;
+    }[]
   ).map((p) => {
     const label = typeof p.label === "string" && p.label.trim() ? p.label : null;
     if (p.metric === "kc" || p.metric === "loot_value") {
@@ -234,6 +245,21 @@ export function taskConfigPaths(task: Pick<EventTask, "config">): TaskConfigPath
         npcs: Array.isArray(p.npcs)
           ? p.npcs.filter((n): n is string => typeof n === "string" && n.trim().length > 0)
           : [],
+      };
+    }
+    if (p.kind === "points") {
+      return {
+        label,
+        kind: "points" as const,
+        groups: [],
+        need: typeof p.need === "number" && p.need >= 1 ? p.need : 1,
+        items: (Array.isArray(p.items) ? p.items : []).flatMap((it) => {
+          const name =
+            typeof it === "string" ? it : (it as { item_name?: string } | null)?.item_name;
+          if (!name) return [];
+          const pts = typeof it === "object" && it ? (it as { points?: number }).points : undefined;
+          return [{ item_name: name, points: typeof pts === "number" && pts >= 1 ? pts : 1 }];
+        }),
       };
     }
     return { label, groups: parseConfigGroups(p.groups) };
@@ -310,7 +336,10 @@ export function taskConfigItems(
   const items = Array.isArray(cfg.items)
     ? cfg.items
     : cfg.kind === "any_path"
-      ? taskConfigPaths(task).flatMap((p) => p.groups.flatMap((g) => g.items))
+      ? taskConfigPaths(task).flatMap((p) => [
+          ...p.groups.flatMap((g) => g.items),
+          ...(p.items ?? []),
+        ])
       : taskConfigGroups(task).flatMap((g) => g.items);
   if (!Array.isArray(items)) return [];
   const seen = new Set<string>();
