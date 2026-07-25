@@ -3,8 +3,19 @@ import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   // Next.js generates these; not ours to lint. .next-blue/.next-green are the
-  // blue-green deploy output dirs (scripts/deploy.sh).
-  { ignores: ["next-env.d.ts", ".next/**", ".next-blue/**", ".next-green/**"] },
+  // blue-green deploy output dirs (scripts/deploy.sh); .next-verify is the
+  // throwaway dir for verification builds (NEXT_DIST_DIR=.next-verify) that must
+  // not clobber .next or a live colour. Any new NEXT_DIST_DIR value needs an
+  // entry here, or ~2.4k errors from generated types turn `pnpm lint` red.
+  {
+    ignores: [
+      "next-env.d.ts",
+      ".next/**",
+      ".next-blue/**",
+      ".next-green/**",
+      ".next-verify/**",
+    ],
+  },
   ...base,
   {
     // React Hooks rules — the plugin the config previously OMITTED. Because the

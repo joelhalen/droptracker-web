@@ -8,6 +8,8 @@ node_modules/
 # blue-green deploy output dirs (see scripts/deploy.sh)
 .next-blue/
 .next-green/
+# throwaway verification builds (NEXT_DIST_DIR=.next-verify)
+.next-verify/
 out/
 dist/
 build/
