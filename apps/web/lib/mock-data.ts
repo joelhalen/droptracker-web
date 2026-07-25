@@ -1603,6 +1603,10 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
     formation_mode: "self_join" as const,
     requires_confirmation: false,
     allow_live_edits: false,
+    // web70a: mock events keep sign-ups open so the join panel stays
+    // exercisable in mock mode (a started event closes them otherwise).
+    allow_late_signups: true,
+    signups_open: true,
     submission_policy: "all" as const,
     board_size: 5,
     bonus_line_points: 10,

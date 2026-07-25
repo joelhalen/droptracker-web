@@ -25,6 +25,7 @@ import {
   teamColorMap,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
+import { confirmDiscard } from "@/lib/use-unsaved-changes";
 import { Alert, EmptyState } from "@/components/ui";
 import {
   activateEvent,
@@ -114,6 +115,12 @@ const READINESS_TARGET_TAB: Record<string, ManagerTab | undefined> = {
   tasks: "tasks",
 };
 
+/* The Discord panel is only hidden (not unmounted) when its tab loses focus,
+ * so a draft survives a tab switch — but it's still unsaved, and it dies with
+ * the page. Say exactly that rather than implying the edits are already gone. */
+const DISCORD_TAB_LEAVE_MESSAGE =
+  "Your Discord settings have unsaved changes. They stay on the tab for now, but they won't take effect — and will be lost when you leave this page — unless you save them. Switch tabs anyway?";
+
 /** The activation pre-flight result: a green "ready" note, or the list of
  * blockers each with a "Fix →" link to the manager section that resolves it. */
 function ReadinessPanel({
@@ -194,10 +201,18 @@ export function EventManager({
   const [error, setError] = useState<string | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
   const [tab, setTab] = useState<ManagerTab>("tasks");
+  // Reported by the Discord panel; gates every switch away from its tab.
+  const [discordDirty, setDiscordDirty] = useState(false);
   const router = useRouter();
   // Delete flow: the type-to-confirm modal is open when non-null; the string
   // is what the admin has typed so far (must match the event name to enable).
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
+  const selectTab = (next: ManagerTab) => {
+    if (next === tab) return;
+    if (tab === "discord" && !confirmDiscard(discordDirty, DISCORD_TAB_LEAVE_MESSAGE)) return;
+    setTab(next);
+  };
 
   const applyDetail = (detail: EventDetail) => {
     setEvent(detail);
@@ -292,6 +307,7 @@ export function EventManager({
     isPrivate: event.visibility === "private",
     requiresConfirmation: event.requires_confirmation,
     allowLiveEdits: event.allow_live_edits,
+    allowLateSignups: event.allow_late_signups,
     submissionPolicy: event.submission_policy,
     leadershipEnabled: event.leadership.enabled,
     coLeaders: event.leadership.co_leaders,
@@ -310,6 +326,7 @@ export function EventManager({
       isPrivate: event.visibility === "private",
       requiresConfirmation: event.requires_confirmation,
       allowLiveEdits: event.allow_live_edits,
+      allowLateSignups: event.allow_late_signups,
       submissionPolicy: event.submission_policy,
       leadershipEnabled: event.leadership.enabled,
       coLeaders: event.leadership.co_leaders,
@@ -333,6 +350,7 @@ export function EventManager({
           visibility: eventDraft.isPrivate ? "private" : "public",
           requires_confirmation: eventDraft.requiresConfirmation,
           allow_live_edits: eventDraft.allowLiveEdits,
+          allow_late_signups: eventDraft.allowLateSignups,
           submission_policy: eventDraft.submissionPolicy,
           leadership: {
             enabled: eventDraft.leadershipEnabled,
@@ -732,6 +750,26 @@ export function EventManager({
               </span>
             </span>
           </label>
+          {eventDraft.formationMode !== "admin_assign" && (
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={eventDraft.allowLateSignups}
+                onChange={(e) =>
+                  setEventDraft((d) => ({ ...d, allowLateSignups: e.target.checked }))
+                }
+                className="mt-0.5 size-4"
+              />
+              <span>
+                Keep sign-ups open after the event starts
+                <span className="text-osrs-parchment-dark/60 block text-xs">
+                  Off by default: sign-ups close when the event begins and the Discord sign-up
+                  post drops its button. Turn this on to let latecomers join mid-event — you can
+                  still add players by hand either way.
+                </span>
+              </span>
+            </label>
+          )}
           <label className="flex cursor-pointer items-start gap-2 text-sm">
             <input
               type="checkbox"
@@ -995,7 +1033,7 @@ export function EventManager({
               readiness={readiness}
               onGoto={(target) => {
                 const t = READINESS_TARGET_TAB[target];
-                if (t) setTab(t);
+                if (t) selectTab(t);
               }}
               onDismiss={() => setReadiness(null)}
             />
@@ -1102,7 +1140,7 @@ export function EventManager({
             type="button"
             role="tab"
             aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => selectTab(t.key)}
             className={`-mb-px rounded-t px-3 py-2 text-sm font-medium ${
               tab === t.key
                 ? "border-osrs-bronze/25 bg-osrs-brown-dark/40 text-osrs-gold border border-b-transparent"
@@ -1110,6 +1148,13 @@ export function EventManager({
             }`}
           >
             {t.key === "board" && event.kind === "board_game" ? "Game board" : t.label}
+            {/* Unsaved-work marker, so a switched-away Discord draft is
+                visible from any tab. */}
+            {t.key === "discord" && discordDirty && (
+              <span className="text-osrs-gold-bright ml-1" title="Unsaved changes">
+                ●
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -1562,7 +1607,11 @@ export function EventManager({
           the standalone /discord route still works for old links). */}
       <section className={tab === "discord" ? "" : "hidden"}>
         <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Discord</h3>
-        <EventDiscordSettings groupId={groupId} eventId={event.id} />
+        <EventDiscordSettings
+          groupId={groupId}
+          eventId={event.id}
+          onDirtyChange={setDiscordDirty}
+        />
       </section>
 
       {/* Verification queue / ledger / manual awards (Task 18) */}

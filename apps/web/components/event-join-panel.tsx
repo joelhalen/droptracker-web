@@ -97,16 +97,30 @@ export function EventJoinPanel({
   const selfJoin = event.formation_mode === "self_join";
   const autoAssign = event.formation_mode === "auto_assign";
   const pool = event.formation_mode === "signup_pool";
-  const canSelfSignup = selfJoin || autoAssign || pool;
+  const selfSignupMode = selfJoin || autoAssign || pool;
+  // web70a: the API is the authority on the window — it refuses joins on this
+  // same answer, and the Discord sign-up post drops its button at the same
+  // moment. Defaults open for payloads predating the field.
+  const signupsOpen = event.signups_open ?? true;
+  const canSelfSignup = selfSignupMode && signupsOpen;
   // The new sign-up surfaces (the pool, and clan-vs-clan) enter one account per
   // person; legacy standard self_join/auto_assign keep multi-account behavior.
   const oneAccount = pool || isClanVsClan;
   const hasEntry = memberships.size > 0 || pooledIds.size > 0;
 
-  if (!canSelfSignup && memberships.size === 0) {
+  if (!selfSignupMode && memberships.size === 0) {
     return (
       <p className="text-osrs-parchment-dark/60 text-sm">
         Teams for this event are assigned by the event admins.
+      </p>
+    );
+  }
+
+  // The window shut (normally at the start) and the viewer never entered.
+  if (!signupsOpen && memberships.size === 0 && pooledIds.size === 0) {
+    return (
+      <p className="text-osrs-parchment-dark/60 text-sm">
+        Sign-ups closed when this event began. Ask an event admin if you still want in.
       </p>
     );
   }

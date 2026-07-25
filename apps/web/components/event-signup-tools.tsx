@@ -222,6 +222,9 @@ export function EventSignupTools({
     event.formation_mode === "signup_pool";
   const isPool = event.formation_mode === "signup_pool";
   const clanVsClan = event.mode === "clan_vs_clan";
+  // web70a: once the window shuts, the sign-up post would be a dead button —
+  // the API refuses to queue one (409), so don't offer it.
+  const signupsOpen = event.signups_open ?? true;
 
   const [pool, setPool] = useState<EventSignup[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -429,9 +432,13 @@ export function EventSignupTools({
         <h3 className="heading-rule text-osrs-gold pb-1 text-lg font-semibold">Sign-ups</h3>
         <button
           onClick={onPostDiscord}
-          disabled={pending}
+          disabled={pending || !signupsOpen}
           className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-1.5 text-sm disabled:opacity-50"
-          title="Post an interactive Sign up button to this event's Discord announcements channel"
+          title={
+            signupsOpen
+              ? "Post an interactive Sign up button to this event's Discord announcements channel"
+              : "Sign-ups closed when the event began — turn on “keep sign-ups open” in event settings to post one now"
+          }
         >
           Post sign-up to Discord
         </button>

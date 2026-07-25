@@ -67,6 +67,7 @@ import {
   taskGoal,
   teamColorMap,
 } from "@/lib/events";
+import { confirmDiscard } from "@/lib/use-unsaved-changes";
 import { Alert, EmptyState } from "@/components/ui";
 import { DiscordRolePicker } from "@/components/discord-role-picker";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
@@ -85,6 +86,11 @@ const primaryBtn =
   "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50";
 const ghostBtn =
   "border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-4 py-2 text-sm disabled:opacity-50";
+
+/* Unlike the manager's tab bar, leaving the Discord step really does unmount
+ * the form — an unsaved draft is gone for good. */
+const DISCORD_STEP_LEAVE_MESSAGE =
+  "The Discord settings on this step have unsaved changes. Leaving the step discards them. Continue anyway?";
 
 /** Unix seconds → a datetime-local input value in the viewer's timezone. */
 function toLocalInput(unix: number | null | undefined): string {
@@ -211,6 +217,12 @@ export function EventSetupWizard({
   const [allowLiveEdits, setAllowLiveEdits] = useState(
     initialEvent?.allow_live_edits ?? false,
   );
+  // Late sign-ups (web70a): opt-in; keeps self sign-ups open after the event
+  // begins. Default OFF — sign-ups close at the start and the Discord sign-up
+  // post retires its button then.
+  const [allowLateSignups, setAllowLateSignups] = useState(
+    initialEvent?.allow_late_signups ?? false,
+  );
   // Prize pot (web52a): optional, configured on the "Joining & rules" step and
   // refined later in the manager's Prize Pot tab.
   const [potEnabled, setPotEnabled] = useState(initialEvent?.prize_pot?.enabled ?? false);
@@ -219,6 +231,10 @@ export function EventSetupWizard({
     initialEvent?.prize_pot?.distribution ?? "first_only",
   );
   const [potAdvertise, setPotAdvertise] = useState(initialEvent?.prize_pot?.advertise ?? false);
+
+  // Reported by the Discord step's own form (it saves separately, on its own
+  // button) so step navigation can warn before unmounting unsaved edits.
+  const [discordDirty, setDiscordDirty] = useState(false);
 
   const [kinds, setKinds] = useState<EventKindMeta[] | null>(null);
   const [roles, setRoles] = useState<DiscordRole[] | null>(null);
@@ -302,16 +318,24 @@ export function EventSetupWizard({
     };
   }, [step.key, detail?.id]);
 
+  /** The Discord step saves through its own button — everything else here
+   * commits on Continue, so this is the one step that can lose work. */
+  const leavingDiscordStepIsSafe = () =>
+    step.key !== "discord" || confirmDiscard(discordDirty, DISCORD_STEP_LEAVE_MESSAGE);
+
   const gotoStep = (idx: number) => {
     // Later steps need the draft to exist; earlier steps are always fine.
     if (idx > 1 && !detail) return;
+    if (idx === stepIdx) return;
+    if (!leavingDiscordStepIsSafe()) return;
     setError(null);
     setStepIdx(idx);
   };
 
   /** Steps 1–2 commit basics/schedule; the draft is created on leaving
    * Schedule. Later steps write immediately via their own actions. */
-  const onContinue = () =>
+  const onContinue = () => {
+    if (!leavingDiscordStepIsSafe()) return;
     startTransition(async () => {
       setError(null);
       try {
@@ -367,6 +391,7 @@ export function EventSetupWizard({
             submission_policy: submissionPolicy,
             requires_confirmation: requiresConfirmation,
             allow_live_edits: allowLiveEdits,
+            allow_late_signups: allowLateSignups,
           });
           // Prize pot config rides its own action (not part of EventInput).
           // confirm_disable_buyins is safe here — a wizard draft has no records.
@@ -405,6 +430,7 @@ export function EventSetupWizard({
         setError(getErrorMessage(err, "Couldn't save this step. Please try again."));
       }
     });
+  };
 
   const onActivate = () =>
     startTransition(async () => {
@@ -852,6 +878,24 @@ export function EventSetupWizard({
               ))}
             </div>
           </div>
+          {formationMode !== "admin_assign" && (
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={allowLateSignups}
+                onChange={(e) => setAllowLateSignups(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Keep sign-ups open after the event starts
+                <span className="text-osrs-parchment-dark/50 block text-xs">
+                  Off by default: sign-ups close the moment the event begins, and the Discord
+                  sign-up post loses its button so nobody thinks they can still enter. Turn this
+                  on to let latecomers join mid-event. Admins can add players by hand either way.
+                </span>
+              </span>
+            </label>
+          )}
           {formationMode === "self_join" && (
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
@@ -1068,7 +1112,11 @@ export function EventSetupWizard({
 
       {/* ---- Step 6: Discord --------------------------------------------- */}
       {step.key === "discord" && detail && (
-        <EventDiscordSettings groupId={groupId} eventId={detail.id} />
+        <EventDiscordSettings
+          groupId={groupId}
+          eventId={detail.id}
+          onDirtyChange={setDiscordDirty}
+        />
       )}
 
       {/* ---- Step 7: Review & launch ------------------------------------- */}

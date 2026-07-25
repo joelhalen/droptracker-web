@@ -1089,6 +1089,7 @@ export const api = {
         | "join_code"
         | "requires_confirmation"
         | "allow_live_edits"
+        | "allow_late_signups"
         | "submission_policy"
         | "bonus_line_points"
         | "bonus_blackout_points"

@@ -2740,6 +2740,17 @@ export const EventSummarySchema = z.object({
    * after activation. Flippable at any status via PATCH; audited. Defaulted
    * for payloads predating the column. */
   allow_live_edits: z.boolean().default(false),
+  /** Late sign-ups (web70a): OFF (the default) means self sign-ups close the
+   * moment the event begins — the Discord prompt drops its button and the
+   * join panel stops offering to enter. ON keeps them open to the end. */
+  allow_late_signups: z.boolean().default(false),
+  /** Derived: is the sign-up window open right now? Prefer this over
+   * re-deriving from status/allow_late_signups — the API is the authority
+   * and it refuses joins on the same answer. */
+  signups_open: z.boolean().default(true),
+  /** Derived: when the window shuts — the start, or the end when late
+   * sign-ups are allowed. Null when unscheduled (closes at activation). */
+  signups_close_at: z.number().int().nullable().optional(),
   activated_at: z.number().int().nullable().optional(),
   ended_at: z.number().int().nullable().optional(),
 });
@@ -3187,6 +3198,10 @@ export const EventInputSchema = z.object({
   /** Live edits (web68a): keep the bingo board editable after activation.
    * Flippable at any status; every change is audited. */
   allow_live_edits: z.boolean().optional(),
+  /** Late sign-ups (web70a): keep self sign-ups open after the event begins.
+   * Off by default — sign-ups close at the start and the posted Discord
+   * prompt retires its button then. */
+  allow_late_signups: z.boolean().optional(),
   submission_policy: z.enum(EVENT_SUBMISSION_POLICIES).optional(),
   join_code: z.string().max(32).nullable().optional(),
   board_size: z.number().int().min(3).max(7).optional(),
