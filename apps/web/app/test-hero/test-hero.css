@@ -1,0 +1,2027 @@
+/*
+ * /test-hero — page-scoped stylesheet.
+ *
+ * Every rule in this file is namespaced under `.th-page` or a `.th-*` class so
+ * it can never leak into the rest of the site. The page imports the global
+ * theme (app/globals.css, via the root layout) for the font tokens and the
+ * design-system variables, and then *overrides* what it needs here rather than
+ * touching globals.css — the same contract the page-local JS follows.
+ *
+ * Deliberate override: the landing page pins its own dark palette instead of
+ * inheriting `data-theme`. A marketing page that flips to the light parchment
+ * theme mid-scroll would wreck every scrim, glow and blend mode below, and all
+ * of the artwork it sits on (lootboards, in-game screenshots, event boards) is
+ * dark-on-dark art. Site chrome is unaffected — this route renders outside the
+ * (site) route group.
+ */
+
+.th-page {
+  /* --- page-local palette ------------------------------------------------ */
+  --th-ink: #f4ecda;
+  --th-ink-dim: #b9ac91;
+  --th-ink-faint: #7d7360;
+  --th-gold: #ffb83f;
+  --th-gold-bright: #ffd966;
+  --th-ember: #ff8c42;
+  --th-blood: #e05c4d;
+  --th-bronze: #7a5a32;
+
+  --th-bg: #0b0906;
+  --th-bg-2: #120e09;
+  --th-panel: rgba(33, 26, 18, 0.72);
+  --th-panel-solid: #1a140e;
+  --th-line: rgba(122, 90, 50, 0.32);
+  --th-line-strong: rgba(255, 184, 63, 0.4);
+
+  /* Rarity ramp — mirrors lib/format.ts `lootValueClass` thresholds. */
+  --th-tier-b: #ffd966;
+  --th-tier-100m: #c084fc;
+  --th-tier-10m: #56b6f0;
+  --th-tier-1m: #6fbf73;
+
+  --th-shadow: 0 2px 4px rgb(0 0 0 / 0.4), 0 18px 50px rgb(0 0 0 / 0.55);
+  --th-radius: 14px;
+
+  position: relative;
+  min-height: 100vh;
+  background: var(--th-bg);
+  color: var(--th-ink);
+  font-family: var(--font-sans);
+  overflow-x: clip;
+  /* The page paints its own full-bleed background; the html-level radial from
+     globals.css would otherwise show through the transparent sections. */
+  isolation: isolate;
+}
+
+/* Warm ambient light + a fine film grain over the whole page. Both are
+   pointer-transparent and sit behind content (z-index 0 vs. the .th-main
+   stacking context). */
+.th-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 620px at 12% -6%, rgb(255 140 66 / 0.14), transparent 62%),
+    radial-gradient(1000px 700px at 92% 18%, rgb(255 184 63 / 0.09), transparent 60%),
+    radial-gradient(900px 900px at 50% 108%, rgb(122 90 50 / 0.16), transparent 62%);
+}
+
+.th-page::after {
+  content: "";
+  position: fixed;
+  inset: -50%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: th-grain 900ms steps(4) infinite;
+}
+
+@keyframes th-grain {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-2%, 1%);
+  }
+  50% {
+    transform: translate(1%, -2%);
+  }
+  75% {
+    transform: translate(2%, 2%);
+  }
+}
+
+.th-main {
+  position: relative;
+  z-index: 1;
+}
+
+.th-page ::selection {
+  background: rgb(255 184 63 / 0.28);
+  color: #fff;
+}
+
+/* --- typography ---------------------------------------------------------- */
+
+.th-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: 0.005em;
+  text-wrap: balance;
+}
+
+.th-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--th-gold);
+}
+
+.th-eyebrow::before {
+  content: "";
+  width: 1.75rem;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--th-gold));
+}
+
+.th-lede {
+  color: var(--th-ink-dim);
+  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.15rem);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+/* Gold foil sweep for the hero word. Pure decoration — the text stays
+   selectable and the fallback color is set before the clip applies. */
+.th-foil {
+  background: linear-gradient(96deg, #b57c25 8%, #ffd966 34%, #fff4cf 46%, #ffb83f 62%, #8a5a1e 92%);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: th-foil 7s ease-in-out infinite;
+}
+
+@keyframes th-foil {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* --- layout -------------------------------------------------------------- */
+
+.th-shell {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+  padding-inline: clamp(1rem, 4vw, 2.5rem);
+}
+
+.th-section {
+  position: relative;
+  padding-block: clamp(3.5rem, 6.5vw, 6.5rem);
+}
+
+.th-section + .th-section {
+  border-top: 1px solid rgb(122 90 50 / 0.16);
+}
+
+.th-section-head {
+  max-width: 46rem;
+  margin-bottom: clamp(2rem, 4vw, 3.25rem);
+}
+
+.th-section-head h2 {
+  margin-top: 0.85rem;
+  font-size: clamp(1.9rem, 1.2rem + 2.4vw, 3.1rem);
+}
+
+.th-section-head p {
+  margin-top: 1rem;
+}
+
+/* --- top bar ------------------------------------------------------------- */
+
+.th-topbar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem clamp(1rem, 4vw, 2.5rem);
+  background: rgb(11 9 6 / 0);
+  border-bottom: 1px solid transparent;
+  transition:
+    background 300ms ease,
+    border-color 300ms ease,
+    backdrop-filter 300ms ease;
+}
+
+.th-topbar[data-stuck="true"] {
+  background: rgb(11 9 6 / 0.82);
+  border-bottom-color: var(--th-line);
+  backdrop-filter: blur(14px) saturate(140%);
+}
+
+.th-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--th-ink);
+  letter-spacing: 0.02em;
+}
+
+.th-brand img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgb(255 184 63 / 0.35));
+}
+
+.th-topnav {
+  display: none;
+  gap: 0.25rem;
+  margin-inline: auto;
+}
+
+@media (min-width: 900px) {
+  .th-topnav {
+    display: flex;
+  }
+}
+
+/* With the section nav hidden, the CTA has to claim the free space itself. */
+@media (max-width: 899px) {
+  .th-topbar > .th-btn {
+    margin-left: auto;
+  }
+}
+
+.th-topnav a {
+  position: relative;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  color: var(--th-ink-dim);
+  transition:
+    color 180ms ease,
+    background 180ms ease;
+}
+
+.th-topnav a:hover,
+.th-topnav a[data-active="true"] {
+  color: var(--th-gold-bright);
+  background: rgb(255 184 63 / 0.08);
+}
+
+/* Scroll progress hairline under the bar. */
+.th-progress {
+  position: absolute;
+  inset: auto 0 -1px 0;
+  height: 2px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--th-ember), var(--th-gold-bright));
+  box-shadow: 0 0 12px rgb(255 184 63 / 0.6);
+}
+
+/* --- buttons ------------------------------------------------------------- */
+
+.th-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.72rem 1.35rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 200ms ease,
+    background 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+.th-btn-primary {
+  background: linear-gradient(140deg, #ffd071, #f0a02c 55%, #c8791b);
+  color: #24170a;
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.35) inset,
+    0 10px 28px rgb(255 152 45 / 0.28);
+}
+
+.th-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.45) inset,
+    0 16px 38px rgb(255 152 45 / 0.4);
+}
+
+.th-btn-ghost {
+  border-color: var(--th-line);
+  color: var(--th-ink);
+  background: rgb(255 255 255 / 0.02);
+}
+
+.th-btn-ghost:hover {
+  transform: translateY(-2px);
+  border-color: var(--th-line-strong);
+  background: rgb(255 184 63 / 0.07);
+  color: var(--th-gold-bright);
+}
+
+.th-btn-sm {
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+}
+
+/* --- hero ---------------------------------------------------------------- */
+
+.th-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 100svh;
+  padding-block: 7rem 4rem;
+  overflow: hidden;
+}
+
+/*
+ * Media wall: three columns of real drop screenshots drifting vertically at
+ * different speeds. Heavily darkened and blurred so it reads as texture, not
+ * content — the headline sits on top of it.
+ */
+.th-wall {
+  position: absolute;
+  inset: -8% -4%;
+  z-index: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  transform: rotate(-8deg) scale(1.28);
+  opacity: 0.72;
+  filter: blur(0.5px) saturate(0.85);
+  pointer-events: none;
+  mask-image: radial-gradient(115% 95% at 72% 45%, #000 26%, transparent 76%);
+}
+
+@media (min-width: 1024px) {
+  .th-wall {
+    grid-template-columns: repeat(4, 1fr);
+    inset: -8% -4% -8% 34%;
+  }
+}
+
+.th-wall-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: th-wall-scroll linear infinite;
+  will-change: transform;
+}
+
+.th-wall-col:nth-child(2) {
+  animation-direction: reverse;
+}
+
+.th-wall-col img {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid rgb(122 90 50 / 0.35);
+}
+
+@keyframes th-wall-scroll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+/* Scrim that lifts the copy off the wall. */
+.th-hero-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(100deg, var(--th-bg) 4%, rgb(11 9 6 / 0.88) 30%, rgb(11 9 6 / 0.4) 60%, rgb(11 9 6 / 0.62) 100%),
+    linear-gradient(to top, var(--th-bg) 2%, transparent 26%);
+}
+
+/* Pointer-tracked warm spotlight (set via --th-mx/--th-my in hero.tsx). */
+.th-spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: radial-gradient(
+    380px 380px at var(--th-mx, 50%) var(--th-my, 40%),
+    rgb(255 184 63 / 0.13),
+    transparent 70%
+  );
+  transition: opacity 400ms ease;
+}
+
+.th-hero-inner {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  gap: clamp(2.5rem, 5vw, 4rem);
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  .th-hero-inner {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  }
+}
+
+.th-hero h1 {
+  margin-top: 1.1rem;
+  font-size: clamp(2.8rem, 1.4rem + 5.6vw, 5.6rem);
+}
+
+.th-hero h1 span {
+  display: block;
+}
+
+.th-hero-lede {
+  margin-top: 1.4rem;
+  max-width: 34rem;
+}
+
+.th-hero-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.th-hero-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 2.25rem;
+}
+
+.th-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.75rem 0.35rem 0.55rem;
+  border: 1px solid var(--th-line);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.025);
+  font-size: 0.76rem;
+  color: var(--th-ink-dim);
+  backdrop-filter: blur(6px);
+}
+
+.th-pill b {
+  color: var(--th-gold-bright);
+  font-variant-numeric: tabular-nums;
+}
+
+.th-pill img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+/* Live dot. */
+.th-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--th-tier-1m);
+  box-shadow: 0 0 0 0 rgb(111 191 115 / 0.6);
+  animation: th-ping 2.4s ease-out infinite;
+}
+
+.th-dot[data-state="connecting"] {
+  background: var(--th-gold);
+  box-shadow: 0 0 0 0 rgb(255 184 63 / 0.6);
+}
+
+.th-dot[data-state="closed"] {
+  background: var(--th-ink-faint);
+  animation: none;
+}
+
+@keyframes th-ping {
+  0% {
+    box-shadow: 0 0 0 0 currentcolor;
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgb(0 0 0 / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgb(0 0 0 / 0);
+  }
+}
+
+/* --- hero constellation -------------------------------------------------- */
+
+.th-orbit {
+  position: relative;
+  aspect-ratio: 1;
+  width: min(100%, 30rem);
+  margin-inline: auto;
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .th-orbit {
+    display: block;
+  }
+}
+
+/* Rings sit exactly where the two carriers place their items. */
+.th-orbit-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid rgb(122 90 50 / 0.32);
+}
+
+.th-orbit-ring:nth-of-type(2) {
+  inset: 22%;
+  border-color: rgb(255 184 63 / 0.16);
+  border-style: dashed;
+}
+
+/* Two counter-rotating carriers. Each slot is a full-size box rotated to its
+   angle, so the orbit radius is always half the carrier — no pixel radii to
+   keep in sync with the container size. */
+.th-orbit-carrier {
+  position: absolute;
+  inset: 0;
+  animation: th-spin 44s linear infinite;
+}
+
+.th-orbit-carrier[data-ring="inner"] {
+  inset: 22%;
+  animation-duration: 30s;
+  animation-direction: reverse;
+}
+
+.th-orbit-slot {
+  position: absolute;
+  inset: 0;
+  transform: rotate(var(--th-a, 0deg));
+}
+
+.th-orbit-item {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px solid rgb(255 184 63 / 0.28);
+  background: rgb(30 23 15 / 0.94);
+  box-shadow:
+    var(--th-shadow),
+    0 0 22px rgb(255 184 63 / 0.12);
+  backdrop-filter: blur(4px);
+  /* Centre on the ring, then undo the slot's angle so the tile stays level. */
+  transform: translate(-50%, -50%) rotate(calc(var(--th-a, 0deg) * -1));
+}
+
+.th-orbit-item img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  /* Cancels the carrier's rotation so icons never appear upside down. */
+  animation: th-spin-back 44s linear infinite;
+}
+
+.th-orbit-carrier[data-ring="inner"] .th-orbit-item img {
+  animation-duration: 30s;
+  animation-direction: reverse;
+}
+
+@keyframes th-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes th-spin-back {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+/* Centre medallion — the live monthly total. */
+.th-orbit-core {
+  position: absolute;
+  inset: 33%;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  border-radius: 999px;
+  border: 1px solid var(--th-line-strong);
+  background:
+    radial-gradient(circle at 50% 30%, rgb(255 184 63 / 0.16), transparent 68%),
+    rgb(18 14 9 / 0.92);
+  box-shadow:
+    0 0 60px rgb(255 140 66 / 0.18),
+    inset 0 0 40px rgb(255 184 63 / 0.06);
+}
+
+.th-orbit-core b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 1rem + 1.6vw, 2.3rem);
+  color: var(--th-gold-bright);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+
+.th-orbit-core small {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--th-ink-faint);
+}
+
+/* Scroll cue. */
+.th-scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 1.75rem;
+  z-index: 3;
+  translate: -50% 0;
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--th-ink-faint);
+}
+
+.th-scroll-cue i {
+  display: block;
+  width: 1px;
+  height: 2.5rem;
+  background: linear-gradient(to bottom, var(--th-gold), transparent);
+  animation: th-cue 2.2s ease-in-out infinite;
+  transform-origin: top;
+}
+
+@keyframes th-cue {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* --- reveal-on-scroll ---------------------------------------------------- */
+
+.th-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--th-delay, 0ms);
+}
+
+.th-reveal[data-shown="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* Section head that carries a supporting screenshot on the right. */
+.th-split-head {
+  display: grid;
+  gap: clamp(1.5rem, 4vw, 3rem);
+  align-items: center;
+  margin-bottom: clamp(2rem, 4vw, 3.25rem);
+}
+
+@media (min-width: 900px) {
+  .th-split-head {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  }
+}
+
+/* The plugin panel art is only 344px wide — never upscale it into mush. */
+.th-panel-shot {
+  margin: 0;
+  max-width: 24rem;
+  justify-self: center;
+}
+
+.th-panel-shot img {
+  image-rendering: pixelated;
+}
+
+.th-real-embed {
+  margin: 1.5rem 0 0;
+  max-width: 24rem;
+}
+
+.th-real-embed img {
+  image-rendering: pixelated;
+}
+
+/* --- pipeline (capture section) ------------------------------------------ */
+
+.th-pipeline {
+  display: grid;
+  gap: 1.25rem;
+  counter-reset: th-step;
+}
+
+@media (min-width: 860px) {
+  .th-pipeline {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.th-step {
+  position: relative;
+  padding: 1.5rem 1.4rem 1.4rem;
+  border: 1px solid var(--th-line);
+  border-radius: var(--th-radius);
+  background: linear-gradient(165deg, rgb(37 29 20 / 0.75), rgb(18 14 9 / 0.75));
+  overflow: hidden;
+}
+
+.th-step::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--th-line-strong), transparent);
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.th-step:hover::after {
+  opacity: 1;
+}
+
+.th-step-n {
+  counter-increment: th-step;
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 8px;
+  border: 1px solid var(--th-line-strong);
+  background: rgb(255 184 63 / 0.08);
+  color: var(--th-gold-bright);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.th-step-n::before {
+  content: "0" counter(th-step);
+}
+
+.th-step h3 {
+  margin-top: 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--th-ink);
+}
+
+.th-step p {
+  margin-top: 0.5rem;
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: var(--th-ink-dim);
+}
+
+.th-step ul {
+  margin-top: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.th-step li {
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgb(122 90 50 / 0.35);
+  font-size: 0.68rem;
+  color: var(--th-ink-faint);
+}
+
+/* --- drop reel (video proof) --------------------------------------------- */
+
+.th-reel {
+  display: grid;
+  gap: 1.1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+}
+
+.th-clip {
+  position: relative;
+  border-radius: var(--th-radius);
+  border: 1px solid var(--th-line);
+  background: #000;
+  overflow: hidden;
+  box-shadow: var(--th-shadow);
+  transition:
+    transform 400ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 300ms ease,
+    box-shadow 300ms ease;
+}
+
+.th-clip:hover {
+  transform: translateY(-5px) scale(1.012);
+  border-color: var(--th-line-strong);
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.4),
+    0 26px 60px rgb(0 0 0 / 0.6),
+    0 0 0 1px rgb(255 184 63 / 0.16);
+}
+
+/* The first clip spans two columns on wide screens — a hero within the grid. */
+@media (min-width: 1100px) {
+  .th-clip[data-feature="true"] {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+}
+
+.th-clip video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: #000;
+}
+
+.th-clip[data-feature="true"] video {
+  aspect-ratio: 16 / 11;
+}
+
+.th-clip-meta {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 2.5rem 0.9rem 0.85rem;
+  background: linear-gradient(to top, rgb(6 5 3 / 0.95) 28%, transparent);
+}
+
+.th-clip-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--th-line);
+  background: rgb(18 14 9 / 0.85);
+}
+
+.th-clip-icon img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.th-clip-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.th-clip-text b {
+  display: block;
+  font-size: 0.86rem;
+  color: var(--th-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.th-clip-text span {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: var(--th-ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.th-value {
+  flex: none;
+  font-size: 0.86rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--th-tier-1m);
+}
+
+.th-value[data-tier="10m"] {
+  color: var(--th-tier-10m);
+}
+.th-value[data-tier="100m"] {
+  color: var(--th-tier-100m);
+}
+.th-value[data-tier="b"] {
+  color: var(--th-tier-b);
+  text-shadow: 0 0 18px rgb(255 217 102 / 0.45);
+}
+
+/* Corner ribbon marking clips as raw replay-buffer footage. */
+.th-clip-tag {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.5rem;
+  border-radius: 6px;
+  background: rgb(6 5 3 / 0.72);
+  border: 1px solid rgb(255 92 51 / 0.4);
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #ffb9a0;
+  backdrop-filter: blur(4px);
+}
+
+.th-clip-tag i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #ff5c33;
+  animation: th-rec 1.6s ease-in-out infinite;
+}
+
+@keyframes th-rec {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+/* --- screenshot gallery -------------------------------------------------- */
+
+/*
+ * Uniform tiles rather than a ragged masonry: the screenshots are 16:9 and
+ * 16:10 game captures, so a fixed 16:10 crop loses almost nothing and the
+ * section stops ending on a 300px void where the shortest column ran out. The
+ * lightbox always shows the uncropped original.
+ */
+.th-gallery {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+@media (min-width: 1100px) {
+  .th-gallery {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  /* The two headline drops lead, at double size. */
+  .th-shot:nth-child(-n + 2) {
+    grid-column: span 2;
+    grid-row: span 2;
+  }
+}
+
+.th-shot {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--th-line);
+  border-radius: var(--th-radius);
+  background: var(--th-panel-solid);
+  overflow: hidden;
+  cursor: zoom-in;
+  text-align: left;
+  transition:
+    transform 350ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 250ms ease;
+}
+
+.th-shot:hover {
+  transform: translateY(-4px);
+  border-color: var(--th-line-strong);
+}
+
+.th-shot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.th-shot:hover img {
+  transform: scale(1.035);
+}
+
+.th-shot-meta {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 2.75rem 0.85rem 0.8rem;
+  background: linear-gradient(to top, rgb(6 5 3 / 0.96) 30%, transparent);
+  transform: translateY(0);
+}
+
+.th-shot-meta img {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  object-fit: contain;
+}
+
+/* --- lightbox ------------------------------------------------------------ */
+
+.th-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: 1rem;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  background: rgb(4 3 2 / 0.94);
+  backdrop-filter: blur(10px);
+  animation: th-fade 220ms ease-out;
+}
+
+@keyframes th-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+.th-lightbox img {
+  place-self: center;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid var(--th-line);
+  box-shadow: 0 30px 90px rgb(0 0 0 / 0.7);
+  animation: th-pop 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes th-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.965);
+  }
+}
+
+.th-lightbox-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  color: var(--th-ink-dim);
+  font-size: 0.85rem;
+}
+
+.th-lightbox-bar b {
+  color: var(--th-ink);
+}
+
+.th-close {
+  position: absolute;
+  top: clamp(1rem, 3vw, 2.5rem);
+  right: clamp(1rem, 3vw, 2.5rem);
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--th-line);
+  background: rgb(18 14 9 / 0.8);
+  color: var(--th-ink);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.th-close:hover {
+  border-color: var(--th-line-strong);
+  color: var(--th-gold-bright);
+}
+
+/* --- board showcase ------------------------------------------------------ */
+
+.th-board-layout {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.75rem);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .th-board-layout {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  }
+}
+
+.th-frame {
+  position: relative;
+  border-radius: var(--th-radius);
+  border: 1px solid var(--th-line);
+  background: #0d0a07;
+  overflow: hidden;
+  box-shadow: var(--th-shadow);
+}
+
+/* Thin gold bevel, echoing the OSRS interface chrome the boards are drawn in. */
+.th-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgb(255 184 63 / 0.1);
+}
+
+.th-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.th-frame-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--th-line);
+  background: rgb(26 20 14 / 0.8);
+  font-size: 0.72rem;
+  color: var(--th-ink-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.th-frame-bar i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgb(122 90 50 / 0.7);
+}
+
+.th-frame-bar i:nth-of-type(2) {
+  background: rgb(255 184 63 / 0.55);
+}
+
+.th-frame-bar i:nth-of-type(3) {
+  background: rgb(111 191 115 / 0.55);
+}
+
+.th-frame-bar span {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Cross-fading stack of real clan boards. */
+.th-board-stack {
+  position: relative;
+}
+
+.th-board-stack img {
+  transition: opacity 900ms ease;
+}
+
+.th-board-stack img[data-active="false"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+/* --- leaderboard --------------------------------------------------------- */
+
+.th-lb {
+  border: 1px solid var(--th-line);
+  border-radius: var(--th-radius);
+  background: var(--th-panel);
+  overflow: hidden;
+  backdrop-filter: blur(6px);
+}
+
+.th-lb-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--th-line);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--th-ink-faint);
+}
+
+.th-lb-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.62rem 1rem;
+  font-size: 0.88rem;
+  isolation: isolate;
+}
+
+.th-lb-row + .th-lb-row {
+  border-top: 1px solid rgb(122 90 50 / 0.14);
+}
+
+/* Value bar behind each row, grown on reveal. */
+.th-lb-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  width: var(--th-w, 0%);
+  background: linear-gradient(90deg, rgb(255 184 63 / 0.16), rgb(255 184 63 / 0.02));
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 1100ms cubic-bezier(0.22, 1, 0.36, 1) var(--th-delay, 0ms);
+}
+
+[data-shown="true"] .th-lb-bar {
+  transform: scaleX(1);
+}
+
+.th-lb-rank {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--th-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.th-lb-row[data-top="true"] .th-lb-rank {
+  color: var(--th-gold-bright);
+}
+
+.th-lb-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--th-ink);
+}
+
+.th-lb-name a:hover {
+  color: var(--th-gold-bright);
+}
+
+.th-lb-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--th-gold);
+}
+
+/* --- discord section ----------------------------------------------------- */
+
+.th-discord {
+  display: grid;
+  gap: clamp(1.75rem, 4vw, 3.25rem);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .th-discord {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  }
+}
+
+/* Faux Discord channel — the messages animate in on scroll, then loop. */
+.th-chat {
+  border: 1px solid var(--th-line);
+  border-radius: var(--th-radius);
+  background: linear-gradient(180deg, #1c1712, #14100b);
+  box-shadow: var(--th-shadow);
+  overflow: hidden;
+}
+
+.th-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--th-line);
+  font-size: 0.82rem;
+  color: var(--th-ink-dim);
+}
+
+.th-chat-head b {
+  color: var(--th-ink);
+}
+
+.th-chat-head em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 0.68rem;
+  color: var(--th-ink-faint);
+}
+
+.th-chat-body {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.85rem;
+  min-height: 20rem;
+  align-content: start;
+}
+
+.th-msg {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  gap: 0.65rem;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: th-msg-in 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes th-msg-in {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.th-avatar {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(140deg, #3a2d1c, #241b12);
+  border: 1px solid var(--th-line);
+  overflow: hidden;
+}
+
+.th-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.th-msg-body b {
+  font-size: 0.85rem;
+  color: var(--th-ink);
+}
+
+.th-msg-body time {
+  margin-left: 0.45rem;
+  font-size: 0.66rem;
+  color: var(--th-ink-faint);
+}
+
+/* Discord's left-accent-bar embed. */
+.th-embed {
+  margin-top: 0.4rem;
+  padding: 0.7rem 0.85rem;
+  border-left: 3px solid var(--th-gold);
+  border-radius: 5px;
+  background: rgb(255 255 255 / 0.035);
+  font-size: 0.82rem;
+}
+
+.th-embed strong {
+  display: block;
+  color: var(--th-gold-bright);
+  font-size: 0.9rem;
+}
+
+.th-embed dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.9rem;
+  margin-top: 0.6rem;
+}
+
+.th-embed dt {
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--th-ink-faint);
+}
+
+.th-embed dd {
+  margin: 0.1rem 0 0;
+  font-size: 0.85rem;
+  color: var(--th-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.th-embed figure {
+  margin: 0.7rem 0 0;
+}
+
+/* Discord crops tall attachments in the client too — capping it here keeps a
+   message the height of a message instead of the height of a 1080p capture. */
+.th-embed img {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  object-position: center 60%;
+  border-radius: 6px;
+  border: 1px solid var(--th-line);
+}
+
+.th-embed footer {
+  margin-top: 0.6rem;
+  font-size: 0.68rem;
+  color: var(--th-ink-faint);
+}
+
+/* Feature list beside the chat. */
+.th-features {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.th-feature {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.9rem;
+  padding: 0.9rem 0.25rem;
+  border-bottom: 1px solid rgb(122 90 50 / 0.16);
+}
+
+.th-feature:last-child {
+  border-bottom: 0;
+}
+
+.th-feature-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  border: 1px solid var(--th-line);
+  background: rgb(255 184 63 / 0.06);
+  color: var(--th-gold);
+  font-size: 0.9rem;
+}
+
+.th-feature b {
+  font-size: 0.92rem;
+  color: var(--th-ink);
+}
+
+.th-feature p {
+  margin-top: 0.25rem;
+  font-size: 0.83rem;
+  line-height: 1.55;
+  color: var(--th-ink-dim);
+}
+
+/* --- events -------------------------------------------------------------- */
+
+.th-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.th-tab {
+  padding: 0.5rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--th-line);
+  background: transparent;
+  color: var(--th-ink-dim);
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 200ms ease,
+    background 200ms ease,
+    border-color 200ms ease;
+}
+
+.th-tab:hover {
+  color: var(--th-ink);
+  border-color: var(--th-line-strong);
+}
+
+.th-tab[data-active="true"] {
+  color: #24170a;
+  background: linear-gradient(140deg, #ffd071, #f0a02c);
+  border-color: transparent;
+}
+
+.th-event-panel {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  align-items: center;
+  animation: th-panel-in 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 1024px) {
+  .th-event-panel {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  }
+}
+
+@keyframes th-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Loot-sweep matrix (drawn from /img/npcdb + /img/itemdb sprites). */
+.th-sweep {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.9rem;
+  background:
+    radial-gradient(600px 300px at 30% 0%, rgb(255 184 63 / 0.05), transparent 70%),
+    #100c08;
+}
+
+.th-sweep-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.32rem 0.4rem;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.02);
+}
+
+.th-sweep-boss {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--th-ink-dim);
+}
+
+.th-sweep-boss img {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  object-fit: contain;
+}
+
+.th-sweep-boss span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.th-sweep-cells {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.th-sweep-cell {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  border: 1px solid rgb(122 90 50 / 0.3);
+  background: rgb(0 0 0 / 0.35);
+  /* Unclaimed cells sit dim; claimed ones light up in team colour on reveal. */
+  opacity: 0.4;
+  filter: grayscale(1);
+  transform: scale(0.9);
+  transition:
+    opacity 420ms ease,
+    filter 420ms ease,
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 420ms ease,
+    box-shadow 420ms ease;
+}
+
+.th-sweep-cell img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.th-sweep[data-shown="true"] .th-sweep-cell[data-team="1"],
+.th-sweep[data-shown="true"] .th-sweep-cell[data-team="2"],
+.th-sweep[data-shown="true"] .th-sweep-cell[data-team="3"] {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.th-sweep[data-shown="true"] .th-sweep-cell[data-team="1"] {
+  border-color: rgb(255 184 63 / 0.75);
+  box-shadow: 0 0 14px rgb(255 184 63 / 0.2);
+}
+
+.th-sweep[data-shown="true"] .th-sweep-cell[data-team="2"] {
+  border-color: rgb(86 182 240 / 0.75);
+  box-shadow: 0 0 14px rgb(86 182 240 / 0.2);
+}
+
+.th-sweep[data-shown="true"] .th-sweep-cell[data-team="3"] {
+  border-color: rgb(111 191 115 / 0.75);
+  box-shadow: 0 0 14px rgb(111 191 115 / 0.2);
+}
+
+.th-sweep-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  padding: 0.6rem 0.4rem 0.1rem;
+  font-size: 0.7rem;
+  color: var(--th-ink-faint);
+}
+
+.th-sweep-key span {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid currentcolor;
+}
+
+.th-sweep-key span[data-team="1"] {
+  border-color: rgb(255 184 63 / 0.85);
+  background: rgb(255 184 63 / 0.25);
+}
+.th-sweep-key span[data-team="2"] {
+  border-color: rgb(86 182 240 / 0.85);
+  background: rgb(86 182 240 / 0.25);
+}
+.th-sweep-key span[data-team="3"] {
+  border-color: rgb(111 191 115 / 0.85);
+  background: rgb(111 191 115 / 0.25);
+}
+.th-sweep-key span[data-team="open"] {
+  border-color: rgb(122 90 50 / 0.5);
+  background: rgb(0 0 0 / 0.4);
+}
+
+@media (max-width: 640px) {
+  .th-sweep-cell {
+    width: 34px;
+    height: 34px;
+  }
+  .th-sweep-cell img {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.th-event-panel h3 {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 1rem + 1.4vw, 2rem);
+  color: var(--th-gold-bright);
+}
+
+.th-event-panel > div > p {
+  margin-top: 0.9rem;
+}
+
+.th-checks {
+  margin-top: 1.4rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.th-checks li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  font-size: 0.87rem;
+  color: var(--th-ink-dim);
+  line-height: 1.5;
+}
+
+.th-checks li::before {
+  content: "◆";
+  color: var(--th-gold);
+  font-size: 0.65rem;
+  line-height: 1.9;
+}
+
+/* --- live feed ----------------------------------------------------------- */
+
+.th-live {
+  display: grid;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .th-live {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  }
+}
+
+.th-feed {
+  border: 1px solid var(--th-line);
+  border-radius: var(--th-radius);
+  background: var(--th-panel);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+.th-feed-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--th-line);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--th-ink-faint);
+}
+
+.th-feed-head span {
+  margin-left: auto;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.th-feed-list {
+  max-height: 27rem;
+  overflow: hidden;
+}
+
+.th-feed-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid rgb(122 90 50 / 0.12);
+  font-size: 0.83rem;
+}
+
+/* Freshly-arrived SSE rows flash gold once, then settle. */
+.th-feed-item[data-fresh="true"] {
+  animation: th-flash 1.8s ease-out;
+}
+
+@keyframes th-flash {
+  0% {
+    background: rgb(255 184 63 / 0.16);
+    transform: translateX(-6px);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+.th-feed-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgb(122 90 50 / 0.3);
+  background: rgb(18 14 9 / 0.7);
+}
+
+.th-feed-icon img {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+.th-feed-text {
+  min-width: 0;
+}
+
+.th-feed-text b {
+  color: var(--th-ink);
+  font-weight: 600;
+}
+
+.th-feed-text em {
+  font-style: normal;
+  color: var(--th-gold-bright);
+}
+
+.th-feed-text span {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  color: var(--th-ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- stat grid ----------------------------------------------------------- */
+
+.th-stats {
+  display: grid;
+  gap: 1px;
+  border: 1px solid var(--th-line);
+  border-radius: var(--th-radius);
+  background: var(--th-line);
+  overflow: hidden;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 900px) {
+  .th-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.th-stat {
+  padding: 1.4rem 1.2rem;
+  background: linear-gradient(165deg, rgb(30 24 16 / 0.96), rgb(15 12 8 / 0.96));
+}
+
+.th-stat b {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 1.1rem + 1.6vw, 2.4rem);
+  color: var(--th-gold-bright);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.th-stat small {
+  display: block;
+  margin-top: 0.45rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--th-ink-faint);
+}
+
+.th-stat i {
+  display: block;
+  margin-top: 0.35rem;
+  font-style: normal;
+  font-size: 0.72rem;
+  color: var(--th-ink-dim);
+}
+
+/* --- closing CTA --------------------------------------------------------- */
+
+.th-cta {
+  position: relative;
+  padding: clamp(2.5rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4rem);
+  border: 1px solid var(--th-line-strong);
+  border-radius: 22px;
+  text-align: center;
+  overflow: hidden;
+  background:
+    radial-gradient(700px 320px at 50% -10%, rgb(255 140 66 / 0.18), transparent 70%),
+    linear-gradient(165deg, rgb(38 29 19 / 0.9), rgb(14 11 7 / 0.9));
+}
+
+/* Slow icon drift behind the CTA copy. */
+.th-cta-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.14;
+  display: flex;
+  align-items: center;
+  gap: 2.5rem;
+  width: max-content;
+  animation: th-drift 40s linear infinite;
+}
+
+.th-cta-bg img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+@keyframes th-drift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.th-cta > div {
+  position: relative;
+  z-index: 1;
+}
+
+.th-cta h2 {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 1.2rem + 3vw, 3.4rem);
+  line-height: 1.02;
+}
+
+.th-cta p {
+  margin: 1.1rem auto 0;
+  max-width: 40rem;
+}
+
+.th-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+/* --- page footer --------------------------------------------------------- */
+
+.th-foot {
+  border-top: 1px solid rgb(122 90 50 / 0.2);
+  padding: 2rem 0 3rem;
+  font-size: 0.76rem;
+  color: var(--th-ink-faint);
+}
+
+.th-foot-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.th-foot a:hover {
+  color: var(--th-gold-bright);
+}
+
+.th-badge-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid rgb(224 92 77 / 0.45);
+  background: rgb(224 92 77 / 0.12);
+  color: #f0907f;
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* --- motion + a11y ------------------------------------------------------- */
+
+.th-page :focus-visible {
+  outline: 2px solid var(--th-gold-bright);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .th-page *,
+  .th-page *::before,
+  .th-page *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .th-reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  .th-lb-bar {
+    transform: scaleX(1);
+  }
+
+  /* Keep the wall as a still backdrop rather than a frozen mid-scroll frame. */
+  .th-wall-col {
+    animation: none;
+  }
+}
