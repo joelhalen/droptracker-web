@@ -1,13 +1,17 @@
-import Link from "next/link";
+import { NotFoundView } from "@/components/not-found-view";
+import { SiteChrome } from "@/components/site-chrome";
 
+/*
+ * Root 404 boundary — serves every fully-unmatched URL, plus any notFound()
+ * that bubbles out of `(site)/layout.tsx` itself. Neither case runs the (site)
+ * layout, so the chrome has to be added here or the 404 arrives as a bare card
+ * on an empty page. The `(site)` copy renders the same view WITHOUT SiteChrome
+ * because it already sits inside that layout.
+ */
 export default function NotFound() {
   return (
-    <div className="py-24 text-center">
-      <h1 className="text-osrs-gold text-5xl font-bold">404</h1>
-      <p className="text-osrs-parchment-dark/80 mt-3">This page could not be found.</p>
-      <Link href="/" className="text-osrs-gold-bright mt-6 inline-block hover:underline">
-        ← Back to leaderboards
-      </Link>
-    </div>
+    <SiteChrome>
+      <NotFoundView />
+    </SiteChrome>
   );
 }
