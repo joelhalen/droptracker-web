@@ -1,4 +1,10 @@
-import type { EventDetail, EventTask, EventTaskDifficulty } from "@droptracker/api-types";
+import type {
+  EventDetail,
+  EventMemberLastContribution,
+  EventTask,
+  EventTaskDifficulty,
+} from "@droptracker/api-types";
+import { formatGp } from "@/lib/format";
 
 /** Default per-team accent palette, indexed by roster order — the fallback
  * when a team has no admin-assigned `color`. Shared by the bingo board, task
@@ -374,6 +380,81 @@ export function pathSummary(p: TaskConfigPath): string {
     g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
   );
   return `${parts.join(" + ")} items`;
+}
+
+/** Display label for a task type that reached us as a loose string — ledger
+ * rows and per-member rollups carry the type as text, not the task union.
+ * Unknown values pass through so a new backend type still reads sensibly. */
+export function taskTypeLabel(type: string | null | undefined): string {
+  if (!type) return "";
+  return TASK_TYPE_LABELS[type as EventTask["type"]] ?? type;
+}
+
+/** Task types whose progress is a rising metric (xp / kills / GP / a level)
+ * rather than discrete acquisitions. Mirrors `METRIC_TASK_TYPES` in the
+ * backend's `web_api/event_players.py`: repeated updates on one of these count
+ * as a SINGLE contribution, which is what the roster's counter reports. */
+export const METRIC_TASK_TYPES = new Set<string>([
+  "xp_target",
+  "kc_target",
+  "skill_target",
+  "loot_value",
+  "ehp_target",
+  "ehb_target",
+]);
+
+/**
+ * What a single credited action WAS, in a few words — the roster's "last
+ * contribution" line and the per-task breakdown both read from this.
+ *
+ * The item name wins when there is one ("Twisted bow", "Bones ×24"); otherwise
+ * the quantity is read the way its task type means it ("14 kills", "1.20M xp").
+ */
+export function contributionSummary(c: EventMemberLastContribution): string {
+  const qty = c.quantity ?? 1;
+  if (c.matched_target) {
+    return qty > 1 ? `${c.matched_target} ×${qty.toLocaleString()}` : c.matched_target;
+  }
+  switch (c.task_type) {
+    case "kc_target":
+      return `${qty.toLocaleString()} kill${qty === 1 ? "" : "s"}`;
+    case "xp_target":
+      return `${formatGp(qty)} xp`;
+    case "loot_value":
+      return `${formatGp(qty)} gp`;
+    case "pb_target":
+      return "personal best";
+    case "skill_target":
+      return "level reached";
+    default:
+      break;
+  }
+  if (c.source_type === "manual") return "admin award";
+  if (c.source_type === "bonus") return "bonus";
+  return qty > 1 ? `×${qty.toLocaleString()}` : "credited";
+}
+
+/**
+ * How much one player has put into a task, with its unit — "14 kills",
+ * "4.25M xp", "×24". Returns "" for tasks whose quantity carries no meaning
+ * (a personal best or a level is reached, not accumulated).
+ */
+export function taskQuantityLabel(type: string | null | undefined, quantity: number): string {
+  switch (type) {
+    case "kc_target":
+      return `${quantity.toLocaleString()} kill${quantity === 1 ? "" : "s"}`;
+    case "xp_target":
+      return `${formatGp(quantity)} xp`;
+    case "loot_value":
+      return `${formatGp(quantity)} gp`;
+    case "pb_target":
+    case "skill_target":
+    case "ehp_target":
+    case "ehb_target":
+      return "";
+    default:
+      return `×${quantity.toLocaleString()}`;
+  }
 }
 
 /** Human-readable goal for a task, e.g. "Vorkath · 50 KC" or "Zulrah · sub 1:10".
