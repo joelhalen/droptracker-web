@@ -121,7 +121,10 @@ export function PlayerView({ id }: { id: number }) {
                     className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left"
                   >
                     <span className="text-osrs-parchment min-w-0 flex-1 truncate text-[13px]">{pb.boss}</span>
-                    <span className="text-osrs-parchment-dark/50 shrink-0 text-[10.5px]">{pb.team_size}</span>
+                    {/* team_size is a canonical token ("Solo", "5", "11-15", "24+"), not a number. */}
+                    <span className="text-osrs-parchment-dark/50 shrink-0 text-[10.5px]">
+                      {pb.team_size === "Solo" ? "Solo" : `${pb.team_size} players`}
+                    </span>
                     <span className="text-osrs-gold-bright shrink-0 text-[13px] font-semibold tabular-nums">
                       {pb.time_display}
                     </span>
