@@ -15,12 +15,12 @@ import type { BoardDetail, EventDetail, LootSweepBoard, Me } from "@droptracker/
 import { BingoBoard } from "@/components/bingo-board";
 import { EventBoardView, type BoardActions } from "@/components/event-board-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
+import { EventStandingsStrip } from "@/components/event-standings-strip";
 import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import type { BreakdownFetcher } from "@/components/task-detail";
 import { EventWindow } from "@/components/local-time";
 import { useEventStream } from "@/lib/use-event-stream";
-import { teamColorMap } from "@/lib/events";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityNav } from "@/lib/activity/nav";
 import {
@@ -269,8 +269,9 @@ export function EventView({
     );
   }
 
+  // Only for defaulting the "Top team" shortcut — the standings strip does its
+  // own ranking and colouring.
   const standings = [...event.teams].sort((a, b) => b.score - a.score);
-  const teamColor = teamColorMap(event.teams);
   const teamRefs = event.teams.map((t) => ({ id: t.id, name: t.name, color: t.color }));
 
   return (
@@ -300,36 +301,12 @@ export function EventView({
         )}
       </header>
 
-      {standings.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {standings.map((t, i) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => nav.push({ name: "event-team", id: eventId, teamId: t.id })}
-              title={`Open ${t.name} — roster, items and task progress`}
-              className="border-osrs-bronze/30 bg-osrs-brown-dark/40 hover:border-osrs-gold/50 inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs transition-colors"
-            >
-              <span className="text-osrs-parchment-dark/50">#{i + 1}</span>
-              <span
-                className="inline-block size-2 rounded-full"
-                style={{ backgroundColor: teamColor.get(t.id) }}
-                aria-hidden
-              />
-              <span
-                className={
-                  t.id === event.viewer?.team_id
-                    ? "text-osrs-gold-bright font-medium"
-                    : "text-osrs-parchment-dark/85"
-                }
-              >
-                {t.name}
-              </span>
-              <span className="text-osrs-gold tabular-nums">{t.score.toLocaleString()}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <EventStandingsStrip
+        eventId={eventId}
+        teams={event.teams}
+        viewerTeamId={event.viewer?.team_id ?? null}
+        onOpenTeam={(teamId) => nav.push({ name: "event-team", id: eventId, teamId })}
+      />
 
       {/* Mirror of the site's Players/Teams tabs — full standings live in
           their own pushed views (podium + GP + items, team rollup cards). */}

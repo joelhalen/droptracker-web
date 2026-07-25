@@ -5,6 +5,7 @@ import { getUser } from "@/lib/auth";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventBoardView } from "@/components/event-board-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
+import { EventStandingsStrip } from "@/components/event-standings-strip";
 import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import { EventCompletionHistory } from "@/components/event-completion-history";
@@ -113,6 +114,15 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   return (
     <div className="space-y-8">
       <EventPageHeader event={event} />
+
+      {/* Standings above the board, matching the Activity: a chip per team,
+          best first, each opening that team's page. The board's own team
+          chips are a filter and stay one. */}
+      <EventStandingsStrip
+        eventId={event.id}
+        teams={event.teams}
+        viewerTeamId={event.viewer?.team_id ?? null}
+      />
 
       {lootSweep ? (
         // Loot Sweep: the board is data-dense, so it takes the FULL page width;
