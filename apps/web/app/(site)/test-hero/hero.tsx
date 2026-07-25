@@ -12,7 +12,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { HeroSearch } from "@/components/hero-search";
 import { Dial, type DialGroup } from "./dial";
-import { LatestDrop, type NotableDrop } from "./latest-drop";
+import { type NotableDrop } from "./feed-rows";
+import { LatestDrop } from "./latest-drop";
 import { useReducedMotion } from "./motion";
 import { DROP_SHOTS, uniqueByItem } from "./showcase-data";
 
@@ -42,20 +43,25 @@ function wallColumns(images: string[], count: number): string[][] {
 function MediaWall({ images }: { images: string[] }) {
   const cols = wallColumns(images, 4);
   return (
-    <div className="th-wall" aria-hidden>
-      {cols.map((col, i) => (
-        <div
-          key={i}
-          className="th-wall-col"
-          // Duration scales with tile count so every column drifts at a similar
-          // px/sec, with a per-column offset so they never sync into one sheet.
-          style={{ animationDuration: `${col.length * 7 + i * 9}s` }}
-        >
-          {col.map((src, j) => (
-            <img key={`${src}-${j}`} src={src} alt="" loading="lazy" decoding="async" />
-          ))}
-        </div>
-      ))}
+    // The clip wrapper, not the hero, contains the oversized rotated wall —
+    // the hero itself must stay overflow-visible so the search dropdown can
+    // extend past its bottom edge.
+    <div className="th-wall-clip" aria-hidden>
+      <div className="th-wall">
+        {cols.map((col, i) => (
+          <div
+            key={i}
+            className="th-wall-col"
+            // Duration scales with tile count so every column drifts at a similar
+            // px/sec, with a per-column offset so they never sync into one sheet.
+            style={{ animationDuration: `${col.length * 7 + i * 9}s` }}
+          >
+            {col.map((src, j) => (
+              <img key={`${src}-${j}`} src={src} alt="" loading="lazy" decoding="async" />
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

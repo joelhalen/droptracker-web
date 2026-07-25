@@ -3,9 +3,8 @@ import type { EventDetail } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { DEFAULT_PERIOD, resolvePeriod } from "@/lib/period";
 import { type DialGroup } from "./dial";
-import { toRow, type FeedRow } from "./feed-rows";
+import { toNotableDrop, toRow, type FeedRow, type NotableDrop } from "./feed-rows";
 import { Hero } from "./hero";
-import { toNotableDrop, type NotableDrop } from "./latest-drop";
 import { LiveFeed, StatGrid } from "./live-feed";
 import { Reveal } from "./motion";
 import {

@@ -290,14 +290,30 @@
   align-items: center;
   min-height: min(100svh, 54rem);
   padding-block: clamp(3rem, 6vw, 5.5rem) clamp(3rem, 6vw, 5rem);
-  overflow: hidden;
+  /*
+   * Deliberately NOT overflow-clipped: the search dropdown must be able to
+   * extend past the hero's bottom edge when the result list is long. The only
+   * thing that ever overflowed — the oversized rotated media wall — clips
+   * itself inside `.th-wall-clip` instead.
+   */
 }
 
 /*
  * Media wall: four columns of real drop screenshots drifting vertically at
  * different speeds. Heavily darkened and blurred so it reads as texture, not
  * content — the copy sits on top of it.
+ *
+ * `.th-wall-clip` spans the hero exactly and does the clipping that used to
+ * live on `.th-hero` itself (which also guillotined the search dropdown).
  */
+.th-wall-clip {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .th-wall {
   position: absolute;
   inset: -8% -4%;
@@ -398,7 +414,10 @@
 
 .th-hero-inner {
   position: relative;
-  z-index: 3;
+  /* Above the scrim/spotlight, and — now that the hero doesn't clip — above
+     the sections below it, so an open search dropdown overlaps them instead
+     of sliding underneath. */
+  z-index: 10;
   display: grid;
   gap: clamp(2.5rem, 5vw, 4rem);
   align-items: center;
@@ -578,6 +597,10 @@
   aspect-ratio: 1;
   width: min(100%, 32rem);
   margin-inline: auto;
+  /* Query container so hub text caps can scale with the dial (cqw units) —
+     at 1024px viewports the dial is ~447px, not the full 512px, and fixed
+     rem caps would cross the hub circle's chord there. */
+  container-type: inline-size;
 }
 
 @media (min-width: 1024px) {
@@ -758,8 +781,9 @@
 /* --- hub ------------------------------------------------------------------ */
 
 /*
- * Sits well inside the inner ring (radius 26% vs. this at 15.5%) and never
- * hit-tests, so it can't intercept a hover meant for a ring entry.
+ * Sits well inside the inner ring (radius 26% vs. this at 15.5% resting,
+ * 19% in entity mode) and never hit-tests, so it can't intercept a hover
+ * meant for a ring entry.
  */
 .th-dial-hub {
   position: absolute;
@@ -776,12 +800,35 @@
   box-shadow:
     0 0 60px rgb(255 140 66 / 0.18),
     inset 0 0 40px rgb(255 184 63 / 0.06);
-  transition: border-color 250ms ease;
+  /* `inset` is transitioned too: entity mode grows the hub, and without it
+     the hub would snap back to resting size in a single frame on hover-out
+     (the swap animation only covers entry). */
+  transition:
+    border-color 250ms ease,
+    inset 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/*
+ * Entity mode carries a taller read-out (name + value + two dl rows), which
+ * used to spill over the circle's edge at the top and bottom. The hub grows
+ * into the free space inside the inner ring (radius 19% vs. the ring items'
+ * inner edge at ~20%) and the value scales down a notch, so the whole block
+ * stays inside the circle's chord.
+ */
 .th-dial-hub[data-mode="entity"] {
+  inset: 31%;
   border-color: var(--th-gold);
   animation: th-hub-swap 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.th-dial-hub[data-mode="entity"] b {
+  font-size: clamp(1.05rem, 0.8rem + 0.8vw, 1.35rem);
+}
+
+.th-dial-hub[data-mode="entity"] dl {
+  gap: 0.25rem;
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
 }
 
 @keyframes th-hub-swap {
@@ -804,6 +851,7 @@
   display: block;
   margin-top: 0.2rem;
   font-size: 0.55rem;
+  line-height: 1.2;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--th-ink-faint);
@@ -818,13 +866,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Whose stats these are. */
+/* Whose stats these are. Width-capped tighter than the hub itself: this is
+   the topmost row, where the circle has narrowed to ~75% of its diameter.
+   The cqw cap keeps that true when the dial (and so the hub) is smaller than
+   full size; the rem line above it is the fallback for old browsers. */
 .th-dial-hub-name {
   display: block;
   margin-bottom: 0.3rem;
-  max-width: 9.5rem;
+  max-width: 8rem;
+  max-width: min(8rem, 25cqw);
   margin-inline: auto;
   font-size: 0.74rem;
+  line-height: 1.25;
   font-weight: 600;
   color: var(--th-ink);
   overflow: hidden;
@@ -842,6 +895,7 @@
 
 .th-dial-hub dt {
   font-size: 0.53rem;
+  line-height: 1.2;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--th-ink-faint);
@@ -849,9 +903,12 @@
 
 .th-dial-hub dd {
   margin: 0.05rem 0 0;
-  max-width: 9rem;
+  /* Bottom rows sit low in the circle, where it has narrowed — see -name. */
+  max-width: 7.5rem;
+  max-width: min(7.5rem, 25cqw);
   margin-inline: auto;
   font-size: 0.75rem;
+  line-height: 1.25;
   color: var(--th-ink-dim);
   font-variant-numeric: tabular-nums;
   overflow: hidden;
@@ -878,7 +935,7 @@
   align-items: center;
   gap: 0.6rem;
   width: max-content;
-  max-width: 15rem;
+  max-width: 18rem;
   padding: 0.5rem 0.65rem;
   pointer-events: none;
   border: 1px solid var(--th-gold);
@@ -897,13 +954,23 @@
   }
 }
 
-/* Offset past the tile so the icon underneath stays visible. */
+/* Offset past the tile so the icon underneath stays visible. Lateral sides
+   for entries at 3/9 o'clock; above/below for entries near 12/6, where a
+   side-mounted card would run past the dial (see HoverCard in dial.tsx). */
 .th-dial-card[data-side="left"] {
   transform: translate(calc(-100% - 2rem), -50%);
 }
 
 .th-dial-card[data-side="right"] {
   transform: translate(2rem, -50%);
+}
+
+.th-dial-card[data-side="above"] {
+  transform: translate(-50%, calc(-100% - 2rem));
+}
+
+.th-dial-card[data-side="below"] {
+  transform: translate(-50%, 2rem);
 }
 
 .th-dial-card[data-pinned="true"] {
@@ -958,16 +1025,24 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * The source + age line. This must never truncate — it wraps instead. (It used
+ * to be nowrap + ellipsis, but `text-overflow` on a flex container does not
+ * apply to its anonymous text item, so "Chambers of Xeric · 4 days ago"
+ * hard-clipped mid-word with no ellipsis at all.)
+ */
 .th-dial-card-meta {
   display: flex;
   align-items: center;
   gap: 0.3rem;
   min-width: 0;
   font-size: 0.68rem;
+  line-height: 1.35;
   color: var(--th-ink-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.th-dial-card-meta span {
+  min-width: 0;
 }
 
 .th-dial-card-meta img {

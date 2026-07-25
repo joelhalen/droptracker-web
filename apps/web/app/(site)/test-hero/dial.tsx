@@ -192,8 +192,12 @@ function HoverCard({
 }) {
   const { x, y } = at;
   // Sit on whichever side of the entry faces the middle of the dial, so the
-  // card leans inward and can never run off the edge of the hero.
-  const side = x > 50 ? "left" : "right";
+  // card leans inward and can never run off the edge of the hero. Entries near
+  // 12 and 6 o'clock are the exception: a side-mounted card there spans half
+  // the dial plus its own width and runs past the dial (and, at ~1024px
+  // viewports, past the screen), so those mount above/below instead.
+  const side =
+    x > 30 && x < 70 ? (y > 50 ? "above" : "below") : x > 50 ? "left" : "right";
 
   return (
     <div
@@ -214,7 +218,9 @@ function HoverCard({
             <span className="th-dial-card-gp">{formatGp(entry.drop.value)} gp</span>
             <span className="th-dial-card-meta">
               <img src={npcIcon(entry.drop.npcId)} alt="" />
-              {entry.drop.npcName} · {relativeDays(entry.drop.ts)}
+              <span>
+                {entry.drop.npcName} · {relativeDays(entry.drop.ts)}
+              </span>
             </span>
           </span>
         </>

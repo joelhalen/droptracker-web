@@ -1,10 +1,14 @@
 /**
- * Shared shaping for the /test-hero live panel.
+ * Shared shaping for the /test-hero feed surfaces (the live panel and the
+ * hero's "latest notable drop" line).
  *
- * Deliberately NOT a "use client" module: the page seeds the panel on the
- * server from `api.recentFeed()` and the client re-uses the exact same
- * normaliser for SSE frames, so both paths must be importable from both
- * environments.
+ * Deliberately NOT a "use client" module. The page seeds both surfaces on the
+ * SERVER from `api.recentFeed()`, and the client re-uses the exact same
+ * normalisers for SSE frames — so every helper here must be importable from
+ * both environments. Putting one of these in a "use client" file throws
+ * "Attempted to call X() from the server but X is on the client" the moment
+ * the feed is non-empty (and only then, which is how it reached production
+ * once already).
  */
 
 /** One row of the live activity panel: <b>who</b> verb <em>what</em>. */
@@ -111,4 +115,48 @@ export function toRow(
     default:
       return null;
   }
+}
+
+
+/* -------------------------------------------------------------------------- */
+/* Latest notable drop                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Minimum GP for a drop to count as "notable" on the homepage.
+ *
+ * Not arbitrary: `services/realtime.py` uses the same bar to decide what
+ * reaches the `feed` scope at all, so this filter agrees with the stream
+ * rather than discarding part of it.
+ */
+export const NOTABLE_GP = 10_000_000;
+
+export interface NotableDrop {
+  itemId: number;
+  itemName: string;
+  npcName: string | null;
+  playerName: string;
+  value: number;
+  ts: number;
+}
+
+/** Pull a notable drop out of a realtime envelope, or null. */
+export function toNotableDrop(
+  type: string,
+  data: Record<string, unknown>,
+  ts: number,
+): NotableDrop | null {
+  if (type !== "drop") return null;
+  const itemId = Number(data.item_id ?? 0);
+  const value = Number(data.value ?? 0);
+  if (!Number.isFinite(itemId) || itemId <= 0) return null;
+  if (!Number.isFinite(value) || value < NOTABLE_GP) return null;
+  return {
+    itemId,
+    itemName: typeof data.item_name === "string" ? data.item_name : "an item",
+    npcName: typeof data.npc_name === "string" ? data.npc_name : null,
+    playerName: typeof data.player_name === "string" ? data.player_name : "someone",
+    value,
+    ts: Number(data.ts ?? ts) || ts,
+  };
 }
