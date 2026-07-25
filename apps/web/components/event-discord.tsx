@@ -18,8 +18,17 @@
  * Also edits the event's message-verbosity toggles and live-leaderboard knobs
  * (`messages` on GET/PUT /events/{id}/discord — web_events.message_config).
  * Everything saves through the ONE save button at the bottom.
+ *
+ * Nothing here autosaves, and the form is long enough (and mounted in enough
+ * places — its own page, the manager's Discord tab, the setup wizard's Discord
+ * step) that admins were walking away from edits that never reached the
+ * backend. So the draft is diffed against the last server copy: the save bar
+ * sticks to the bottom of the viewport and turns loud while dirty, each
+ * collapsed section flags itself, leaving the page or clicking a link warns,
+ * and `onDirtyChange` lets the manager/wizard guard their own tab and step
+ * switches.
  */
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import {
   EVENT_CHANNEL_KINDS,
   type DiscordRole,
@@ -44,6 +53,13 @@ import { EventLayoutOverrides } from "@/components/event-layout-editor";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { DiscordRolePicker } from "@/components/discord-role-picker";
 import {
+  configToDraft,
+  dirtySections,
+  sectionFingerprints,
+  type DirtySection,
+} from "@/lib/event-discord-dirty";
+import { confirmDiscard, useUnsavedChanges } from "@/lib/use-unsaved-changes";
+import {
   getEventDiscord,
   getEventTeamDiscord,
   listEventDiscordChannels,
@@ -55,6 +71,11 @@ import {
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
+
+const LEAVE_MESSAGE =
+  "This event's Discord settings have unsaved changes. Leave without saving them?";
+const SCOPE_SWITCH_MESSAGE =
+  "You have unsaved changes to this scope's Discord settings. Switching clans discards them. Switch anyway?";
 
 const PING_META: Record<EventPingKey, { label: string; hint: string }> = {
   event_created: {
@@ -89,6 +110,15 @@ const KIND_META: Record<EventChannelKind, { label: string; hint: string }> = {
     hint: "Completions awaiting review (deep-links to the Review queue).",
   },
 };
+
+/** Header chip marking a collapsed section that's holding unsaved edits. */
+function UnsavedBadge() {
+  return (
+    <span className="border-osrs-gold/50 bg-osrs-gold/10 text-osrs-gold-bright rounded border px-1.5 py-px text-[10px] font-semibold tracking-wide uppercase">
+      unsaved
+    </span>
+  );
+}
 
 /** One verbosity toggle row — same switch styling as the group-config editor. */
 function ToggleRow({
@@ -190,9 +220,14 @@ function TeamSyncStatus({ team }: { team: TeamDiscordTeamState }) {
 export function EventDiscordSettings({
   groupId,
   eventId,
+  onDirtyChange,
 }: {
   groupId: number | null;
   eventId: number;
+  /** Lets a host that owns its own navigation (the manager's tab bar, the
+   * setup wizard's step rail) block a switch away from unsaved edits. Called
+   * with `false` on unmount so a stale flag can't outlive this form. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -218,6 +253,9 @@ export function EventDiscordSettings({
   // Message verbosity + live leaderboard (always fully merged with defaults
   // by the backend; null only until the GET lands).
   const [messages, setMessages] = useState<EventMessageConfig | null>(null);
+  // The last copy the backend confirmed for the current scope — the baseline
+  // the dirty check diffs against, and what "Discard changes" restores.
+  const [serverConfig, setServerConfig] = useState<EventChannelConfig | null>(null);
 
   // ── per-team channels & roles (web53a) ────────────────────────────────
   // `teamDiscord` is the editable draft; `teamDiscordBase` is the last
@@ -267,6 +305,7 @@ export function EventDiscordSettings({
 
   const applyConfig = useCallback(
     (config: EventChannelConfig) => {
+      setServerConfig(config);
       setGuildId(config.guild_id ?? "");
       setGuildName(config.guild_name ?? null);
       setChannels(config.channels ?? {});
@@ -410,9 +449,46 @@ export function EventDiscordSettings({
     return input;
   };
 
+  // ── unsaved-changes state ─────────────────────────────────────────────
+  // Cheap enough to recompute every render (a handful of short strings), and
+  // that keeps it honest: no dependency array to fall out of date as new
+  // fields land in this form.
+  const changed = dirtySections(
+    sectionFingerprints({ guildId, channels, policy, pings, perGroup, messages }, scope),
+    serverConfig ? sectionFingerprints(configToDraft(serverConfig), scope) : null,
+  );
+  const sectionDirty = (section: DirtySection) => changed.includes(section);
+  // Team channels & roles already diff themselves for the merge-style PUT.
+  const teamDirty = teamDiscordDiff() !== null;
+  const dirty = teamDirty || changed.length > 0;
+
+  // Warn on page unload / in-app link clicks; hand the flag to the manager
+  // and wizard so they can guard their own tab and step switches.
+  useUnsavedChanges(dirty, LEAVE_MESSAGE);
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  onDirtyChangeRef.current = onDirtyChange;
+  useEffect(() => {
+    onDirtyChangeRef.current?.(dirty);
+  }, [dirty]);
+  useEffect(() => () => onDirtyChangeRef.current?.(false), []);
+
+  /** Throw the draft away and go back to the last saved copy. */
+  const onDiscard = () => {
+    if (!serverConfig) return;
+    if (!window.confirm("Discard your unsaved changes to this event's Discord settings?")) return;
+    applyConfig(serverConfig);
+    if (scope === null) setPerGroup(serverConfig.per_group_discord ?? false);
+    setTeamDiscord(teamDiscordBase);
+    setTeamDiscordError(null);
+    setError(null);
+    setSaved(false);
+  };
+
   /** Swap the whole form to another scope (shared or one of my clans). */
   const switchScope = (next: number | null) => {
     if (next === scope) return;
+    // Switching refetches and overwrites the form — don't silently bin edits.
+    if (!confirmDiscard(dirty, SCOPE_SWITCH_MESSAGE)) return;
     setError(null);
     setSaved(false);
     startTransition(async () => {
@@ -586,8 +662,6 @@ export function EventDiscordSettings({
 
   return (
     <div className="space-y-6">
-      {error && <Alert variant="error">{error}</Alert>}
-
       {/* Per-group clan-vs-clan mode (web48a): the host decides whether each
           clan runs its own channels; admins then pick which scope to edit. */}
       {meta && (meta.isHostAdmin || perGroup) && (
@@ -605,7 +679,8 @@ export function EventDiscordSettings({
                 className="mt-0.5 size-4"
               />
               <span>
-                Each clan configures its own Discord
+                Each clan configures its own Discord{" "}
+                {sectionDirty("scoping") && <UnsavedBadge />}
                 <span className="text-osrs-parchment-dark/60 block text-xs">
                   Every participating clan&apos;s admins get their own server, channels and
                   message-verbosity settings for this event — notifications post to every
@@ -658,6 +733,7 @@ export function EventDiscordSettings({
         title="Server & channels"
         hint="Post this event's happenings to a Discord server you manage — including a dedicated event server you've added the bot to. Kinds without a channel fall back to Announcements; with nothing set, nothing is posted."
         defaultOpen
+        badge={sectionDirty("channels") ? <UnsavedBadge /> : undefined}
       >
         <div className="space-y-4">
           <label className="block text-sm sm:max-w-md">
@@ -753,6 +829,7 @@ export function EventDiscordSettings({
       <CollapsibleSection
         title="Team channels & roles"
         hint="Auto-provision a private channel and a mentionable role for every team on this event's server. The bot creates them, keeps them in sync with rosters, and can clean them up after the event. Saves with the button at the bottom."
+        badge={teamDirty ? <UnsavedBadge /> : undefined}
       >
         {teamDiscord ? (
           <div className="space-y-4 sm:max-w-xl">
@@ -930,6 +1007,7 @@ export function EventDiscordSettings({
         <CollapsibleSection
           title="Scheduled event"
           hint="The bot mirrors this event as a native Discord scheduled event on the server."
+          badge={sectionDirty("scheduled") ? <UnsavedBadge /> : undefined}
         >
           <div className="space-y-4">
             <fieldset className="border-osrs-bronze/20 space-y-2 rounded border p-3 sm:max-w-md">
@@ -1029,6 +1107,7 @@ export function EventDiscordSettings({
         <CollapsibleSection
           title="Announcements & pings"
           hint="Roles mentioned as real pings on the start and final-standings announcements (posted to the Announcements channel)."
+          badge={sectionDirty("pings") ? <UnsavedBadge /> : undefined}
         >
           <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-3">
             <legend className="text-osrs-parchment-dark/70 px-1 text-xs">Role pings</legend>
@@ -1053,6 +1132,7 @@ export function EventDiscordSettings({
         <CollapsibleSection
           title="Message verbosity"
           hint="Choose which notifications this event posts. Applies to this event. Messages post to the channels configured above."
+          badge={sectionDirty("verbosity") ? <UnsavedBadge /> : undefined}
         >
           <div className="space-y-4 sm:max-w-xl">
             <div className="space-y-2">
@@ -1165,6 +1245,7 @@ export function EventDiscordSettings({
         <CollapsibleSection
           title="Live leaderboard"
           hint="A standings board posted to the Leaderboard channel when the event starts and edited in place as scores change."
+          badge={sectionDirty("leaderboard") ? <UnsavedBadge /> : undefined}
         >
           <div className="space-y-3 sm:max-w-xl">
             <ToggleRow
@@ -1215,16 +1296,58 @@ export function EventDiscordSettings({
         </CollapsibleSection>
       )}
 
-      <div className="border-osrs-bronze/20 flex items-center gap-3 border-t pt-4">
-        <button
-          onClick={onSave}
-          disabled={pending || !guildIdValid}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-        >
-          {pending ? "Saving…" : "Save Discord config"}
-        </button>
-        {!guildIdValid && <span className="text-osrs-red text-xs">Server id must be numeric.</span>}
-        {saved && <span className="text-osrs-gold-bright text-xs">Saved.</span>}
+      {/* Pinned save bar — follows the group-config editor's pattern, and
+          carries the save error so a failure lands next to the button that
+          caused it rather than off-screen at the top of a long form.
+          Stays enabled when clean on purpose: a failed scheduled event or
+          team provisioning is retried by saving again, unchanged. */}
+      <div
+        className={`sticky bottom-0 z-30 -mx-1 space-y-2 rounded-lg border px-4 py-3 shadow-lg backdrop-blur ${
+          dirty
+            ? "border-osrs-gold/60 bg-osrs-surface-2/95"
+            : "border-osrs-bronze/30 bg-osrs-surface-1/95"
+        }`}
+      >
+        {error && <Alert variant="error">{error}</Alert>}
+        {dirty && (
+          <p className="text-osrs-gold-bright text-xs font-medium">
+            You have unsaved changes — they only take effect once you save.
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={onSave}
+            disabled={pending || !guildIdValid || !serverConfig}
+            className={`rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
+              dirty
+                ? "bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold-bright"
+                : "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark"
+            }`}
+          >
+            {pending ? "Saving…" : dirty ? "Save changes" : "Save Discord config"}
+          </button>
+          {dirty && !pending && (
+            <button
+              type="button"
+              onClick={onDiscard}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright text-sm"
+            >
+              Discard changes
+            </button>
+          )}
+          {!guildIdValid && (
+            <span className="text-osrs-red text-xs">Server id must be numeric.</span>
+          )}
+          {/* Without a loaded copy the form holds nothing but defaults, and
+              saving would PUT a null guild + empty channels over the stored
+              config. Reload instead. */}
+          {!serverConfig && (
+            <span className="text-osrs-red text-xs">
+              The current settings didn&apos;t load — reload the page before saving.
+            </span>
+          )}
+          {saved && !dirty && <span className="text-osrs-green text-sm">Saved.</span>}
+        </div>
       </div>
     </div>
   );
