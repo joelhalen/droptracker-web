@@ -1,28 +1,28 @@
 "use client";
 
 /**
- * The showcase sections for /test-hero: the replay-clip reel, the screenshot
- * gallery + lightbox, the lootboard/leaderboard split, the Discord demo, and
- * the events tabs.
+ * Showcase sections for /test-hero: the notable-drops gallery + lightbox, the
+ * lootboard/leaderboard split, the Discord panel, the live bingo board, and the
+ * supporters wall.
  *
- * Every image and clip rendered here comes from ./showcase-data.ts — real
- * submissions and real generated DropTracker artwork. Nothing is placeholder.
+ * Every image comes from ./showcase-data.ts (real submissions and real
+ * generated DropTracker artwork) or straight from the API. Nothing is
+ * placeholder art, and there is no video anywhere — replay-buffer capture is
+ * out of the plugin pending core RuneLite client changes.
  */
 import { useCallback, useEffect, useState } from "react";
-import type { LeaderboardEntry } from "@droptracker/api-types";
+import Link from "next/link";
+import type {
+  BingoBoard,
+  EventTask,
+  LeaderboardEntry,
+  Supporters,
+} from "@droptracker/api-types";
 import { formatGp } from "@/lib/format";
 import { entityPath } from "@/lib/slug";
-import Link from "next/link";
-import { Reveal, useInView, useVideoInView } from "./motion";
-import {
-  ARTWORK,
-  DROP_CLIPS,
-  DROP_SHOTS,
-  LOOT_SWEEP_ROWS,
-  itemIcon,
-  npcIcon,
-  type ShowcaseDrop,
-} from "./showcase-data";
+import { BingoTile } from "@/components/bingo-tile";
+import { Reveal, useInView } from "./motion";
+import { ARTWORK, DROP_SHOTS, itemIcon, npcIcon, type ShowcaseDrop } from "./showcase-data";
 
 /** Rarity bucket for the value colour — same thresholds as `lootValueClass`. */
 function valueTier(value: number): "1m" | "10m" | "100m" | "b" {
@@ -33,58 +33,7 @@ function valueTier(value: number): "1m" | "10m" | "100m" | "b" {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Replay-clip reel                                                           */
-/* -------------------------------------------------------------------------- */
-
-function Clip({ drop, feature }: { drop: ShowcaseDrop; feature: boolean }) {
-  const videoRef = useVideoInView();
-
-  return (
-    <figure className="th-clip" data-feature={feature}>
-      <video
-        ref={videoRef}
-        src={drop.src}
-        width={drop.width}
-        height={drop.height}
-        muted
-        loop
-        playsInline
-        preload="metadata"
-        aria-label={`${drop.playerName} receiving ${drop.itemName} from ${drop.npcName}`}
-      />
-      <span className="th-clip-tag">
-        <i /> Replay buffer
-      </span>
-      <figcaption className="th-clip-meta">
-        <span className="th-clip-icon">
-          <img src={itemIcon(drop.itemId)} alt="" loading="lazy" />
-        </span>
-        <span className="th-clip-text">
-          <b>{drop.itemName}</b>
-          <span>
-            {drop.playerName} · {drop.npcName}
-          </span>
-        </span>
-        <span className="th-value" data-tier={valueTier(drop.value)}>
-          {formatGp(drop.value)}
-        </span>
-      </figcaption>
-    </figure>
-  );
-}
-
-export function DropReel() {
-  return (
-    <div className="th-reel">
-      {DROP_CLIPS.map((drop, i) => (
-        <Clip key={drop.dropId} drop={drop} feature={i === 0} />
-      ))}
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Screenshot gallery + lightbox                                              */
+/* Notable-drops gallery + lightbox                                           */
 /* -------------------------------------------------------------------------- */
 
 export function Gallery() {
@@ -140,7 +89,7 @@ export function Gallery() {
             />
             <span className="th-shot-meta">
               <img src={itemIcon(shot.itemId)} alt="" loading="lazy" />
-              <span className="th-clip-text">
+              <span className="th-shot-text">
                 <b>{shot.itemName}</b>
                 <span>
                   {shot.playerName} · {shot.npcName}
@@ -214,8 +163,8 @@ export function BoardShowcase({
   const [index, setIndex] = useState(0);
   const [ref, inView] = useInView<HTMLDivElement>({ once: false, threshold: 0.2 });
 
-  // Cross-fade through the real clan boards, but only while the section is
-  // actually on screen — no background timer churn for content nobody sees.
+  // Cross-fade through the real clan boards, but only while the section is on
+  // screen — no background timer churn for content nobody is looking at.
   useEffect(() => {
     if (!inView) return;
     const timer = setInterval(() => setIndex((i) => (i + 1) % BOARDS.length), 6000);
@@ -248,10 +197,6 @@ export function BoardShowcase({
             ))}
           </div>
         </div>
-        <p className="th-lede" style={{ marginTop: "1rem", fontSize: "0.82rem" }}>
-          Regenerated every two minutes for every clan, posted straight into Discord and edited in
-          place — no spam, no manual updates.
-        </p>
       </Reveal>
 
       <Reveal delay={120}>
@@ -276,6 +221,9 @@ export function BoardShowcase({
               <span className="th-lb-val">{entry.loot.value_formatted}</span>
             </div>
           ))}
+          <Link className="th-lb-more" href="/leaderboards">
+            Full leaderboards →
+          </Link>
         </div>
       </Reveal>
     </div>
@@ -283,7 +231,7 @@ export function BoardShowcase({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Discord demo                                                               */
+/* Discord                                                                    */
 /* -------------------------------------------------------------------------- */
 
 const CHAT_FEATURES = [
@@ -298,11 +246,6 @@ const CHAT_FEATURES = [
     body: "Announce everything, or only the drops worth shouting about. Optionally require a screenshot before anything is posted.",
   },
   {
-    mark: "⌁",
-    title: "Embeds you control",
-    body: "Every field is editable per clan: monthly totals, global and clan rank, item value, the proof image, your own footer.",
-  },
-  {
     mark: "◎",
     title: "Boards that edit themselves",
     body: "Lootboards and live event standings are posted once and edited in place, so your channel history stays readable.",
@@ -310,9 +253,9 @@ const CHAT_FEATURES = [
 ];
 
 /** One synthetic Discord message built from a real submission. */
-function ChatMessage({ drop, delay }: { drop: ShowcaseDrop; delay: number }) {
+function ChatMessage({ drop }: { drop: ShowcaseDrop }) {
   return (
-    <div className="th-msg" style={{ animationDelay: `${delay}ms` }}>
+    <div className="th-msg">
       <span className="th-avatar">
         <img src={npcIcon(drop.npcId)} alt="" loading="lazy" />
       </span>
@@ -350,26 +293,16 @@ function ChatMessage({ drop, delay }: { drop: ShowcaseDrop; delay: number }) {
 }
 
 export function DiscordDemo() {
-  const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.25 });
-  // Replaying on every entry would be noisy; the messages animate in once, in
-  // sequence, the first time the channel scrolls into view. Two different
-  // bosses so the channel doesn't read as the same drop twice.
-  const shots = [DROP_SHOTS[0]!, DROP_SHOTS[4]!];
-
   return (
-    <div className="th-discord" ref={ref}>
+    <div className="th-discord">
       <Reveal>
         <div className="th-chat">
           <div className="th-chat-head">
             <span style={{ color: "var(--th-ink-faint)" }}>#</span>
             <b>loot-drops</b>
-            <em>{inView ? "live" : "idle"}</em>
           </div>
           <div className="th-chat-body">
-            {inView &&
-              shots.map((drop, i) => (
-                <ChatMessage key={drop.dropId} drop={drop} delay={i * 550} />
-              ))}
+            <ChatMessage drop={DROP_SHOTS[0]!} />
           </div>
         </div>
       </Reveal>
@@ -389,7 +322,7 @@ export function DiscordDemo() {
           ))}
         </div>
 
-        {/* The panel above is a faithful re-creation; this is a straight
+        {/* The panel to the left is a faithful re-creation; this is a straight
             screenshot of a real announcement, so the claim is checkable. */}
         <figure className="th-frame th-real-embed">
           <div className="th-frame-bar">
@@ -411,161 +344,167 @@ export function DiscordDemo() {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Events                                                                     */
+/* Events — a real, live bingo board                                          */
 /* -------------------------------------------------------------------------- */
 
-/**
- * Loot-sweep matrix, built in the DOM from our own NPC and item sprites.
- *
- * The other two event kinds have real rendered PNGs to show; loot sweep has no
- * static board asset, so rather than dress up an unrelated image this draws the
- * actual shape of the board — a boss per row, its uniques across — from real
- * `/img/npcdb` and `/img/itemdb` art. Claim state is illustrative, and the
- * caption under it says exactly that.
- */
-function LootSweepMatrix() {
-  const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.2 });
+const EVENT_POINTS = [
+  "Tiles accept any item, a full set, a KC target, an XP goal, a total-loot target or a points threshold",
+  "Submissions match tiles automatically — nobody screenshots anything into a spreadsheet",
+  "Teams, sign-up windows, buy-ins and a prize pot are built in",
+  "Live standings posted to Discord and edited in place every two minutes",
+];
 
-  // Deterministic claim pattern (no Math.random — it would differ between the
-  // server render and hydration). Three teams, some cells still open.
-  const teamFor = (row: number, col: number): number | null => {
-    const n = (row * 7 + col * 3) % 5;
-    return n < 3 ? n + 1 : null;
-  };
+/**
+ * Read-only preview of a REAL public bingo board.
+ *
+ * Boards are composed in React from the backend's `task.tile` icon data, so
+ * this renders the project's own `BingoTile` against a live event rather than
+ * shipping a stale server-rendered PNG. Tiles reveal in a diagonal sweep the
+ * first time the board scrolls into view.
+ */
+export function EventsShowcase({
+  board,
+  tasks,
+  eventId,
+  eventName,
+}: {
+  board: BingoBoard;
+  tasks: EventTask[];
+  eventId: number;
+  eventName: string;
+}) {
+  const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.15 });
+  const taskById = new Map(tasks.map((t) => [t.id, t]));
 
   return (
-    <div className="th-sweep" ref={ref} data-shown={inView}>
-      {LOOT_SWEEP_ROWS.map((row, r) => (
-        <div className="th-sweep-row" key={row.npcId}>
-          <div className="th-sweep-boss">
-            <img src={npcIcon(row.npcId)} alt="" loading="lazy" />
-            <span>{row.npcName}</span>
-          </div>
-          <div className="th-sweep-cells">
-            {row.items.map((itemId, c) => {
-              const team = teamFor(r, c);
-              return (
-                <span
-                  key={itemId}
-                  className="th-sweep-cell"
-                  data-team={team ?? "open"}
-                  style={{ transitionDelay: `${(r * 4 + c) * 45}ms` }}
-                >
-                  <img src={itemIcon(itemId)} alt="" loading="lazy" />
-                </span>
-              );
-            })}
-          </div>
+    <div className="th-event-panel">
+      <div className="th-frame">
+        <div className="th-frame-bar">
+          <i />
+          <i />
+          <i />
+          Live board
+          <span>{eventName}</span>
         </div>
-      ))}
+        <div
+          className="th-bingo"
+          ref={ref}
+          data-shown={inView}
+          style={{ ["--th-cols" as string]: board.size }}
+        >
+          {board.cells.map((cell) => {
+            const task = cell.task_id != null ? taskById.get(cell.task_id) : undefined;
+            const done = cell.completed_by.length > 0;
+            return (
+              <div
+                key={cell.index}
+                className="th-bingo-cell"
+                data-done={done}
+                // Diagonal sweep: cells further from the top-left arrive later.
+                style={{
+                  transitionDelay: `${(Math.floor(cell.index / board.size) + (cell.index % board.size)) * 60}ms`,
+                }}
+                title={cell.label}
+              >
+                <BingoTile label={cell.label} task={task} />
+                {done && (
+                  <span className="th-bingo-done" aria-hidden>
+                    ✓
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-      <div className="th-sweep-key">
-        <span data-team="1" /> Team 1
-        <span data-team="2" /> Team 2
-        <span data-team="3" /> Team 3
-        <span data-team="open" /> unclaimed
+      <div>
+        <h3>Run a bingo without running a spreadsheet</h3>
+        <p className="th-lede">
+          That board is live — it is <strong>{eventName}</strong>, rendered from the same tile data
+          the event page and the Discord board use. Bingo, board-game races and loot sweeps are all
+          scored by the submission pipeline that powers everything else.
+        </p>
+        <ul className="th-checks">
+          {EVENT_POINTS.map((p) => (
+            <li key={p}>{p}</li>
+          ))}
+        </ul>
+        <Link className="th-btn th-btn-ghost th-btn-sm" href={`/events/${eventId}`}>
+          Open this event →
+        </Link>
       </div>
     </div>
   );
 }
 
-const EVENT_KINDS = [
-  {
-    key: "bingo",
-    tab: "Bingo",
-    title: "Bingo boards that fill themselves in",
-    image: ARTWORK.bingoBoard,
-    alt: "A rendered DropTracker bingo board of in-game item tiles",
-    caption: "Rendered board — DropTracker global bingo",
-    body: "Build a board from the shared task library or write your own tiles: any item, a full set, a KC target, an XP goal, a total-loot target, or a points threshold. Submissions match tiles automatically — nobody screenshots anything into a spreadsheet.",
-    points: [
-      "Tiles accept OR-branches: KC, GP or points can each complete the same square",
-      "Per-NPC progress state, so a multi-boss tile tracks each source separately",
-      "Teams, sign-up windows, buy-ins and a prize pot are built in",
-      "Live standings posted to Discord and edited in place every two minutes",
-    ],
-  },
-  {
-    key: "board_game",
-    tab: "Board game",
-    title: "A 100-tile race around the board",
-    image: ARTWORK.boardGame,
-    alt: "The DropTracker board-game event map — a 100-tile track teams roll around",
-    caption: "Rendered map — 100-tile board",
-    body: "Teams complete tasks to earn rolls, land on effects, buy items from a rotating shop and race for the win tile. The whole map is rendered server-side and refreshed as teams move.",
-    points: [
-      "Roll-earning tasks drawn from the same task library as bingo",
-      "Team inventories, cooldowns and coin ledger tracked per event",
-      "Shop rotations configurable per event or globally",
-      "Every move is written to the event audit log",
-    ],
-  },
-  {
-    key: "loot_sweep",
-    tab: "Loot sweep",
-    title: "Sweep the content, claim the cell",
-    image: null,
-    alt: "",
-    caption: "Board structure — illustrative claim state",
-    body: "A matrix of bosses and item groups where each cell is claimed by the first team to hit it, with decay so late claims are worth less. Scoring runs off the same drop pipeline as everything else.",
-    points: [
-      "Nested item groups scoped to the canonical drop source, not the boss label",
-      "Value-weighted points, so a rare is worth what it is actually worth",
-      "Per-team receipts showing exactly which submission scored",
-      "Ends hard on the clock — no scoring or notifications after the end time",
-    ],
-  },
-] as const;
+/* -------------------------------------------------------------------------- */
+/* Supporters                                                                 */
+/* -------------------------------------------------------------------------- */
 
-export function EventsShowcase() {
-  const [active, setActive] = useState(0);
-  const kind = EVENT_KINDS[active]!;
+/**
+ * The supporters wall, reworked for this page's motion language: clans and
+ * players with a live paid subscription, revealed in a stagger. Same data as
+ * the current homepage's `SupportersSection` (`api.supporters()`), presented in
+ * the panel/tile style the rest of this page uses.
+ */
+export function SupportersWall({ supporters }: { supporters: Supporters }) {
+  const { groups, players } = supporters;
+  const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.1 });
+  if (groups.length === 0 && players.length === 0) return null;
 
   return (
-    <div>
-      <div className="th-tabs" role="tablist" aria-label="Event kinds">
-        {EVENT_KINDS.map((k, i) => (
-          <button
-            key={k.key}
-            type="button"
-            role="tab"
-            className="th-tab"
-            data-active={i === active}
-            aria-selected={i === active}
-            onClick={() => setActive(i)}
-          >
-            {k.tab}
-          </button>
-        ))}
-      </div>
-
-      {/* Keyed on the tab so the panel re-runs its entrance animation. */}
-      <div className="th-event-panel" key={kind.key} role="tabpanel">
-        <div className="th-frame">
-          <div className="th-frame-bar">
-            <i />
-            <i />
-            <i />
-            Event board
-            <span>{kind.caption}</span>
-          </div>
-          {kind.image ? (
-            <img src={kind.image} alt={kind.alt} loading="lazy" decoding="async" />
-          ) : (
-            <LootSweepMatrix />
-          )}
-        </div>
-
+    <div className="th-supporters" ref={ref} data-shown={inView}>
+      {groups.length > 0 && (
         <div>
-          <h3>{kind.title}</h3>
-          <p className="th-lede">{kind.body}</p>
-          <ul className="th-checks">
-            {kind.points.map((p) => (
-              <li key={p}>{p}</li>
+          <h3 className="th-sup-heading">Supporter clans</h3>
+          <div className="th-sup-grid">
+            {groups.map((g, i) => (
+              <Link
+                key={g.id}
+                href={entityPath("groups", g.id, g.name)}
+                className="th-sup-card"
+                style={{ transitionDelay: `${i * 45}ms` }}
+              >
+                <span className="th-sup-mark" aria-hidden>
+                  {g.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="th-sup-body">
+                  <b>{g.name}</b>
+                  <span>
+                    {g.tier_name} · {g.member_count.toLocaleString()}{" "}
+                    {g.member_count === 1 ? "member" : "members"}
+                  </span>
+                </span>
+              </Link>
             ))}
-          </ul>
+          </div>
         </div>
-      </div>
+      )}
+
+      {players.length > 0 && (
+        <div>
+          <h3 className="th-sup-heading">Individual supporters</h3>
+          <div className="th-sup-grid" data-dense="true">
+            {players.map((p, i) => (
+              <Link
+                key={p.user_id}
+                href={entityPath("players", p.player_id, p.name)}
+                className="th-sup-card"
+                data-compact="true"
+                style={{ transitionDelay: `${i * 35}ms` }}
+              >
+                <span className="th-sup-star" aria-hidden>
+                  ★
+                </span>
+                <span className="th-sup-body">
+                  <b>{p.name}</b>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

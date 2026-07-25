@@ -64,13 +64,15 @@ export function LiveFeed({ seed }: { seed: FeedRow[] }) {
 /* -------------------------------------------------------------------------- */
 
 export function StatGrid({
-  rankedPlayers,
+  monthlyLoot,
+  playersTracked,
   rankedClans,
-  monthlyGp,
 }: {
-  rankedPlayers: number;
+  /** Total GP tracked this month, live from the global group. */
+  monthlyLoot: number;
+  /** Accounts tracked, live from the global group. */
+  playersTracked: number;
   rankedClans: number;
-  monthlyGp: number;
 }) {
   // Rendered once — the measured snapshot never changes within a session.
   const asOf = useMemo(
@@ -88,34 +90,31 @@ export function StatGrid({
     <div className="th-stats">
       <div className="th-stat">
         <b>
-          <CountUp to={MEASURED.playersTracked} />
+          <CountUp to={monthlyLoot} format={(n) => formatGp(n)} />
+        </b>
+        <small>GP tracked this month</small>
+        <i>live, every account</i>
+      </div>
+      <div className="th-stat">
+        <b>
+          <CountUp to={playersTracked} />
         </b>
         <small>Accounts tracked</small>
-        <i>as of {asOf}</i>
+        <i>live</i>
       </div>
       <div className="th-stat">
         <b>
-          <CountUp to={MEASURED.dropsThisMonth} />
+          <CountUp to={MEASURED.submissionsThisMonth} />
         </b>
         <small>Submissions this month</small>
-        <i>July 2026</i>
+        <i>measured {asOf}</i>
       </div>
       <div className="th-stat">
         <b>
-          <CountUp to={monthlyGp} format={(n) => formatGp(n)} />
+          <CountUp to={rankedClans} />
         </b>
-        <small>GP on the board</small>
-        <i>top 100 players, live</i>
-      </div>
-      <div className="th-stat">
-        <b>
-          <CountUp to={MEASURED.clansRegistered} />
-        </b>
-        <small>Clans registered</small>
-        <i>
-          {rankedClans.toLocaleString()} ranked · {rankedPlayers.toLocaleString()} players this
-          month
-        </i>
+        <small>Clans on the board</small>
+        <i>ranked this month</i>
       </div>
     </div>
   );

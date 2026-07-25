@@ -3,23 +3,16 @@
 /**
  * Animation primitives for /test-hero only.
  *
- * Everything here is page-local by design: the landing page's motion language
- * (scroll reveals, count-ups, a scroll-progress rail) is not shared with the
- * rest of the site, so it lives beside the page rather than in components/.
- * The CSS these toggle lives in ./test-hero.css.
+ * Everything here is page-local by design: this page's motion language (scroll
+ * reveals and count-ups) is not shared with the rest of the site, so it lives
+ * beside the page rather than in components/. The CSS these toggle lives in
+ * ./test-hero.css.
  *
  * All of it degrades to "just render the content": if IntersectionObserver
- * never fires, `useReveal` still marks the node shown on mount, and the
- * count-ups snap to their final value under `prefers-reduced-motion`.
+ * never fires, `useInView` still marks the node shown, and the count-ups snap
+ * to their final value under `prefers-reduced-motion`.
  */
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 /** True when the visitor asked for reduced motion (re-evaluated on change). */
 export function useReducedMotion(): boolean {
@@ -143,85 +136,4 @@ export function CountUp({
       {format(shown ? value : 0)}
     </span>
   );
-}
-
-/**
- * Scroll-driven progress hairline + "which section am I in" state, used by the
- * fixed top bar. Returns 0–1 progress, the stuck flag, and the active anchor.
- */
-export function useScrollSpy(sectionIds: readonly string[]): {
-  progress: number;
-  stuck: boolean;
-  active: string | null;
-} {
-  const [progress, setProgress] = useState(0);
-  const [stuck, setStuck] = useState(false);
-  const [active, setActive] = useState<string | null>(null);
-
-  const measure = useCallback(() => {
-    const doc = document.documentElement;
-    const max = doc.scrollHeight - doc.clientHeight;
-    const y = window.scrollY;
-    setProgress(max > 0 ? Math.min(1, Math.max(0, y / max)) : 0);
-    setStuck(y > 40);
-
-    // Active = the last section whose top has passed a third of the viewport.
-    let current: string | null = null;
-    for (const id of sectionIds) {
-      const el = document.getElementById(id);
-      if (el && el.getBoundingClientRect().top <= window.innerHeight * 0.34) current = id;
-    }
-    setActive(current);
-  }, [sectionIds]);
-
-  useEffect(() => {
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(measure);
-    };
-    measure();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, [measure]);
-
-  return { progress, stuck, active };
-}
-
-/**
- * Autoplays a `<video>` only while it is on screen and pauses it otherwise.
- * The reel puts eight H.264 clips on one page; without this every one of them
- * decodes continuously and the tab burns a core for no visible benefit.
- */
-export function useVideoInView(): React.RefObject<HTMLVideoElement | null> {
-  const ref = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (typeof IntersectionObserver === "undefined") return;
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry) return;
-        if (entry.isIntersecting) {
-          // play() rejects when autoplay is blocked — the poster frame stays,
-          // which is an acceptable resting state.
-          void el.play().catch(() => {});
-        } else {
-          el.pause();
-        }
-      },
-      { threshold: 0.25 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  return ref;
 }
