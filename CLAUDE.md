@@ -2,103 +2,165 @@
 
 Auto-loaded orientation for the DropTracker frontend monorepo. The backend
 (Python: intake API, Web API v1, Discord bots, workers) is a **separate repo**
-deployed at `/store/droptracker/disc` on the production box.
+deployed at `/store/droptracker/disc` on the production box. Active branch here
+is `main` (the backend repo's is `new-api`).
 
 ## What Is This?
 
-Next.js 15 (App Router, React 19) site + BFF for droptracker.io. The browser
-only ever talks to Next.js; the BFF holds the session cookie and proxies to
-the Python **Web API v1** (Quart, port 31325). pnpm + Turborepo monorepo.
+Next.js 15 (App Router, React 19) + BFF for droptracker.io. The browser only
+ever talks to Next.js; the BFF holds the session and proxies to the Python
+**Web API v1** (Quart, port 31325). pnpm + Turborepo monorepo, Tailwind v4.
+
+This repo serves **three** front-ends off one Next.js process:
+
+| Surface | Entry | Notes |
+|---|---|---|
+| The site | `app/(site)/` | Public + dashboard + admin. Session lives in the `dt_session` cookie. |
+| Discord Activity | `app/activity/` | Embedded App SDK iframe on `<app-id>.discordsays.com`. Chromeless, **cookie-less** (see Rules). |
+| Board image export | `app/board-image/[id]/` | Chromeless board render the backend screenshots for Discord; gated by `BOARD_IMAGE_TOKEN`. |
 
 ```
-apps/web              Next.js app: routes, components, lib, BFF /api routes
-packages/api-types    Vendored openapi.json + generated TS types + Zod schemas
+apps/web              Next.js app: routes, components, lib, BFF /api routes, middleware
+packages/api-types    Vendored openapi.json + generated TS types + hand-authored Zod schemas
 packages/config       Shared tsconfig / eslint presets
 infra/                Dockerfile.web, dev-server.sh, topology notes
-docs/                 events-prd.md + backend-tasks/ (specs for the backend repo)
+docs/                 events-prd.md, loot-sweep-frontend.md, backend-tasks/ (specs for the backend repo)
+scripts/deploy.sh     Blue-green production deploy
 ```
 
-## Route Groups (apps/web/app)
+## Routes
 
-- `(public)` — `/`, `/leaderboards`, `/events[/id]`, `/announcements[/id]`,
-  `/search`, `/docs[/slug]` (DB-backed CMS), `/groups/[id][/lootboard]`,
-  `/players/[id]`, `/npcs/[npcId]` (drop table + loot totals + PB boards),
-  `/items/[itemId]`, `/personal-bests` (index; per-boss URLs 308 → `/npcs/[id]`),
-  `/premium`
-- `(dashboard)` — authed: `/dashboard`, `/settings`, `/submit`
-  (guard: `requireUser()` in layout)
-- `(admin)` — group admin `/groups/[id]/{settings,members,announcements,events,subscription,diagnostics}`
-  + `/groups/new` wizard (guard: `canAdminGroup()`), and superadmin `/admin/*`
-  (overview, events, groups, users, audit, data, logs, announcements, docs,
-  discord, services, lookup, tiers, badges; guard: `requireSuperadmin()`)
-- `app/api/*` — BFF routes: `auth/login`, `auth/callback`, `auth/logout`,
-  `me`, `stream` (SSE proxy), `feed/recent`
+**Everything user-facing is nested under the `(site)` route group** —
+`app/(site)/(public)`, `app/(site)/(dashboard)`, `app/(site)/(admin)`. The
+`(site)` layout owns the header, live ticker, and footer; `app/activity` and
+`app/board-image` deliberately sit outside it so they render chromeless.
+
+- `(public)` — `/`, `/leaderboards`, `/events/[id]{,/players,/teams[/teamId]}`,
+  `/announcements[/id]`, `/search`, `/docs[/slug]` (DB-backed CMS),
+  `/groups/[id]{,/lootboard,/personal-bests,/points[/leaderboard]}`,
+  `/players/[id]`, `/npcs/[npcId]`, `/items/[itemId]`, `/item-values`,
+  `/personal-bests`, `/suggestions[/new|/id]`, `/premium`
+- `(dashboard)` — authed: `/dashboard`, `/settings`, `/submit`, `/register`,
+  `/tickets[/id]` (guard: `requireUser()` in the layout)
+- `(admin)` — group admin under `/groups/[id]/…` (`settings`, `members`,
+  `admin`, `authorized`, `announcements`, `events[/eventId[/discord]]`,
+  `event-managers`, `embeds`, `points[/manage]`, `submissions`, `subscription`,
+  `diagnostics`) + `/groups/new` wizard; `/moderation/*` for moderators; and
+  superadmin `/admin/*` (events, event-limits, event-types, groups, users,
+  audit, data, logs, announcements, docs, discord, services, lookup, tiers,
+  badges, backups, b2, subscriptions, tickets, task-library, item-values,
+  personal-bests, redirects, boardgame-shop)
+- `app/middleware.ts` — Edge middleware resolving **DB-backed redirects** ahead
+  of routing, via the cached `/api/redirects` handler (it cannot import
+  `lib/api` or touch the DB). Static legacy 301s in `next.config.ts` are the
+  fallback layer; a DB rule shadows them.
+- `next.config.ts` rewrites — `/` on host `activity.droptracker.io` → `/activity`;
+  `/payment_callback.php` → the backend's legacy PayPal IPN; the Stripe billing
+  webhook proxied raw (web_api is internal-only, so its public path must live here).
+
+## BFF Routes (`app/api/*`)
+
+- Site: `auth/{login,callback,logout}`, `me`, `stream` (SSE proxy),
+  `feed/recent`, `search`, `health`, `redirects`, `uploads/proof`,
+  `players/[id]/{card,loot}`, `groups/[id]/card`,
+  `events/[id]/{completions/history,players/[playerId],tasks/[taskId]/breakdown}`
+- Activity: `api/activity/*` — a parallel BFF surface (~45 handlers) covering
+  `auth`, `me`, `claim`, `events/*` (board, board game roll/shop/items, buyins,
+  completions, join/leave, loot-sweep, players, pot, teams), `group-setup/*`,
+  `leaderboards`, `pbs`, `feed`, `search`, `stream`, `launch-intent`.
 
 ## Key Modules
 
 | Path | Purpose |
 |---|---|
-| `apps/web/lib/api.ts` | The BFF client — 100+ `api.*()` methods, forwards `dt_session` cookie, Zod-parses responses, mock fallback |
-| `apps/web/lib/env.ts` | All server-side env reads |
-| `apps/web/lib/session.ts` | OAuth state HMAC + session cookie set/clear |
-| `apps/web/lib/auth.ts` | `getUser`/`requireUser`/`requireSuperadmin`/`canAdminGroup` |
+| `apps/web/lib/api.ts` | The BFF client — ~285 `api.*()` methods (≈140 KB; schemas + helpers above, the `api` object from ~L799), forwards the `dt_session` cookie, Zod-parses responses, mock fallback |
+| `apps/web/lib/env.ts` | All server-side env reads (documented inline — read it before adding a var) |
+| `apps/web/lib/session.ts` | OAuth state HMAC + session cookie set/clear; exports `SESSION_COOKIE` |
+| `apps/web/lib/auth.ts` | `getUser`/`requireUser`/`requireSuperadmin`/`requireModerator`/`requireGroupAdminPage` + pure `groupRole`/`canAdminGroup`/`canManageEvents` |
+| `apps/web/lib/activity/` | Activity-only client: `discord-sdk.ts`, `auth-context.tsx`, `data-context.tsx`, `api.ts` (client-side, Zod-parsed), `nav.tsx` |
 | `apps/web/lib/use-event-stream.ts` | SSE client hook (reconnect + Zod validation) |
+| `apps/web/lib/events.ts`, `loot-sweep*.ts` | Pure event/board shaping logic — unit-tested, keep logic here not in components |
 | `apps/web/lib/mock-data.ts` | Mock payloads (contract-tested), powers `USE_MOCK_API=true` |
 | `apps/web/components/ui.tsx` | Design-system primitives (`Card`, `EmptyState`, `StatTile`, …) |
 | `apps/web/components/config-editor.tsx` | Typed group-config form driven by the shared key registry |
-| `apps/web/components/event-*.tsx` | Events v2 UI: create form, task form, bingo designer, manager, review queue, Discord config, join panel, live board |
-| `apps/web/components/admin/` | Superadmin panels (audit log, badges, data browser, docs CMS, users, logs) |
-| `packages/api-types/src/` | Hand-authored Zod schemas + group-config/entitlements registries |
+| `apps/web/components/event-*.tsx` | Events v2 UI: create/wizard, task form, bingo designer, board designer, manager, review queue, Discord config, layouts, sign-up tools, live board |
+| `apps/web/components/loot-sweep-*.tsx` | Loot-sweep matrix board, standings, receipt cards, editor |
+| `apps/web/components/activity/`, `components/setup/` | Activity views; shared group-setup + RSN-claim flows (site and activity) |
+| `apps/web/components/admin/` | Superadmin panels (audit, badges, data browser, docs CMS, users, logs, tickets, backups, …) |
+| `packages/api-types/src/` | Hand-authored Zod schemas + group-config/entitlements/tier-flair registries |
 
 ## Rules
 
 1. **Browser → BFF only.** Never fetch `:31325` from client code; server-side
-   `lib/api.ts` is the single door to the backend.
-2. **Contract first.** `packages/api-types/openapi.json` is vendored from the
+   `lib/api.ts` is the single door to the backend. The Activity follows the same
+   rule via same-origin `/api/activity/*` (also required by its CSP).
+2. **The Activity has no cookies.** Cookies do not survive the
+   `discordsays.com` iframe, so `/api/activity/auth` returns the session in the
+   **response body** and `lib/activity/auth-context.tsx` holds it. Never assume
+   `cookies()` works on an activity path.
+3. **Contract first.** `packages/api-types/openapi.json` is vendored from the
    backend repo (`web_api/openapi.json`) — no auto-sync. Contract change =
    copy file → `pnpm gen:api-types` → update Zod schemas →
    `apps/web/test/contract.test.ts` must pass.
-3. **Zod-validate every backend response** at the BFF boundary.
-4. **Auth guards in layouts**, roles come from `api.me()`; superadmin implies
-   owner on every group.
-5. **Realtime = SSE** via `/api/stream` proxy; scopes: `global`, `feed`,
+4. **Zod-validate every backend response** at the BFF boundary.
+5. **Auth guards live in layouts**, roles come from `api.me()`; superadmin
+   implies owner on every group. There is no shared `(admin)` layout — each
+   subtree guards itself: `admin/layout.tsx` → `requireSuperadmin`,
+   `moderation/layout.tsx` → `requireModerator`, `groups/[id]/layout.tsx` →
+   `requireUser` + `canAdminGroup`/`canManageEvents`. A new admin subtree needs
+   its own guard. Role failures use the `unauthorized()` / `forbidden()`
+   interrupts (real 401/403 pages), not silent redirects.
+6. **Realtime = SSE** via `/api/stream` proxy; scopes: `global`, `feed`,
    `group:{id}`, `player:{id}`, `event:{id}`.
-6. **Docs content lives in the DB** (superadmin CMS `/admin/docs`), not the repo.
+7. **Docs content lives in the DB** (superadmin CMS `/admin/docs`), not the repo.
+8. **`next build` does not lint.** `eslint: { ignoreDuringBuilds: true }` is
+   deliberate — `next build`'s own ESLint pass diverges from `eslint .` and used
+   to turn green CI into red deploys. `pnpm lint` is the single source of truth.
 
 ## Commands
 
 ```bash
 pnpm install && pnpm gen:api-types   # gen is REQUIRED before typecheck/build
-pnpm dev          # :3000, mock mode by default (USE_MOCK_API=true)
-pnpm lint && pnpm typecheck && pnpm test && pnpm build   # what CI runs
+pnpm lint && pnpm typecheck && pnpm test && pnpm build   # what CI runs (Node 22, pnpm 10.33.0)
+```
+
+Dev server — **read the mock-mode gotcha below before using `pnpm dev`**:
+
+```bash
+USE_MOCK_API=true PORT=3001 pnpm dev
 ```
 
 ## Production
 
-**Zero-downtime blue-green:** two `next start` instances run continuously behind
-nginx — `droptracker-node-blue.service` (:31380, `NEXT_DIST_DIR=.next-blue`) and
-`droptracker-node-green.service` (:31381, `.next-green`); units vendored in backend
-repo `deploy/systemd/`, cwd `apps/web`, `apps/web/.env.local → ../../.env` symlink.
-nginx routes to whichever colour is primary in
-`/etc/nginx/conf.d/droptracker-node-upstream.conf` (other = `backup`). **Deploy =
-`scripts/deploy.sh`** (or `sudo systemctl restart droptracker-node` — a oneshot
-that runs deploy.sh; watch `journalctl -u droptracker-node -f`). It builds the
-idle colour, health-checks it on `/api/health`, flips the upstream, `nginx -s
-reload` (graceful → no downtime); re-run to roll back. **`droptracker-node` is the
-deploy trigger, NOT a server** — the servers are `droptracker-node-{blue,green}`;
-don't restart those directly (simultaneous = downtime). Never deploy via a bare
-`pnpm build && systemctl restart`: a plain `pnpm build` writes to `.next`, which
-neither instance serves, and it brings back the offline window + the
-in-place-`.next` ChunkLoadError outage. Fronted by Cloudflare;
-`SESSION_COOKIE_SECURE=false` is REQUIRED while the origin is plain HTTP (Secure
-cookies get dropped → infinite sign-in loop).
+Zero-downtime **blue-green**: `droptracker-node-blue.service` (:31380,
+`.next-blue`) and `droptracker-node-green.service` (:31381, `.next-green`) both
+run continuously behind nginx; `droptracker-node` is a **oneshot deploy
+trigger, not a server**. Deploy with `scripts/deploy.sh` (or
+`sudo systemctl restart droptracker-node`, which runs it); re-run to roll back.
+
+**Never `pnpm build && systemctl restart`** — a bare `pnpm build` writes `.next`,
+which neither instance serves, and it reintroduces the in-place-`.next`
+ChunkLoadError outage. Never restart blue and green together (that is downtime).
+
+Full detail — nginx upstream file, health check, rollback, Cloudflare and the
+`SESSION_COOKIE_SECURE=false` requirement — lives in [DEPLOY.md](DEPLOY.md).
+Keep deploy facts there; this section is a pointer, not a second copy.
 
 ## Gotchas
 
+- **`pnpm dev` is NOT mock mode on this box.** `USE_MOCK_API` defaults to true
+  outside production, *but* `apps/web/.env.local` is a symlink to the repo-root
+  `.env`, which sets `USE_MOCK_API=false` and points at the live backend on
+  `:31325`. A plain `pnpm dev` therefore hits production data and cannot see
+  undeployed backend changes. Pass `USE_MOCK_API=true` explicitly for mocks; to
+  smoke-test what is actually deployed, curl `:31380` directly.
 - Fresh clone: `pnpm typecheck` fails until `pnpm gen:api-types` runs
   (generated types are gitignored).
-- Mock sign-in: with `USE_MOCK_API=true` and no Discord app configured,
-  the login route sets `dt_session=mock-session` — that's expected.
+- Mock sign-in: with `USE_MOCK_API=true` and no Discord app configured, the
+  login route sets `dt_session=mock-session` — that's expected.
 - Tests are Node's built-in `node:test` via `tsx` — no Jest/Vitest.
 - The group-config editor is registry-driven — new config keys are added in
   `packages/api-types` (schema) + the backend registry, not hardcoded in the form.
+- Soft-404s render as HTTP 200 with the not-found page, so status codes alone
+  aren't a reliable page-exists check when curling.
+- This box often carries the owner's in-flight edits. Diff before committing.
