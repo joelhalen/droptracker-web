@@ -32,6 +32,9 @@ export async function loadEventForView(
     return { event };
   } catch (err) {
     const code = apiErrorCode(err);
+    // Legacy code: since web74a a public draft is readable by anyone, so the
+    // backend denies only for privacy. Kept because the two repos deploy
+    // separately — an older backend can still send this.
     if (code === "event_draft") {
       return {
         denied: (
@@ -110,10 +113,13 @@ export function EventPageHeader({ event }: { event: EventSummary }) {
       {event.description && (
         <p className="text-osrs-parchment-dark/80 mt-3 max-w-2xl">{event.description}</p>
       )}
+      {/* Draft = not started. The page is open to anyone holding the link
+          (web74a), so this reads for a stranger too — no "because you're a
+          member" claim. */}
       {event.status === "draft" && (
         <p className="border-osrs-gold/30 bg-osrs-gold/10 text-osrs-parchment-dark/90 mt-3 max-w-2xl rounded border px-3 py-2 text-sm">
-          This event hasn&apos;t started yet — you can preview it because you&apos;re part of a
-          participating clan. Sign up now and you&apos;ll be ready when it goes live.
+          This event hasn&apos;t started yet — this is a preview of the board and tasks. Sign up
+          now and you&apos;ll be ready the moment it goes live.
         </p>
       )}
       <TabNav tabs={tabs} className="mt-4" />

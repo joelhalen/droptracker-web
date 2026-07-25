@@ -27,8 +27,9 @@ export default async function EventTeamPage({ params }: { params: Params }) {
   const eventId = Number(id);
   const teamIdNum = Number(teamId);
   if (!Number.isFinite(eventId) || !Number.isFinite(teamIdNum)) notFound();
-  // Signed-in reads carry the session so draft (pre-publication) events stay
-  // visible to members of participating clans; anonymous reads stay cached.
+  // Signed-in reads carry the session so private events stay visible to
+  // members of participating clans; anonymous reads stay cached. Public
+  // drafts need no session either way (web74a).
   const user = await getUser().catch(() => null);
   // Restricted-event denials mirror the event page (web57a): signed-in
   // outsiders get a 403 with a reason code, anonymous viewers a 404 that's

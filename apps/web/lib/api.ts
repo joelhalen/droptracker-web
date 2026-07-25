@@ -945,8 +945,8 @@ export const api = {
   },
 
   /** Authed team read: same payload, but with the session cookie so members
-   * of participating clans can view teams on draft (pre-publication) events.
-   * Uncached (viewer-specific). */
+   * of participating clans can view teams on private events. Uncached
+   * (viewer-specific). */
   async eventTeamAuthed(eventId: number, teamId: number): Promise<EventTeamDetail> {
     return withFallback(
       async () =>

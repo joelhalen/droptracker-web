@@ -975,6 +975,15 @@ export function EventManager({
                   )}
                 </>
               )}
+              {/* Who can already open the page — a draft is off the public
+                  list either way, but a public one is link-shareable now. */}
+              {event.status === "draft" && (
+                <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
+                  {event.visibility === "private"
+                    ? "Private — the link only opens for your group and event admins."
+                    : "Off the public events list until it starts, but the link opens for anyone — safe to share in Discord."}
+                </span>
+              )}
             </span>
             <span className="ml-auto flex items-center gap-2">
               {event.status === "draft" && (
