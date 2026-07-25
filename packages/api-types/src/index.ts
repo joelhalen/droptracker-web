@@ -315,15 +315,15 @@ export const LootTrackerItemSchema = z.object({
   name: z.string(),
   quantity: z.number().int(),
   loot: MoneySchema,
-  /** Distinct drop rows this item came from this month. */
+  /** Distinct drop rows this item came from in the period shown. */
   drops: z.number().int().optional(),
-  /** Unix seconds of the first/most recent time it was received this month. */
+  /** Unix seconds of the first/most recent time it was received in the period shown. */
   first_ts: z.number().int().optional(),
   last_ts: z.number().int().optional(),
 });
 export type LootTrackerItem = z.infer<typeof LootTrackerItemSchema>;
 
-/** RuneLite-style loot box: one NPC's month of drops, items stacked. */
+/** RuneLite-style loot box: one NPC's drops for the period shown, items stacked. */
 export const LootTrackerNpcSchema = z.object({
   npc_id: z.number().int(),
   name: z.string(),
@@ -336,13 +336,19 @@ export type LootTrackerNpc = z.infer<typeof LootTrackerNpcSchema>;
 
 export const PlayerLootTrackerSchema = z.object({
   player_id: z.number().int(),
-  /** YYYYMM month shown. */
+  /** YYYYMM month shown; in all-time mode, the newest month covered. */
   partition: z.number().int(),
   /** First YYYYMM with tracked drops (month-picker lower bound). */
   earliest_partition: z.number().int(),
+  /** True when the payload spans the whole account instead of one month. */
+  all_time: z.boolean().optional(),
   npcs: z.array(LootTrackerNpcSchema),
 });
 export type PlayerLootTracker = z.infer<typeof PlayerLootTrackerSchema>;
+
+/** What the loot tracker can show: one YYYYMM month, or the whole account. */
+export const LOOT_ALL_TIME = "all";
+export type LootPeriod = number | typeof LOOT_ALL_TIME;
 
 // --- Personal-best leaderboards (/personal-bests/*) -----------------------
 /** One ranked time on a (boss, team size) board. */
@@ -2857,15 +2863,52 @@ export const EventTeamTaskSchema = EventTaskSchema.extend({
 });
 export type EventTeamTask = z.infer<typeof EventTeamTaskSchema>;
 
+/** The newest thing a roster member did — the applied ledger row that most
+ * recently credited them, shaped for the roster's "last contribution" line. */
+export const EventMemberLastContributionSchema = z.object({
+  task_id: z.number().int(),
+  task_label: z.string().nullable().optional(),
+  task_type: z.string().nullable().optional(),
+  quantity: z.number().int().default(1),
+  source_type: z.string().nullable().optional(),
+  /** Item name this row credited (item tasks), e.g. "Bones" on a collect-all. */
+  matched_target: z.string().nullable().optional(),
+  created_at: z.number().int().nullable(),
+});
+export type EventMemberLastContribution = z.infer<typeof EventMemberLastContributionSchema>;
+
+/** One task a roster member has pushed forward, with the contributions they
+ * made toward it. `contributions` is already folded by task type — a metric
+ * task (xp/kc/GP) counts once no matter how many progress updates it took. */
+export const EventMemberTaskSchema = z.object({
+  task_id: z.number().int(),
+  task_label: z.string().nullable().optional(),
+  task_type: z.string().nullable().optional(),
+  contributions: z.number().int().default(0),
+  quantity: z.number().int().default(0),
+});
+export type EventMemberTask = z.infer<typeof EventMemberTaskSchema>;
+
 /** Roster entry + contribution rollup from the applied ledger. */
 export const EventTeamMemberStatsSchema = EventMemberSchema.extend({
+  /** Contributions, NOT raw ledger rows: repeated progress updates on one
+   * metric task (xp / kills / GP) fold into a single contribution, while each
+   * separately-acquired item stays its own. */
   completions: z.number().int().default(0),
   quantity: z.number().int().default(0),
+  /** How many distinct tasks this member has moved forward. */
+  tasks_contributed: z.number().int().default(0),
   /** Contribution points: sum of (task points × net share) over completed tasks. */
   points: z.number().default(0),
   /** Total tracked loot over the event window — ALL sources, not just
    * task-credited drops (hourly-rollup granularity). */
   loot_gp: MoneySchema.optional(),
+  /** Newest applied ledger row for this member (null before they score). */
+  last_contribution: EventMemberLastContributionSchema.nullable().optional(),
+  /** Items this member personally pulled toward tasks (capped preview). */
+  items: z.array(EventPlayerItemSchema).default([]),
+  /** Per-task breakdown of their contributions (capped preview). */
+  tasks: z.array(EventMemberTaskSchema).default([]),
 });
 export type EventTeamMemberStats = z.infer<typeof EventTeamMemberStatsSchema>;
 

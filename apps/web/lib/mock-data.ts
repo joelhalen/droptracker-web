@@ -50,6 +50,7 @@ import type {
   ManualSubmissionQueue,
   Me,
   ItemDetail,
+  LootPeriod,
   NpcDetail,
   NpcDropTable,
   PlayerLootTracker,
@@ -75,7 +76,7 @@ import type {
   WomGroupPreview,
   WomSyncResult,
 } from "@droptracker/api-types";
-import { EMBED_TYPES, GROUP_CONFIG_FIELDS } from "@droptracker/api-types";
+import { EMBED_TYPES, GROUP_CONFIG_FIELDS, LOOT_ALL_TIME } from "@droptracker/api-types";
 import { defaultMaxAwards, itemTotal } from "./loot-sweep";
 import { slugify } from "./slug";
 
@@ -210,47 +211,53 @@ export function mockPlayerProfile(id: number): PlayerProfile {
   };
 }
 
-export function mockPlayerLoot(id: number, partition?: number): PlayerLootTracker {
+export function mockPlayerLoot(id: number, partition?: LootPeriod): PlayerLootTracker {
   const now = new Date();
   const current = now.getFullYear() * 100 + now.getMonth() + 1;
+  const allTime = partition === LOOT_ALL_TIME;
   const ts = Math.floor(Date.now() / 1000);
   const daysAgo = (d: number) => ts - d * 86400;
+  // All-time stacks the same NPCs up over the account's whole history, so the
+  // toggle visibly changes the numbers in mock mode too.
+  const scale = allTime ? 9 : 1;
+  const oldest = allTime ? daysAgo(540) : undefined;
   return {
     player_id: id,
-    partition: partition ?? current,
+    partition: typeof partition === "number" ? partition : current,
     earliest_partition: 202601,
+    all_time: allTime,
     npcs: [
       {
         npc_id: 8061,
         name: "Vorkath",
-        kills: 214,
-        loot: money(410_000_000),
+        kills: 214 * scale,
+        loot: money(410_000_000 * scale),
         items: [
           {
             item_id: 22006,
             name: "Vorkath's head",
-            quantity: 4,
-            loot: money(120_000_000),
-            drops: 4,
-            first_ts: daysAgo(24),
+            quantity: 4 * scale,
+            loot: money(120_000_000 * scale),
+            drops: 4 * scale,
+            first_ts: oldest ?? daysAgo(24),
             last_ts: daysAgo(2),
           },
           {
             item_id: 11286,
             name: "Draconic visage",
-            quantity: 2,
-            loot: money(9_800_000),
-            drops: 2,
-            first_ts: daysAgo(18),
+            quantity: 2 * scale,
+            loot: money(9_800_000 * scale),
+            drops: 2 * scale,
+            first_ts: oldest ?? daysAgo(18),
             last_ts: daysAgo(6),
           },
           {
             item_id: 1613,
             name: "Dragon bones",
-            quantity: 428,
-            loot: money(1_100_000),
-            drops: 214,
-            first_ts: daysAgo(27),
+            quantity: 428 * scale,
+            loot: money(1_100_000 * scale),
+            drops: 214 * scale,
+            first_ts: oldest ?? daysAgo(27),
             last_ts: daysAgo(0),
           },
         ],
@@ -258,25 +265,25 @@ export function mockPlayerLoot(id: number, partition?: number): PlayerLootTracke
       {
         npc_id: 2042,
         name: "Zulrah",
-        kills: 156,
-        loot: money(260_000_000),
+        kills: 156 * scale,
+        loot: money(260_000_000 * scale),
         items: [
           {
             item_id: 12934,
             name: "Zulrah's scales",
-            quantity: 31_200,
-            loot: money(4_600_000),
-            drops: 156,
-            first_ts: daysAgo(25),
+            quantity: 31_200 * scale,
+            loot: money(4_600_000 * scale),
+            drops: 156 * scale,
+            first_ts: oldest ?? daysAgo(25),
             last_ts: daysAgo(1),
           },
           {
             item_id: 12922,
             name: "Tanzanite fang",
-            quantity: 1,
-            loot: money(2_400_000),
-            drops: 1,
-            first_ts: daysAgo(9),
+            quantity: 1 * scale,
+            loot: money(2_400_000 * scale),
+            drops: 1 * scale,
+            first_ts: oldest ?? daysAgo(9),
             last_ts: daysAgo(9),
           },
         ],
@@ -2162,12 +2169,46 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
       coins: 0,
       loot_gp: money(312_500_000),
     },
+    // Third member of each trio has never scored — exercises the empty state,
+    // so every contribution field on that row must read zero together.
     members: (team.members ?? []).map((m, i) => ({
       ...m,
-      completions: 3 - (i % 3),
-      quantity: 40 - i * 12,
+      completions: i % 3 === 2 ? 0 : 3 - (i % 3),
+      quantity: i % 3 === 2 ? 0 : 40 - i * 12,
+      tasks_contributed: i % 3 === 2 ? 0 : 1 + (i % 2),
       points: [7.5, 2.33, 0][i % 3]!,
       loot_gp: money([120_000_000, 88_400_000, 12_000_000][i % 3]!),
+      last_contribution:
+        i % 3 === 2
+          ? null
+          : {
+              task_id: i % 2 === 0 ? 12 : 11,
+              task_label: i % 2 === 0 ? "Obtain a Twisted bow" : "Vorkath 50 KC",
+              task_type: i % 2 === 0 ? "item_collection" : "kc_target",
+              quantity: i % 2 === 0 ? 1 : 14,
+              source_type: i % 2 === 0 ? "drop" : "kc",
+              matched_target: i % 2 === 0 ? "Twisted bow" : null,
+              created_at: now - 900 * (i + 1),
+            },
+      items:
+        i % 3 === 0
+          ? [{ name: "Twisted bow", item_id: 20997, quantity: 1, drops: 1 }]
+          : i % 3 === 1
+            ? [{ name: "Dragon claws", item_id: 13652, quantity: 3, drops: 2 }]
+            : [],
+      tasks:
+        i % 3 === 2
+          ? []
+          : [
+              {
+                task_id: i % 2 === 0 ? 12 : 11,
+                task_label: i % 2 === 0 ? "Obtain a Twisted bow" : "Vorkath 50 KC",
+                task_type: i % 2 === 0 ? "item_collection" : "kc_target",
+                // 14 kills, one contribution — the folding this page fixes.
+                contributions: 1,
+                quantity: i % 2 === 0 ? 1 : 14,
+              },
+            ],
     })),
     items: [
       { name: "Twisted bow", item_id: 20997, quantity: 1, drops: 1 },

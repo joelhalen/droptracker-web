@@ -240,6 +240,7 @@ import {
   type ManualSubmissionQueue,
   ManualSubmissionQueueSchema,
   type Me,
+  type LootPeriod,
   type PlayerLootTracker,
   type PlayerProfile,
   type SearchResults,
@@ -838,12 +839,17 @@ export const api = {
     );
   },
 
-  /** RuneLite-style loot tracker: one month of drops grouped by NPC. */
-  async playerLoot(id: number, partition?: number): Promise<PlayerLootTracker> {
+  /** RuneLite-style loot tracker: drops grouped by NPC, for one month or —
+   * with `partition: "all"` — the player's whole account. All-time is a much
+   * heavier read on the backend, so it gets a longer ISR window. */
+  async playerLoot(id: number, partition?: LootPeriod): Promise<PlayerLootTracker> {
+    const allTime = partition === "all";
     const qs = partition ? `?partition=${partition}` : "";
     return withFallback(
       async () =>
-        PlayerLootTrackerSchema.parse(await apiGet(`/players/${id}/loot${qs}`, { revalidate: 60 })),
+        PlayerLootTrackerSchema.parse(
+          await apiGet(`/players/${id}/loot${qs}`, { revalidate: allTime ? 300 : 60 }),
+        ),
       () => mockPlayerLoot(id, partition),
     );
   },

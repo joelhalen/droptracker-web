@@ -117,6 +117,7 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => LeaderboardPageSchema.parse(mockPlayerLeaderboard(1, 10)));
   assert.doesNotThrow(() => PlayerProfileSchema.parse(mockPlayerProfile(42)));
   assert.doesNotThrow(() => PlayerLootTrackerSchema.parse(mockPlayerLoot(42)));
+  assert.doesNotThrow(() => PlayerLootTrackerSchema.parse(mockPlayerLoot(42, "all")));
   assert.doesNotThrow(() => AnnouncementPageSchema.parse(mockAnnouncements()));
   assert.doesNotThrow(() => MeSchema.parse(mockMe()));
   assert.doesNotThrow(() => EventManagersResponseSchema.parse(mockEventManagers()));

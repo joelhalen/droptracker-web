@@ -4,14 +4,21 @@
  * RuneLite-style loot tracker for player profile pages: one box per NPC with
  * kill count + total GP in the header and a grid of stacked item icons below,
  * exactly like the in-game plugin panel (ported from the old XenForo
- * `player_drops` template). Server renders the current month; switching
- * months fetches through the BFF (`/api/players/[id]/loot`).
+ * `player_drops` template). Server renders the current month; switching months
+ * — and the all-time view, which spans the life of the account — fetches
+ * through the BFF (`/api/players/[id]/loot`).
  */
 
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { entityPath } from "@/lib/slug";
-import type { LootTrackerItem, LootTrackerNpc, PlayerLootTracker } from "@droptracker/api-types";
+import {
+  LOOT_ALL_TIME,
+  type LootPeriod,
+  type LootTrackerItem,
+  type LootTrackerNpc,
+  type PlayerLootTracker,
+} from "@droptracker/api-types";
 import { CARD_SECTION_CLASS, CardStatLine, HoverCard } from "@/components/hover-card";
 import { Card, EmptyState } from "@/components/ui";
 import { formatGp, formatRelativeTime } from "@/lib/format";
@@ -37,7 +44,12 @@ function partitionLabel(partition: number): string {
   return date.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 }
 
-/** Rich item tooltip: share of the NPC's month, avg per drop, first/last seen —
+/** What the header reads for whichever period is on screen. */
+function periodLabel(data: PlayerLootTracker): string {
+  return data.all_time ? "All time" : partitionLabel(data.partition);
+}
+
+/** Rich item tooltip: share of the NPC's period, avg per drop, first/last seen —
  * replaces the browser-default `title` attribute the grid used to rely on. */
 function ItemCardContent({ item, npc }: { item: LootTrackerItem; npc: LootTrackerNpc }) {
   const unit = item.quantity > 1 ? Math.floor(item.loot.value / item.quantity) : null;
@@ -143,38 +155,53 @@ function NpcBox({ npc }: { npc: LootTrackerNpc }) {
 export function LootTracker({ playerId, initial }: { playerId: number; initial: PlayerLootTracker }) {
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
-  // Months already fetched this visit — switching back is instant.
-  const cache = useRef(new Map<number, PlayerLootTracker>([[initial.partition, initial]]));
+  const [loadingAllTime, setLoadingAllTime] = useState(false);
+  // Periods already fetched this visit — switching back is instant.
+  const cache = useRef(new Map<LootPeriod, PlayerLootTracker>([[initial.partition, initial]]));
+  // The month to come back to when leaving the all-time view.
+  const lastMonth = useRef(initial.partition);
 
+  const allTime = data.all_time === true;
   const atNewest = data.partition >= currentPartition();
   const atOldest = data.partition <= data.earliest_partition;
 
-  async function switchMonth(delta: 1 | -1) {
-    const target = shiftPartition(data.partition, delta);
+  async function load(target: LootPeriod) {
     setShowAll(false);
-    setError(false);
+    setError(null);
+    if (target !== LOOT_ALL_TIME) lastMonth.current = target;
     const cached = cache.current.get(target);
     if (cached) {
       setData(cached);
       return;
     }
     setLoading(true);
+    setLoadingAllTime(target === LOOT_ALL_TIME);
     try {
       const res = await fetch(`/api/players/${playerId}/loot?partition=${target}`);
-      if (!res.ok) throw new Error(`loot fetch ${res.status}`);
+      if (!res.ok) {
+        // The backend caps each read server-side and 503s rather than hanging
+        // when an account has too much history to summarise at once.
+        throw new Error(
+          res.status === 503
+            ? "That’s too much loot to total up right now — browse it a month at a time."
+            : target === LOOT_ALL_TIME
+              ? "Couldn’t load all-time loot — try again."
+              : "Couldn’t load that month — try again.",
+        );
+      }
       const payload = (await res.json()) as PlayerLootTracker;
       cache.current.set(target, payload);
       setData(payload);
-    } catch {
-      setError(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn’t load that — try again.");
     } finally {
       setLoading(false);
     }
   }
 
-  const monthTotal = data.npcs.reduce((sum, npc) => sum + npc.loot.value, 0);
+  const periodTotal = data.npcs.reduce((sum, npc) => sum + npc.loot.value, 0);
   const visible = showAll ? data.npcs : data.npcs.slice(0, INITIAL_BOXES);
 
   return (
@@ -183,38 +210,57 @@ export function LootTracker({ playerId, initial }: { playerId: number; initial: 
         <div className="border-osrs-bronze/40 flex items-center rounded border">
           <button
             type="button"
-            onClick={() => switchMonth(-1)}
-            disabled={loading || atOldest}
+            onClick={() => load(shiftPartition(data.partition, -1))}
+            disabled={loading || allTime || atOldest}
             aria-label="Previous month"
             className="hover:bg-osrs-bronze/30 px-2.5 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-30"
           >
             ‹
           </button>
           <span className="border-osrs-bronze/40 min-w-32 border-x px-3 py-1 text-center text-sm font-medium">
-            {partitionLabel(data.partition)}
+            {periodLabel(data)}
           </span>
           <button
             type="button"
-            onClick={() => switchMonth(1)}
-            disabled={loading || atNewest}
+            onClick={() => load(shiftPartition(data.partition, 1))}
+            disabled={loading || allTime || atNewest}
             aria-label="Next month"
             className="hover:bg-osrs-bronze/30 px-2.5 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-30"
           >
             ›
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => load(allTime ? lastMonth.current : LOOT_ALL_TIME)}
+          disabled={loading}
+          aria-pressed={allTime}
+          className={`border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
+            allTime ? "bg-osrs-bronze/30 text-osrs-gold-bright" : ""
+          }`}
+        >
+          {allTime ? "Show a month" : "Show all-time"}
+        </button>
         {data.npcs.length > 0 && (
           <span className="text-osrs-parchment-dark/60 text-sm">
             {data.npcs.length.toLocaleString()} NPCs •{" "}
-            <span className="text-osrs-gold-bright font-semibold">{formatGp(monthTotal)} gp</span>
+            <span className="text-osrs-gold-bright font-semibold">{formatGp(periodTotal)} gp</span>
+            {allTime && <> • since {partitionLabel(data.earliest_partition)}</>}
           </span>
         )}
-        {error && <span className="text-sm text-red-400">Couldn’t load that month — try again.</span>}
+        {loading && (
+          <span className="text-osrs-parchment-dark/60 text-sm" role="status">
+            {/* Building an account's first all-time view reads every month it
+                has — seconds on a long-lived account, instant afterwards. */}
+            {loadingAllTime ? "Adding up every month…" : "Loading…"}
+          </span>
+        )}
+        {error && <span className="text-sm text-red-400">{error}</span>}
       </div>
 
       {data.npcs.length === 0 ? (
         <EmptyState
-          title={`No tracked loot in ${partitionLabel(data.partition)}`}
+          title={allTime ? "No tracked loot yet" : `No tracked loot in ${partitionLabel(data.partition)}`}
           hint="Drops submitted with the DropTracker plugin will appear here."
         />
       ) : (
