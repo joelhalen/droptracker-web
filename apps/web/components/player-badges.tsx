@@ -31,6 +31,17 @@ function formatDayToken(day: string): string {
   });
 }
 
+function formatMonthToken(period: string): string {
+  // "202607" -> "July 2026" (the partition token the loot-leader badges store)
+  const y = Number(period.slice(0, 4));
+  const m = Number(period.slice(4, 6));
+  if (period.length !== 6 || !y || !m || m > 12) return period;
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, {
+    month: "long",
+    year: "numeric",
+  });
+}
+
 /** Short award-specific detail shown in parentheses on chips — the thing that
  * distinguishes "Daily Loot Champion (Jul 3, 2026)" from another player's.
  * Unknown keys/contexts return null and the chip stays generic. */
@@ -47,6 +58,10 @@ export function badgeDetail(
   }
   if (key === "boss_record" && typeof ctx.npc_name === "string") {
     return typeof ctx.team_size === "string" ? `${ctx.npc_name}, ${ctx.team_size}` : ctx.npc_name;
+  }
+  // One monthly-leader award per month, so the month IS the distinguishing bit.
+  if (key === "global_loot_leader_monthly" && typeof ctx.period === "string") {
+    return formatMonthToken(ctx.period);
   }
   return null;
 }
@@ -145,6 +160,13 @@ function contextLine(b: PlayerBadge): string | null {
     const team = typeof ctx.team_size === "string" ? ` (${ctx.team_size})` : "";
     const time = typeof ctx.pb_ms === "number" ? ` · ${formatKillTime(ctx.pb_ms)}` : "";
     return `${ctx.npc_name}${team}${time}`;
+  }
+  if (b.key === "global_loot_leader_alltime" && typeof ctx.loot === "number") {
+    return `${formatGp(ctx.loot)} GP tracked all time`;
+  }
+  if (b.key === "global_loot_leader_monthly" && typeof ctx.period === "string") {
+    const loot = typeof ctx.loot === "number" ? ` · ${formatGp(ctx.loot)} GP` : "";
+    return `Top looter in ${formatMonthToken(ctx.period)}${loot}`;
   }
   if (typeof ctx.note === "string" && ctx.note) {
     return ctx.note;
