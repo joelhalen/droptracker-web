@@ -793,6 +793,9 @@ export function EventTeamView({
                           +{formatProgressValue(task, a.quantity)}
                         </span>
                       )}
+                      {a.note && (
+                        <span className="text-osrs-parchment-dark/50 italic"> — “{a.note}”</span>
+                      )}
                     </span>
                     <span className="text-osrs-parchment-dark/40 shrink-0 text-xs">
                       {formatRelativeTime(a.created_at)}

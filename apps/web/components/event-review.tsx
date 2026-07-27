@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type { EventCompletion, EventTask, EventTeam } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
+import { taskConfigItems, taskConfigPaths } from "@/lib/events";
 import { Alert, EmptyState } from "@/components/ui";
 import { LocalTime } from "@/components/local-time";
 import {
@@ -91,23 +92,53 @@ export function EventReview({
   // Manual award form (the escape hatch for pre-join credit and custom tasks).
   // Two modes: "complete" (server fills whatever progress remains — the
   // default; awarding quantity 1 against a 50-KC task completes nothing) and
-  // "progress" (add an explicit quantity toward the goal).
+  // "progress" (add an explicit quantity toward the goal). Multi-part tasks
+  // (item lists / either-or paths) additionally take a part selection so the
+  // award credits a specific item or KC/GP path instead of generic wildcard
+  // progress; "complete" always fills the whole task, so the selector only
+  // applies in progress mode. `part` encodes the choice: "item:<name>" or
+  // "path:<idx>" ("" = whole task).
   const [award, setAward] = useState({
     taskId: 0,
     teamId: 0,
     mode: "complete" as "complete" | "progress",
     quantity: 1,
+    part: "",
     note: "",
   });
+  const partOptions = useMemo(() => {
+    const task = tasks.find((t) => t.id === award.taskId);
+    if (!task) return [];
+    const opts: { value: string; label: string }[] = [];
+    for (const [idx, p] of taskConfigPaths(task).entries()) {
+      if (!p.metric) continue; // item/points paths are credited by item name
+      const unit = p.metric === "kc" ? "KC" : "GP";
+      const scope = p.npcs?.length ? ` — ${p.npcs.join(", ")}` : "";
+      opts.push({
+        value: `path:${idx}`,
+        label: `Path: ${p.label ?? `${(p.need ?? 1).toLocaleString()} ${unit}`}${scope}`,
+      });
+    }
+    for (const it of taskConfigItems(task)) {
+      opts.push({
+        value: `item:${it.item_name}`,
+        label: it.points != null ? `${it.item_name} (${it.points} pts)` : it.item_name,
+      });
+    }
+    return opts;
+  }, [tasks, award.taskId]);
   const onAward = (e: React.FormEvent) => {
     e.preventDefault();
     if (!award.taskId || !award.teamId) return;
+    const part = award.mode === "progress" ? award.part : "";
     act(() =>
       awardEventCompletion(groupId, eventId, {
         task_id: award.taskId,
         team_id: award.teamId,
         complete: award.mode === "complete" || undefined,
         quantity: award.mode === "progress" ? award.quantity || 1 : undefined,
+        matched_target: part.startsWith("item:") ? part.slice(5) : undefined,
+        path: part.startsWith("path:") ? Number(part.slice(5)) : undefined,
         note: award.note.trim() || undefined,
       }),
     );
@@ -176,6 +207,9 @@ export function EventReview({
               <span className="min-w-0 flex-1">
                 <span className="block truncate">
                   {c.task_label ?? `Task #${c.task_id}`}
+                  {c.matched_target && (
+                    <span className="text-osrs-parchment-dark/70"> — {c.matched_target}</span>
+                  )}
                   {c.quantity > 1 && <span className="text-osrs-parchment-dark/60"> ×{c.quantity}</span>}
                 </span>
                 <span className="text-osrs-parchment-dark/60 block truncate text-xs">
@@ -225,10 +259,11 @@ export function EventReview({
         />
       )}
 
-      <form onSubmit={onAward} className="mt-5 grid gap-2 sm:grid-cols-[1fr_9rem_9rem_5rem_1fr_auto]">
+      <form onSubmit={onAward} className="mt-5 grid gap-2">
+        <div className="grid gap-2 sm:grid-cols-[1fr_9rem_9rem_5rem_1fr_auto]">
         <select
           value={award.taskId}
-          onChange={(e) => setAward((a) => ({ ...a, taskId: Number(e.target.value) }))}
+          onChange={(e) => setAward((a) => ({ ...a, taskId: Number(e.target.value), part: "" }))}
           className={field}
         >
           <option value={0}>Manual award: task…</option>
@@ -284,6 +319,27 @@ export function EventReview({
         >
           Award
         </button>
+        </div>
+        {partOptions.length > 0 && award.mode === "progress" && (
+          <select
+            value={award.part}
+            onChange={(e) => setAward((a) => ({ ...a, part: e.target.value }))}
+            title="Which part of the task this award credits"
+            className={`${field} sm:max-w-md`}
+          >
+            <option value="">Whole task (no specific item/part)</option>
+            {partOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {partOptions.length > 0 && award.mode === "complete" && (
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            To credit a specific item or path of this task, switch to “Add progress”.
+          </p>
+        )}
       </form>
     </section>
   );

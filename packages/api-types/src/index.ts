@@ -2873,6 +2873,8 @@ export const EventMemberLastContributionSchema = z.object({
   source_type: z.string().nullable().optional(),
   /** Item name this row credited (item tasks), e.g. "Bones" on a collect-all. */
   matched_target: z.string().nullable().optional(),
+  /** Organizer's reason on a manual award. */
+  note: z.string().nullable().optional(),
   created_at: z.number().int().nullable(),
 });
 export type EventMemberLastContribution = z.infer<typeof EventMemberLastContributionSchema>;
@@ -2912,7 +2914,8 @@ export const EventTeamMemberStatsSchema = EventMemberSchema.extend({
 });
 export type EventTeamMemberStats = z.infer<typeof EventTeamMemberStatsSchema>;
 
-/** One applied ledger row, public-safe (no notes / proof URLs). */
+/** One applied ledger row, public-safe (no proof URLs; `note` only ever
+ * carries the organizer's manual-award reason — auto rows have none). */
 export const EventTeamActivitySchema = z.object({
   id: z.number().int(),
   task_id: z.number().int(),
@@ -2923,6 +2926,8 @@ export const EventTeamActivitySchema = z.object({
   source_type: z.string().nullable().optional(),
   /** Item name this row credited (item tasks), e.g. "Bones" on a collect-all. */
   matched_target: z.string().nullable().optional(),
+  /** Organizer's reason on a manual award. */
+  note: z.string().nullable().optional(),
   created_at: z.number().int().nullable(),
 });
 export type EventTeamActivity = z.infer<typeof EventTeamActivitySchema>;
@@ -3089,6 +3094,8 @@ export const EventPlayerDetailSchema = z.object({
       quantity: z.number().int().default(1),
       source_type: z.string().nullable().optional(),
       matched_target: z.string().nullable().optional(),
+      /** Organizer's reason on a manual award. */
+      note: z.string().nullable().optional(),
       created_at: z.number().int().nullable(),
     }),
   ).default([]),
@@ -3194,6 +3201,8 @@ export const TaskBreakdownContributorSchema = z.object({
       }),
     )
     .default([]),
+  /** Organizer's reason on a manual award (newest, when one was written). */
+  note: z.string().nullable().optional(),
   last_at: z.number().int().nullable().optional(),
 });
 export type TaskBreakdownContributor = z.infer<typeof TaskBreakdownContributorSchema>;
@@ -3313,8 +3322,16 @@ export const EventAwardInputSchema = z.object({
   team_id: z.number().int(),
   quantity: z.number().int().positive().optional(),
   /** True ⇒ server sizes the award to whatever progress remains, so this one
-   * row completes the task (instead of adding `quantity` toward it). */
+   * row completes the task (instead of adding `quantity` toward it). Cannot
+   * combine with a part selection (`matched_target`/`path`). */
   complete: z.boolean().optional(),
+  /** Which part of a multi-part task this award credits: a configured item
+   * name (validated server-side against the task config; point_collection
+   * weights apply). Omitted ⇒ generic wildcard progress. */
+  matched_target: z.string().min(1).max(120).optional(),
+  /** Index of a KC/GP metric path on an `any_path` task (item/points paths
+   * are credited via `matched_target` instead). Mutually exclusive with it. */
+  path: z.number().int().nonnegative().optional(),
   note: z.string().max(255).optional(),
 });
 export type EventAwardInput = z.infer<typeof EventAwardInputSchema>;
@@ -3342,6 +3359,8 @@ export const EventCompletionSchema = z.object({
   source_type: z.string().nullable().optional(),
   submission_guid: z.string().nullable().optional(),
   proof_url: z.string().nullable().optional(),
+  /** Item name this row credited (item tasks / part-specific manual awards). */
+  matched_target: z.string().nullable().optional(),
   note: z.string().nullable().optional(),
   created_at: z.number().int(),
 });

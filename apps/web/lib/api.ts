@@ -726,6 +726,8 @@ const CompletionHistoryEntrySchema = z.object({
   source_type: z.string().nullable(),
   status: z.string(),
   proof_url: z.string().nullable(),
+  /** Organizer's reason on a manual award. */
+  note: z.string().nullable().optional(),
   created_at: z.number().nullable(),
 });
 const CompletionHistorySchema = z.object({

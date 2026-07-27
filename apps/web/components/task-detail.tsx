@@ -529,18 +529,28 @@ export function TaskDetailContent({
                   </p>
                   <ul className="space-y-1">
                     {bd!.contributors.slice(0, 8).map((c, i) => (
-                      <li key={i} className="flex items-center gap-2 text-xs">
-                        <Avatar name={c.player_name} />
-                        <span className="text-osrs-parchment/90 shrink-0 max-w-[35%] truncate">
-                          {c.player_name ?? "Manual award"}
-                        </span>
-                        <span className="text-osrs-parchment-dark/55 min-w-0 flex-1 truncate">
-                          {contribText(c)}
-                        </span>
-                        {c.last_at != null && (
-                          <span className="text-osrs-parchment-dark/40 shrink-0">
-                            <LocalTime unix={c.last_at} mode="date" />
+                      <li key={i} className="text-xs">
+                        <div className="flex items-center gap-2">
+                          <Avatar name={c.player_name} />
+                          <span className="text-osrs-parchment/90 shrink-0 max-w-[35%] truncate">
+                            {c.player_name ?? "Manual award"}
                           </span>
+                          <span className="text-osrs-parchment-dark/55 min-w-0 flex-1 truncate">
+                            {contribText(c)}
+                          </span>
+                          {c.last_at != null && (
+                            <span className="text-osrs-parchment-dark/40 shrink-0">
+                              <LocalTime unix={c.last_at} mode="date" />
+                            </span>
+                          )}
+                        </div>
+                        {/* Organizer's reason on a manual award — the whole
+                            point of the note field; never leave a bare
+                            "Manual award" when an explanation exists. */}
+                        {c.note && (
+                          <p className="text-osrs-parchment-dark/45 mt-0.5 pl-7 text-[10px] italic">
+                            “{c.note}”
+                          </p>
                         )}
                       </li>
                     ))}

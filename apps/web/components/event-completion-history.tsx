@@ -126,10 +126,21 @@ export function EventCompletionHistory({
                     {e.matched_target && e.task_label && e.matched_target !== e.task_label && (
                       <span className="text-osrs-parchment-dark/40 ml-2 text-xs">{e.task_label}</span>
                     )}
+                    {e.note && (
+                      <span className="text-osrs-parchment-dark/50 block text-xs italic">
+                        “{e.note}”
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2">
-                    <span className={e.hidden ? "text-osrs-parchment-dark/50 italic" : ""}>
-                      {e.player_name ?? "—"}
+                    <span
+                      className={
+                        e.hidden || (!e.player_name && e.source_type === "manual")
+                          ? "text-osrs-parchment-dark/50 italic"
+                          : ""
+                      }
+                    >
+                      {e.player_name ?? (e.source_type === "manual" ? "Manual award" : "—")}
                     </span>
                   </td>
                   {teams.length > 1 && (

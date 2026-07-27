@@ -341,12 +341,14 @@ export function taskConfigItems(
   for (const [k, v] of Object.entries(itemNpcs)) npcByLower[k.toLowerCase()] = v;
   const items = Array.isArray(cfg.items)
     ? cfg.items
-    : cfg.kind === "any_path"
-      ? taskConfigPaths(task).flatMap((p) => [
-          ...p.groups.flatMap((g) => g.items),
-          ...(p.items ?? []),
-        ])
-      : taskConfigGroups(task).flatMap((g) => g.items);
+    : Array.isArray(cfg.any_of) // legacy bare any_of list (backend still accepts it)
+      ? cfg.any_of
+      : cfg.kind === "any_path"
+        ? taskConfigPaths(task).flatMap((p) => [
+            ...p.groups.flatMap((g) => g.items),
+            ...(p.items ?? []),
+          ])
+        : taskConfigGroups(task).flatMap((g) => g.items);
   if (!Array.isArray(items)) return [];
   const seen = new Set<string>();
   return items.flatMap((it) => {
