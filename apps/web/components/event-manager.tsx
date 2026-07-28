@@ -307,6 +307,7 @@ export function EventManager({
     isPrivate: event.visibility === "private",
     requiresConfirmation: event.requires_confirmation,
     allowLiveEdits: event.allow_live_edits,
+    effortVisibility: event.effort_visibility,
     allowLateSignups: event.allow_late_signups,
     submissionPolicy: event.submission_policy,
     leadershipEnabled: event.leadership.enabled,
@@ -326,6 +327,7 @@ export function EventManager({
       isPrivate: event.visibility === "private",
       requiresConfirmation: event.requires_confirmation,
       allowLiveEdits: event.allow_live_edits,
+      effortVisibility: event.effort_visibility,
       allowLateSignups: event.allow_late_signups,
       submissionPolicy: event.submission_policy,
       leadershipEnabled: event.leadership.enabled,
@@ -350,6 +352,7 @@ export function EventManager({
           visibility: eventDraft.isPrivate ? "private" : "public",
           requires_confirmation: eventDraft.requiresConfirmation,
           allow_live_edits: eventDraft.allowLiveEdits,
+          effort_visibility: eventDraft.effortVisibility,
           allow_late_signups: eventDraft.allowLateSignups,
           submission_policy: eventDraft.submissionPolicy,
           leadership: {
@@ -747,6 +750,30 @@ export function EventManager({
                 Keeps the bingo board editable while the event runs. Tasks and teams are always
                 adjustable mid-event — scoring changes ask whether to re-score existing progress.
                 Every change is audited.
+              </span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={eventDraft.effortVisibility === "admins"}
+              onChange={(e) =>
+                setEventDraft((d) => ({
+                  ...d,
+                  effortVisibility: e.target.checked ? "admins" : "public",
+                }))
+              }
+              className="mt-0.5 size-4"
+            />
+            <span>
+              Keep EHE private to event managers
+              <span className="text-osrs-parchment-dark/60 block text-xs">
+                EHE (Efficient Hours towards Event) estimates how long each player spent
+                working on this event&apos;s tasks. It stays on the team and player pages by
+                default; tick this to confine it to your effort report, which some clans
+                prefer since a public per-member effort column can read as
+                &ldquo;here&apos;s who did the least&rdquo;. Effort is recorded either way, so
+                you can un-tick it later and the full history appears.
               </span>
             </span>
           </label>

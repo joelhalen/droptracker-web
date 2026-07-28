@@ -1848,6 +1848,12 @@ export const EVENT_TASK_TYPES = [
  * group's picker, private rows only in the owning group's. */
 export const EVENT_TASK_VISIBILITIES = ["public", "private"] as const;
 
+/** Who may see a player's EHE (web74a). "public" = the team/player surfaces
+ * show it; "admins" = only the event managers' effort report does. Effort is
+ * recorded either way — this gates display, not collection. */
+export const EVENT_EFFORT_VISIBILITIES = ["public", "admins"] as const;
+export type EventEffortVisibility = (typeof EVENT_EFFORT_VISIBILITIES)[number];
+
 /** How players get onto teams (events-prd.md D4). All but `admin_assign` let
  * players self-sign-up from the event page / a Discord button. `signup_pool`
  * collects opt-ins with no team; admins sort/randomize them later. */
@@ -2770,6 +2776,11 @@ export const EventSummarySchema = z.object({
    * after activation. Flippable at any status via PATCH; audited. Defaulted
    * for payloads predating the column. */
   allow_live_edits: z.boolean().default(false),
+  /** EHE visibility (web74a): whether a player's Efficient Hours towards Event
+   * shows on the public team/player surfaces, or stays in the managers' effort
+   * report. When "admins" and the viewer isn't one, the API omits the effort
+   * fields entirely rather than sending zeroes. */
+  effort_visibility: z.enum(EVENT_EFFORT_VISIBILITIES).default("public"),
   /** Late sign-ups (web70a): OFF (the default) means self sign-ups close the
    * moment the event begins — the Discord prompt drops its button and the
    * join panel stops offering to enter. ON keeps them open to the end. */
@@ -3365,6 +3376,8 @@ export const EventInputSchema = z.object({
   /** Live edits (web68a): keep the bingo board editable after activation.
    * Flippable at any status; every change is audited. */
   allow_live_edits: z.boolean().optional(),
+  /** EHE visibility (web74a): "public" or "admins". */
+  effort_visibility: z.enum(EVENT_EFFORT_VISIBILITIES).optional(),
   /** Late sign-ups (web70a): keep self sign-ups open after the event begins.
    * Off by default — sign-ups close at the start and the posted Discord
    * prompt retires its button then. */
