@@ -29,6 +29,7 @@ import { teamColorMap } from "@/lib/events";
 import { StatTile } from "@/components/ui";
 import { LocalTime } from "@/components/local-time";
 import { EventMemberList } from "@/components/event-member-list";
+import { EheHoursChip } from "@/components/event-ehe";
 
 /** Rosters up to this size render inline; larger ones collapse. */
 const INLINE_MAX = 6;
@@ -42,18 +43,31 @@ function distributionHint(pot: EventPrizePotSummary): string {
 
 function MemberRow({ m }: { m: EventMember }) {
   return (
-    <li key={m.player_id} className="flex items-center justify-between">
+    <li key={m.player_id} className="flex items-center justify-between gap-2">
       <Link
         href={entityPath("players", m.player_id, m.player_name)}
-        className="hover:text-osrs-gold-bright"
+        className="hover:text-osrs-gold-bright min-w-0 truncate"
       >
         {m.player_name}
       </Link>
-      {m.joined_at != null && (
-        <span className="text-osrs-parchment-dark/40">
-          joined <LocalTime unix={m.joined_at} mode="date" />
-        </span>
-      )}
+      <span className="text-osrs-parchment-dark/40 shrink-0">
+        {/* EHE reads as "have they actually been playing this event", which is
+            the question the roster prompts — so it wins the right-hand slot
+            from the join date once there's any effort to show. */}
+        {(m.effort_ehb ?? 0) > 0 ? (
+          <EheHoursChip
+            hours={m.effort_ehb}
+            estimatedHours={m.effort_ehb_estimated}
+            className="text-osrs-parchment-dark/70"
+          />
+        ) : (
+          m.joined_at != null && (
+            <>
+              joined <LocalTime unix={m.joined_at} mode="date" />
+            </>
+          )
+        )}
+      </span>
     </li>
   );
 }

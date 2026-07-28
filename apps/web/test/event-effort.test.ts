@@ -1,5 +1,5 @@
 /**
- * Bingo EHB captioning. The numbers come from the server; these helpers only
+ * EHE (Efficient Hours towards Event) captioning. The numbers come from the server; these helpers only
  * decide how they read — and the readings that matter are the honest ones:
  * a sub-hour grind must not round away to nothing, and an unpriceable boss
  * must not read as "did nothing".
@@ -7,11 +7,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EventEffort } from "@droptracker/api-types";
-import { effortSummary, formatEhbHours } from "@/lib/events";
+import { effortSummary, formatEheHours } from "@/lib/events";
 
 function effort(over: Partial<EventEffort> = {}): EventEffort {
   return {
     ehb_hours: 0,
+    ehb_estimated_hours: 0,
     kills: 0,
     bosses: [],
     boss_count: 0,
@@ -21,29 +22,41 @@ function effort(over: Partial<EventEffort> = {}): EventEffort {
   };
 }
 
-test("formatEhbHours keeps sub-hour effort visible as minutes", () => {
+test("formatEheHours keeps sub-hour effort visible as minutes", () => {
   // 0.4h at a boss is a real session; "0h" would say the opposite.
-  assert.equal(formatEhbHours(0.4), "24m");
-  assert.equal(formatEhbHours(0.99), "59m");
+  assert.equal(formatEheHours(0.4), "24m");
+  assert.equal(formatEheHours(0.99), "59m");
   // Anything non-zero rounds to at least a minute rather than to "0m".
-  assert.equal(formatEhbHours(0.001), "1m");
+  assert.equal(formatEheHours(0.001), "1m");
 });
 
-test("formatEhbHours drops precision as the number grows", () => {
-  assert.equal(formatEhbHours(1), "1.0h");
-  assert.equal(formatEhbHours(7.06), "7.1h");
-  assert.equal(formatEhbHours(12.4), "12h");
-  assert.equal(formatEhbHours(1234.5), "1,235h");
+test("formatEheHours drops precision as the number grows", () => {
+  assert.equal(formatEheHours(1), "1.0h");
+  assert.equal(formatEheHours(7.06), "7.1h");
+  assert.equal(formatEheHours(12.4), "12h");
+  assert.equal(formatEheHours(1234.5), "1,235h");
 });
 
-test("formatEhbHours renders nothing-to-price as an em dash, not a zero", () => {
+test("formatEheHours renders nothing-to-price as an em dash, not a zero", () => {
   // 0 EHB means "no rate we can price this with" as often as it means "idle" —
   // the kill count is shown separately and tells the real story.
-  assert.equal(formatEhbHours(0), "—");
-  assert.equal(formatEhbHours(null), "—");
-  assert.equal(formatEhbHours(undefined), "—");
-  assert.equal(formatEhbHours(Number.NaN), "—");
-  assert.equal(formatEhbHours(-3), "—");
+  assert.equal(formatEheHours(0), "—");
+  assert.equal(formatEheHours(null), "—");
+  assert.equal(formatEheHours(undefined), "—");
+  assert.equal(formatEheHours(Number.NaN), "—");
+  assert.equal(formatEheHours(-3), "—");
+});
+
+test("formatEheHours marks derived-rate estimates with a tilde", () => {
+  // Hours priced with DropTracker-derived rates (bosses WOM doesn't price)
+  // must never pose as the standard number — thread #93's labelling promise.
+  assert.equal(formatEheHours(12.4, true), "~12h");
+  assert.equal(formatEheHours(1, true), "~1.0h");
+  assert.equal(formatEheHours(0.4, true), "~24m");
+  // Nothing to price stays an em dash — a tilde on a dash would be noise.
+  assert.equal(formatEheHours(0, true), "—");
+  // Explicit false is the plain label.
+  assert.equal(formatEheHours(12.4, false), "12h");
 });
 
 test("effortSummary glosses the EHB figure in plain kills", () => {

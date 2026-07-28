@@ -438,23 +438,35 @@ export function contributionSummary(c: EventMemberLastContribution): string {
 }
 
 /**
- * Bingo EHB as a short label — "12.4h", "45m", "—".
+ * EHE (Efficient Hours towards Event) as a short label — "12.4h", "45m", "—".
  *
  * Sub-hour effort reads better in minutes: "0.4h" at a boss is a real session
  * and rounding it to "0h" would say the opposite. Zero renders as an em dash
- * because 0 EHB genuinely means "nothing we can price", not "did nothing" —
- * a boss WOM publishes no rate for still shows its kills separately.
+ * because 0 EHE genuinely means "nothing we can price", not "did nothing" —
+ * a boss with no published rate still shows its kills separately.
+ *
+ * `estimated` prefixes a tilde ("~12h"): some or all of the figure was priced
+ * with DropTracker-derived rates rather than WOM's published ones (bosses WOM
+ * doesn't price — exactly the new content bingos concentrate on). The server
+ * flags it via `ehb_estimated_hours` / per-boss `estimated`; the tilde is the
+ * promised label that keeps an estimate from posing as the standard number.
  */
-export function formatEhbHours(hours: number | null | undefined): string {
+export function formatEheHours(
+  hours: number | null | undefined,
+  estimated = false,
+): string {
   const h = Number(hours ?? 0);
   if (!Number.isFinite(h) || h <= 0) return "—";
-  if (h < 1) return `${Math.max(Math.round(h * 60), 1)}m`;
-  return `${h < 10 ? h.toFixed(1) : Math.round(h).toLocaleString()}h`;
+  const label =
+    h < 1
+      ? `${Math.max(Math.round(h * 60), 1)}m`
+      : `${h < 10 ? h.toFixed(1) : Math.round(h).toLocaleString()}h`;
+  return estimated ? `~${label}` : label;
 }
 
 /**
- * "520 kills at 2 bosses" — the plain-English gloss under an EHB figure, so a
- * reader who doesn't know what EHB is still learns what the player did.
+ * "520 kills at 2 bosses" — the plain-English gloss under an EHE figure, so a
+ * reader who doesn't know what EHE is still learns what the player did.
  */
 export function effortSummary(effort: EventEffort | null | undefined): string {
   const kills = effort?.kills ?? 0;

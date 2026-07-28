@@ -2064,6 +2064,13 @@ export const EventMemberSchema = z.object({
   joined_at: z.number().int().nullable(),
   /** "leader" / "co_leader" when the event runs team leadership (web48a). */
   role: z.enum(EVENT_TEAM_ROLES).nullable().optional(),
+  /** EHE (Efficient Hours towards Event) — the scalar only. The per-boss
+   * breakdown is on the team and player endpoints; a clan-vs-clan roster is
+   * 400+ members and the detail read is already the heaviest payload.
+   * Optional: absent on payloads predating the feature. */
+  effort_ehb: z.number().optional(),
+  /** Derived-rate portion of `effort_ehb` — >0 marks it as an estimate. */
+  effort_ehb_estimated: z.number().optional(),
 });
 export type EventMember = z.infer<typeof EventMemberSchema>;
 
@@ -2085,6 +2092,10 @@ export const EventTeamSchema = z.object({
   /** Prize pot (web52a): this team's paid buy-ins + donations. Present on
    * EventDetail reads once the pot feature ships; absent on legacy payloads. */
   pot_total: MoneySchema.optional(),
+  /** Roster total EHE — the team's summed effort hours. */
+  ehb_hours: z.number().optional(),
+  /** Derived-rate portion of `ehb_hours` — >0 marks it as an estimate. */
+  ehb_estimated_hours: z.number().optional(),
 });
 export type EventTeam = z.infer<typeof EventTeamSchema>;
 
@@ -2905,15 +2916,18 @@ export const EventMemberTaskSchema = z.object({
 export type EventMemberTask = z.infer<typeof EventMemberTaskSchema>;
 
 /** One boss a player put kills into during an event, whether or not anything
- * dropped. `ehb_hours` is 0 when WOM publishes no rate for that boss — real
- * activity we can't price, not zero activity. `frozen` means every task this
- * boss fed is complete, so it stopped counting. */
+ * dropped. `ehb_hours` is 0 when nobody publishes OR derives a rate for that
+ * boss — real activity we can't price, not zero activity. `estimated` means
+ * the hours were priced with a DropTracker-derived rate because WOM publishes
+ * none (render with a tilde). `frozen` means every task this boss fed is
+ * complete, so it stopped counting. */
 export const EventEffortBossSchema = z.object({
   npc_id: z.number().int().nullable(),
   name: z.string().nullable(),
   metric: z.string().nullable(),
   kills: z.number().int().default(0),
   ehb_hours: z.number().default(0),
+  estimated: z.boolean().default(false),
   frozen: z.boolean().default(false),
 });
 export type EventEffortBoss = z.infer<typeof EventEffortBossSchema>;
@@ -2924,6 +2938,10 @@ export type EventEffortBoss = z.infer<typeof EventEffortBossSchema>;
 export const EventEffortSchema = z.object({
   /** Efficient hours bossed, scoped to bosses this event's tasks care about. */
   ehb_hours: z.number().default(0),
+  /** The portion of `ehb_hours` priced with DropTracker-derived rates rather
+   * than WOM's published ones (a subset, not an addition) — >0 means the
+   * figure should be labelled an estimate ("~12h"). */
+  ehb_estimated_hours: z.number().default(0),
   kills: z.number().int().default(0),
   bosses: z.array(EventEffortBossSchema).default([]),
   /** Total distinct bosses, which can exceed the capped `bosses` preview. */
@@ -2994,6 +3012,10 @@ export const EventTeamDetailSchema = z.object({
     coins: z.number().int().default(0),
     /** Roster total tracked loot over the event window (all sources). */
     loot_gp: MoneySchema.optional(),
+    /** Roster total EHE — the team's summed effort hours. */
+    ehb_hours: z.number().optional(),
+    /** Derived-rate portion of `ehb_hours` — >0 marks it as an estimate. */
+    ehb_estimated_hours: z.number().optional(),
   }),
   members: z.array(EventTeamMemberStatsSchema).default([]),
   /** Everything the team pulled to earn points (applied ledger, capped). */
@@ -3031,6 +3053,10 @@ export const EventTeamsRowSchema = z.object({
   tasks_done: z.number().int().default(0),
   /** Roster total tracked loot over the event window (all sources). */
   loot_gp: MoneySchema.optional(),
+  /** Roster total EHE — the team's summed effort hours. */
+  ehb_hours: z.number().optional(),
+  /** Derived-rate portion of `ehb_hours` — >0 marks it as an estimate. */
+  ehb_estimated_hours: z.number().optional(),
   pot_total: MoneySchema.optional(),
   /** Top task-credited items (icon strip; full list on the team detail). */
   items: z.array(EventPlayerItemSchema).default([]),
@@ -3100,8 +3126,10 @@ export const EventPlayersResponseSchema = z.object({
     points: z.number().default(0),
     tasks: z.number().int().default(0),
     loot_gp: MoneySchema.optional(),
-    /** Summed Bingo EHB across every contributor. */
-    ehb_hours: z.number().default(0),
+    /** Summed EHE across every contributor. */
+    ehb_hours: z.number().optional(),
+    /** Derived-rate portion of `ehb_hours` — >0 marks it as an estimate. */
+    ehb_estimated_hours: z.number().optional(),
   }),
 });
 export type EventPlayersResponse = z.infer<typeof EventPlayersResponseSchema>;
@@ -3130,6 +3158,8 @@ export const EventEffortReportSchema = z.object({
     participants: z.number().int().default(0),
     active: z.number().int().default(0),
     ehb_hours: z.number().default(0),
+    /** Derived-rate portion of `ehb_hours` — >0 marks it as an estimate. */
+    ehb_estimated_hours: z.number().default(0),
     kills: z.number().int().default(0),
   }),
   /** False when the WOM rate table hasn't been fetched — the UI says "EHB
@@ -3165,6 +3195,9 @@ export const EventPlayerDetailSchema = z.object({
     tasks_contributed: z.number().int().default(0),
     /** Total tracked loot over the event window (all sources). */
     loot_gp: MoneySchema.optional(),
+    /** Full EHE breakdown — the drill-down is where "what did they actually
+     * grind" is the question, so the per-boss list rides along here. */
+    effort: EventEffortSchema.nullable().optional(),
   }),
   items: z.array(EventPlayerItemSchema).default([]),
   tasks: z.array(EventPlayerTaskSchema).default([]),

@@ -1837,9 +1837,9 @@ export function mockEvent(id: number): EventDetail {
         color: "#e05c4c",
         member_count: 3,
         members: [
-          { player_id: 1337, player_name: "Zezima", joined_at: now - 3 * DAY },
-          { player_id: 2001, player_name: "Woox", joined_at: now - 2 * DAY },
-          { player_id: 2002, player_name: "B0aty", joined_at: now - 2 * DAY },
+          { player_id: 1337, player_name: "Zezima", joined_at: now - 3 * DAY , effort_ehb: 3.2 },
+          { player_id: 2001, player_name: "Woox", joined_at: now - 2 * DAY , effort_ehb: 3.2 },
+          { player_id: 2002, player_name: "B0aty", joined_at: now - 2 * DAY , effort_ehb: 12.4 },
         ],
       },
       {
@@ -1850,8 +1850,8 @@ export function mockEvent(id: number): EventDetail {
         color: "#38bdf8", // custom (not in the default palette)
         member_count: 2,
         members: [
-          { player_id: 2003, player_name: "Framed", joined_at: now - 3 * DAY },
-          { player_id: 2004, player_name: "Settled", joined_at: now - DAY },
+          { player_id: 2003, player_name: "Framed", joined_at: now - 3 * DAY , effort_ehb: 0.0 },
+          { player_id: 2004, player_name: "Settled", joined_at: now - DAY , effort_ehb: 0 },
         ],
       },
       { id: 23, name: "Team Green", score: 60, coins: 0, member_count: 0, members: [] },
@@ -2197,6 +2197,7 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
         i % 3 === 2
           ? {
               ehb_hours: 7.06,
+              ehb_estimated_hours: 0,
               kills: 240,
               bosses: [
                 {
@@ -2205,6 +2206,7 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
                   metric: "vorkath",
                   kills: 240,
                   ehb_hours: 7.06,
+                  estimated: false,
                   frozen: false,
                 },
               ],
@@ -2214,14 +2216,17 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
             }
           : {
               ehb_hours: i % 2 === 0 ? 2.17 : 0.41,
+              // Odd members demo the derived-rate estimate ("~25m").
+              ehb_estimated_hours: i % 2 === 0 ? 0 : 0.41,
               kills: i % 2 === 0 ? 100 : 14,
               bosses: [
                 {
-                  npc_id: i % 2 === 0 ? 12821 : 8061,
-                  name: i % 2 === 0 ? "Chambers of Xeric" : "Vorkath",
-                  metric: i % 2 === 0 ? "chambers_of_xeric" : "vorkath",
+                  npc_id: i % 2 === 0 ? 12821 : 15742,
+                  name: i % 2 === 0 ? "Chambers of Xeric" : "The Maggot King",
+                  metric: i % 2 === 0 ? "chambers_of_xeric" : "maggot_king",
                   kills: i % 2 === 0 ? 100 : 14,
                   ehb_hours: i % 2 === 0 ? 2.17 : 0.41,
+                  estimated: i % 2 !== 0,
                   frozen: i % 2 !== 0,
                 },
               ],
@@ -2312,15 +2317,19 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       tasks_contributed: 5,
       loot_gp: money(184_000_000),
       effort: {
-        ehb_hours: 12.4,
-        kills: 520,
+        ehb_hours: 16.9,
+        ehb_estimated_hours: 4.5,
+        kills: 650,
         bosses: [
           { npc_id: 12821, name: "Chambers of Xeric", metric: "chambers_of_xeric",
-            kills: 320, ehb_hours: 9.14, frozen: false },
+            kills: 320, ehb_hours: 9.14, estimated: false, frozen: false },
           { npc_id: 8061, name: "Vorkath", metric: "vorkath", kills: 200,
-            ehb_hours: 5.88, frozen: true },
+            ehb_hours: 5.88, estimated: false, frozen: true },
+          // WOM publishes no rate — priced with our derived rate, tilde'd.
+          { npc_id: 15742, name: "The Maggot King", metric: "maggot_king",
+            kills: 130, ehb_hours: 4.5, estimated: true, frozen: false },
         ],
-        boss_count: 2,
+        boss_count: 3,
         frozen: 1,
       },
       items: [
@@ -2342,10 +2351,11 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       loot_gp: money(96_500_000),
       effort: {
         ehb_hours: 3.2,
+        ehb_estimated_hours: 0,
         kills: 110,
         bosses: [
           { npc_id: 8061, name: "Vorkath", metric: "vorkath", kills: 110,
-            ehb_hours: 3.24, frozen: false },
+            ehb_hours: 3.24, estimated: false, frozen: false },
         ],
         boss_count: 1,
         frozen: 0,
@@ -2366,6 +2376,7 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       loot_gp: money(41_200_000),
       effort: {
         ehb_hours: 0,
+        ehb_estimated_hours: 0,
         kills: 0,
         bosses: [],
         boss_count: 0,
@@ -2442,7 +2453,14 @@ export function mockEventEffortReport(eventId: number): EventEffortReport {
   const event = mockEvents().find((e) => e.id === eventId) ?? mockEvents()[0]!;
   const now = Math.floor(Date.now() / 1000);
   const players = mockEventPlayers(eventId).players.map((p, i) => ({
-    ...(p.effort ?? { ehb_hours: 0, kills: 0, bosses: [], boss_count: 0, frozen: 0 }),
+    ...(p.effort ?? {
+      ehb_hours: 0,
+      ehb_estimated_hours: 0,
+      kills: 0,
+      bosses: [],
+      boss_count: 0,
+      frozen: 0,
+    }),
     player_id: p.player_id ?? 0,
     player_name: p.player_name,
     team_id: p.team_id ?? null,
@@ -2458,6 +2476,7 @@ export function mockEventEffortReport(eventId: number): EventEffortReport {
       participants: players.length,
       active: players.filter((p) => !p.never_active).length,
       ehb_hours: 15.6,
+      ehb_estimated_hours: 0.8,
       kills: 630,
     },
     rates_known: true,

@@ -23,7 +23,8 @@ import { Card, EmptyState, NameTile, RankMedal, StatTile } from "@/components/ui
 import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { ItemDbIcon } from "@/components/item-db-icon";
-import { TASK_TYPE_LABELS, effortSummary, formatEhbHours } from "@/lib/events";
+import { TASK_TYPE_LABELS, effortSummary, formatEheHours } from "@/lib/events";
+import { EheChip, EheLabel, EheValue } from "@/components/event-ehe";
 
 const fmtPoints = (p: number) => (Math.round(p * 100) / 100).toLocaleString();
 const num = (n: number) => n.toLocaleString();
@@ -158,6 +159,11 @@ function PodiumCard({
             gp
           </span>
         </span>
+        {(player.effort?.kills ?? 0) > 0 && (
+          <span className="text-osrs-parchment-dark/70 text-sm font-semibold">
+            <EheChip effort={player.effort} />
+          </span>
+        )}
       </div>
       <ItemStrip items={player.items.slice(0, 6)} size={20} />
     </div>
@@ -195,12 +201,58 @@ function PlayerDetail({ detail }: { detail: EventPlayerDetail }) {
   const { player, tasks, items, activity } = detail;
   return (
     <div className="border-osrs-bronze/20 mt-2 space-y-4 border-t pt-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <StatTile label="Loot this event" value={gp(player.loot_gp)} />
         <StatTile label="Points" value={fmtPoints(player.points)} />
         <StatTile label="Contributions" value={num(player.completions)} />
         <StatTile label="Tasks helped" value={num(player.tasks_contributed)} />
+        <StatTile
+          label="EHE"
+          value={
+            <EheValue
+              hours={player.effort?.ehb_hours}
+              estimatedHours={player.effort?.ehb_estimated_hours}
+            />
+          }
+          hint={
+            (player.effort?.kills ?? 0) > 0 ? effortSummary(player.effort) : undefined
+          }
+        />
       </div>
+
+      {(player.effort?.bosses?.length ?? 0) > 0 && (
+        <div>
+          <div className="text-osrs-parchment-dark/70 mb-1.5 text-xs font-semibold tracking-wide uppercase">
+            Effort by boss
+          </div>
+          <ul className="grid gap-1">
+            {player.effort!.bosses.map((b) => (
+              <li
+                key={b.npc_id ?? b.name}
+                className="bg-osrs-surface-2/40 flex items-center gap-2 rounded px-2 py-1 text-sm"
+              >
+                <span className="text-osrs-parchment min-w-0 flex-1 truncate">
+                  {b.name ?? "Unknown"}
+                  {b.frozen && (
+                    <span
+                      className="text-osrs-parchment-dark/40 ml-1.5 text-xs"
+                      title="Every task this boss counted toward is done, so it stopped accruing"
+                    >
+                      done
+                    </span>
+                  )}
+                </span>
+                <span className="text-osrs-parchment-dark/60 shrink-0 text-xs tabular-nums">
+                  {num(b.kills)} kill{b.kills === 1 ? "" : "s"}
+                </span>
+                <span className="text-osrs-parchment-dark/80 w-14 shrink-0 text-right text-xs tabular-nums">
+                  {formatEheHours(b.ehb_hours, b.estimated)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
@@ -409,14 +461,16 @@ function PlayerRow({
             </div>
             <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">loot</div>
           </div>
-          <div
-            className="hidden text-right sm:block"
-            title={`Effort at this event's bosses, credited or not — ${effortSummary(player.effort)}`}
-          >
-            <div className="text-osrs-parchment-dark/70 text-sm tabular-nums">
-              {formatEhbHours(player.effort?.ehb_hours)}
+          <div className="hidden text-right sm:block">
+            <div className="text-osrs-parchment-dark/70 text-sm">
+              <EheValue
+                hours={player.effort?.ehb_hours}
+                estimatedHours={player.effort?.ehb_estimated_hours}
+              />
             </div>
-            <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">ehb</div>
+            <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">
+              <EheLabel />
+            </div>
           </div>
           <div className="text-right">
             <div className="text-osrs-gold-bright text-base font-bold tabular-nums">
@@ -426,6 +480,13 @@ function PlayerRow({
             <div className="text-osrs-gold text-[11px] font-semibold tabular-nums sm:hidden">
               {gp(player.loot_gp)} gp
             </div>
+            {/* Phones drop the sm+ columns entirely, so EHE rides along under
+                the points figure — the same trick the loot value uses. */}
+            {(player.effort?.kills ?? 0) > 0 && (
+              <div className="text-osrs-parchment-dark/60 text-[11px] tabular-nums sm:hidden">
+                <EheChip effort={player.effort} />
+              </div>
+            )}
           </div>
           {player.player_id != null ? (
             <button
@@ -515,9 +576,14 @@ export function EventPlayersView({
         <StatTile label="Points earned" value={<CountUp value={Math.round(totals.points)} />} />
         <StatTile label="Loot tracked" value={gp(totals.loot_gp)} hint="all sources, this event" />
         <StatTile
-          label="Effort"
-          value={formatEhbHours(totals.ehb_hours)}
-          hint="ehb at this event's bosses"
+          label="EHE"
+          value={
+            <EheValue
+              hours={totals.ehb_hours}
+              estimatedHours={totals.ehb_estimated_hours}
+            />
+          }
+          hint="effort towards this event"
         />
         <StatTile
           label="Participants"

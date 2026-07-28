@@ -18,7 +18,7 @@
  * completion frames move the bars, bump the score, prepend feed rows, and
  * refresh the contributing member's "last contribution" line in place.
  */
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { entityPath } from "@/lib/slug";
 import type {
@@ -40,7 +40,7 @@ import {
   TASK_TYPE_LABELS,
   contributionSummary,
   effortSummary,
-  formatEhbHours,
+  formatEheHours,
   taskGoal,
   taskQuantityLabel,
   taskTypeLabel,
@@ -50,6 +50,7 @@ import { LocalTime } from "@/components/local-time";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { EmptyState } from "@/components/ui";
 import { EventMemberList } from "@/components/event-member-list";
+import { EheChip, EheValue } from "@/components/event-ehe";
 import { TeamNotificationsButton } from "@/components/event-teams-panel";
 import {
   TaskProgressBar,
@@ -77,7 +78,7 @@ function HeaderStat({
   title,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   sub?: string;
   valueClass?: string;
   title?: string;
@@ -467,14 +468,7 @@ export function EventTeamView({
               {m.loot_gp!.value_formatted} loot
             </span>
           )}
-          {(m.effort?.kills ?? 0) > 0 && (
-            <span
-              className="text-osrs-parchment-dark/70"
-              title={`Effort at this event's bosses, whether or not anything dropped — ${effortSummary(m.effort)}`}
-            >
-              {formatEhbHours(m.effort?.ehb_hours)} ehb
-            </span>
-          )}
+          <EheChip effort={m.effort} className="text-osrs-parchment-dark/70" />
         </div>
 
         {/* Most recent contribution — the "what have they been up to" line. */}
@@ -553,7 +547,7 @@ export function EventTeamView({
             {(m.effort?.bosses?.length ?? 0) > 0 && (
               <div className="border-osrs-bronze/15 space-y-1 border-t pt-2">
                 <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">
-                  Effort · {effortSummary(m.effort)}
+                  EHE · {effortSummary(m.effort)}
                 </div>
                 <ul className="space-y-1">
                   {m.effort!.bosses.map((b) => (
@@ -577,7 +571,7 @@ export function EventTeamView({
                         {b.ehb_hours > 0 && (
                           <span className="text-osrs-parchment-dark/40">
                             {" · "}
-                            {formatEhbHours(b.ehb_hours)}
+                            {formatEheHours(b.ehb_hours, b.estimated)}
                           </span>
                         )}
                       </span>
@@ -686,6 +680,15 @@ export function EventTeamView({
             value={team.loot_gp?.value_formatted ?? "0"}
             valueClass="text-osrs-gold"
             title="Total tracked loot across the roster during the event — all sources, not just task-credited drops"
+          />
+          <HeaderStat
+            label="EHE"
+            value={
+              <EheValue
+                hours={team.ehb_hours}
+                estimatedHours={team.ehb_estimated_hours}
+              />
+            }
           />
           {event.kind === "board_game" ? (
             <HeaderStat label="Coins" value={`🪙 ${team.coins.toLocaleString()}`} />

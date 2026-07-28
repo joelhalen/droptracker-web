@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import type { EventEffortReport, EventEffortReportRow } from "@droptracker/api-types";
 import { Card, EmptyState, StatTile } from "@/components/ui";
-import { effortSummary, formatEhbHours } from "@/lib/events";
+import { effortSummary, formatEheHours } from "@/lib/events";
+import { EheValue } from "@/components/event-ehe";
 
 /**
  * Bingo EHB participation report.
@@ -56,9 +57,18 @@ export function EventEffortPanel({ report }: { report: EventEffortReport }) {
           hint="including never-active members"
         />
         <StatTile
-          label="Total effort"
-          value={formatEhbHours(report.totals.ehb_hours)}
-          hint={report.rates_known ? "ehb at this event's bosses" : "EHB rates unavailable"}
+          label="Total EHE"
+          value={
+            <EheValue
+              hours={report.totals.ehb_hours}
+              estimatedHours={report.totals.ehb_estimated_hours}
+            />
+          }
+          hint={
+            report.rates_known
+              ? "effort towards this event"
+              : "efficiency rates unavailable"
+          }
         />
       </div>
 
@@ -145,7 +155,7 @@ function EffortRow({ player }: { player: EventEffortReportRow }) {
         {effortSummary(player)}
       </span>
       <span className="text-osrs-parchment-dark/80 w-16 shrink-0 text-right tabular-nums">
-        {formatEhbHours(player.ehb_hours)}
+        {formatEheHours(player.ehb_hours, (player.ehb_estimated_hours ?? 0) > 0)}
       </span>
     </li>
   );
