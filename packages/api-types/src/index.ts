@@ -2116,6 +2116,17 @@ export const EventPrizeConfigSchema = z.object({
 });
 export type EventPrizeConfig = z.infer<typeof EventPrizeConfigSchema>;
 
+/** Contributions carrying no team (web71a): buy-ins recorded at sign-up before
+ * the draft, plus pot-wide donations. Same shape as a `per_team` entry, so
+ * sum(per_team) + unassigned === total. `member_count` counts the distinct
+ * players holding a live team-less buy-in. */
+export const EventPrizePotUnassignedSchema = z.object({
+  total: MoneySchema,
+  paid_count: z.number().int().default(0),
+  member_count: z.number().int().default(0),
+});
+export type EventPrizePotUnassigned = z.infer<typeof EventPrizePotUnassignedSchema>;
+
 /** Full prize-pot read (GET /events/{id}/pot). `contributors` is null when the
  * viewer may not see the list (show_contributors off and not an admin). */
 export const EventPrizePotSchema = z.object({
@@ -2135,6 +2146,8 @@ export const EventPrizePotSchema = z.object({
       }),
     )
     .default([]),
+  // Optional: a backend that predates web71a omits it entirely.
+  unassigned: EventPrizePotUnassignedSchema.optional(),
   contributors: z.array(EventBuyinSchema).nullable().optional(),
   can_manage: z.boolean().default(false),
 });

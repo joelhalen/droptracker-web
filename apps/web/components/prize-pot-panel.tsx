@@ -82,6 +82,16 @@ export function PrizePotPanel({
                 {t.name}: <span className="text-osrs-gold tabular-nums">{t.total.value_formatted}</span>
               </span>
             ))}
+          {/* Buy-ins taken before the draft credit no team yet (web71a) — show
+              them so the chips still add up to the headline. */}
+          {pot.unassigned && pot.unassigned.total.value > 0 && (
+            <span className="border-osrs-bronze/30 bg-osrs-brown-dark/40 rounded border px-2 py-0.5 text-[11px]">
+              Undrafted:{" "}
+              <span className="text-osrs-gold tabular-nums">
+                {pot.unassigned.total.value_formatted}
+              </span>
+            </span>
+          )}
         </div>
       )}
 

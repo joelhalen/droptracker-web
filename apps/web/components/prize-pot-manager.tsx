@@ -9,12 +9,13 @@
  * The tool tracks/advertises GP only — payouts are traded in-game by the clan
  * (like split-tracking); nothing here moves real GP.
  */
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type {
   EventBuyin,
   EventDetail,
   EventPrizeDistribution,
   EventPrizePot,
+  EventSignup,
   EventTeam,
 } from "@droptracker/api-types";
 
@@ -35,6 +36,7 @@ import {
   bulkSeedEventBuyins,
   deleteEventBuyin,
   fetchEventPot,
+  listEventSignups,
   recordEventBuyin,
   updateEventBuyin,
   updateEventPotConfig,
@@ -91,10 +93,78 @@ const DISTRIBUTIONS: { key: EventPrizeDistribution; label: string }[] = [
   { key: "custom_split", label: "Custom split" },
 ];
 
-/** Live buy-in row for one participant (or null when they have none yet). */
-function findBuyin(rows: EventBuyin[], playerId: number, teamId: number): EventBuyin | undefined {
+/** Live buy-in row for one participant (or null when they have none yet).
+ * `teamId` is null for a pre-draft contributor — their row is recorded with no
+ * team and follows them onto one when the draft lands (web71a). */
+function findBuyin(
+  rows: EventBuyin[],
+  playerId: number,
+  teamId: number | null,
+): EventBuyin | undefined {
   return rows.find(
-    (r) => r.kind === "buyin" && r.player_id === playerId && r.team_id === teamId,
+    (r) =>
+      r.kind === "buyin" && r.player_id === playerId && (r.team_id ?? null) === teamId,
+  );
+}
+
+/** One participant's line in a buy-in checklist: the expected amount and the
+ * "Paid" tick. Identical whether the payer is on a team or still in the pool —
+ * only the `team_id` written with the row differs. */
+function BuyinLine({
+  name,
+  amount,
+  paid,
+  busy,
+  onSetPaid,
+  onCommitAmount,
+}: {
+  name: string;
+  amount: number;
+  paid: boolean;
+  busy: boolean;
+  onSetPaid: (next: boolean) => void;
+  onCommitAmount: (value: number) => void;
+}) {
+  return (
+    <li className="flex items-center justify-between gap-3 py-2">
+      <span className="min-w-0 truncate text-sm">{name}</span>
+      <div className="flex items-center gap-3">
+        <QuantityInput
+          value={amount}
+          min={0}
+          emptyAs={0}
+          disabled={busy}
+          onChange={onCommitAmount}
+          className="w-28"
+        />
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs">
+          <input
+            type="checkbox"
+            checked={paid}
+            disabled={busy}
+            onChange={(e) => onSetPaid(e.target.checked)}
+            className="accent-osrs-gold size-4"
+          />
+          Paid
+        </label>
+      </div>
+    </li>
+  );
+}
+
+/** "Add a pledged row for everyone here who hasn't got one" — per team, or for
+ * the not-yet-drafted pool. */
+function SeedButton({ busy, onClick }: { busy: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={onClick}
+      className="text-osrs-gold/70 hover:text-osrs-gold-bright text-xs disabled:opacity-50"
+      title="Add a pledged buy-in row for each participant who doesn't have one"
+    >
+      + Seed pledges
+    </button>
   );
 }
 
@@ -110,7 +180,12 @@ export function PrizePotManager({
   onEventUpdated?: (e: EventDetail) => void;
 }) {
   const eventId = event.id;
+  // Sign-up pool: the only formation mode where a participant can exist with
+  // no team (self-join / auto-assign place immediately). Its roster is what
+  // the pre-draft checklist ticks against.
+  const isPool = event.formation_mode === "signup_pool";
   const [pot, setPot] = useState<EventPrizePot | null>(null);
+  const [pool, setPool] = useState<EventSignup[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -122,11 +197,16 @@ export function PrizePotManager({
     null,
   );
 
+  const reloadPool = useCallback(async () => {
+    if (!isPool) return;
+    setPool(await listEventSignups(groupId, eventId));
+  }, [groupId, eventId, isPool]);
+
   const reload = useCallback(async () => {
-    const next = await fetchEventPot(groupId, eventId);
+    const [next] = await Promise.all([fetchEventPot(groupId, eventId), reloadPool()]);
     setPot(next);
     return next;
-  }, [groupId, eventId]);
+  }, [groupId, eventId, reloadPool]);
 
   useEffect(() => {
     let alive = true;
@@ -138,6 +218,38 @@ export function PrizePotManager({
       alive = false;
     };
   }, [groupId, eventId]);
+
+  // The sign-up pool drives the pre-draft checklist (web71a). Loaded separately
+  // from the pot so a pool failure can't take the whole tab down — the worst
+  // case is the checklist falling back to whoever already has a buy-in row.
+  useEffect(() => {
+    if (!isPool) return;
+    let alive = true;
+    listEventSignups(groupId, eventId)
+      .then((p) => alive && setPool(p))
+      .catch(() => {
+        /* leave the checklist to the ledger-derived fallback below */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [groupId, eventId, isPool]);
+
+  /** Everyone who should appear on the pre-draft checklist: the sign-up pool's
+   * unplaced players, plus anyone already holding a team-less buy-in (a hand-
+   * recorded contributor, or someone who has since withdrawn — their GP is
+   * still in the pot, so they must stay tickable). */
+  const unassignedRoster = useMemo(() => {
+    const byId = new Map<number, string>();
+    for (const p of pool ?? []) {
+      if (p.team_id == null) byId.set(p.player_id, p.player_name);
+    }
+    for (const r of pot?.contributors ?? []) {
+      if (r.kind !== "buyin" || r.team_id != null || r.player_id == null) continue;
+      if (!byId.has(r.player_id)) byId.set(r.player_id, r.rsn ?? `Player ${r.player_id}`);
+    }
+    return [...byId].map(([player_id, player_name]) => ({ player_id, player_name }));
+  }, [pool, pot]);
 
   const withBusy = useCallback(
     (key: string, fn: () => Promise<void>) => {
@@ -172,6 +284,65 @@ export function PrizePotManager({
   const config = pot.config;
   const rows = pot.contributors ?? [];
   const donations = rows.filter((r) => r.kind === "donation");
+
+  /** One checklist section. `teamId` is the team the rows credit — `null` for
+   * the not-yet-drafted list, which is the whole point of web71a: the row is
+   * written with no team and the backend re-points it when the player is
+   * placed. Deliberately a function, not a component: inlining the elements
+   * keeps the amount inputs mounted (and focused) across re-renders. */
+  const checklist = (
+    members: { player_id: number; player_name: string }[],
+    teamId: number | null,
+  ) => (
+    <ul className="divide-osrs-bronze/10 divide-y">
+      {members.map((m) => {
+        const row = findBuyin(rows, m.player_id, teamId);
+        const rowKey = `buyin:${teamId ?? "pool"}:${m.player_id}`;
+        const amount = row?.amount.value ?? config.default_buyin.value;
+        const record = (value: number, status: "pledged" | "paid") =>
+          recordEventBuyin(groupId, eventId, {
+            player_id: m.player_id,
+            team_id: teamId,
+            kind: "buyin",
+            amount: value,
+            status,
+          });
+        return (
+          <BuyinLine
+            key={m.player_id}
+            name={m.player_name}
+            amount={amount}
+            paid={row?.status === "paid"}
+            busy={busy.has(rowKey)}
+            onSetPaid={(next) =>
+              withBusy(rowKey, async () => {
+                const res = next
+                  ? row
+                    ? await updateEventBuyin(groupId, eventId, row.id, { status: "paid" })
+                    : await record(amount, "paid")
+                  : row
+                    ? await updateEventBuyin(groupId, eventId, row.id, { status: "pledged" })
+                    : { ok: true as const };
+                if (!res.ok) setError(res.message);
+                await reload();
+              })
+            }
+            onCommitAmount={(v) =>
+              withBusy(rowKey, async () => {
+                const res = row
+                  ? await updateEventBuyin(groupId, eventId, row.id, { amount: v })
+                  : v > 0
+                    ? await record(v, "pledged")
+                    : { ok: true as const };
+                if (!res.ok) setError(res.message);
+                await reload();
+              })
+            }
+          />
+        );
+      })}
+    </ul>
+  );
 
   // --- Master toggle + confirm-on-disable ---------------------------------
   const applyToggle = (next: boolean, confirm = false) =>
@@ -380,19 +551,63 @@ export function PrizePotManager({
               Tick each participant once they&apos;ve paid in. Only paid buy-ins count toward the
               pot.
             </p>
-            {teams.length === 0 ? (
-              <EmptyState title="No teams yet" hint="Add teams and members first." />
+            {teams.length === 0 && unassignedRoster.length === 0 ? (
+              <EmptyState
+                title={isPool ? "No sign-ups yet" : "No teams yet"}
+                hint={
+                  isPool
+                    ? "Buy-ins can be recorded as soon as players sign up — no team needed."
+                    : "Add teams and members first."
+                }
+              />
             ) : (
               <div className="space-y-4">
+                {/* Pre-draft (web71a): players who have signed up but aren't on
+                    a team yet. Their buy-in is recorded with no team and moves
+                    onto whichever team the draft gives them — nothing has to be
+                    re-entered, and no placeholder team is needed. */}
+                {unassignedRoster.length > 0 && (
+                  <div>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <span className="text-osrs-parchment-dark/70 text-xs font-medium uppercase">
+                        Not yet drafted
+                      </span>
+                      <SeedButton
+                        busy={busy.has("seed:pool")}
+                        onClick={() =>
+                          withBusy("seed:pool", async () => {
+                            const res = await bulkSeedEventBuyins(groupId, eventId, null);
+                            if (!res.ok) setError(res.message);
+                            else setNotice(`Seeded ${res.created} buy-in(s).`);
+                            await reload();
+                          })
+                        }
+                      />
+                    </div>
+                    <p className="text-osrs-parchment-dark/50 mb-1 text-xs">
+                      Recorded now, carried onto their team when the draft happens.
+                      {pot.unassigned && pot.unassigned.paid_count > 0 && (
+                        <>
+                          {" "}
+                          <span className="text-osrs-gold/80">
+                            {pot.unassigned.paid_count} paid ·{" "}
+                            {pot.unassigned.total.value_formatted}
+                          </span>
+                        </>
+                      )}
+                    </p>
+                    {checklist(unassignedRoster, null)}
+                  </div>
+                )}
+
                 {teams.map((team) => (
                   <div key={team.id}>
                     <div className="mb-1 flex items-center justify-between gap-2">
                       <span className="text-osrs-parchment-dark/70 text-xs font-medium uppercase">
                         {team.name}
                       </span>
-                      <button
-                        type="button"
-                        disabled={busy.has(`seed:${team.id}`)}
+                      <SeedButton
+                        busy={busy.has(`seed:${team.id}`)}
                         onClick={() =>
                           withBusy(`seed:${team.id}`, async () => {
                             const res = await bulkSeedEventBuyins(groupId, eventId, team.id);
@@ -401,90 +616,12 @@ export function PrizePotManager({
                             await reload();
                           })
                         }
-                        className="text-osrs-gold/70 hover:text-osrs-gold-bright text-xs disabled:opacity-50"
-                        title="Add a pledged buy-in row for each member who doesn't have one"
-                      >
-                        + Seed pledges
-                      </button>
+                      />
                     </div>
                     {(team.members ?? []).length === 0 ? (
                       <p className="text-osrs-parchment-dark/40 text-xs">No members.</p>
                     ) : (
-                      <ul className="divide-osrs-bronze/10 divide-y">
-                        {(team.members ?? []).map((m) => {
-                          const row = findBuyin(rows, m.player_id, team.id);
-                          const rowKey = `buyin:${team.id}:${m.player_id}`;
-                          const paid = row?.status === "paid";
-                          const amount = row?.amount.value ?? config.default_buyin.value;
-                          const rowBusy = busy.has(rowKey);
-                          const setPaid = (next: boolean) =>
-                            withBusy(rowKey, async () => {
-                              if (next) {
-                                if (row) {
-                                  await updateEventBuyin(groupId, eventId, row.id, {
-                                    status: "paid",
-                                  });
-                                } else {
-                                  await recordEventBuyin(groupId, eventId, {
-                                    player_id: m.player_id,
-                                    team_id: team.id,
-                                    kind: "buyin",
-                                    amount,
-                                    status: "paid",
-                                  });
-                                }
-                              } else if (row) {
-                                await updateEventBuyin(groupId, eventId, row.id, {
-                                  status: "pledged",
-                                });
-                              }
-                              await reload();
-                            });
-                          const commitAmount = (v: number) =>
-                            withBusy(rowKey, async () => {
-                              if (row) {
-                                await updateEventBuyin(groupId, eventId, row.id, { amount: v });
-                              } else if (v > 0) {
-                                await recordEventBuyin(groupId, eventId, {
-                                  player_id: m.player_id,
-                                  team_id: team.id,
-                                  kind: "buyin",
-                                  amount: v,
-                                  status: "pledged",
-                                });
-                              }
-                              await reload();
-                            });
-                          return (
-                            <li
-                              key={m.player_id}
-                              className="flex items-center justify-between gap-3 py-2"
-                            >
-                              <span className="min-w-0 truncate text-sm">{m.player_name}</span>
-                              <div className="flex items-center gap-3">
-                                <QuantityInput
-                                  value={amount}
-                                  min={0}
-                                  emptyAs={0}
-                                  disabled={rowBusy}
-                                  onChange={commitAmount}
-                                  className="w-28"
-                                />
-                                <label className="flex cursor-pointer items-center gap-1.5 text-xs">
-                                  <input
-                                    type="checkbox"
-                                    checked={paid}
-                                    disabled={rowBusy}
-                                    onChange={(e) => setPaid(e.target.checked)}
-                                    className="accent-osrs-gold size-4"
-                                  />
-                                  Paid
-                                </label>
-                              </div>
-                            </li>
-                          );
-                        })}
-                      </ul>
+                      checklist(team.members ?? [], team.id)
                     )}
                   </div>
                 ))}
