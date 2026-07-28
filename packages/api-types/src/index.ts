@@ -2904,6 +2904,37 @@ export const EventMemberTaskSchema = z.object({
 });
 export type EventMemberTask = z.infer<typeof EventMemberTaskSchema>;
 
+/** One boss a player put kills into during an event, whether or not anything
+ * dropped. `ehb_hours` is 0 when WOM publishes no rate for that boss — real
+ * activity we can't price, not zero activity. `frozen` means every task this
+ * boss fed is complete, so it stopped counting. */
+export const EventEffortBossSchema = z.object({
+  npc_id: z.number().int().nullable(),
+  name: z.string().nullable(),
+  metric: z.string().nullable(),
+  kills: z.number().int().default(0),
+  ehb_hours: z.number().default(0),
+  frozen: z.boolean().default(false),
+});
+export type EventEffortBoss = z.infer<typeof EventEffortBossSchema>;
+
+/** Bingo EHB: effort a player put into an event's relevant bosses, credited or
+ * not. Absent (undefined) when they have no recorded effort — the surfaces
+ * render that the same as zero. */
+export const EventEffortSchema = z.object({
+  /** Efficient hours bossed, scoped to bosses this event's tasks care about. */
+  ehb_hours: z.number().default(0),
+  kills: z.number().int().default(0),
+  bosses: z.array(EventEffortBossSchema).default([]),
+  /** Total distinct bosses, which can exceed the capped `bosses` preview. */
+  boss_count: z.number().int().default(0),
+  /** Unix seconds of their most recent relevant kill (null = never). */
+  last_at: z.number().int().nullable().optional(),
+  /** How many of their bosses have frozen (their tasks are all done). */
+  frozen: z.number().int().default(0),
+});
+export type EventEffort = z.infer<typeof EventEffortSchema>;
+
 /** Roster entry + contribution rollup from the applied ledger. */
 export const EventTeamMemberStatsSchema = EventMemberSchema.extend({
   /** Contributions, NOT raw ledger rows: repeated progress updates on one
@@ -2920,6 +2951,8 @@ export const EventTeamMemberStatsSchema = EventMemberSchema.extend({
   loot_gp: MoneySchema.optional(),
   /** Newest applied ledger row for this member (null before they score). */
   last_contribution: EventMemberLastContributionSchema.nullable().optional(),
+  /** Bingo EHB — the work that credited nothing. */
+  effort: EventEffortSchema.nullable().optional(),
   /** Items this member personally pulled toward tasks (capped preview). */
   items: z.array(EventPlayerItemSchema).default([]),
   /** Per-task breakdown of their contributions (capped preview). */
@@ -3052,6 +3085,8 @@ export const EventPlayerRowSchema = z.object({
   loot_gp: MoneySchema.optional(),
   /** Top contributed items (icon strip); full list is on the detail endpoint. */
   items: z.array(EventPlayerItemSchema).default([]),
+  /** Bingo EHB — the work that credited nothing. */
+  effort: EventEffortSchema.nullable().optional(),
 });
 export type EventPlayerRow = z.infer<typeof EventPlayerRowSchema>;
 
@@ -3065,9 +3100,43 @@ export const EventPlayersResponseSchema = z.object({
     points: z.number().default(0),
     tasks: z.number().int().default(0),
     loot_gp: MoneySchema.optional(),
+    /** Summed Bingo EHB across every contributor. */
+    ehb_hours: z.number().default(0),
   }),
 });
 export type EventPlayersResponse = z.infer<typeof EventPlayersResponseSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Bingo EHB participation report — GET /events/{id}/effort (managers only)    */
+/* Whole roster, quietest first, INCLUDING members with no recorded effort:    */
+/* "who has gone quiet" is the question, and they are the answer.              */
+/* -------------------------------------------------------------------------- */
+
+export const EventEffortReportRowSchema = EventEffortSchema.extend({
+  player_id: z.number().int(),
+  player_name: z.string().nullable(),
+  team_id: z.number().int().nullable().optional(),
+  team_name: z.string().nullable().optional(),
+  /** Days since their last relevant kill, or since they joined if never. */
+  days_idle: z.number().nullable(),
+  never_active: z.boolean().default(false),
+});
+export type EventEffortReportRow = z.infer<typeof EventEffortReportRowSchema>;
+
+export const EventEffortReportSchema = z.object({
+  event: EventSummarySchema,
+  players: z.array(EventEffortReportRowSchema).default([]),
+  totals: z.object({
+    participants: z.number().int().default(0),
+    active: z.number().int().default(0),
+    ehb_hours: z.number().default(0),
+    kills: z.number().int().default(0),
+  }),
+  /** False when the WOM rate table hasn't been fetched — the UI says "EHB
+   * unavailable" instead of showing a confident 0. */
+  rates_known: z.boolean().default(true),
+});
+export type EventEffortReport = z.infer<typeof EventEffortReportSchema>;
 
 /** One task a player contributed to (drill-down). */
 export const EventPlayerTaskSchema = z.object({

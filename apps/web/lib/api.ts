@@ -87,6 +87,8 @@ import {
   type EventPlayersResponse,
   EventPlayerDetailSchema,
   type EventPlayerDetail,
+  EventEffortReportSchema,
+  type EventEffortReport,
   TaskBreakdownSchema,
   type TaskBreakdown,
   EventSummarySchema,
@@ -327,6 +329,7 @@ import {
   mockEventTeams,
   mockEventPlayers,
   mockEventPlayerDetail,
+  mockEventEffortReport,
   mockEventCompletions,
   mockEventDiscord,
   mockEventTeamDiscord,
@@ -1004,6 +1007,19 @@ export const api = {
           await apiGet(`/events/${eventId}/players`, { authed: true }),
         ),
       () => mockEventPlayers(eventId),
+    );
+  },
+
+  /** Bingo EHB participation report — event managers only. Lists the WHOLE
+   * roster quietest first, including members with no recorded effort (they're
+   * the point). Uncached: it drives "who do I chase today". */
+  async eventEffortReport(eventId: number): Promise<EventEffortReport> {
+    return withFallback(
+      async () =>
+        EventEffortReportSchema.parse(
+          await apiGet(`/events/${eventId}/effort`, { authed: true }),
+        ),
+      () => mockEventEffortReport(eventId),
     );
   },
 

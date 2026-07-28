@@ -17,6 +17,7 @@ import type {
   EventPlayerRow,
   EventPlayerItem,
   EventPlayerDetail,
+  EventEffortReport,
   EventSignup,
   EventSummary,
   EventTaskLibraryItem,
@@ -2190,6 +2191,44 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
               matched_target: i % 2 === 0 ? "Twisted bow" : null,
               created_at: now - 900 * (i + 1),
             },
+      // Bingo EHB. The i%3===2 member is the case the feature exists for:
+      // no contributions at all, but 240 Vorkath kills behind them.
+      effort:
+        i % 3 === 2
+          ? {
+              ehb_hours: 7.06,
+              kills: 240,
+              bosses: [
+                {
+                  npc_id: 8061,
+                  name: "Vorkath",
+                  metric: "vorkath",
+                  kills: 240,
+                  ehb_hours: 7.06,
+                  frozen: false,
+                },
+              ],
+              boss_count: 1,
+              last_at: now - 3600,
+              frozen: 0,
+            }
+          : {
+              ehb_hours: i % 2 === 0 ? 2.17 : 0.41,
+              kills: i % 2 === 0 ? 100 : 14,
+              bosses: [
+                {
+                  npc_id: i % 2 === 0 ? 12821 : 8061,
+                  name: i % 2 === 0 ? "Chambers of Xeric" : "Vorkath",
+                  metric: i % 2 === 0 ? "chambers_of_xeric" : "vorkath",
+                  kills: i % 2 === 0 ? 100 : 14,
+                  ehb_hours: i % 2 === 0 ? 2.17 : 0.41,
+                  frozen: i % 2 !== 0,
+                },
+              ],
+              boss_count: 1,
+              last_at: now - 900 * (i + 1),
+              frozen: i % 2 === 0 ? 0 : 1,
+            },
       items:
         i % 3 === 0
           ? [{ name: "Twisted bow", item_id: 20997, quantity: 1, drops: 1 }]
@@ -2272,6 +2311,18 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       quantity: 190,
       tasks_contributed: 5,
       loot_gp: money(184_000_000),
+      effort: {
+        ehb_hours: 12.4,
+        kills: 520,
+        bosses: [
+          { npc_id: 12821, name: "Chambers of Xeric", metric: "chambers_of_xeric",
+            kills: 320, ehb_hours: 9.14, frozen: false },
+          { npc_id: 8061, name: "Vorkath", metric: "vorkath", kills: 200,
+            ehb_hours: 5.88, frozen: true },
+        ],
+        boss_count: 2,
+        frozen: 1,
+      },
       items: [
         { name: "Twisted bow", item_id: 20997, quantity: 1, drops: 1 },
         { name: "Dragon claws", item_id: 13652, quantity: 3, drops: 2 },
@@ -2289,6 +2340,16 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       quantity: 88,
       tasks_contributed: 3,
       loot_gp: money(96_500_000),
+      effort: {
+        ehb_hours: 3.2,
+        kills: 110,
+        bosses: [
+          { npc_id: 8061, name: "Vorkath", metric: "vorkath", kills: 110,
+            ehb_hours: 3.24, frozen: false },
+        ],
+        boss_count: 1,
+        frozen: 0,
+      },
       items: [{ name: "Bandos chestplate", item_id: 11832, quantity: 1, drops: 1 }],
     },
     {
@@ -2303,6 +2364,14 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       quantity: 40,
       tasks_contributed: 2,
       loot_gp: money(41_200_000),
+      effort: {
+        ehb_hours: 0,
+        kills: 0,
+        bosses: [],
+        boss_count: 0,
+        last_at: null,
+        frozen: 0,
+      },
       items: [],
     },
   ];
@@ -2316,6 +2385,7 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       points: 75.83,
       tasks: 4,
       loot_gp: money(321_700_000),
+      ehb_hours: 15.6,
     },
   };
 }
@@ -2363,6 +2433,34 @@ export function mockEventTeams(eventId: number): EventTeamsResponse {
       tasks: detail.tasks.length,
       loot_gp: money(353_700_000),
     },
+  };
+}
+
+/** Bingo EHB participation report (event-manager view). The last row is the
+ * case the report exists for: on the roster, never seen at a relevant boss. */
+export function mockEventEffortReport(eventId: number): EventEffortReport {
+  const event = mockEvents().find((e) => e.id === eventId) ?? mockEvents()[0]!;
+  const now = Math.floor(Date.now() / 1000);
+  const players = mockEventPlayers(eventId).players.map((p, i) => ({
+    ...(p.effort ?? { ehb_hours: 0, kills: 0, bosses: [], boss_count: 0, frozen: 0 }),
+    player_id: p.player_id ?? 0,
+    player_name: p.player_name,
+    team_id: p.team_id ?? null,
+    team_name: p.team_name ?? null,
+    last_at: i === 2 ? null : now - 86_400 * (i + 1),
+    days_idle: i === 2 ? 5.2 : i + 1,
+    never_active: i === 2,
+  }));
+  return {
+    event,
+    players,
+    totals: {
+      participants: players.length,
+      active: players.filter((p) => !p.never_active).length,
+      ehb_hours: 15.6,
+      kills: 630,
+    },
+    rates_known: true,
   };
 }
 

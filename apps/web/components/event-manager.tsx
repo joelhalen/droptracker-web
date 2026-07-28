@@ -924,6 +924,15 @@ export function EventManager({
               >
                 Edit
               </button>
+              {groupId != null && event.status !== "draft" && (
+                <Link
+                  href={`/groups/${groupId}/events/${event.id}/effort` as Route}
+                  className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright text-sm"
+                  title="Who's actually putting time into this event's bosses — and who has gone quiet"
+                >
+                  Effort report
+                </Link>
+              )}
               <Link
                 href={`/events/${event.id}` as Route}
                 className="text-osrs-gold-bright text-sm hover:underline"

@@ -39,6 +39,8 @@ import {
   METRIC_TASK_TYPES,
   TASK_TYPE_LABELS,
   contributionSummary,
+  effortSummary,
+  formatEhbHours,
   taskGoal,
   taskQuantityLabel,
   taskTypeLabel,
@@ -368,7 +370,13 @@ export function EventTeamView({
     const isSelf = viewer?.player_id === m.player_id;
     const last = liveLast.get(m.player_id) ?? m.last_contribution ?? null;
     const isOpen = expanded.has(m.player_id);
-    const hasBreakdown = (m.tasks?.length ?? 0) > 0 || (m.items?.length ?? 0) > 0;
+    // Effort counts as a breakdown of its own: a member who ground a boss all
+    // week with nothing to show has no tasks and no items, and they are
+    // precisely the person this expander needs to open for.
+    const hasBreakdown =
+      (m.tasks?.length ?? 0) > 0 ||
+      (m.items?.length ?? 0) > 0 ||
+      (m.effort?.bosses?.length ?? 0) > 0;
     // Per-row leadership controls (web48a) — the Web API is the real
     // gatekeeper; these mirror its rules so we only show buttons that
     // can succeed.
@@ -459,6 +467,14 @@ export function EventTeamView({
               {m.loot_gp!.value_formatted} loot
             </span>
           )}
+          {(m.effort?.kills ?? 0) > 0 && (
+            <span
+              className="text-osrs-parchment-dark/70"
+              title={`Effort at this event's bosses, whether or not anything dropped — ${effortSummary(m.effort)}`}
+            >
+              {formatEhbHours(m.effort?.ehb_hours)} ehb
+            </span>
+          )}
         </div>
 
         {/* Most recent contribution — the "what have they been up to" line. */}
@@ -534,6 +550,42 @@ export function EventTeamView({
               </ul>
             )}
             {(m.items?.length ?? 0) > 0 && <ItemChips items={m.items} size={18} />}
+            {(m.effort?.bosses?.length ?? 0) > 0 && (
+              <div className="border-osrs-bronze/15 space-y-1 border-t pt-2">
+                <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">
+                  Effort · {effortSummary(m.effort)}
+                </div>
+                <ul className="space-y-1">
+                  {m.effort!.bosses.map((b) => (
+                    <li
+                      key={`${b.npc_id ?? b.name}`}
+                      className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-xs"
+                    >
+                      <span className="min-w-0 break-words">
+                        <span className="text-osrs-parchment/90">{b.name ?? "Unknown"}</span>
+                        {b.frozen && (
+                          <span
+                            className="text-osrs-parchment-dark/40 ml-1.5 text-[10px]"
+                            title="Every task this boss counted toward is done, so it stopped accruing"
+                          >
+                            (done)
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-osrs-parchment-dark/60 shrink-0 tabular-nums">
+                        {b.kills.toLocaleString()} kill{b.kills === 1 ? "" : "s"}
+                        {b.ehb_hours > 0 && (
+                          <span className="text-osrs-parchment-dark/40">
+                            {" · "}
+                            {formatEhbHours(b.ehb_hours)}
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 

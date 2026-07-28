@@ -17,12 +17,13 @@ import type {
   EventPlayerRow,
   EventPlayerDetail,
   EventPlayerItem,
+  EventEffort,
 } from "@droptracker/api-types";
 import { Card, EmptyState, NameTile, RankMedal, StatTile } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { ItemDbIcon } from "@/components/item-db-icon";
-import { TASK_TYPE_LABELS } from "@/lib/events";
+import { TASK_TYPE_LABELS, effortSummary, formatEhbHours } from "@/lib/events";
 
 const fmtPoints = (p: number) => (Math.round(p * 100) / 100).toLocaleString();
 const num = (n: number) => n.toLocaleString();
@@ -34,13 +35,18 @@ const gpValue = (m?: { value: number; value_formatted: string } | null) => m?.va
  * Discord Activity injects a bearer-token twin (lib/activity/api). */
 export type PlayerDetailFetcher = (playerId: number) => Promise<EventPlayerDetail>;
 
-type SortKey = "points" | "loot" | "completions" | "quantity";
+type SortKey = "points" | "loot" | "completions" | "quantity" | "effort";
 const SORTS: { key: SortKey; label: string }[] = [
   { key: "points", label: "Points" },
   { key: "loot", label: "Loot" },
   { key: "completions", label: "Completions" },
   { key: "quantity", label: "Items" },
+  // Bingo EHB — the only sort under which someone with zero points can lead,
+  // which is the whole reason it exists.
+  { key: "effort", label: "Effort" },
 ];
+
+const ehb = (p: { effort?: EventEffort | null }) => p.effort?.ehb_hours ?? 0;
 
 function teamDot(color?: string | null) {
   return (
@@ -403,6 +409,15 @@ function PlayerRow({
             </div>
             <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">loot</div>
           </div>
+          <div
+            className="hidden text-right sm:block"
+            title={`Effort at this event's bosses, credited or not — ${effortSummary(player.effort)}`}
+          >
+            <div className="text-osrs-parchment-dark/70 text-sm tabular-nums">
+              {formatEhbHours(player.effort?.ehb_hours)}
+            </div>
+            <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">ehb</div>
+          </div>
           <div className="text-right">
             <div className="text-osrs-gold-bright text-base font-bold tabular-nums">
               {fmtPoints(player.points)}
@@ -473,6 +488,8 @@ export function EventPlayersView({
       if (sort === "quantity") return b.quantity - a.quantity || b.points - a.points;
       if (sort === "loot")
         return gpValue(b.loot_gp) - gpValue(a.loot_gp) || b.points - a.points;
+      if (sort === "effort")
+        return ehb(b) - ehb(a) || (b.effort?.kills ?? 0) - (a.effort?.kills ?? 0);
       return (
         b.points - a.points ||
         b.completions - a.completions ||
@@ -492,11 +509,16 @@ export function EventPlayersView({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatTile label="Contributors" value={<CountUp value={totals.contributors} />} />
         <StatTile label="Completions" value={<CountUp value={totals.completions} />} />
         <StatTile label="Points earned" value={<CountUp value={Math.round(totals.points)} />} />
         <StatTile label="Loot tracked" value={gp(totals.loot_gp)} hint="all sources, this event" />
+        <StatTile
+          label="Effort"
+          value={formatEhbHours(totals.ehb_hours)}
+          hint="ehb at this event's bosses"
+        />
         <StatTile
           label="Participants"
           value={<CountUp value={totals.participants} />}
