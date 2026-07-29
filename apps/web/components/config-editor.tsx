@@ -317,7 +317,10 @@ export function ConfigEditor({
           return (
             <Card key={cat.id} id={sectionId(cat.id)} padding="p-6" className="scroll-mt-24">
               <h2 className="text-osrs-gold mb-4 text-lg font-semibold">{cat.label}</h2>
-              {fields.some((f) => f.type === "channel") && <ChannelListDelayHint className="-mt-3 mb-4" />}
+              {cat.id === "pbs" && <HallOfFameBotCallout />}
+              {fields.some((f) => f.type === "channel") && (
+                <ChannelListDelayHint className={cat.id === "pbs" ? "mb-4" : "-mt-3 mb-4"} />
+              )}
 
               {compact.length > 0 && (
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -584,6 +587,62 @@ function PasswordInput({
       >
         {revealed ? "Hide" : "Show"}
       </button>
+    </div>
+  );
+}
+
+/**
+ * Invite link for the Hall of Fame Discord app (backend: HALL_OF_FAME_BOT_TOKEN
+ * in bots/hall_of_fame.py) — a different application id from the main bot's
+ * `/invite`. The permissions bitfield is exactly what services/hall_of_fame.py
+ * needs: View Channel, Send Messages (+ in threads), Embed Links, Read Message
+ * History. It only ever edits and deletes its *own* messages, so Manage
+ * Messages is deliberately not requested.
+ *
+ * Inlined rather than routed through a next.config.ts redirect like `/invite`:
+ * Next decodes the destination's query, turning the space-delimited `scope`
+ * value into a literal space in the Location header.
+ */
+const HOF_BOT_INVITE_URL =
+  "https://discord.com/oauth2/authorize?client_id=1229885751098085439&scope=bot+applications.commands&permissions=274877991936";
+
+/**
+ * The Hall of Fame leaderboards are posted by a separate Discord application
+ * from the main DropTracker bot (backend: bots/hall_of_fame.py). Groups kept
+ * enabling the settings below and seeing nothing post because that app was
+ * never invited — services/hall_of_fame.py just logs "not in guild or missing
+ * permissions" and backs the group off. Say so, and give them the invite.
+ */
+function HallOfFameBotCallout() {
+  return (
+    <div className="border-osrs-gold/30 bg-osrs-brown-dark/40 mb-4 rounded-lg border p-4">
+      <p className="text-osrs-gold-bright text-sm font-medium">
+        The Hall of Fame uses its own Discord bot
+      </p>
+      <p className="text-osrs-parchment-dark/80 mt-1 text-xs leading-relaxed">
+        Hall of Fame leaderboards are posted by <strong>DropTracker Hall of Fame</strong>, a
+        separate bot from the main DropTracker bot. Having the main bot in your server is{" "}
+        <strong>not</strong> enough — nothing will post until this bot is also invited.
+      </p>
+      <p className="text-osrs-parchment-dark/80 mt-2 text-xs leading-relaxed">
+        It must be in your Discord server <em>and</em> able to see and post in the Hall of Fame
+        channel you pick below — it needs <strong>View Channel</strong>,{" "}
+        <strong>Send Messages</strong>, <strong>Embed Links</strong> and{" "}
+        <strong>Read Message History</strong> there. If the channel is private, add the bot (or its
+        role) to the channel&apos;s permissions after inviting it.
+      </p>
+      <a
+        href={HOF_BOT_INVITE_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-3 inline-block rounded-lg px-4 py-2 text-sm font-medium"
+      >
+        Invite the Hall of Fame bot →
+      </a>
+      <p className="text-osrs-parchment-dark/60 mt-2 text-xs">
+        Already invited it? Nothing more to do here — leaderboards are rebuilt automatically and can
+        take up to ~10 minutes to first appear.
+      </p>
     </div>
   );
 }
