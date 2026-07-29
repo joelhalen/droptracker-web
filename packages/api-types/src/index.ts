@@ -2116,6 +2116,10 @@ export const EventBuyinSchema = z.object({
   amount: MoneySchema,
   status: z.enum(EVENT_BUYIN_STATUSES),
   note: z.string().nullable().optional(),
+  /** Screenshot backing this contribution (web75a) — a CDN URL the backend
+   * derives from an uploaded object key. Unlike `note` this is NOT admin-only:
+   * it rides with the row, so it shows to whoever may see the contribution. */
+  proof_url: z.string().nullable().optional(),
   created_at: z.number().int().nullable().optional(),
 });
 export type EventBuyin = z.infer<typeof EventBuyinSchema>;

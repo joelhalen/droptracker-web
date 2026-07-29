@@ -1051,6 +1051,7 @@ export async function recordEventBuyin(
     amount: number;
     status?: "pledged" | "paid";
     note?: string | null;
+    proof_key?: string | null;
   },
 ): Promise<{ ok: true; id: number } | { ok: false; message: string }> {
   await assertCanManageEvent(groupId);
@@ -1064,12 +1065,18 @@ export async function recordEventBuyin(
   }
 }
 
-/** Edit a buy-in (amount / note) or flip its paid state — the roster "tick". */
+/** Edit a buy-in (amount / note / proof) or flip its paid state — the roster
+ * "tick". `proof_key: null` detaches the screenshot. */
 export async function updateEventBuyin(
   groupId: EventGroupId,
   eventId: number,
   buyinId: number,
-  patch: { amount?: number; status?: EventBuyinStatus; note?: string | null },
+  patch: {
+    amount?: number;
+    status?: EventBuyinStatus;
+    note?: string | null;
+    proof_key?: string | null;
+  },
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   await assertCanManageEvent(groupId);
   try {

@@ -40,6 +40,8 @@ import {
   lootSweepReceipts,
   markBuyinPaid,
   recordBuyin,
+  setBuyinProof,
+  uploadProof,
   taskBreakdown,
 } from "@/lib/activity/api";
 import { PrizePotPanel, type PrizePotActions } from "@/components/prize-pot-panel";
@@ -154,12 +156,20 @@ export function EventView({
     event?.can_manage && sessionToken
       ? {
           markPaid: (buyinId, paid) => markBuyinPaid(eventId, buyinId, paid, sessionToken),
-          recordDonation: (rsn, amount) =>
+          recordDonation: (rsn, amount, proofKey) =>
             recordBuyin(
               eventId,
-              { rsn, kind: "donation", amount, status: "paid" },
+              {
+                rsn,
+                kind: "donation",
+                amount,
+                status: "paid",
+                ...(proofKey ? { proof_key: proofKey } : {}),
+              },
               sessionToken,
             ).then(() => undefined),
+          uploadProof: (file) => uploadProof(file, sessionToken),
+          setProof: (buyinId, key) => setBuyinProof(eventId, buyinId, key, sessionToken),
         }
       : null;
 

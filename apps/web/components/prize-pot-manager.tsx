@@ -31,6 +31,7 @@ type PrizeConfigPatch = {
 };
 import { Card, EmptyState, Badge } from "@/components/ui";
 import { QuantityInput } from "@/components/quantity-input";
+import { ProofAttach, type ProofUpload } from "@/components/proof-attach";
 import {
   announceEventPot,
   bulkSeedEventBuyins,
@@ -107,23 +108,28 @@ function findBuyin(
   );
 }
 
-/** One participant's line in a buy-in checklist: the expected amount and the
- * "Paid" tick. Identical whether the payer is on a team or still in the pool —
- * only the `team_id` written with the row differs. */
+/** One participant's line in a buy-in checklist: the expected amount, an
+ * optional screenshot of the trade, and the "Paid" tick. Identical whether the
+ * payer is on a team or still in the pool — only the `team_id` written with the
+ * row differs. */
 function BuyinLine({
   name,
   amount,
   paid,
+  proofUrl,
   busy,
   onSetPaid,
   onCommitAmount,
+  onSetProof,
 }: {
   name: string;
   amount: number;
   paid: boolean;
+  proofUrl: string | null;
   busy: boolean;
   onSetPaid: (next: boolean) => void;
   onCommitAmount: (value: number) => void;
+  onSetProof: (key: string | null) => void;
 }) {
   return (
     <li className="flex items-center justify-between gap-3 py-2">
@@ -136,6 +142,13 @@ function BuyinLine({
           disabled={busy}
           onChange={onCommitAmount}
           className="w-28"
+        />
+        <ProofAttach
+          url={proofUrl}
+          disabled={busy}
+          title={`Attach proof of ${name}'s payment`}
+          onUploaded={(u) => onSetProof(u.key)}
+          onRemove={() => onSetProof(null)}
         />
         <label className="flex cursor-pointer items-center gap-1.5 text-xs">
           <input
@@ -299,13 +312,18 @@ export function PrizePotManager({
         const row = findBuyin(rows, m.player_id, teamId);
         const rowKey = `buyin:${teamId ?? "pool"}:${m.player_id}`;
         const amount = row?.amount.value ?? config.default_buyin.value;
-        const record = (value: number, status: "pledged" | "paid") =>
+        const record = (
+          value: number,
+          status: "pledged" | "paid",
+          proofKey?: string | null,
+        ) =>
           recordEventBuyin(groupId, eventId, {
             player_id: m.player_id,
             team_id: teamId,
             kind: "buyin",
             amount: value,
             status,
+            ...(proofKey ? { proof_key: proofKey } : {}),
           });
         return (
           <BuyinLine
@@ -313,7 +331,22 @@ export function PrizePotManager({
             name={m.player_name}
             amount={amount}
             paid={row?.status === "paid"}
+            proofUrl={row?.proof_url ?? null}
             busy={busy.has(rowKey)}
+            onSetProof={(key) =>
+              withBusy(rowKey, async () => {
+                // No ledger row yet (nobody has ticked or edited this person):
+                // the screenshot creates the pledged row it belongs to, rather
+                // than being dropped on the floor.
+                const res = row
+                  ? await updateEventBuyin(groupId, eventId, row.id, { proof_key: key })
+                  : key
+                    ? await record(amount, "pledged", key)
+                    : { ok: true as const };
+                if (!res.ok) setError(res.message);
+                await reload();
+              })
+            }
             onSetPaid={(next) =>
               withBusy(rowKey, async () => {
                 const res = next
@@ -633,13 +666,14 @@ export function PrizePotManager({
           <Card>
             <h4 className="text-osrs-gold mb-3 text-sm font-semibold">Donations</h4>
             <DonationAdd
-              onAdd={(rsn, amount) =>
+              onAdd={(rsn, amount, proofKey) =>
                 withBusy("donate", async () => {
                   const res = await recordEventBuyin(groupId, eventId, {
                     rsn,
                     kind: "donation",
                     amount,
                     status: "paid",
+                    ...(proofKey ? { proof_key: proofKey } : {}),
                   });
                   if (!res.ok) setError(res.message);
                   await reload();
@@ -658,6 +692,29 @@ export function PrizePotManager({
                       <span className="text-osrs-gold-bright font-bold tabular-nums">
                         {d.amount.value_formatted}
                       </span>
+                      <ProofAttach
+                        url={d.proof_url ?? null}
+                        disabled={busy.has(`proof:${d.id}`)}
+                        title={`Attach proof of ${d.rsn ?? "this"} donation`}
+                        onUploaded={(u) =>
+                          withBusy(`proof:${d.id}`, async () => {
+                            const res = await updateEventBuyin(groupId, eventId, d.id, {
+                              proof_key: u.key,
+                            });
+                            if (!res.ok) setError(res.message);
+                            await reload();
+                          })
+                        }
+                        onRemove={() =>
+                          withBusy(`proof:${d.id}`, async () => {
+                            const res = await updateEventBuyin(groupId, eventId, d.id, {
+                              proof_key: null,
+                            });
+                            if (!res.ok) setError(res.message);
+                            await reload();
+                          })
+                        }
+                      />
                       <button
                         type="button"
                         disabled={busy.has(`del:${d.id}`)}
@@ -756,16 +813,19 @@ function CustomSplitEditor({
   );
 }
 
-/** Free-text donor + amount → a paid donation (external sponsors welcome). */
+/** Free-text donor + amount (+ optional screenshot) → a paid donation
+ * (external sponsors welcome). The image is uploaded as it's picked and held
+ * as a pending key until the donation is actually recorded. */
 function DonationAdd({
   onAdd,
   busy,
 }: {
-  onAdd: (rsn: string, amount: number) => void;
+  onAdd: (rsn: string, amount: number, proofKey: string | null) => void;
   busy: boolean;
 }) {
   const [rsn, setRsn] = useState("");
   const [amount, setAmount] = useState(0);
+  const [proof, setProof] = useState<ProofUpload | null>(null);
   const canSubmit = rsn.trim().length > 0 && amount > 0 && !busy;
   return (
     <div className="flex flex-wrap items-end gap-2">
@@ -784,13 +844,25 @@ function DonationAdd({
         <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Amount (GP)</span>
         <QuantityInput value={amount} min={0} emptyAs={0} onChange={setAmount} className="w-32" />
       </label>
+      <label className="block">
+        <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Proof</span>
+        <ProofAttach
+          url={proof?.public_url ?? null}
+          size="md"
+          disabled={busy}
+          title="Attach a screenshot of the donation"
+          onUploaded={setProof}
+          onRemove={() => setProof(null)}
+        />
+      </label>
       <button
         type="button"
         disabled={!canSubmit}
         onClick={() => {
-          onAdd(rsn.trim(), amount);
+          onAdd(rsn.trim(), amount, proof?.key ?? null);
           setRsn("");
           setAmount(0);
+          setProof(null);
         }}
         className="border-osrs-gold/50 text-osrs-gold-bright hover:bg-osrs-gold/10 rounded border px-3 py-1.5 text-sm disabled:opacity-50"
       >

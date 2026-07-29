@@ -1237,6 +1237,8 @@ export const api = {
       amount: number;
       status?: "pledged" | "paid";
       note?: string | null;
+      /** Object key from `uploadProof` — the backend builds the CDN URL. */
+      proof_key?: string | null;
     },
   ): Promise<{ id: number }> {
     return withFallback(
@@ -1245,11 +1247,18 @@ export const api = {
     );
   },
 
-  /** Edit a buy-in's amount / note or flip its paid state (the roster "tick"). */
+  /** Edit a buy-in's amount / note / proof, or flip its paid state (the roster
+   * "tick"). `proof_key: null` detaches the screenshot; omitting it leaves the
+   * existing one alone. */
   async updateBuyin(
     eventId: number,
     buyinId: number,
-    patch: { amount?: number; status?: EventBuyinStatus; note?: string | null },
+    patch: {
+      amount?: number;
+      status?: EventBuyinStatus;
+      note?: string | null;
+      proof_key?: string | null;
+    },
   ): Promise<{ ok: true }> {
     return withFallback(
       async () => {

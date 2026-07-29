@@ -13,12 +13,19 @@
  */
 import { useState } from "react";
 import type { EventPrizePot } from "@droptracker/api-types";
+import { ProofAttach, type ProofUpload, type ProofUploader } from "@/components/proof-attach";
 
 export interface PrizePotActions {
   /** Flip a buy-in's paid state (the tick). */
   markPaid(buyinId: number, paid: boolean): Promise<void>;
-  /** Record a standalone donation (free-text donor). */
-  recordDonation(rsn: string, amount: number): Promise<void>;
+  /** Record a standalone donation (free-text donor, optional screenshot). */
+  recordDonation(rsn: string, amount: number, proofKey: string | null): Promise<void>;
+  /** Upload a screenshot and return its object key (web75a). Surface-specific:
+   * cookie-authed on the site, bearer-authed in the Activity. Omit (with
+   * `setProof`) to leave proofs read-only on this surface. */
+  uploadProof?: ProofUploader;
+  /** Attach (`key`) or detach (`null`) a row's screenshot. */
+  setProof?(buyinId: number, key: string | null): Promise<void>;
 }
 
 export function PrizePotPanel({
@@ -33,6 +40,9 @@ export function PrizePotPanel({
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const canManage = Boolean(actions && pot.can_manage);
+  // Editing proof needs both halves (upload + attach); without them the
+  // thumbnails still render, they just aren't changeable here.
+  const canEditProof = Boolean(canManage && actions?.uploadProof && actions?.setProof);
   const rows = pot.contributors ?? [];
   const buyins = rows.filter((r) => r.kind === "buyin");
   const donations = rows.filter((r) => r.kind === "donation");
@@ -55,6 +65,23 @@ export function PrizePotPanel({
       }
     })();
   };
+
+  /** The screenshot backing one contribution: editable for managers, a plain
+   * thumbnail for everyone else, nothing at all when there's no image. */
+  const proofCell = (row: { id: number; proof_url?: string | null }) =>
+    canEditProof ? (
+      <ProofAttach
+        url={row.proof_url ?? null}
+        uploader={actions!.uploadProof}
+        disabled={busy.has(`p:${row.id}`)}
+        onUploaded={(u: ProofUpload) =>
+          run(`p:${row.id}`, () => actions!.setProof!(row.id, u.key))
+        }
+        onRemove={() => run(`p:${row.id}`, () => actions!.setProof!(row.id, null))}
+      />
+    ) : (
+      <ProofAttach url={row.proof_url ?? null} />
+    );
 
   return (
     <div className="border-osrs-gold/30 bg-osrs-brown-dark/30 rounded-xl border p-3.5">
@@ -108,6 +135,7 @@ export function PrizePotPanel({
                   <span className="text-osrs-parchment-dark/80 tabular-nums">
                     {b.amount.value_formatted}
                   </span>
+                  {proofCell(b)}
                   {canManage ? (
                     <label className="flex cursor-pointer items-center gap-1 text-[11px]">
                       <input
@@ -145,8 +173,11 @@ export function PrizePotPanel({
           {donations.map((d) => (
             <li key={d.id} className="flex items-center justify-between gap-2 text-[13px]">
               <span className="min-w-0 truncate font-bold">{d.rsn ?? "Anonymous"}</span>
-              <span className="text-osrs-gold-bright font-bold tabular-nums">
-                {d.amount.value_formatted}
+              <span className="flex items-center gap-2">
+                {proofCell(d)}
+                <span className="text-osrs-gold-bright font-bold tabular-nums">
+                  {d.amount.value_formatted}
+                </span>
               </span>
             </li>
           ))}
@@ -162,7 +193,15 @@ export function PrizePotPanel({
         </p>
       )}
 
-      {canManage && <DonationAdd busy={busy.has("donate")} onAdd={(rsn, amount) => run("donate", () => actions!.recordDonation(rsn, amount))} />}
+      {canManage && (
+        <DonationAdd
+          busy={busy.has("donate")}
+          uploader={canEditProof ? actions!.uploadProof : undefined}
+          onAdd={(rsn, amount, proofKey) =>
+            run("donate", () => actions!.recordDonation(rsn, amount, proofKey))
+          }
+        />
+      )}
     </div>
   );
 }
@@ -170,12 +209,16 @@ export function PrizePotPanel({
 function DonationAdd({
   onAdd,
   busy,
+  uploader,
 }: {
-  onAdd: (rsn: string, amount: number) => void;
+  onAdd: (rsn: string, amount: number, proofKey: string | null) => void;
   busy: boolean;
+  /** Present only when this surface can upload — otherwise no proof control. */
+  uploader?: ProofUploader;
 }) {
   const [rsn, setRsn] = useState("");
   const [amount, setAmount] = useState("");
+  const [proof, setProof] = useState<ProofUpload | null>(null);
   const amt = Number(amount);
   const canSubmit = rsn.trim().length > 0 && Number.isFinite(amt) && amt > 0 && !busy;
   return (
@@ -196,13 +239,24 @@ function DonationAdd({
         placeholder="Amount"
         className="border-osrs-bronze/30 bg-osrs-surface-2/50 focus:border-osrs-gold/60 w-24 rounded border px-2 py-1 text-xs outline-none"
       />
+      {uploader && (
+        <ProofAttach
+          url={proof?.public_url ?? null}
+          uploader={uploader}
+          disabled={busy}
+          title="Attach a screenshot of the donation"
+          onUploaded={setProof}
+          onRemove={() => setProof(null)}
+        />
+      )}
       <button
         type="button"
         disabled={!canSubmit}
         onClick={() => {
-          onAdd(rsn.trim(), amt);
+          onAdd(rsn.trim(), amt, proof?.key ?? null);
           setRsn("");
           setAmount("");
+          setProof(null);
         }}
         className="border-osrs-gold/50 text-osrs-gold-bright hover:bg-osrs-gold/10 rounded border px-2 py-1 text-xs disabled:opacity-50"
       >

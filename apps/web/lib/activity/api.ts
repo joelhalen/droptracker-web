@@ -279,6 +279,7 @@ export async function recordBuyin(
     amount: number;
     status?: "pledged" | "paid";
     note?: string | null;
+    proof_key?: string | null;
   },
   sessionToken: string,
 ): Promise<{ id: number }> {
@@ -297,6 +298,43 @@ export async function markBuyinPaid(
   await sendMethod("PATCH", `/api/activity/events/${eventId}/buyins/${buyinId}`, sessionToken, {
     status: paid ? "paid" : "pledged",
   });
+}
+
+/** Attach (`key`) or detach (`null`) a contribution's screenshot (web75a). */
+export async function setBuyinProof(
+  eventId: number,
+  buyinId: number,
+  key: string | null,
+  sessionToken: string,
+): Promise<void> {
+  await sendMethod("PATCH", `/api/activity/events/${eventId}/buyins/${buyinId}`, sessionToken, {
+    proof_key: key,
+  });
+}
+
+/** Upload a proof screenshot from inside the Activity (web75a) — the bearer
+ * twin of the site's `uploadProofViaBff`. Multipart, so it can't reuse
+ * `sendMethod` (which is JSON-only); the returned `key` is what gets saved on
+ * the contribution. */
+export async function uploadProof(
+  file: File,
+  sessionToken: string,
+): Promise<{ key: string; public_url: string }> {
+  const form = new FormData();
+  form.set("file", file);
+  const res = await fetch("/api/activity/uploads/proof", {
+    method: "POST",
+    headers: { authorization: `Bearer ${sessionToken}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const detail = await res
+      .json()
+      .then((b: { detail?: string }) => b?.detail)
+      .catch(() => undefined);
+    throw new ActivityApiError(res.status, detail ?? `Upload failed (${res.status}).`);
+  }
+  return (await res.json()) as { key: string; public_url: string };
 }
 
 export async function joinEvent(
