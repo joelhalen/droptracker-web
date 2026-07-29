@@ -46,6 +46,8 @@ import {
   ClaimPreviewSchema,
   ClaimResultSchema,
   MyGuildsSchema,
+  RecapSchema,
+  RecapIndexSchema,
   allConfigKeys,
   getConfigField,
 } from "@droptracker/api-types";
@@ -106,6 +108,8 @@ test("OpenAPI spec declares the public-read surface the BFF consumes", () => {
     "/npcs/{npcId}/drop-table",
     "/items/{itemId}",
     "/resolve/{kind}",
+    "/recaps/{scope}/{subjectId}/{period}",
+    "/recaps/{scope}/{subjectId}",
   ]) {
     assert.ok(paths.includes(expected), `OpenAPI missing path ${expected}`);
   }
@@ -406,4 +410,71 @@ test("group-config registry resolves all keys", () => {
   assert.equal(getConfigField("seasonal_boards")?.key, "seasonal_boards");
   // An empty patch is always valid (PATCH sends only changed keys).
   assert.doesNotThrow(() => GroupConfigPatchSchema.parse({}));
+});
+
+// Recap payloads are an ARCHIVE: rows written under an older schema_version are
+// kept forever and read by newer code. So the schema must parse both a full
+// modern card and a minimal early one, and must never require a field that a
+// later version introduced. These two cases are the contract.
+test("recap schema parses a full card", () => {
+  assert.doesNotThrow(() =>
+    RecapSchema.parse({
+      scope: "group",
+      subject: { id: 14, name: "Pegasus PvM" },
+      period: "2026-06",
+      schema_version: 1,
+      generated_at: "2026-07-29T18:14:20",
+      totals: {
+        loot: 1620716276,
+        loot_rollup: 1415745276,
+        drops: 56827,
+        unique_items: 1083,
+        unique_npcs: null,
+        members_active: 29,
+        members_total: 269,
+      },
+      rank: { position: 34, of: 223, previous_loot: 2324776322, board_loot: 1433473180 },
+      top_items: [{ item_id: 26378, name: "Torva platebody (damaged)", loot: 168594500, drops: 1, quantity: 1 }],
+      top_npcs: [],
+      npc_data_available: false,
+      activity: { by_hour: new Array(24).fill(0), by_weekday: new Array(7).fill(0) },
+      biggest_drop: {
+        drop_id: 1, player_id: 2, player_name: "Redquaker",
+        item_id: 3, item_name: "3rd age bow", npc_id: 4, npc_name: "Clue Scroll (Elite)",
+        value: 2089744999, quantity: 1, total_value: 2089744999,
+        date: "2026-06-01T00:00:00", image_url: null, kill_count: null,
+      },
+      achievements: { pbs: 63, clog_slots: 141 },
+      top_members: [{ player_id: 2, name: "Redquaker", loot: 5, previous_loot: 1 }],
+      superlatives: { most_pbs: { player_id: 2, name: "Yew Tree", count: 9 }, most_pets: null },
+    }),
+  );
+});
+
+test("recap schema parses a minimal card and an annual fold", () => {
+  // Minimal: everything optional actually optional.
+  assert.doesNotThrow(() =>
+    RecapSchema.parse({ scope: "player", period: "2026-06", schema_version: 1, totals: {} }),
+  );
+  // Annual folds carry by_month/peak_month and no rank block.
+  assert.doesNotThrow(() =>
+    RecapSchema.parse({
+      scope: "group",
+      period: "2025",
+      schema_version: 1,
+      totals: { loot: 44428533026, drops: 1517003 },
+      by_month: [{ period: "2025-01", loot: 1 }],
+      peak_month: { period: "2025-09", loot: 7686194133 },
+      months_covered: ["2025-01"],
+      npc_data_available: false,
+      npc_months_covered: 8,
+    }),
+  );
+  assert.doesNotThrow(() =>
+    RecapIndexSchema.parse({
+      scope: "group",
+      subject_id: 14,
+      periods: [{ period: "2025", kind: "year", generated_at: null }],
+    }),
+  );
 });

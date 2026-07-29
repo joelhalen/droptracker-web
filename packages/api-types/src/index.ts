@@ -4542,6 +4542,143 @@ export const EventLayoutMetaSchema = z.object({
 });
 export type EventLayoutMeta = z.infer<typeof EventLayoutMetaSchema>;
 
+/* ---------------------------------------------------------------------------
+ * Recaps ("Wrapped") — monthly and annual cards.
+ *
+ * GP values are plain integers here, not the `MoneySchema` envelope used
+ * elsewhere. A recap snapshot is a frozen archive: storing a pre-formatted
+ * string alongside every number would bake today's formatting into rows we
+ * intend to keep for years, so formatting stays a presentation concern.
+ *
+ * Everything optional is optional on purpose. Cards are added over time under a
+ * rising `schema_version`, and old rows keep the shape they were written with —
+ * a reader that finds a key missing must omit that card, never fail. Same rule
+ * for zero counts on the "recently started capturing this" sources (pets,
+ * quests, deaths, diaries): 0 there means "not captured", not "none happened".
+ * ------------------------------------------------------------------------- */
+export const RecapSubjectSchema = z.object({
+  id: z.number().int(),
+  name: z.string().nullable().optional(),
+});
+
+export const RecapEntrySchema = z.object({
+  item_id: z.number().int().optional(),
+  npc_id: z.number().int().optional(),
+  name: z.string(),
+  loot: z.number(),
+  drops: z.number().int().optional(),
+  quantity: z.number().int().optional(),
+  kills: z.number().int().optional(),
+});
+export type RecapEntry = z.infer<typeof RecapEntrySchema>;
+
+export const RecapBiggestDropSchema = z.object({
+  drop_id: z.number().int(),
+  player_id: z.number().int(),
+  player_name: z.string().nullable(),
+  item_id: z.number().int().nullable(),
+  item_name: z.string().nullable(),
+  npc_id: z.number().int().nullable(),
+  npc_name: z.string().nullable(),
+  value: z.number(),
+  quantity: z.number().int(),
+  total_value: z.number(),
+  date: z.string().nullable(),
+  /** Frozen at generation time — the pruner deletes sub-1M screenshots at 30d. */
+  image_url: z.string().nullable(),
+  /** Populated from web76a onward; null for older drops and untracked sources. */
+  kill_count: z.number().int().nullable(),
+});
+
+export const RecapSuperlativeSchema = z.object({
+  player_id: z.number().int(),
+  name: z.string().nullable(),
+  count: z.number().int(),
+});
+
+export const RecapSchema = z.object({
+  scope: z.enum(["group", "player"]),
+  subject: RecapSubjectSchema.nullable().optional(),
+  period: z.string(),
+  schema_version: z.number().int(),
+  generated_at: z.string().nullable().optional(),
+
+  totals: z.object({
+    /** Headline figure, from the Redis monthly board — matches the leaderboard. */
+    loot: z.number().optional(),
+    /** Same figure via the hourly rollup; kept so drift is visible, not silent. */
+    loot_rollup: z.number().optional(),
+    drops: z.number().int().optional(),
+    unique_items: z.number().int().optional(),
+    /** null when the NPC rollup has no coverage for the period — omit the card. */
+    unique_npcs: z.number().int().nullable().optional(),
+    members_active: z.number().int().optional(),
+    members_total: z.number().int().optional(),
+  }),
+
+  rank: z
+    .object({
+      position: z.number().int().nullable(),
+      of: z.number().int().nullable(),
+      percentile: z.number().nullable().optional(),
+      previous_loot: z.number().optional(),
+      /** Score the rank came from (WOM-roster scoped, so ≠ totals.loot). */
+      board_loot: z.number().nullable().optional(),
+    })
+    .optional(),
+
+  top_items: z.array(RecapEntrySchema).default([]),
+  top_npcs: z.array(RecapEntrySchema).default([]),
+  /** False when player_npc_hourly_totals has no rows for the period. */
+  npc_data_available: z.boolean().optional(),
+  /** Annual only: how many of the folded months had NPC coverage. */
+  npc_months_covered: z.number().int().optional(),
+
+  activity: z
+    .object({
+      by_hour: z.array(z.number()).optional(),
+      by_weekday: z.array(z.number()).optional(),
+    })
+    .optional(),
+
+  biggest_drop: RecapBiggestDropSchema.nullable().optional(),
+  achievements: z.record(z.string(), z.number()).optional(),
+
+  /** Group cards only. */
+  top_members: z
+    .array(
+      z.object({
+        player_id: z.number().int(),
+        name: z.string().nullable(),
+        loot: z.number(),
+        previous_loot: z.number().optional(),
+      }),
+    )
+    .optional(),
+  superlatives: z.record(z.string(), RecapSuperlativeSchema.nullable()).optional(),
+
+  /** Annual only. */
+  by_month: z
+    .array(z.object({ period: z.string(), loot: z.number() }))
+    .optional(),
+  peak_month: z.object({ period: z.string(), loot: z.number() }).nullable().optional(),
+  months_covered: z.array(z.string()).optional(),
+});
+export type Recap = z.infer<typeof RecapSchema>;
+
+export const RecapIndexSchema = z.object({
+  scope: z.enum(["group", "player"]),
+  subject_id: z.number().int(),
+  periods: z.array(
+    z.object({
+      period: z.string(),
+      kind: z.enum(["month", "year"]),
+      generated_at: z.string().nullable(),
+    }),
+  ),
+});
+export type RecapIndex = z.infer<typeof RecapIndexSchema>;
+
 export * from "./group-config";
 export * from "./entitlements";
 export * from "./tier-flair";

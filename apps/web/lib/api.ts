@@ -295,6 +295,10 @@ import {
   ItemSearchResultSchema,
   type PublicItemValue,
   PublicItemValueSchema,
+  type Recap,
+  RecapSchema,
+  type RecapIndex,
+  RecapIndexSchema,
 } from "@droptracker/api-types";
 import { env, SESSION_COOKIE } from "./env";
 import {
@@ -2739,6 +2743,39 @@ export const api = {
 
   // --- NPC / item pages -----------------------------------------------------
   /** NPC overview: lifetime + month totals, top players, recent drops. */
+  /**
+   * One recap card. A settled period's card never changes, so it caches hard.
+   * 404 (→ null) is the normal answer for a subject below the activity floor,
+   * not an error worth surfacing.
+   */
+  async recap(
+    scope: "group" | "player",
+    subjectId: number,
+    period: string,
+  ): Promise<Recap | null> {
+    return withFallback(
+      async () =>
+        RecapSchema.parse(
+          await apiGet(`/recaps/${scope}/${subjectId}/${period}`, { revalidate: 3600 }),
+        ),
+      () => null,
+    ).catch(() => null);
+  },
+
+  /** Every period a subject has a card for, newest first (the archive list). */
+  async recapIndex(
+    scope: "group" | "player",
+    subjectId: number,
+  ): Promise<RecapIndex | null> {
+    return withFallback(
+      async () =>
+        RecapIndexSchema.parse(
+          await apiGet(`/recaps/${scope}/${subjectId}`, { revalidate: 3600 }),
+        ),
+      () => null,
+    ).catch(() => null);
+  },
+
   async npcDetail(npcId: number): Promise<NpcDetail | null> {
     return withFallback(
       async () => NpcDetailSchema.parse(await apiGet(`/npcs/${npcId}`, { revalidate: 60 })),
