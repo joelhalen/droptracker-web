@@ -405,7 +405,11 @@ export function EventDiscordSettings({
     setTeamDiscord((prev) => (prev ? { ...prev, ...patch } : prev));
   };
 
-  const setTeamFlag = (teamId: number, field: "role_enabled" | "channel_enabled", v: boolean) => {
+  const setTeamFlag = (
+    teamId: number,
+    field: "role_enabled" | "channel_enabled" | "voice_enabled",
+    v: boolean,
+  ) => {
     setSaved(false);
     setTeamDiscord((prev) =>
       prev
@@ -426,6 +430,8 @@ export function EventDiscordSettings({
       input.channels_enabled = teamDiscord.channels_enabled;
     if (teamDiscord.roles_enabled !== teamDiscordBase.roles_enabled)
       input.roles_enabled = teamDiscord.roles_enabled;
+    if (teamDiscord.voice_enabled !== teamDiscordBase.voice_enabled)
+      input.voice_enabled = teamDiscord.voice_enabled;
     if (teamDiscord.forum_channel_id !== teamDiscordBase.forum_channel_id)
       input.forum_channel_id = teamDiscord.forum_channel_id;
     if (teamDiscord.category_channel_id !== teamDiscordBase.category_channel_id)
@@ -438,9 +444,10 @@ export function EventDiscordSettings({
     const changedTeams: NonNullable<EventTeamDiscordInput["teams"]> = {};
     for (const t of teamDiscord.teams) {
       const base = baseTeams.get(t.team_id);
-      const entry: { role?: boolean; channel?: boolean } = {};
+      const entry: { role?: boolean; channel?: boolean; voice?: boolean } = {};
       if (!base || t.role_enabled !== base.role_enabled) entry.role = t.role_enabled;
       if (!base || t.channel_enabled !== base.channel_enabled) entry.channel = t.channel_enabled;
+      if (!base || t.voice_enabled !== base.voice_enabled) entry.voice = t.voice_enabled;
       if (Object.keys(entry).length > 0) changedTeams[String(t.team_id)] = entry;
     }
     if (Object.keys(changedTeams).length > 0) input.teams = changedTeams;
@@ -854,6 +861,13 @@ export function EventDiscordSettings({
               onChange={(v) => patchTeamDiscord({ channels_enabled: v })}
               disabled={!hasGuild && !teamDiscord.channels_enabled}
             />
+            <ToggleRow
+              label="Create team voice channels"
+              hint="A temporary voice channel per team, restricted to the team role (with roles on) and grouped under the same category as the text channels. Cleaned up under the same after-event rules."
+              checked={teamDiscord.voice_enabled}
+              onChange={(v) => patchTeamDiscord({ voice_enabled: v })}
+              disabled={!hasGuild && !teamDiscord.voice_enabled}
+            />
 
             {teamDiscord.channels_enabled && (
               <div className="grid gap-4 pl-4 text-sm sm:max-w-md">
@@ -951,17 +965,18 @@ export function EventDiscordSettings({
 
             {teamDiscord.teams.length > 0 && (
               <div className="border-osrs-bronze/20 overflow-hidden rounded border">
-                <div className="text-osrs-parchment-dark/50 border-osrs-bronze/20 grid grid-cols-[minmax(0,1fr)_auto_auto_minmax(5rem,auto)] items-center gap-x-4 border-b px-3 py-1.5 text-[10px] font-medium tracking-wide uppercase">
+                <div className="text-osrs-parchment-dark/50 border-osrs-bronze/20 grid grid-cols-[minmax(0,1fr)_auto_auto_auto_minmax(5rem,auto)] items-center gap-x-4 border-b px-3 py-1.5 text-[10px] font-medium tracking-wide uppercase">
                   <span>Team</span>
                   <span>Role</span>
                   <span>Channel</span>
+                  <span>Voice</span>
                   <span>Status</span>
                 </div>
                 <ul className="divide-osrs-bronze/15 divide-y">
                   {teamDiscord.teams.map((t) => (
                     <li
                       key={t.team_id}
-                      className="grid grid-cols-[minmax(0,1fr)_auto_auto_minmax(5rem,auto)] items-center gap-x-4 px-3 py-2 text-sm"
+                      className="grid grid-cols-[minmax(0,1fr)_auto_auto_auto_minmax(5rem,auto)] items-center gap-x-4 px-3 py-2 text-sm"
                     >
                       <span className="truncate">{t.name}</span>
                       <input
@@ -978,6 +993,13 @@ export function EventDiscordSettings({
                         onChange={(e) =>
                           setTeamFlag(t.team_id, "channel_enabled", e.target.checked)
                         }
+                        className="size-4 justify-self-center"
+                      />
+                      <input
+                        type="checkbox"
+                        aria-label={`Voice channel for ${t.name}`}
+                        checked={t.voice_enabled}
+                        onChange={(e) => setTeamFlag(t.team_id, "voice_enabled", e.target.checked)}
                         className="size-4 justify-self-center"
                       />
                       <TeamSyncStatus team={t} />

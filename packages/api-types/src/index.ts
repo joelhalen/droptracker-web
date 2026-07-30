@@ -3638,6 +3638,7 @@ export const TeamDiscordTeamStateSchema = z.object({
   name: z.string(),
   role_enabled: z.boolean(),
   channel_enabled: z.boolean(),
+  voice_enabled: z.boolean().default(false),
   toggles: z.record(z.string(), z.boolean()).default({}),
   pings: z.record(z.string(), z.boolean()).default({}),
   task_progress: z.enum(EVENT_TASK_PROGRESS_MODES).default("milestones"),
@@ -3652,6 +3653,7 @@ export const TeamDiscordTeamStateSchema = z.object({
     .optional(),
   role_id: z.string().nullable().optional(),
   channel_id: z.string().nullable().optional(),
+  voice_channel_id: z.string().nullable().optional(),
   channel_kind: z.enum(["text", "thread"]).nullable().optional(),
   sync_status: z
     .enum(["pending", "synced", "delete_pending", "failed"])
@@ -3668,6 +3670,9 @@ export const EventTeamDiscordConfigSchema = z.object({
   guild_id: z.string().nullable(),
   channels_enabled: z.boolean(),
   roles_enabled: z.boolean(),
+  /** Temporary per-team VOICE channels — same access (team-role-gated) and
+   * same retention rules as the text channels. */
+  voice_enabled: z.boolean().default(false),
   /** Forum-channel snowflake ⇒ team channels are threads inside it (NO
    * per-thread permissions — every team can read every thread). */
   forum_channel_id: z.string().nullable(),
@@ -3692,6 +3697,7 @@ export const EventTeamDiscordInputSchema = z.object({
   group_id: z.number().int().nullable().optional(),
   channels_enabled: z.boolean().optional(),
   roles_enabled: z.boolean().optional(),
+  voice_enabled: z.boolean().optional(),
   forum_channel_id: z.string().regex(/^\d+$/).nullable().optional(),
   category_channel_id: z.string().regex(/^\d+$/).nullable().optional(),
   retention: z.enum(EVENT_TEAM_DISCORD_RETENTIONS).optional(),
@@ -3699,7 +3705,11 @@ export const EventTeamDiscordInputSchema = z.object({
   teams: z
     .record(
       z.string(),
-      z.object({ role: z.boolean().optional(), channel: z.boolean().optional() }),
+      z.object({
+        role: z.boolean().optional(),
+        channel: z.boolean().optional(),
+        voice: z.boolean().optional(),
+      }),
     )
     .optional(),
 });
