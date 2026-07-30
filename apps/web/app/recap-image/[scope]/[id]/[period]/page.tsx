@@ -24,7 +24,11 @@ export const revalidate = 0;
 const WIDTH = 1100;
 
 type Params = Promise<{ scope: string; id: string; period: string }>;
-type Search = Promise<{ k?: string }>;
+// `w` and `layout` exist for previewing one period as both shapes (a narrow
+// stacked poster for a Discord embed, the wide two-column one for the page).
+// Both default to what production posts, so an un-parameterised URL is
+// unchanged.
+type Search = Promise<{ k?: string; w?: string; layout?: string }>;
 
 export default async function RecapImagePage({
   params,
@@ -34,24 +38,30 @@ export default async function RecapImagePage({
   searchParams: Search;
 }) {
   const { scope, id, period } = await params;
-  const { k } = await searchParams;
+  const { k, w, layout } = await searchParams;
   const subjectId = Number(id);
   const token = env.boardImageToken;
 
   if (!token || !k || k !== token || !Number.isFinite(subjectId)) notFound();
   if (scope !== "group" && scope !== "player") notFound();
 
+  const requested = Number(w);
+  const cardWidth =
+    Number.isFinite(requested) && requested >= 480 && requested <= 2000 ? requested : WIDTH;
+  const shape = layout === "stacked" || layout === "columns" ? layout : "auto";
+
   const recap = await api.recap(scope, subjectId, period);
   if (!recap) notFound();
 
   return (
     <>
-      {/* Drop the root layout's min-h-screen so the capture is exactly the
-          card's height, and give it a solid dark backing — matches
-          /board-image, and keeps the PNG free of transparent margins. */}
-      <style>{`body{min-height:0!important;background:#0e1512}`}</style>
-      <div style={{ width: WIDTH, padding: 24, boxSizing: "border-box" }}>
-        <RecapCard recap={recap} />
+      {/* Drop the root layout's min-h-screen (and its margins) so the capture is
+          exactly the poster: the card's own stone frame is the image's border,
+          edge to edge, with no page background showing anywhere. The backing
+          colour only matters for the single sub-pixel row rounding can leave. */}
+      <style>{`body{min-height:0!important;margin:0;background:#0b100d}`}</style>
+      <div style={{ width: cardWidth }}>
+        <RecapCard recap={recap} width={cardWidth} layout={shape} />
       </div>
     </>
   );

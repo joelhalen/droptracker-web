@@ -52,10 +52,12 @@ export default async function GroupRecapPage({ params }: { params: Params }) {
   const others = (index?.periods ?? []).filter((p) => p.period !== period).slice(0, 12);
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <Card>
-        <RecapCard recap={recap} />
-      </Card>
+    <div className="mx-auto max-w-[1140px] px-4 py-8">
+      {/* No <Card> wrapper: the poster carries its own frame, and nesting it in
+          site chrome is what made this read as a web page rather than the image
+          a Discord post links to. `fluid` scales the identical composition down
+          to the container, so the page and the PNG are the same artifact. */}
+      <RecapCard recap={recap} fluid />
 
       {others.length > 0 && (
         <Card className="mt-4">

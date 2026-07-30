@@ -4569,6 +4569,19 @@ export const RecapEntrySchema = z.object({
   drops: z.number().int().optional(),
   quantity: z.number().int().optional(),
   kills: z.number().int().optional(),
+  /**
+   * Who received the most of this item by value, on group cards only — a player
+   * card's items were all received by the subject, so attribution is stripped
+   * there rather than repeating their name once per item.
+   *
+   * Absent when the period's rows can't name one person honestly: `receivers > 1`
+   * means several clanmates got it and the top one didn't get it all, and across
+   * an annual fold it's dropped the moment two months disagree on who got it.
+   * Read the pair together — a name with `receivers: 1` is the only case where
+   * "X got this" is a true statement.
+   */
+  receiver: z.object({ player_id: z.number().int(), name: z.string() }).optional(),
+  receivers: z.number().int().optional(),
 });
 export type RecapEntry = z.infer<typeof RecapEntrySchema>;
 

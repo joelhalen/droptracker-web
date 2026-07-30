@@ -434,7 +434,18 @@ test("recap schema parses a full card", () => {
         members_total: 269,
       },
       rank: { position: 34, of: 223, previous_loot: 2324776322, board_loot: 1433473180 },
-      top_items: [{ item_id: 26378, name: "Torva platebody (damaged)", loot: 168594500, drops: 1, quantity: 1 }],
+      top_items: [
+        // Sole receiver: the only case where "X got this" is a true statement.
+        { item_id: 26378, name: "Torva platebody (damaged)", loot: 168594500, drops: 1, quantity: 1,
+          receiver: { player_id: 795, name: "Chapsz" }, receivers: 1 },
+        // Shared: a name IS carried, but receivers > 1 means they didn't get it
+        // all, so the renderer must qualify it rather than imply sole ownership.
+        { item_id: 22446, name: "Vial of blood", loot: 39031316, drops: 60, quantity: 240,
+          receiver: { player_id: 795, name: "Chapsz" }, receivers: 11 },
+        // Unattributable: shared with nobody nameable (an annual fold whose
+        // months disagreed, or a pre-attribution row).
+        { item_id: 20997, name: "Twisted bow", loot: 1514724889, drops: 1, quantity: 1, receivers: 2 },
+      ],
       top_npcs: [],
       npc_data_available: false,
       activity: { by_hour: new Array(24).fill(0), by_weekday: new Array(7).fill(0) },
