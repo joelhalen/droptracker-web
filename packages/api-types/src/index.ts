@@ -4559,6 +4559,12 @@ export type EventLayoutMeta = z.infer<typeof EventLayoutMetaSchema>;
 export const RecapSubjectSchema = z.object({
   id: z.number().int(),
   name: z.string().nullable().optional(),
+  /**
+   * Player cards only: the clans this player belongs to, capped at two. The
+   * infrastructure groups (the config template and the everyone-group) are
+   * excluded server-side, so anything here is a real clan.
+   */
+  groups: z.array(z.object({ id: z.number().int(), name: z.string() })).optional(),
 });
 
 export const RecapEntrySchema = z.object({
@@ -4637,6 +4643,13 @@ export const RecapSchema = z.object({
       previous_loot: z.number().optional(),
       /** Score the rank came from (WOM-roster scoped, so ≠ totals.loot). */
       board_loot: z.number().nullable().optional(),
+      /**
+       * Player cards: last month's placing and board size. Deliberately not
+       * pre-differenced — the board grows, so subtracting positions would report
+       * a player who held still as having fallen. State both, difference neither.
+       */
+      previous_position: z.number().int().nullable().optional(),
+      previous_of: z.number().int().nullable().optional(),
     })
     .optional(),
 

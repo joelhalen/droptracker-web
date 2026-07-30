@@ -145,6 +145,15 @@ export const RECAP_CARD_CSS = `
   color: var(--parch);
   opacity: 0.82;
 }
+/* Player cards: the clan line, deliberately quieter than the period so the
+   hierarchy stays name → period → affiliation. */
+.dtrc-clans {
+  margin-top: calc(var(--u) * 0.1);
+  font-size: calc(var(--u) * 0.75);
+  letter-spacing: calc(var(--u) * 0.04);
+  color: var(--gold-dim);
+  opacity: 0.9;
+}
 /* Diamond-flanked rule, the concept art's section divider. */
 .dtrc-orn {
   display: flex;

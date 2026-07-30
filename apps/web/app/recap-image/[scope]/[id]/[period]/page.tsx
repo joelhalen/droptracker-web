@@ -50,7 +50,9 @@ export default async function RecapImagePage({
     Number.isFinite(requested) && requested >= 480 && requested <= 2000 ? requested : WIDTH;
   const shape = layout === "stacked" || layout === "columns" ? layout : "auto";
 
-  const recap = await api.recap(scope, subjectId, period);
+  // `fresh`: this render becomes a stored PNG, so it must reflect the snapshot
+  // as it is now, not as it was cached up to an hour ago.
+  const recap = await api.recap(scope, subjectId, period, true);
   if (!recap) notFound();
 
   return (

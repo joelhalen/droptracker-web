@@ -1,4 +1,5 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { entityPath } from "@/lib/slug";
 import { orNotFound } from "@/lib/fetch";
@@ -101,6 +102,14 @@ export default async function PlayerPage({ params }: { params: Params }) {
             </h1>
             <p className="text-osrs-parchment-dark/80 text-sm">Old School RuneScape player</p>
           </div>
+          {/* The recap is generated on first view, so this link is the only way
+              most players will ever discover they have one. */}
+          <Link
+            href={`/players/${player.id}/recap` as Route}
+            className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright ml-auto shrink-0 rounded-lg border px-3 py-1.5 text-sm transition-colors"
+          >
+            Monthly recap
+          </Link>
         </div>
         <div className="stagger-children grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile

@@ -193,6 +193,30 @@ function ReceiverLine({ entry }: { entry: Recap["top_items"][number] }) {
   );
 }
 
+/**
+ * The line under a rank figure.
+ *
+ * A bare "of 4,812 tracked" is the weakest thing that space can say. On a player
+ * card the same two numbers make a percentile, which is the most shareable line
+ * on the poster, and last month's placing turns a static number into a
+ * trajectory. Both placings are stated rather than differenced: the board grows
+ * every month, so "up 40 places" can be false for a player who never moved.
+ */
+function rankHint(rank: NonNullable<Recap["rank"]>, isGroup: boolean): string | undefined {
+  const parts: string[] = [];
+  // Percentile only where it flatters honestly: on a small board "top 45%" is
+  // noise, and the backend rounds to a tenth so tiny boards read as 12.5%.
+  if (!isGroup && rank.percentile != null && rank.of && rank.of >= 100 && rank.percentile <= 50) {
+    parts.push(`Top ${rank.percentile}%`);
+  } else if (rank.of) {
+    parts.push(`of ${rank.of.toLocaleString()} tracked`);
+  }
+  if (!isGroup && rank.previous_position) {
+    parts.push(`was ${ordinal(rank.previous_position)}`);
+  }
+  return parts.length > 0 ? parts.join("  ·  ") : undefined;
+}
+
 function MiniStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="dtrc-plaque dtrc-mini">
@@ -244,6 +268,7 @@ export function RecapCard({
   );
   const members = isGroup ? (recap.top_members ?? []).slice(0, 5) : [];
   const byMonth = recap.by_month ?? [];
+  const clans = isGroup ? [] : (subject?.groups ?? []);
 
   // Loot-weighted histograms: an unused-until-now field that carries the single
   // most characterful line on the card. Omitted when the period has no rows at
@@ -272,7 +297,7 @@ export function RecapCard({
         key="rank"
         label={isGroup ? "Clan rank" : "Global rank"}
         value={ordinal(rank.position)}
-        hint={rank.of ? `of ${rank.of.toLocaleString()} tracked` : undefined}
+        hint={rankHint(rank, isGroup)}
       />,
     );
   } else if (totals.members_active) {
@@ -488,6 +513,12 @@ export function RecapCard({
               {subject?.name ?? (isGroup ? `Group ${subject?.id}` : `Player ${subject?.id}`)}
             </h1>
             <div className="dtrc-period">{formatPeriod(recap.period)}</div>
+            {/* Whose clan this player runs with — the one line of context a
+                personal card can add that the player didn't already know it
+                would say. Omitted for the clanless rather than left blank. */}
+            {clans.length > 0 && (
+              <div className="dtrc-clans">{clans.map((g) => g.name).join("  ·  ")}</div>
+            )}
           </header>
 
           <Ornament />

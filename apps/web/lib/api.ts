@@ -2752,11 +2752,21 @@ export const api = {
     scope: "group" | "player",
     subjectId: number,
     period: string,
+    /**
+     * Bypass the cache. For the screenshot route: its PNG gets archived and
+     * posted, so rendering an hour-stale payload bakes yesterday's numbers into
+     * a permanent artifact — and after regenerating a snapshot (a backfill, a
+     * bug fix) the re-render would silently reproduce the old card.
+     */
+    fresh = false,
   ): Promise<Recap | null> {
     return withFallback(
       async () =>
         RecapSchema.parse(
-          await apiGet(`/recaps/${scope}/${subjectId}/${period}`, { revalidate: 3600 }),
+          await apiGet(
+            `/recaps/${scope}/${subjectId}/${period}`,
+            fresh ? { revalidate: 0 } : { revalidate: 3600 },
+          ),
         ),
       () => null,
     ).catch(() => null);
