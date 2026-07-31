@@ -54,6 +54,10 @@
 @theme {
   --radius-osrs: 0.375rem;
 
+  /* OSRS's "≥10M stack" text green — game-authentic, so deliberately NOT a
+   * per-theme --dt-* var. Used by components/gp-amount.tsx. */
+  --color-osrs-gp-green: #00ff80;
+
   --animate-fade-up: fade-up 2.5s ease-out forwards;
 
   @keyframes fade-up {
@@ -182,6 +186,11 @@ h1,
 h2 {
   font-family: var(--font-display);
   letter-spacing: 0.01em;
+}
+
+/* Faint glow for high-value GP text (pairs with text-osrs-gp-green). */
+.gp-glow {
+  text-shadow: 0 0 7px color-mix(in srgb, currentColor 45%, transparent);
 }
 
 /* Thin gold accent for section headers. */

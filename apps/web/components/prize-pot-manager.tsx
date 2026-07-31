@@ -32,6 +32,7 @@ type PrizeConfigPatch = {
 import { Card, EmptyState, Badge } from "@/components/ui";
 import { QuantityInput } from "@/components/quantity-input";
 import { ProofAttach, type ProofUpload } from "@/components/proof-attach";
+import { GpAmount } from "@/components/gp-amount";
 import {
   announceEventPot,
   bulkSeedEventBuyins,
@@ -457,17 +458,19 @@ export function PrizePotManager({
             <div className="bg-osrs-surface-2/70 rounded-lg px-4 py-3">
               <div className="text-osrs-parchment-dark/60 text-xs uppercase">Prize pot</div>
               <div className="text-osrs-gold-bright mt-0.5 text-2xl font-bold tabular-nums">
-                {pot.total.value_formatted}
+                <GpAmount money={pot.total} />
               </div>
             </div>
             <div className="bg-osrs-surface-2/70 rounded-lg px-4 py-3">
               <div className="text-osrs-parchment-dark/60 text-xs uppercase">Buy-ins</div>
-              <div className="mt-0.5 text-lg tabular-nums">{pot.buyin_total.value_formatted}</div>
+              <div className="mt-0.5 text-lg tabular-nums">
+                <GpAmount money={pot.buyin_total} />
+              </div>
             </div>
             <div className="bg-osrs-surface-2/70 rounded-lg px-4 py-3">
               <div className="text-osrs-parchment-dark/60 text-xs uppercase">Donations</div>
               <div className="mt-0.5 text-lg tabular-nums">
-                {pot.donation_total.value_formatted}
+                <GpAmount money={pot.donation_total} />
               </div>
             </div>
           </div>
@@ -624,7 +627,7 @@ export function PrizePotManager({
                           {" "}
                           <span className="text-osrs-gold/80">
                             {pot.unassigned.paid_count} paid ·{" "}
-                            {pot.unassigned.total.value_formatted}
+                            <GpAmount money={pot.unassigned.total} />
                           </span>
                         </>
                       )}

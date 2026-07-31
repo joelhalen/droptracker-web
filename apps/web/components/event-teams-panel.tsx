@@ -27,6 +27,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { entityPath } from "@/lib/slug";
 import { teamColorMap } from "@/lib/events";
 import { StatTile } from "@/components/ui";
+import { GpAmount } from "@/components/gp-amount";
 import { LocalTime } from "@/components/local-time";
 import { EventMemberList } from "@/components/event-member-list";
 import { EheHoursChip } from "@/components/event-ehe";
@@ -412,7 +413,7 @@ export function EventTeamsPanel({
       {showPot && prizePot && (
         <StatTile
           label="Prize Pot"
-          value={`${prizePot.total.value_formatted} GP`}
+          value={<GpAmount money={prizePot.total} suffix=" GP" />}
           hint={distributionHint(prizePot)}
           className="mb-3"
         />

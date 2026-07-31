@@ -14,6 +14,7 @@
 import { useState } from "react";
 import type { EventPrizePot } from "@droptracker/api-types";
 import { ProofAttach, type ProofUpload, type ProofUploader } from "@/components/proof-attach";
+import { GpAmount } from "@/components/gp-amount";
 
 export interface PrizePotActions {
   /** Flip a buy-in's paid state (the tick). */
@@ -88,7 +89,7 @@ export function PrizePotPanel({
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-osrs-gold text-sm font-semibold">💰 Prize Pot</h2>
         <span className="text-osrs-gold-bright text-lg font-bold tabular-nums">
-          {pot.total.value_formatted}
+          <GpAmount money={pot.total} />
         </span>
       </div>
       <p className="text-osrs-parchment-dark/55 mt-0.5 text-[11px]">
@@ -106,7 +107,10 @@ export function PrizePotPanel({
                 key={t.team_id}
                 className="border-osrs-bronze/30 bg-osrs-brown-dark/40 rounded border px-2 py-0.5 text-[11px]"
               >
-                {t.name}: <span className="text-osrs-gold tabular-nums">{t.total.value_formatted}</span>
+                {t.name}:{" "}
+                <span className="text-osrs-gold tabular-nums">
+                  <GpAmount money={t.total} />
+                </span>
               </span>
             ))}
           {/* Buy-ins taken before the draft credit no team yet (web71a) — show
@@ -115,7 +119,7 @@ export function PrizePotPanel({
             <span className="border-osrs-bronze/30 bg-osrs-brown-dark/40 rounded border px-2 py-0.5 text-[11px]">
               Undrafted:{" "}
               <span className="text-osrs-gold tabular-nums">
-                {pot.unassigned.total.value_formatted}
+                <GpAmount money={pot.unassigned.total} />
               </span>
             </span>
           )}
@@ -133,7 +137,7 @@ export function PrizePotPanel({
                 <span className="min-w-0 truncate">{b.rsn ?? `#${b.player_id}`}</span>
                 <span className="flex items-center gap-2">
                   <span className="text-osrs-parchment-dark/80 tabular-nums">
-                    {b.amount.value_formatted}
+                    <GpAmount money={b.amount} />
                   </span>
                   {proofCell(b)}
                   {canManage ? (
@@ -176,7 +180,7 @@ export function PrizePotPanel({
               <span className="flex items-center gap-2">
                 {proofCell(d)}
                 <span className="text-osrs-gold-bright font-bold tabular-nums">
-                  {d.amount.value_formatted}
+                  <GpAmount money={d.amount} />
                 </span>
               </span>
             </li>
