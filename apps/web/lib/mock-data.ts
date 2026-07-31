@@ -400,6 +400,10 @@ export function mockAccountSettings(): AccountSettings {
     group_ping: true,
     never_ping: false,
     dm_account_changes: true,
+    dm_monthly_recap: false,
+    // Empty in mock mode so the settings page exercises the seed-on-first-visit
+    // path rather than the already-configured one.
+    recap_timezone: "",
     dm_drops: true,
     dm_pbs: true,
     dm_cas: false,

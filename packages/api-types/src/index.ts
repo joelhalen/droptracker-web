@@ -710,6 +710,16 @@ export const AccountSettingsSchema = z.object({
   never_ping: z.boolean(),
   dm_account_changes: z.boolean(),
   /**
+   * Keep receiving the monthly recap DM. Everyone gets their first one
+   * unsolicited; this is how they ask for the rest, so absent = off.
+   */
+  dm_monthly_recap: z.boolean().default(false),
+  /**
+   * IANA timezone deciding when that DM lands (empty = UTC). Seeded once from
+   * the browser on first visit rather than asked for.
+   */
+  recap_timezone: z.string().default(""),
+  /**
    * Supporter submission-DM opt-ins (per type) + minimum drop value in GP.
    * Saved for everyone; only take effect with the `dm_submissions` supporter
    * entitlement (see `supporter_entitlements`).

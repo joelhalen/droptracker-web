@@ -18,6 +18,7 @@ export type ConfigCategory =
   | "pbs"
   | "cas"
   | "board"
+  | "recaps"
   | "integration";
 
 export type ConfigFieldType =
@@ -57,6 +58,7 @@ export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "pbs", label: "Personal best" },
   { id: "cas", label: "Combat achievements" },
   { id: "board", label: "Lootboard" },
+  { id: "recaps", label: "Monthly recaps" },
   { id: "integration", label: "Integration & info" },
 ];
 
@@ -191,6 +193,11 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "export_api_key", label: "Export API key", category: "integration", type: "string", help: "Per-group key used for on-demand WOM sync. Treat as a secret.", default: null },
   { key: "event_wom_reconciliation", label: "Event WiseOldMan tracking", category: "integration", type: "boolean", help: "During events, top up XP and boss KC task progress from WiseOldMan hiscores so members without the plugin still count. Never double-counts progress the plugin already tracked.", default: true },
   { key: "wom_verification_code", label: "WiseOldMan verification code", category: "integration", type: "password", help: "Your WiseOldMan group's verification code. Optional — lets DropTracker queue a group-wide WOM update when events start and end, keeping hiscores-based event progress fresh. Treat as a secret.", default: null },
+
+  { key: "recaps_enabled", label: "Post monthly recaps", category: "recaps", type: "boolean", help: "Post your clan's recap card on the 1st of each month, covering the month just ended. Every clan receives one card to begin with; turn this on to keep receiving them, or off to stop.", default: false },
+  { key: "channel_id_to_post_recaps", label: "Recap channel", category: "recaps", type: "channel", help: "Where the monthly recap card is posted. Leave empty to use your lootboard channel.", default: null },
+  { key: "recap_post_hour", label: "Post at (hour)", category: "recaps", type: "int", help: "Hour of the 1st, in the timezone below, to post the card. 0 is midnight. A card can't exist before the month closes at 00:00 UTC, so clans ahead of UTC receive theirs at the first moment after that.", default: 0, min: 0, max: 23 },
+  { key: "recap_timezone", label: "Timezone", category: "recaps", type: "string", help: "IANA timezone name, e.g. Europe/London. Set automatically from your browser the first time an admin opens this page; empty means UTC.", default: null },
 ];
 
 export const SEASONAL_PREFIX = "seasonal_";

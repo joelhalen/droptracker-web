@@ -17,6 +17,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
+import { viewerZone } from "@/components/local-time";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { BossListPicker } from "@/components/boss-list-picker";
@@ -89,6 +90,24 @@ export function ConfigEditor({
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /* Seed the clan's recap timezone from the first admin to open this page, so
+     "post at hour 0" means their midnight instead of UTC's. Written once and
+     only when unset: a second admin in another country must not move an already
+     configured clan's post time out from under the first. Saved directly rather
+     than dropped into the form, so it can't surprise an admin by riding along
+     with an unrelated edit — and silently ignored on failure, since the sender
+     treats an empty zone as UTC. */
+  useEffect(() => {
+    if (values.recap_timezone) return;
+    const detected = viewerZone();
+    if (!detected) return;
+    setBaseline((b) => ({ ...b, recap_timezone: detected }));
+    setValues((v) => (v.recap_timezone ? v : { ...v, recap_timezone: detected }));
+    saveGroupConfig(groupId, { recap_timezone: detected }).catch(() => {});
+    // Once per mount: `values` is deliberately not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupId]);
 
   // Fetched once here (not per-field) since up to 9 fields share this same list.
   const [channels, setChannels] = useState<DiscordChannel[]>([]);

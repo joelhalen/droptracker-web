@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { AccountSettings } from "@droptracker/api-types";
 import { saveSettings, setPlayerHidden } from "@/app/(site)/(dashboard)/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
+import { viewerZone } from "@/components/local-time";
 import { Alert } from "@/components/ui";
 
 type ToggleKey = Exclude<
   keyof AccountSettings,
-  "players" | "dm_min_value" | "supporter_entitlements" | "dm_delivery_issue"
+  | "players"
+  | "dm_min_value"
+  | "supporter_entitlements"
+  | "dm_delivery_issue"
+  | "recap_timezone"
 >;
 
 const PRIVACY_TOGGLES: { key: ToggleKey; label: string; help: string }[] = [
@@ -40,6 +45,11 @@ const NOTIFICATION_TOGGLES: { key: ToggleKey; label: string; help: string }[] = 
     label: "DM me on account name changes",
     help: "Send me a Discord DM when a name change is detected on one of my accounts.",
   },
+  {
+    key: "dm_monthly_recap",
+    label: "DM me my monthly recap",
+    help: "Send my recap card on the 1st of each month, covering the month just ended. Everyone gets their first one automatically — this keeps them coming.",
+  },
 ];
 
 /** Supporter perk: per-type DMs for the user's own submissions. */
@@ -60,6 +70,22 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zone, setZone] = useState(initial.recap_timezone);
+
+  /* Seed the recap timezone from the browser the first time someone opens this
+     page, so "midnight" means their midnight without anyone being asked to pick
+     a zone from a list. Only ever written when unset — a later visit from a
+     different machine (or on holiday) must not silently move their recap.
+     Failure is ignored on purpose: an unset zone falls back to UTC, which is a
+     worse time of day, not a broken feature. */
+  useEffect(() => {
+    if (initial.recap_timezone) return;
+    const detected = viewerZone();
+    if (!detected) return;
+    setZone(detected);
+    setSettings((s) => ({ ...s, recap_timezone: detected }));
+    saveSettings({ recap_timezone: detected }).catch(() => {});
+  }, [initial.recap_timezone]);
 
   // supporter_entitlements is read-only server state, and dm_delivery_issue
   // is dismiss-only (patched separately) — neither belongs in the form patch.
@@ -67,12 +93,16 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
     players: _initialPlayers,
     supporter_entitlements: _initialEnts,
     dm_delivery_issue: _initialDmIssue,
+    recap_timezone: _initialZone,
     ...initialToggles
   } = initial;
   const {
     players,
     supporter_entitlements: supporterEnts,
     dm_delivery_issue: _dmIssue,
+    // Saved on detection, not by this form — leaving it in the patch would
+    // light up the Save button the moment the page seeded a zone.
+    recap_timezone: _zone,
     ...toggles
   } = settings;
   const dirty = JSON.stringify(toggles) !== JSON.stringify(initialToggles);
@@ -138,6 +168,11 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
             Discord notifications
           </legend>
           {NOTIFICATION_TOGGLES.map(renderToggle)}
+          {zone && (
+            <p className="text-osrs-parchment-dark/60 pl-7 text-xs">
+              Recaps arrive at midnight, {zone} — detected from this browser.
+            </p>
+          )}
         </fieldset>
 
         <fieldset className="space-y-3">
