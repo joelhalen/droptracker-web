@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp } from "@/lib/format";
 import { EntityHoverCard } from "@/components/entity-hover-card";
+import { COINS_ICON } from "@/components/gp-amount";
 
 const MAX_ITEMS = 15;
 
@@ -264,7 +265,10 @@ function TickerEntry({ e }: { e: FeedEntry }) {
                 )}
               </>
             )}
-            <span className="text-osrs-green font-semibold">{formatGp(e.value)} gp</span>
+            <span className="flex items-center gap-1">
+              <img src={COINS_ICON} alt="" aria-hidden className="size-4 object-contain" />
+              <span className="text-osrs-green font-semibold">{formatGp(e.value)} gp</span>
+            </span>
           </>
         );
       case "personal_best": {
