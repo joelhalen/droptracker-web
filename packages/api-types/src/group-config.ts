@@ -196,7 +196,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
 
   { key: "recaps_enabled", label: "Post monthly recaps", category: "recaps", type: "boolean", help: "Post your clan's recap card on the 1st of each month, covering the month just ended. Every clan receives one card to begin with; turn this on to keep receiving them, or off to stop.", default: false },
   { key: "channel_id_to_post_recaps", label: "Recap channel", category: "recaps", type: "channel", help: "Where the monthly recap card is posted. Leave empty to use your lootboard channel.", default: null },
-  { key: "recap_post_hour", label: "Post at (hour)", category: "recaps", type: "int", help: "Hour of the 1st, in the timezone below, to post the card. 0 is midnight. A card can't exist before the month closes at 00:00 UTC, so clans ahead of UTC receive theirs at the first moment after that.", default: 0, min: 0, max: 23 },
+  { key: "recap_post_hour", label: "Post at (hour)", category: "recaps", type: "int", help: "Hour of the 1st, in the timezone below, to post the card. Defaults to 12 (midday) — the month closes at 00:00 UTC, which is the middle of the night for most people. A card can't exist before that close, so clans far enough ahead of UTC receive theirs at the first moment after it.", default: 12, min: 0, max: 23 },
   { key: "recap_timezone", label: "Timezone", category: "recaps", type: "string", help: "IANA timezone name, e.g. Europe/London. Set automatically from your browser the first time an admin opens this page; empty means UTC.", default: null },
 ];
 

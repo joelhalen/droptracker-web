@@ -170,7 +170,7 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
           {NOTIFICATION_TOGGLES.map(renderToggle)}
           {zone && (
             <p className="text-osrs-parchment-dark/60 pl-7 text-xs">
-              Recaps arrive at midnight, {zone} — detected from this browser.
+              Recaps arrive around midday, {zone} — detected from this browser.
             </p>
           )}
         </fieldset>
