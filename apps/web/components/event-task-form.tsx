@@ -154,6 +154,9 @@ const PATH_KIND_LABELS: Record<PathKind, string> = {
   loot_value: "Loot value (GP)",
 };
 
+// Mirrors MAX_CONFIG_PATHS in the backend's event_task_validation.py.
+const MAX_PATHS = 20;
+
 /** One alternative of an "Either-or" task — its own requirement groups
  * (`items`), a weighted item list raced to a points goal (`points`: items +
  * need), or a metric goal (`kc` / `loot_value`: npcs + need). */
@@ -1473,7 +1476,7 @@ export function EventTaskForm({
                   </div>
                 </div>
               ))}
-              {paths.length < 4 && (
+              {paths.length < MAX_PATHS && (
                 <button
                   type="button"
                   onClick={() => setPaths((prev) => [...prev, emptyPathDraft("items")])}
