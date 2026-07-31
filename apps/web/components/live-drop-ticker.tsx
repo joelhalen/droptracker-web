@@ -362,7 +362,7 @@ function TickerEntry({ e }: { e: FeedEntry }) {
   })();
 
   return (
-    <span className="flex shrink-0 items-center gap-2 px-6 text-sm whitespace-nowrap">
+    <span className="font-osrs flex shrink-0 items-center gap-2 px-6 text-sm whitespace-nowrap">
       {inner}
     </span>
   );

@@ -45,6 +45,9 @@
    */
   --font-sans: var(--font-figtree), "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
   --font-display: var(--font-cinzel), "Trebuchet MS", Georgia, serif;
+  /* The actual OSRS UI face (runescape_uf.ttf, loaded in app/layout.tsx) —
+   * game-flavored accents: GP amounts, the live ticker. */
+  --font-osrs: var(--font-runescape), "Trebuchet MS", sans-serif;
 
   --shadow-osrs-card: var(--dt-shadow-card);
   --shadow-osrs-pop: var(--dt-shadow-pop);

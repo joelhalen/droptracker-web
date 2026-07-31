@@ -25,8 +25,9 @@ const cinzel = localFont({
   variable: "--font-cinzel",
 });
 
-// The actual OSRS UI face, used only by the native lootboard so it matches the
-// PIL-generated board 1:1 (disc/lootboard/generator.py renders with this ttf).
+// The actual OSRS UI face: the native lootboard (matches the PIL-generated
+// board 1:1 — disc/lootboard/generator.py renders with this ttf), GP amounts
+// (components/gp-amount.tsx) and the live ticker, via the `font-osrs` utility.
 const runescape = localFont({
   src: "./fonts/runescape_uf.ttf",
   display: "swap",

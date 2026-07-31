@@ -4,20 +4,16 @@ import type { Money } from "@droptracker/api-types";
 export const HIGH_VALUE_GP = 10_000_000;
 
 /**
- * A formatted GP amount that flips to OSRS's high-value green (#00FF80, plus
- * a faint glow) once it reaches 10M. Below that it renders bare and inherits
- * the surrounding text color, so existing styling is untouched.
+ * A formatted GP amount in the OSRS UI face, flipping to the game's
+ * high-value green (#00FF80, plus a faint glow) once it reaches 10M. Below
+ * that it inherits the surrounding text color, so existing styling holds.
  */
 export function GpAmount({ money, suffix = "" }: { money: Money; suffix?: string }) {
-  return money.value >= HIGH_VALUE_GP ? (
-    <span className="text-osrs-gp-green gp-glow">
+  const high = money.value >= HIGH_VALUE_GP;
+  return (
+    <span className={high ? "font-osrs text-osrs-gp-green gp-glow" : "font-osrs"}>
       {money.value_formatted}
       {suffix}
     </span>
-  ) : (
-    <>
-      {money.value_formatted}
-      {suffix}
-    </>
   );
 }
