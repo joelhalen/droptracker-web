@@ -35,6 +35,7 @@ import {
 } from "@/app/(site)/(public)/events/[id]/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { useEventStream } from "@/lib/use-event-stream";
+import { LiveStatusBadge } from "@/components/live-status-badge";
 import {
   METRIC_TASK_TYPES,
   TASK_TYPE_LABELS,
@@ -276,7 +277,7 @@ export function EventTeamView({
     [members],
   );
 
-  useEventStream(live ? [`event:${event.id}`] : [], (frame) => {
+  const { state: streamState } = useEventStream(live ? [`event:${event.id}`] : [], (frame) => {
     if (frame.type !== "event_update") return;
     const data = frame.data as {
       kind?: string;
@@ -639,6 +640,11 @@ export function EventTeamView({
     <div className="min-w-0 space-y-8">
       {/* ── header ──────────────────────────────────────────────────────── */}
       <header className="min-w-0">
+        {live ? (
+          <div className="float-right">
+            <LiveStatusBadge state={streamState} />
+          </div>
+        ) : null}
         {onBack ? (
           <button
             type="button"

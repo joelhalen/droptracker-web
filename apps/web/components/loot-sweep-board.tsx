@@ -23,6 +23,7 @@ import type {
 import { fetchEventLootSweep } from "@/app/(site)/(public)/events/[id]/actions";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { useEventStream } from "@/lib/use-event-stream";
+import { LiveStatusBadge } from "@/components/live-status-badge";
 
 const REFETCH_KINDS = new Set(["loot_sweep", "revoke", "completion", "progress"]);
 
@@ -355,7 +356,7 @@ export function LootSweepBoard({
     },
     [refetch],
   );
-  useEventStream(live ? [`event:${eventId}`] : [], onFrame);
+  const { state: streamState } = useEventStream(live ? [`event:${eventId}`] : [], onFrame);
 
   const teamMeta = new Map(board.teams.map((t) => [t.id, { name: t.name, color: t.color }]));
 
@@ -369,6 +370,11 @@ export function LootSweepBoard({
 
   return (
     <div className="space-y-4">
+      {live ? (
+        <div className="flex justify-end">
+          <LiveStatusBadge state={streamState} />
+        </div>
+      ) : null}
       <div className="border-osrs-bronze/25 bg-osrs-brown-dark/20 rounded-lg border p-4 text-sm">
         <p className="text-osrs-parchment/90 leading-relaxed">
           Race to collect drops from bosses across the game. Every item is worth points the first

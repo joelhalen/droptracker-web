@@ -713,6 +713,18 @@ export async function confirmEventCompletion(
   return { ok: true as const };
 }
 
+export async function confirmEventCompletionsBulk(
+  groupId: EventGroupId,
+  eventId: number,
+  completionIds: number[],
+) {
+  await assertCanManageEvent(groupId);
+  const result = await api.confirmEventCompletionsBulk(eventId, completionIds);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return result;
+}
+
 export async function rejectEventCompletion(
   groupId: EventGroupId,
   eventId: number,

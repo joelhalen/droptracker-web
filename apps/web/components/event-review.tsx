@@ -9,6 +9,7 @@ import { LocalTime } from "@/components/local-time";
 import {
   awardEventCompletion,
   confirmEventCompletion,
+  confirmEventCompletionsBulk,
   listEventCompletions,
   rejectEventCompletion,
   revokeEventCompletion,
@@ -80,10 +81,26 @@ export function EventReview({
     setError(null);
     startTransition(async () => {
       try {
-        for (const id of ids) await confirmEventCompletion(groupId, eventId, id);
+        // Server caps one call at 200 rows; larger queues go in chunks.
+        const result = { confirmed: [] as number[], skipped: [] as { id: number; reason: string }[] };
+        for (let i = 0; i < ids.length; i += 200) {
+          const part = await confirmEventCompletionsBulk(groupId, eventId, ids.slice(i, i + 200));
+          result.confirmed.push(...part.confirmed);
+          result.skipped.push(...part.skipped);
+        }
+        if (result.skipped.length) {
+          setError(
+            `Confirmed ${result.confirmed.length} of ${ids.length}; skipped ` +
+              result.skipped
+                .slice(0, 3)
+                .map((s) => `#${s.id} (${s.reason})`)
+                .join(", ") +
+              (result.skipped.length > 3 ? ` and ${result.skipped.length - 3} more.` : "."),
+          );
+        }
         reload();
       } catch (err) {
-        setError(getErrorMessage(err, "Batch confirm stopped early. Reload to see progress."));
+        setError(getErrorMessage(err, "Batch confirm failed. Reload to see progress."));
         reload();
       }
     });

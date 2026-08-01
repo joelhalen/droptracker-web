@@ -1960,6 +1960,24 @@ export const api = {
     );
   },
 
+  /** Confirm many pending completions in one call; returns per-row outcomes. */
+  async confirmEventCompletionsBulk(
+    eventId: number,
+    ids: number[],
+  ): Promise<{ confirmed: number[]; skipped: { id: number; reason: string }[] }> {
+    const schema = z.object({
+      confirmed: z.number().array(),
+      skipped: z.object({ id: z.number(), reason: z.string() }).array(),
+    });
+    return withFallback(
+      async () =>
+        schema.parse(
+          await apiSend("POST", `/events/${eventId}/completions/confirm-bulk`, { ids }),
+        ),
+      () => ({ confirmed: ids, skipped: [] }),
+    );
+  },
+
   async rejectEventCompletion(
     eventId: number,
     completionId: number,

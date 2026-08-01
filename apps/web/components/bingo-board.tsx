@@ -21,6 +21,7 @@ import type {
 } from "@droptracker/api-types";
 import type { EventProgress } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
+import { LiveStatusBadge } from "@/components/live-status-badge";
 import { LocalTime } from "@/components/local-time";
 import { TASK_TYPE_LABELS, TEAM_COLORS, taskGoal, teamColorMap } from "@/lib/events";
 import { BingoTile } from "@/components/bingo-tile";
@@ -261,7 +262,7 @@ export function BingoBoard({
 
   const progressMap = useLiveProgress(eventId, live, progress);
 
-  useEventStream(live && eventId ? [`event:${eventId}`] : [], (event) => {
+  const { state: streamState } = useEventStream(live && eventId ? [`event:${eventId}`] : [], (event) => {
     if (event.type !== "event_update") return;
     const data = event.data as {
       kind?: string;
@@ -375,6 +376,11 @@ export function BingoBoard({
 
   return (
     <div className="space-y-3">
+      {live && eventId ? (
+        <div className="flex justify-end">
+          <LiveStatusBadge state={streamState} />
+        </div>
+      ) : null}
       {teams.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
           <button

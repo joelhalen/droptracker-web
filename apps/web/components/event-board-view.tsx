@@ -119,6 +119,7 @@ const EFFECT_DESCRIPTIONS: Record<string, string> = {
 import { getErrorMessage } from "@/lib/errors";
 import { teamColorMap } from "@/lib/events";
 import { useEventStream } from "@/lib/use-event-stream";
+import { LiveStatusBadge } from "@/components/live-status-badge";
 import { Alert } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { HoverCard } from "@/components/hover-card";
@@ -196,7 +197,7 @@ export function EventBoardView({
     },
     [scheduleRefetch],
   );
-  useEventStream([`event:${event.id}`], onFrame);
+  const { state: streamState } = useEventStream([`event:${event.id}`], onFrame);
 
   const colors = useMemo(() => teamColorMap(event.teams ?? []), [event.teams]);
   const render = board.settings.tile_render;
@@ -279,6 +280,7 @@ export function EventBoardView({
         <p className="text-osrs-parchment-dark/60 text-[11px]">
           Complete your task → earn coins → roll → move. First to the finish wins.
         </p>
+        <LiveStatusBadge state={streamState} />
         <a
           href="https://www.droptracker.io/docs/events-board"
           target="_blank"
