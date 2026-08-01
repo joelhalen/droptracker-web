@@ -1626,6 +1626,9 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
     bonus_blackout_points: 100,
     leadership: { enabled: false, co_leaders: false, selection: "admin" as const },
     per_group_discord: false,
+    // Recurring schedules (web82a) are opt-in; the mock events run continuously.
+    has_schedule: false,
+    schedule_summary: null,
   };
   const all: EventSummary[] = [
     {
