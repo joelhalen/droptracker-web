@@ -248,13 +248,20 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
                     Choose any amount from ${minDollars}/month — every bit funds hosting and
                     development.
                   </p>
+                  {/* A second checkout would create a second Stripe
+                      subscription alongside the live one — two charges a
+                      month, and the orphan is unreachable from the portal.
+                      Plan and amount changes belong to the existing
+                      subscription, so an active supporter is sent there. */}
                   <button
-                    onClick={() => onCheckout(t.key, chosenDollars * 100)}
-                    disabled={pending || !loaded || !amountValid}
+                    onClick={() =>
+                      isActive ? onPortal() : onCheckout(t.key, chosenDollars * 100)
+                    }
+                    disabled={pending || !loaded || (!isActive && !amountValid)}
                     className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark w-full rounded px-3 py-2 text-sm font-medium disabled:cursor-default disabled:opacity-50"
                   >
                     {isActive
-                      ? "Switch to this plan"
+                      ? "Change plan in billing portal"
                       : amountValid
                         ? `Become a supporter — ${formatAmount(chosenDollars * 100)}/month`
                         : `Become a supporter (min $${minDollars}/month)`}
