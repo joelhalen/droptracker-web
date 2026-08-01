@@ -255,6 +255,18 @@ export const RECAP_CARD_CSS = `
   font-size: calc(var(--u) * 0.6875);
   color: var(--dim);
 }
+/* The hero plaque has room to breathe; a mini tile does not. Same chip, tighter.
+   Clamped and ellipsised so a long period name ("previous year") can't widen
+   the tile and break the grid's even columns. */
+.dtrc-mini .dtrc-chip {
+  margin-top: calc(var(--u) * 0.25);
+  padding: calc(var(--u) * 0.1) calc(var(--u) * 0.35);
+  font-size: calc(var(--u) * 0.625);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ── body columns ────────────────────────────────────────────────────────── */
 .dtrc-body {

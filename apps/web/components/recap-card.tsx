@@ -217,12 +217,31 @@ function rankHint(rank: NonNullable<Recap["rank"]>, isGroup: boolean): string | 
   return parts.length > 0 ? parts.join("  ·  ") : undefined;
 }
 
-function MiniStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function MiniStat({
+  label,
+  value,
+  hint,
+  delta,
+  deltaVs,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  /** Percent movement against the previous period. Null renders no chip. */
+  delta?: number | null;
+  deltaVs?: string;
+}) {
   return (
     <div className="dtrc-plaque dtrc-mini">
       <div className="dtrc-lbl">{label}</div>
       <div className="dtrc-mini-num">{value}</div>
-      {hint ? <div className="dtrc-mini-hint">{hint}</div> : null}
+      {delta !== null && delta !== undefined ? (
+        <div className={`dtrc-chip ${delta >= 0 ? "dtrc-chip-up" : "dtrc-chip-down"}`}>
+          {delta >= 0 ? "▲" : "▼"} {Math.abs(delta)}% vs {deltaVs}
+        </div>
+      ) : hint ? (
+        <div className="dtrc-mini-hint">{hint}</div>
+      ) : null}
     </div>
   );
 }
@@ -257,6 +276,13 @@ export function RecapCard({
   const prev = rank?.previous_loot ?? 0;
   const delta = prev > 0 ? Math.round(((loot - prev) / prev) * 100) : null;
   const prevLabel = isAnnual ? "previous year" : (previousMonthName(recap.period) ?? "previous");
+
+  // Efficient hours bossed, on the same terms as the loot figure: absent unless
+  // it was harvested, and no movement chip without a real baseline to move from.
+  const ehb = totals.ehb;
+  const prevEhb = totals.previous_ehb ?? 0;
+  const ehbDelta =
+    ehb !== undefined && prevEhb > 0 ? Math.round(((ehb - prevEhb) / prevEhb) * 100) : null;
 
   const npcAvailable = recap.npc_data_available !== false && recap.top_npcs.length > 0;
   const items = recap.top_items.slice(0, 10);
@@ -318,6 +344,21 @@ export function RecapCard({
         label="Best month"
         value={MONTHS_SHORT[month - 1] ?? recap.peak_month.period}
         hint={formatGp(recap.peak_month.loot)}
+      />,
+    );
+  }
+  // Ahead of Prime time and Sources in the queue: hours bossed is a headline
+  // number people compare month to month, where those two are flavour. Placed
+  // after Best month so it can never push that unguarded tile into a 5th slot.
+  if (ehb !== undefined && ehb > 0 && minis.length < 4) {
+    minis.push(
+      <MiniStat
+        key="ehb"
+        label="EHB gained"
+        value={ehb.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+        delta={ehbDelta}
+        deltaVs={prevLabel}
+        hint="efficient hours bossed"
       />,
     );
   }

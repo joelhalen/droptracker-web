@@ -435,6 +435,8 @@ test("recap schema parses a full card", () => {
         unique_npcs: null,
         members_active: 29,
         members_total: 269,
+        ehb: 412.6,
+        previous_ehb: 380.1,
       },
       rank: { position: 34, of: 223, previous_loot: 2324776322, board_loot: 1433473180 },
       top_items: [
