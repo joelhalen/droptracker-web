@@ -61,6 +61,17 @@ export const ADMIN_SECTIONS: AdminNavSection[] = [
     ],
   },
   {
+    label: "Planning",
+    items: [
+      {
+        href: "/admin/projects",
+        label: "Project tracker",
+        desc: "Internal feature/task board for the owner and codebase agents.",
+        matchPrefix: true,
+      },
+    ],
+  },
+  {
     label: "System",
     items: [
       { href: "/admin/services", label: "Services", desc: "Start, stop, or restart backend services; view logs." },
