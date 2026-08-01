@@ -97,6 +97,9 @@ export function sectionFingerprints(
     pings: stableJson({
       event_started: pingRoles("event_started"),
       event_ended: pingRoles("event_ended"),
+      // Scheduled events only (web82a) — tracked unconditionally so a rule
+      // being cleared can't strand an unsaved edit to it.
+      event_window_opened: pingRoles("event_window_opened"),
     }),
     verbosity: stableJson({
       toggles: draft.messages?.toggles ?? null,

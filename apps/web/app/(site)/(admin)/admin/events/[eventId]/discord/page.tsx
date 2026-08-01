@@ -35,7 +35,7 @@ export default async function AdminEventDiscordPage({ params }: { params: Params
         <h2 className="text-osrs-gold mt-1 text-xl font-bold">Discord settings</h2>
         <p className="text-osrs-parchment-dark/60 text-sm">{event.name}</p>
       </div>
-      <EventDiscordSettings groupId={null} eventId={event.id} />
+      <EventDiscordSettings groupId={null} eventId={event.id} hasSchedule={event.schedule != null} />
     </div>
   );
 }

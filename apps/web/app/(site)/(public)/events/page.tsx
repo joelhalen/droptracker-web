@@ -86,6 +86,18 @@ function EventSection({
                       Bingo
                     </span>
                   )}
+                  {/* Scheduled events score only in repeating windows (web82a).
+                      Whether one is open right now needs the compiled window
+                      list, which only the detail payload carries — the card
+                      flags the pattern and the event page says live/paused. */}
+                  {e.has_schedule && (
+                    <span
+                      className="bg-osrs-bronze/25 text-osrs-parchment-dark/80 rounded px-1.5 py-0.5 text-xs"
+                      title={e.schedule_summary ?? undefined}
+                    >
+                      ⏱ Scheduled
+                    </span>
+                  )}
                 </div>
                 {e.description && (
                   <p className="text-osrs-parchment-dark/70 mt-1 line-clamp-2 text-sm">
@@ -95,6 +107,11 @@ function EventSection({
                 <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
                   <EventWindow startsAt={e.starts_at} endsAt={e.ends_at} status={e.status} />
                 </p>
+                {e.schedule_summary && (
+                  <p className="text-osrs-parchment-dark/50 mt-0.5 text-xs">
+                    ⏱ Scores in windows · {e.schedule_summary}
+                  </p>
+                )}
               </Link>
             </li>
           ))}

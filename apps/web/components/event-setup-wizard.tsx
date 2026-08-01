@@ -34,6 +34,7 @@ import {
   type EventParticipant,
   type EventPrizeDistribution,
   type EventReadiness,
+  type EventScheduleInput,
   type EventTask,
   type EventTeam,
   type EventTeamBulkAddResult,
@@ -67,6 +68,7 @@ import {
   taskGoal,
   teamColorMap,
 } from "@/lib/events";
+import { materializeSchedule } from "@/lib/event-schedule";
 import { confirmDiscard } from "@/lib/use-unsaved-changes";
 import { Alert, EmptyState } from "@/components/ui";
 import { DiscordRolePicker } from "@/components/discord-role-picker";
@@ -74,6 +76,7 @@ import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
 import { EventDiscordSettings } from "@/components/event-discord";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
+import { EventScheduleBuilder } from "@/components/event-schedule-builder";
 import { EventTaskForm } from "@/components/event-task-form";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
 import { HelpTip } from "@/components/help-tip";
@@ -117,7 +120,7 @@ const STEPS: { key: StepKey; label: string; blurb: string; docs?: string }[] = [
     key: "schedule",
     label: "Schedule",
     blurb:
-      "When it runs. Dates are optional for now — a draft with a start time goes live on its own.",
+      "When it runs — one unbroken stretch, or repeating windows like every weekend. Dates are optional for now; a draft with a start time goes live on its own.",
     docs: "/docs/events-create",
   },
   {
@@ -199,6 +202,11 @@ export function EventSetupWizard({
   const [mode, setMode] = useState<(typeof EVENT_MODES)[number]>(initialEvent?.mode ?? "standard");
   const [startsAt, setStartsAt] = useState(toLocalInput(initialEvent?.starts_at));
   const [endsAt, setEndsAt] = useState(toLocalInput(initialEvent?.ends_at));
+  // Recurring schedule (web82a): null = the continuous event every event was
+  // before this. Seeded from the draft's compiled rule when resuming.
+  const [schedule, setSchedule] = useState<EventScheduleInput | null>(
+    initialEvent?.schedule?.rule ? { tz: "UTC", rule: initialEvent.schedule.rule } : null,
+  );
   const [discordPolicy, setDiscordPolicy] = useState<EventDiscordPolicy>("on_activate");
   const [pingRoleIds, setPingRoleIds] = useState<string[]>([]);
   const [formationMode, setFormationMode] = useState<EventDetail["formation_mode"]>(
@@ -355,6 +363,23 @@ export function EventSetupWizard({
             setDetail({ ...detail, name: name.trim(), description: description || null, kind, mode });
           }
         } else if (step.key === "schedule") {
+          // Board-game events can't carry one (the builder hides itself for
+          // them, but the kind can change on the Basics step after a rule was
+          // built) — send an explicit null so switching kind clears it.
+          const scheduleInput = kind === "board_game" ? null : schedule;
+          if (scheduleInput) {
+            // Refuse a rule that produces nothing here rather than round-trip
+            // to the same 422: the API is the authority, this is just courtesy.
+            const problem = materializeSchedule(
+              scheduleInput.rule,
+              toUnix(startsAt),
+              toUnix(endsAt),
+            ).error;
+            if (problem) {
+              setError(problem);
+              return;
+            }
+          }
           if (!detail) {
             // Remember the created id across attempts: if the post-create
             // reload fails, retrying "Continue" must resume THAT draft, not
@@ -369,6 +394,7 @@ export function EventSetupWizard({
                 ...(groupId != null ? { mode } : {}),
                 kind,
                 discord_event_policy: discordPolicy,
+                ...(scheduleInput ? { schedule: scheduleInput } : {}),
                 ...(pingRoleIds.length ? { pings: { event_created: pingRoleIds } } : {}),
               });
               eventId = res.id;
@@ -378,11 +404,15 @@ export function EventSetupWizard({
             setDetail(full);
             // The URL-sync effect stamps ?event&step once `detail` lands.
           } else {
-            await updateGroupEvent(groupId, detail.id, {
+            // Take the response rather than merging locally: the compiled
+            // windows (and the frozen ones on a live event) only exist
+            // server-side, and the preview must not disagree with them.
+            const updated = await updateGroupEvent(groupId, detail.id, {
               starts_at: toUnix(startsAt),
               ends_at: toUnix(endsAt),
+              schedule: scheduleInput,
             });
-            setDetail({ ...detail, starts_at: toUnix(startsAt), ends_at: toUnix(endsAt) });
+            setDetail(updated);
           }
         } else if (step.key === "rules" && detail) {
           await updateGroupEvent(groupId, detail.id, {
@@ -775,6 +805,17 @@ export function EventSetupWizard({
           </div>
           <TimezoneNote className="text-osrs-parchment-dark/60 block text-xs" />
 
+          {/* Recurring windows (web82a) — sits under the dates because it
+              narrows them: the span above is still the event's overall life. */}
+          <EventScheduleBuilder
+            value={schedule}
+            onChange={setSchedule}
+            startsAt={toUnix(startsAt)}
+            endsAt={toUnix(endsAt)}
+            kind={kind}
+            status={detail?.status}
+          />
+
           {!detail && (
             <fieldset className="border-osrs-bronze/20 space-y-2 rounded border p-3">
               <legend className="text-osrs-gold px-1 text-sm font-semibold">
@@ -1115,6 +1156,7 @@ export function EventSetupWizard({
         <EventDiscordSettings
           groupId={groupId}
           eventId={detail.id}
+          hasSchedule={detail.schedule != null}
           onDirtyChange={setDiscordDirty}
         />
       )}

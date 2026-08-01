@@ -141,6 +141,8 @@ export async function updateGroupEvent(
       | "description"
       | "starts_at"
       | "ends_at"
+      /** Recurring schedule (web82a); explicit null clears it. */
+      | "schedule"
       | "formation_mode"
       | "join_code"
       | "requires_confirmation"

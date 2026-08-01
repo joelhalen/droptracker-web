@@ -12,6 +12,8 @@
  */
 
 import { useEffect, useState } from "react";
+import type { EventScheduleState } from "@droptracker/api-types";
+import { scheduleStatusAt } from "@/lib/event-schedule";
 
 /** True only after hydration — gates browser-timezone rendering. */
 function useMounted(): boolean {
@@ -122,6 +124,124 @@ export function EventWindow({
     <span className={className} suppressHydrationWarning>
       <LocalTime unix={startsAt} /> – <LocalTime unix={endsAt} />
       {hint && <span className="opacity-80"> · {hint}</span>}
+    </span>
+  );
+}
+
+/**
+ * A slow wall-clock tick. The compiled scoring windows are already in the
+ * payload, so a window boundary can flip the badge in place — no refetch, no
+ * stale "Scoring live" sitting there until the viewer navigates.
+ */
+function useSlowTick(active: boolean, everyMs = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => setNow(Date.now()), everyMs);
+    return () => clearInterval(timer);
+  }, [active, everyMs]);
+  return now;
+}
+
+/** Weekday + clock ("Sat, 00:00 UTC") — the compact form for "the next
+ * scoring window opens …", where the date is usually days away at most. */
+const WEEKDAY_OPTS: Intl.DateTimeFormatOptions = {
+  weekday: "short",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
+};
+
+/**
+ * Live/paused state of a scheduled event's scoring (web82a). A scheduled event
+ * stays `active` between its windows — channels, pages and standings all stay
+ * up — so without this a paused event looks identical to a running one and
+ * players wonder why their drops aren't counting.
+ *
+ * The open/next answers are re-derived from the compiled windows after
+ * hydration: event pages are statically cached, so the server's `scoring_open`
+ * can be minutes (or a whole window) stale by the time it reaches a viewer.
+ */
+export function ScoringWindowBadge({
+  schedule,
+  status,
+  className = "",
+}: {
+  schedule: EventScheduleState | null | undefined;
+  status?: "draft" | "active" | "past";
+  className?: string;
+}) {
+  const mounted = useMounted();
+  const nowMs = useSlowTick(status === "active" && (schedule?.windows.length ?? 0) > 0);
+  if (!schedule || status !== "active") return null;
+
+  const derived =
+    mounted && schedule.windows.length
+      ? scheduleStatusAt(schedule.windows, Math.floor(nowMs / 1000))
+      : null;
+  const open = derived ? derived.open : schedule.scoring_open;
+  const current = derived ? derived.current : (schedule.current_window ?? null);
+  const next = derived ? derived.next : (schedule.next_window ?? null);
+
+  const tone = open
+    ? "bg-osrs-green/15 text-osrs-green"
+    : "bg-osrs-bronze/25 text-osrs-parchment-dark/80";
+  return (
+    <span
+      className={`${tone} inline-flex min-w-0 flex-wrap items-center gap-x-1 rounded px-1.5 py-0.5 text-xs ${className}`}
+      suppressHydrationWarning
+    >
+      {open ? (
+        <>
+          <span>● Scoring live</span>
+          {current && (
+            <span className="opacity-80">
+              {mounted ? `— window closes ${relativeLabel(current.ends_at, nowMs)}` : "— in a window"}
+            </span>
+          )}
+        </>
+      ) : (
+        <>
+          <span>⏸ Scoring paused</span>
+          <span className="opacity-80">
+            {next ? (
+              <>
+                {"— next window opens "}
+                {fmt(next.starts_at, WEEKDAY_OPTS, !mounted)}
+                {mounted && ` (${relativeLabel(next.starts_at, nowMs)})`}
+              </>
+            ) : (
+              "— no scoring windows left"
+            )}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+/**
+ * "18:00 UTC — 7:00 PM your time": makes a schedule's UTC clock concrete for
+ * the organizer entering it. Schedules are authored in UTC (game time) on
+ * purpose, so this never *replaces* the UTC value — it only translates it.
+ * Empty until hydration (the viewer's zone is browser-only).
+ */
+export function UtcClockNote({ time, className }: { time: string; className?: string }) {
+  const mounted = useMounted();
+  const local = (() => {
+    const [rawHh, rawMm] = time.split(":");
+    const hh = Number(rawHh);
+    const mm = Number(rawMm);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    const now = new Date();
+    const unix = Math.floor(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh, mm) / 1000,
+    );
+    return fmt(unix, { hour: "numeric", minute: "2-digit", timeZoneName: "short" }, false);
+  })();
+  return (
+    <span className={className} suppressHydrationWarning>
+      {mounted && local ? `${time} UTC is ${local} your time` : ""}
     </span>
   );
 }

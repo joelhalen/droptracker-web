@@ -19,7 +19,7 @@ import { EventStandingsStrip } from "@/components/event-standings-strip";
 import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import type { BreakdownFetcher } from "@/components/task-detail";
-import { EventWindow } from "@/components/local-time";
+import { EventWindow, ScoringWindowBadge } from "@/components/local-time";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityNav } from "@/lib/activity/nav";
@@ -241,7 +241,13 @@ export function EventView({
 
   // Watch stream health on the same channel the board subscribes to; fall
   // back to polling while it can't stay open (e.g. the proxy buffers SSE).
-  const { state: streamState } = useEventStream(live ? [`event:${eventId}`] : [], () => {});
+  // Scoring-window boundaries (web82a) are also refetched here: they change
+  // what the whole screen means (live vs paused), and the badge's own clock
+  // can't know about a schedule an admin edited since load.
+  const { state: streamState } = useEventStream(live ? [`event:${eventId}`] : [], (frame) => {
+    const kind = frame.data?.kind;
+    if (kind === "window_opened" || kind === "window_closed") void load(true);
+  });
   const streamOpenRef = useRef(streamState);
   streamOpenRef.current = streamState;
 
@@ -304,6 +310,16 @@ export function EventView({
         <p className="text-osrs-parchment-dark/60 text-xs">
           <EventWindow startsAt={event.starts_at} endsAt={event.ends_at} status={event.status} />
         </p>
+        {/* Live/paused scoring for a recurring schedule (web82a) — without it
+            a paused weekend event looks broken from in-game. */}
+        {event.schedule && (
+          <p className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-osrs-parchment-dark/50 min-w-0 truncate">
+              ⏱ {event.schedule.summary ?? "Recurring schedule"}
+            </span>
+            <ScoringWindowBadge schedule={event.schedule} status={event.status} />
+          </p>
+        )}
         {user && (
           <p className="text-osrs-parchment-dark/50 text-xs">
             Viewing as {user.global_name ?? user.username}

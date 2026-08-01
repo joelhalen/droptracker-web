@@ -46,6 +46,14 @@ function EventRow({ event, phase }: { event: EventSummary; phase: "upcoming" | "
         <EventWindow startsAt={event.starts_at} endsAt={event.ends_at} status={event.status} />
         {event.has_bingo && " · bingo"}
       </span>
+      {/* Scheduled events (web82a) only score inside repeating windows. The
+          list payload can't say whether one is open right now — the event
+          screen shows that — so the row just names the pattern. */}
+      {event.schedule_summary && (
+        <span className="text-osrs-parchment-dark/45 mt-0.5 block truncate text-[11px]">
+          ⏱ {event.schedule_summary}
+        </span>
+      )}
     </button>
   );
 }

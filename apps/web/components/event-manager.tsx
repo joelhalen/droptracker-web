@@ -10,6 +10,7 @@ import {
   EVENT_SUBMISSION_POLICIES,
   type EventDetail,
   type EventReadiness,
+  type EventScheduleInput,
   type EventTask,
   type EventTeam,
   type EventTeamBulkAddResult,
@@ -25,6 +26,7 @@ import {
   teamColorMap,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
+import { materializeSchedule } from "@/lib/event-schedule";
 import { confirmDiscard } from "@/lib/use-unsaved-changes";
 import { Alert, EmptyState } from "@/components/ui";
 import {
@@ -61,7 +63,8 @@ import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
 import { EventTemplateSaver } from "@/components/event-template-saver";
 import { EventReview } from "@/components/event-review";
 import { EventAuditLog } from "@/components/event-audit-log";
-import { LocalTime, TimezoneNote } from "@/components/local-time";
+import { EventScheduleBuilder } from "@/components/event-schedule-builder";
+import { LocalTime, ScoringWindowBadge, TimezoneNote } from "@/components/local-time";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
@@ -75,6 +78,10 @@ const fromUnix = (v: number | null): string => {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
+
+/** An event's stored recurring rule as builder input (null = continuous). */
+const scheduleInputFor = (event: EventDetail): EventScheduleInput | null =>
+  event.schedule?.rule ? { tz: "UTC", rule: event.schedule.rule } : null;
 
 /** Colored draft/active/past chip (explicit lifecycle, Task 21). */
 function StatusChip({ status }: { status: EventDetail["status"] }) {
@@ -302,6 +309,7 @@ export function EventManager({
     description: event.description ?? "",
     startsAt: fromUnix(event.starts_at),
     endsAt: fromUnix(event.ends_at),
+    schedule: scheduleInputFor(event),
     formationMode: event.formation_mode,
     joinCode: event.join_code ?? "",
     isPrivate: event.visibility === "private",
@@ -322,6 +330,7 @@ export function EventManager({
       description: event.description ?? "",
       startsAt: fromUnix(event.starts_at),
       endsAt: fromUnix(event.ends_at),
+      schedule: scheduleInputFor(event),
       formationMode: event.formation_mode,
       joinCode: event.join_code ?? "",
       isPrivate: event.visibility === "private",
@@ -339,6 +348,20 @@ export function EventManager({
 
   const saveEditEvent = () => {
     if (!eventDraft.name.trim()) return;
+    // Board-game events are refused a schedule (their turn timers keep running
+    // between windows) — send null so a kind change clears any stored rule.
+    const schedule = event.kind === "board_game" ? null : eventDraft.schedule;
+    if (schedule) {
+      const problem = materializeSchedule(
+        schedule.rule,
+        toUnix(eventDraft.startsAt),
+        toUnix(eventDraft.endsAt),
+      ).error;
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
     startTransition(async () => {
       setError(null);
       try {
@@ -347,6 +370,7 @@ export function EventManager({
           description: eventDraft.description || undefined,
           starts_at: toUnix(eventDraft.startsAt),
           ends_at: toUnix(eventDraft.endsAt),
+          schedule,
           formation_mode: eventDraft.formationMode,
           join_code: eventDraft.joinCode.trim() || null,
           visibility: eventDraft.isPrivate ? "private" : "public",
@@ -661,6 +685,16 @@ export function EventManager({
             </label>
           </div>
           <TimezoneNote className="text-osrs-parchment-dark/60 block text-xs" />
+          {/* Recurring windows (web82a) — the same builder the setup wizard
+              uses; elapsed windows on a live event are frozen server-side. */}
+          <EventScheduleBuilder
+            value={eventDraft.schedule}
+            onChange={(schedule) => setEventDraft((d) => ({ ...d, schedule }))}
+            startsAt={toUnix(eventDraft.startsAt)}
+            endsAt={toUnix(eventDraft.endsAt)}
+            kind={event.kind}
+            status={event.status}
+          />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Team formation</span>
@@ -1010,6 +1044,19 @@ export function EventManager({
                     </>
                   )}
                 </>
+              )}
+              {/* Recurring schedule (web82a): the event's dates above are its
+                  overall life; this is when scoring is actually open inside
+                  them, so both lines have to be visible at once. */}
+              {event.schedule && (
+                <span className="mt-1 block text-xs">
+                  <span className="text-osrs-parchment-dark/70">
+                    ⏱ {event.schedule.summary ?? "Runs on a recurring schedule"} ·{" "}
+                    {event.schedule.window_count} scoring window
+                    {event.schedule.window_count === 1 ? "" : "s"}
+                  </span>{" "}
+                  <ScoringWindowBadge schedule={event.schedule} status={event.status} />
+                </span>
               )}
               {/* Who can already open the page — a draft is off the public
                   list either way, but a public one is link-shareable now. */}
@@ -1655,6 +1702,7 @@ export function EventManager({
         <EventDiscordSettings
           groupId={groupId}
           eventId={event.id}
+          hasSchedule={event.schedule != null}
           onDirtyChange={setDiscordDirty}
         />
       </section>

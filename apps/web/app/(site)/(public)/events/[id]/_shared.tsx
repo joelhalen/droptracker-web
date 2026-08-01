@@ -11,7 +11,7 @@ import { notFound } from "next/navigation";
 import { api, ApiError, apiErrorCode } from "@/lib/api";
 import type { EventDetail, EventSummary } from "@droptracker/api-types";
 import { AccessDenied } from "@/components/access-denied";
-import { EventWindow } from "@/components/local-time";
+import { EventWindow, ScoringWindowBadge } from "@/components/local-time";
 import { TabNav } from "@/components/tab-nav";
 
 type Viewer = { players: unknown[] } | null;
@@ -83,8 +83,16 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 /** Event header (name, status, window, description, draft note) + the
- * Overview / Players / Teams tab bar. Shared by all three tab pages. */
-export function EventPageHeader({ event }: { event: EventSummary }) {
+ * Overview / Players / Teams tab bar. Shared by all three tab pages.
+ *
+ * Takes a summary plus the detail's optional `schedule`: every caller loads
+ * the full event, and a scheduled event's live/paused state is the first thing
+ * a player needs off this header (web82a). */
+export function EventPageHeader({
+  event,
+}: {
+  event: EventSummary & Partial<Pick<EventDetail, "schedule">>;
+}) {
   const tabs = [
     { href: `/events/${event.id}`, label: "Overview" },
     { href: `/events/${event.id}/players`, label: "Players" },
@@ -110,6 +118,17 @@ export function EventPageHeader({ event }: { event: EventSummary }) {
       <p className="text-osrs-parchment-dark/60 mt-1 text-sm">
         <EventWindow startsAt={event.starts_at} endsAt={event.ends_at} status={event.status} />
       </p>
+      {/* Scheduled events (web82a) score only inside repeating windows, and
+          stay live-but-paused between them — say which, and when the next one
+          opens, or a player has no way to tell why nothing is counting. */}
+      {(event.schedule || event.has_schedule) && (
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-osrs-parchment-dark/60">
+            ⏱ {event.schedule?.summary ?? event.schedule_summary ?? "Runs on a recurring schedule"}
+          </span>
+          <ScoringWindowBadge schedule={event.schedule} status={event.status} />
+        </p>
+      )}
       {event.description && (
         <p className="text-osrs-parchment-dark/80 mt-3 max-w-2xl">{event.description}</p>
       )}

@@ -90,6 +90,10 @@ const PING_META: Record<EventPingKey, { label: string; hint: string }> = {
     label: "Event ended",
     hint: "Pinged on the final-standings announcement.",
   },
+  event_window_opened: {
+    label: "Scoring window opens",
+    hint: "Pinged each time a scoring window opens on a recurring schedule — the “the weekend is live” nudge. Only fires for events that repeat.",
+  },
 };
 
 const KIND_META: Record<EventChannelKind, { label: string; hint: string }> = {
@@ -220,10 +224,14 @@ function TeamSyncStatus({ team }: { team: TeamDiscordTeamState }) {
 export function EventDiscordSettings({
   groupId,
   eventId,
+  hasSchedule = false,
   onDirtyChange,
 }: {
   groupId: number | null;
   eventId: number;
+  /** Whether the event runs on a recurring schedule (web82a). Gates the
+   * scoring-window ping, which can never fire on a continuous event. */
+  hasSchedule?: boolean;
   /** Lets a host that owns its own navigation (the manager's tab bar, the
    * setup wizard's step rail) block a switch away from unsaved edits. Called
    * with `false` on unmount so a stale flag can't outlive this form. */
@@ -1133,7 +1141,13 @@ export function EventDiscordSettings({
         >
           <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-3">
             <legend className="text-osrs-parchment-dark/70 px-1 text-xs">Role pings</legend>
-            {(["event_started", "event_ended"] as const).map((key) => (
+            {/* The scoring-window ping only exists for scheduled events
+                (web82a) — offering it on a continuous one would advertise a
+                notification that can never fire. */}
+            {(hasSchedule
+              ? (["event_started", "event_ended", "event_window_opened"] as const)
+              : (["event_started", "event_ended"] as const)
+            ).map((key) => (
               <div key={key}>
                 <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
                   {PING_META[key].label}

@@ -1992,7 +1992,14 @@ export type EventDiscordPolicy = (typeof EVENT_DISCORD_POLICIES)[number];
 /** Role-ping slots (web_events.ping_config): the companion message posted
  * when the Discord scheduled event is created, plus the start/end
  * announcements. */
-export const EVENT_PING_KEYS = ["event_created", "event_started", "event_ended"] as const;
+/** `event_window_opened` only fires for events on a recurring schedule
+ * (web82a) — one ping each time a scoring window opens. */
+export const EVENT_PING_KEYS = [
+  "event_created",
+  "event_started",
+  "event_ended",
+  "event_window_opened",
+] as const;
 export type EventPingKey = (typeof EVENT_PING_KEYS)[number];
 
 /** Per-event message-verbosity toggles (web_events.message_config). Each key
@@ -2747,6 +2754,128 @@ export type BoardRollResult = z.infer<typeof BoardRollResultSchema>;
 
 export const EVENT_STATUS = ["draft", "active", "past"] as const;
 
+/* --- Recurring activation schedules (web82a) ------------------------------
+ * An event may score only inside repeating windows ("every weekend, for a
+ * month — one event, one winner") instead of continuously. The RULE is always
+ * authored against the UTC clock (OSRS game time) so international rosters and
+ * DST can never make it ambiguous; only the *display* is converted to the
+ * viewer's timezone. Between windows the event stays active — pages, channels
+ * and standings stay up — but submissions credit nothing.
+ *
+ * `dow` is 0 = Monday … 6 = Sunday (Python `weekday()` numbering — NOT JS
+ * `getDay()`, which starts on Sunday). Board-game events cannot carry a
+ * schedule: their turn timers keep running between windows.
+ */
+export const EVENT_SCHEDULE_RULE_TYPES = ["weekly", "daily", "custom"] as const;
+export type EventScheduleRuleType = (typeof EVENT_SCHEDULE_RULE_TYPES)[number];
+
+/** Nth occurrence of each calendar month a weekly rule may be pinned to;
+ * -1 is "the last one". Mutually exclusive with `interval_weeks` > 1. */
+export const EVENT_SCHEDULE_MONTH_ORDINALS = [1, 2, 3, 4, -1] as const;
+export type EventScheduleMonthOrdinal = (typeof EVENT_SCHEDULE_MONTH_ORDINALS)[number];
+
+/** Backend ceilings, mirrored so the builder can refuse before the round trip
+ * (services/event_schedule.py). */
+export const EVENT_SCHEDULE_LIMITS = {
+  weeklyWindows: 7,
+  customWindows: 120,
+  intervalWeeks: 8,
+  materializedWindows: 600,
+} as const;
+
+const ScheduleClockSchema = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a 24-hour HH:MM time.");
+
+/** One weekly day/time span — e.g. Sat 00:00 → Mon 00:00 is a full weekend.
+ * An end at/before the start rolls forward a day (the span crosses midnight). */
+export const EventScheduleWeeklyWindowSchema = z.object({
+  start_dow: z.number().int().min(0).max(6),
+  start_time: ScheduleClockSchema,
+  end_dow: z.number().int().min(0).max(6),
+  end_time: ScheduleClockSchema,
+});
+export type EventScheduleWeeklyWindow = z.infer<typeof EventScheduleWeeklyWindowSchema>;
+
+/** One hand-entered window (unix SECONDS) — the `custom` escape hatch. */
+export const EventScheduleCustomWindowSchema = z.object({
+  start: z.number().int(),
+  end: z.number().int(),
+});
+export type EventScheduleCustomWindow = z.infer<typeof EventScheduleCustomWindowSchema>;
+
+export const EventScheduleRuleSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("weekly"),
+    windows: z
+      .array(EventScheduleWeeklyWindowSchema)
+      .min(1)
+      .max(EVENT_SCHEDULE_LIMITS.weeklyWindows),
+    /** 1 (the default) = every week, 2 = every other week. */
+    interval_weeks: z
+      .number()
+      .int()
+      .min(1)
+      .max(EVENT_SCHEDULE_LIMITS.intervalWeeks)
+      .optional(),
+    /** Only the Nth occurrence of each month; the API rejects it alongside an
+     * `interval_weeks` above 1. */
+    month_ordinal: z
+      .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(-1)])
+      .nullable()
+      .optional(),
+  }),
+  z.object({
+    type: z.literal("daily"),
+    start_time: ScheduleClockSchema,
+    end_time: ScheduleClockSchema,
+  }),
+  z.object({
+    type: z.literal("custom"),
+    windows: z
+      .array(EventScheduleCustomWindowSchema)
+      .min(1)
+      .max(EVENT_SCHEDULE_LIMITS.customWindows),
+  }),
+]);
+export type EventScheduleRule = z.infer<typeof EventScheduleRuleSchema>;
+
+/** The `schedule` key on POST /events and PATCH /events/{id}. `null` (or an
+ * omitted key on create) means a continuous event; on PATCH an explicit null
+ * clears an existing schedule, an absent key leaves it alone. */
+export const EventScheduleInputSchema = z.object({
+  /** Only the UTC clock is accepted (game time). */
+  tz: z.literal("UTC").default("UTC"),
+  rule: EventScheduleRuleSchema,
+});
+export type EventScheduleInput = z.infer<typeof EventScheduleInputSchema>;
+
+/** One materialized [start, end) scoring window (unix seconds). */
+export const EventScheduleWindowSchema = z.object({
+  starts_at: z.number().int(),
+  ends_at: z.number().int(),
+});
+export type EventScheduleWindow = z.infer<typeof EventScheduleWindowSchema>;
+
+/** Event-detail `schedule`: the stored rule plus the windows the backend
+ * actually scores against. The compiled windows are the authority — the client
+ * only mirrors the rules to preview an unsaved edit. */
+export const EventScheduleStateSchema = z.object({
+  /** Null when a stored rule can't be read: the backend degrades such an event
+   * to continuous scoring, so never fail the whole payload over it. */
+  rule: EventScheduleRuleSchema.nullable().catch(null),
+  tz: z.string().default("UTC"),
+  summary: z.string().nullable().optional(),
+  window_count: z.number().int().default(0),
+  windows: z.array(EventScheduleWindowSchema).default([]),
+  /** Server-side answer at request time — cached pages re-derive from
+   * `windows` after hydration rather than trusting a stale boolean. */
+  scoring_open: z.boolean().default(false),
+  current_window: EventScheduleWindowSchema.nullable().optional(),
+  next_window: EventScheduleWindowSchema.nullable().optional(),
+});
+export type EventScheduleState = z.infer<typeof EventScheduleStateSchema>;
+
 export const EventSummarySchema = z.object({
   id: z.number().int(),
   group_id: z.number().int().nullable(),
@@ -2806,6 +2935,12 @@ export const EventSummarySchema = z.object({
   /** Derived: when the window shuts — the start, or the end when late
    * sign-ups are allowed. Null when unscheduled (closes at activation). */
   signups_close_at: z.number().int().nullable().optional(),
+  /** Recurring schedule (web82a): whether scoring runs in repeating windows,
+   * plus the one-line rule summary ("Weekly: Sat 00:00 → Mon 00:00 UTC, every
+   * other week"). The window list and open/paused state cost a query, so they
+   * ride on the detail payload only (`schedule`). */
+  has_schedule: z.boolean().default(false),
+  schedule_summary: z.string().nullable().optional(),
   activated_at: z.number().int().nullable().optional(),
   ended_at: z.number().int().nullable().optional(),
 });
@@ -2868,6 +3003,9 @@ export const EventDetailSchema = EventSummarySchema.extend({
    * standings banner updates live. Full contributor list is GET
    * /events/{id}/pot. Absent on payloads from before the pot feature. */
   prize_pot: EventPrizePotSummarySchema.optional(),
+  /** Recurring schedule (web82a) — null for a continuous event, absent on
+   * payloads predating the feature. */
+  schedule: EventScheduleStateSchema.nullable().optional(),
 });
 export type EventDetail = z.infer<typeof EventDetailSchema>;
 
@@ -3385,6 +3523,11 @@ export const EventInputSchema = z.object({
   visibility: z.enum(EVENT_VISIBILITIES).optional(),
   starts_at: z.number().int().nullable().optional(),
   ends_at: z.number().int().nullable().optional(),
+  /** Recurring activation schedule (web82a): scoring only counts inside the
+   * rule's repeating windows. Omit (or send null) for a continuous event; an
+   * explicit null on PATCH clears an existing schedule. A schedule needs both
+   * dates, and board_game events are refused one. */
+  schedule: EventScheduleInputSchema.nullable().optional(),
   formation_mode: z.enum(EVENT_FORMATION_MODES).optional(),
   requires_confirmation: z.boolean().optional(),
   /** Live edits (web68a): keep the bingo board editable after activation.
@@ -4653,6 +4796,14 @@ export const RecapSchema = z.object({
     unique_npcs: z.number().int().nullable().optional(),
     members_active: z.number().int().optional(),
     members_total: z.number().int().optional(),
+    /**
+     * Efficient hours bossed *gained* in the period, harvested from Wise Old
+     * Man (web83a). Absent — not zero — for any subject the harvest hasn't
+     * reached, and absent on every card written before web83a.
+     */
+    ehb: z.number().optional(),
+    /** Last month's EHB over the same roster, for the movement chip. */
+    previous_ehb: z.number().optional(),
   }),
 
   rank: z

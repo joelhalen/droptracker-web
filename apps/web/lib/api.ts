@@ -1129,6 +1129,9 @@ export const api = {
         | "description"
         | "starts_at"
         | "ends_at"
+        // Recurring schedule (web82a): an explicit null clears it, an absent
+        // key leaves it alone (a date-only edit still re-materializes it).
+        | "schedule"
         | "formation_mode"
         | "join_code"
         | "requires_confirmation"
