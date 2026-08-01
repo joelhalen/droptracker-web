@@ -141,6 +141,8 @@ function BuyinLine({
           min={0}
           emptyAs={0}
           disabled={busy}
+          // Persists to the server: commit on blur, not per keystroke.
+          commitOn="blur"
           onChange={onCommitAmount}
           className="w-28"
         />
@@ -507,6 +509,7 @@ export function PrizePotManager({
                   value={config.default_buyin.value}
                   min={0}
                   emptyAs={0}
+                  commitOn="blur"
                   onChange={(v) => saveConfig({ default_buyin: v })}
                   className="w-40"
                 />
@@ -540,6 +543,7 @@ export function PrizePotManager({
                       value={config.top_n}
                       min={1}
                       max={Math.max(1, teams.length)}
+                      commitOn="blur"
                       onChange={(v) => saveConfig({ top_n: v })}
                       className="w-20"
                     />

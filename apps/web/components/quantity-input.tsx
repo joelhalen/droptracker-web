@@ -11,6 +11,11 @@
  *
  * `onChange` only ever fires with valid values, so callers can keep plain
  * numeric state.
+ *
+ * `commitOn="blur"` is for fields whose onChange PERSISTS (a server write, not
+ * local state). Committing per keystroke means typing "500000" saves 5, 50,
+ * 500, 5000, 50000 on the way — each a real write, each briefly the value of
+ * record, with no guaranteed ordering between the in-flight requests.
  */
 import { useEffect, useRef, useState } from "react";
 
@@ -21,6 +26,7 @@ export function QuantityInput({
   max,
   integer = true,
   emptyAs,
+  commitOn = "change",
   className = "",
   ...rest
 }: {
@@ -34,6 +40,9 @@ export function QuantityInput({
    * empty box showing the placeholder, and clearing the box commits it back
    * instead of counting as invalid input. */
   emptyAs?: number;
+  /** When does `onChange` fire? "change" (default) is right for local state;
+   * "blur" is required when the handler writes to the server — see above. */
+  commitOn?: "change" | "blur";
   className?: string;
 } & Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
@@ -82,8 +91,15 @@ export function QuantityInput({
       }}
       onChange={(e) => {
         setText(e.target.value);
+        if (commitOn === "blur") return;
         const n = parse(e.target.value);
         if (n != null && n !== value) onChange(n);
+      }}
+      onKeyDown={(e) => {
+        // Enter is how you say "done" without leaving the field; blur does
+        // the actual commit so both routes share one code path.
+        if (e.key === "Enter") e.currentTarget.blur();
+        rest.onKeyDown?.(e);
       }}
       onBlur={(e) => {
         setFocused(false);
