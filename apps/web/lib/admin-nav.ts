@@ -58,6 +58,7 @@ export const ADMIN_SECTIONS: AdminNavSection[] = [
     items: [
       { href: "/admin/subscriptions", label: "Revenue", desc: "MRR, income history, and every subscription." },
       { href: "/admin/tiers", label: "Tiers", desc: "Create and edit premium subscription tiers." },
+      { href: "/admin/nitro-boosts", label: "Nitro boosts", desc: "Boost-slot attribution; assign slots Discord can't trace." },
     ],
   },
   {

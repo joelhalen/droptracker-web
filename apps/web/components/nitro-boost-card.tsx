@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * Lets a signed-in user choose which of their groups a Nitro boost they place
- * on the DropTracker Discord supports. Each boosting member adds a fixed monthly
- * pool credit to exactly one group (see services/nitro_attribution.py). The
- * choice takes effect only while the user is actually boosting.
+ * Lets a signed-in user choose which of their groups the Nitro boosts they place
+ * on the DropTracker Discord support. Each boost adds a fixed monthly pool
+ * credit, and all of a member's boosts go to exactly one group (see
+ * services/nitro_attribution.py). The choice takes effect only while the user is
+ * actually boosting.
  */
 import { useState, useTransition } from "react";
 import type { MyNitroBoost } from "@droptracker/api-types";
@@ -25,6 +26,7 @@ export function NitroBoostCard({ initial }: { initial: MyNitroBoost }) {
   const soleGroup = state.groups.length === 1 ? state.groups[0] : undefined;
   const effectiveName =
     state.groups.find((g) => g.id === state.effective_group_id)?.name ?? null;
+  const slots = state.boost_slots ?? 1;
 
   const onChange = (value: string) => {
     const groupId = value === "" ? null : Number(value);
@@ -46,13 +48,22 @@ export function NitroBoostCard({ initial }: { initial: MyNitroBoost }) {
         <a href="/discord" className="text-osrs-gold-bright hover:underline">
           DropTracker Discord
         </a>
-        , your boost adds {fmtUsd(state.per_boost_cents)}/mo of premium credit toward one of your
+        , each boost adds {fmtUsd(state.per_boost_cents)}/mo of premium credit toward one of your
         clans&apos; subscriptions — helping unlock more features.
       </p>
 
+      {/* A member can place more than one boost; all of them credit one clan. */}
+      {slots > 1 && (
+        <p className="text-osrs-parchment-dark/90 mb-3 text-sm">
+          You&apos;re boosting <span className="text-osrs-gold">{slots}×</span>, contributing{" "}
+          <span className="text-osrs-gold">{fmtUsd(slots * state.per_boost_cents)}/mo</span>.
+        </p>
+      )}
+
       {soleGroup ? (
         <p className="text-osrs-parchment-dark/90 text-sm">
-          Your boost supports <span className="text-osrs-gold">{soleGroup.name}</span>.
+          Your {slots > 1 ? "boosts support" : "boost supports"}{" "}
+          <span className="text-osrs-gold">{soleGroup.name}</span>.
         </p>
       ) : (
         <label className="block text-sm">

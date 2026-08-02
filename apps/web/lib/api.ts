@@ -122,6 +122,7 @@ import {
   type GroupEventLayoutsResponse,
   GroupSubscriptionSchema,
   MyNitroBoostSchema,
+  AdminNitroBoostsSchema,
   NotificationPrefsSchema,
   GroupSubscriptionSummarySchema,
   AdminSubscriptionsOverviewSchema,
@@ -230,6 +231,7 @@ import {
   type GroupSubscription,
   type GroupSubscriptionSummary,
   type MyNitroBoost,
+  type AdminNitroBoosts,
   type NotificationPrefs,
   type AdminSubscriptionsOverview,
   type GuildStatus,
@@ -2537,6 +2539,20 @@ export const api = {
     );
   },
 
+  /** Nitro boost-slot attribution: the bot's latest reconcile plus every manual
+   * override. `snapshot` is null until the bot has reconciled at least once. */
+  async adminNitroBoosts(): Promise<AdminNitroBoosts> {
+    return withFallback(
+      async () => AdminNitroBoostsSchema.parse(await apiGet(`/admin/nitro-boosts`, { authed: true })),
+      () => ({ per_boost_cents: 500, snapshot: null, overrides: [] }),
+    );
+  },
+
+  /** Set (slots) or clear (null) a user's boost-slot count. */
+  async adminSetNitroBoosts(userId: number, slots: number | null) {
+    return apiSend("POST", `/admin/users/${userId}/nitro-boosts`, { slots });
+  },
+
   async adminRedirects(): Promise<Redirect[]> {
     return withFallback(
       async () => RedirectSchema.array().parse(await apiGet(`/admin/redirects`, { authed: true })),
@@ -2731,6 +2747,7 @@ export const api = {
       async () => MyNitroBoostSchema.parse(await apiGet(`/me/nitro-boost`, { authed: true })),
       () => ({
         per_boost_cents: 500,
+        boost_slots: 1,
         designated_group_id: null,
         effective_group_id: null,
         groups: [],
@@ -2745,6 +2762,7 @@ export const api = {
         MyNitroBoostSchema.parse(await apiSend("POST", `/me/nitro-boost`, { group_id: groupId })),
       () => ({
         per_boost_cents: 500,
+        boost_slots: 1,
         designated_group_id: groupId,
         effective_group_id: groupId,
         groups: [],

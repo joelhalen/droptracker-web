@@ -1168,10 +1168,13 @@ export const GroupSubscriptionLegSchema = z.object({
 });
 export type GroupSubscriptionLeg = z.infer<typeof GroupSubscriptionLegSchema>;
 
-/** Nitro-boost contribution summary attached to a group's subscription: how
- * many of its members boost the DropTracker Discord and the resulting monthly
- * pool credit (see services/nitro_attribution.py). */
+/** Nitro-boost contribution summary attached to a group's subscription: how many
+ * boosts its members have placed on the DropTracker Discord and the resulting
+ * monthly pool credit (see services/nitro_attribution.py). */
 export const GroupSubscriptionNitroSchema = z.object({
+  /** Boost SLOTS, not distinct members — one member can place several. */
+  boost_count: z.number().int(),
+  /** @deprecated Pre-multi-boost name for `boost_count`; same value. */
   booster_count: z.number().int(),
   monthly_cents: z.number().int(),
   per_boost_cents: z.number().int(),
@@ -1204,6 +1207,10 @@ export type GroupSubscription = z.infer<typeof GroupSubscriptionSchema>;
  * Nitro boost they place on the DropTracker Discord supports. */
 export const MyNitroBoostSchema = z.object({
   per_boost_cents: z.number().int(),
+  /** Boosts this user has placed (a member can boost more than once). */
+  boost_slots: z.number().int().default(1),
+  /** boost_slots × per_boost_cents — what they contribute in total. */
+  monthly_cents: z.number().int().optional(),
   /** The group the user explicitly chose, or null (auto-pick applies). */
   designated_group_id: z.number().int().nullable(),
   /** The group the reconciler would credit right now. */
@@ -1211,6 +1218,62 @@ export const MyNitroBoostSchema = z.object({
   groups: z.array(z.object({ id: z.number().int(), name: z.string() })),
 });
 export type MyNitroBoost = z.infer<typeof MyNitroBoostSchema>;
+
+/** GET /api/v1/admin/nitro-boosts — boost-slot attribution for the superadmin
+ * dashboard. Discord exposes no per-member boost count, so some slots can only
+ * be assigned by hand (see services/nitro_attribution.py). */
+export const AdminNitroBoostEntrySchema = z.object({
+  discord_id: z.string(),
+  user_id: z.number().int().nullable(),
+  username: z.string().nullable(),
+  /** Slots credited to this member. */
+  slots: z.number().int(),
+  /** Where `slots` came from: an admin override, a boost system message, or the
+   * one-slot-per-booster default. */
+  source: z.enum(["manual", "message", "default"]),
+  override: z.number().int().nullable(),
+  observed: z.number().int().nullable(),
+  group_id: z.number().int().nullable(),
+  group_name: z.string().nullable(),
+  monthly_cents: z.number().int(),
+});
+export type AdminNitroBoostEntry = z.infer<typeof AdminNitroBoostEntrySchema>;
+
+export const AdminNitroBoostSnapshotSchema = z.object({
+  /** Unix seconds of the bot's last reconcile. */
+  at: z.number().int(),
+  per_boost_cents: z.number().int(),
+  /** Guild.premium_subscription_count — the authoritative slot total. */
+  guild_total: z.number().int().nullable(),
+  /** Distinct members currently boosting. */
+  boosters: z.number().int(),
+  /** Slots actually credited to a member. */
+  attributed: z.number().int(),
+  /** Slots the guild reports that nothing could pin on a member. Deliberately
+   * uncredited — assign them with an override. */
+  unattributed: z.number().int(),
+  /** Slots claimed beyond the guild total that trimming couldn't resolve. */
+  over_attributed: z.number().int(),
+  trimmed: z.number().int(),
+  entries: z.array(AdminNitroBoostEntrySchema),
+});
+export type AdminNitroBoostSnapshot = z.infer<typeof AdminNitroBoostSnapshotSchema>;
+
+export const AdminNitroBoostsSchema = z.object({
+  per_boost_cents: z.number().int(),
+  /** Null until the bot has published a reconcile. */
+  snapshot: AdminNitroBoostSnapshotSchema.nullable(),
+  /** Every override on record, including for members who have stopped boosting. */
+  overrides: z.array(
+    z.object({
+      user_id: z.number().int(),
+      username: z.string().nullable(),
+      discord_id: z.string().nullable(),
+      slots: z.number().int(),
+    }),
+  ),
+});
+export type AdminNitroBoosts = z.infer<typeof AdminNitroBoostsSchema>;
 
 /** Public pool summary (GET /groups/{id}/subscription/summary) — feeds the
  * member-facing "Support this clan" card; carries no personal data. */

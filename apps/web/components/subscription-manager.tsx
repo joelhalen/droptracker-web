@@ -133,10 +133,12 @@ export function SubscriptionManager({
                   {liveLegs.length === 1 ? "" : "s"}
                 </span>
               )}
-              {sub.nitro && sub.nitro.booster_count > 0 && (
+              {/* Boosts, not boosters — one member can place several. */}
+              {sub.nitro && (sub.nitro.boost_count ?? sub.nitro.booster_count) > 0 && (
                 <span className="text-osrs-parchment-dark/80">
-                  incl. {fmtUsd(sub.nitro.monthly_cents)}/mo from {sub.nitro.booster_count} member
-                  {sub.nitro.booster_count === 1 ? "" : "s"} boosting Discord
+                  incl. {fmtUsd(sub.nitro.monthly_cents)}/mo from{" "}
+                  {sub.nitro.boost_count ?? sub.nitro.booster_count} Discord boost
+                  {(sub.nitro.boost_count ?? sub.nitro.booster_count) === 1 ? "" : "s"}
                 </span>
               )}
               {sub.current_period_end && (
