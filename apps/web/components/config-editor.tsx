@@ -566,6 +566,7 @@ function InputField({
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
+          maxLength={field.maxLength}
           className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
           placeholder={field.type === "csv" ? "comma,separated" : ""}
         />

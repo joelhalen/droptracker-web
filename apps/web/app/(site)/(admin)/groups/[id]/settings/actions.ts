@@ -31,6 +31,10 @@ export async function saveGroupConfig(groupId: number, patch: GroupConfigPatch) 
     throw err;
   }
   revalidatePath(`/groups/${groupId}/settings`);
+  // `group_name` renames the group rather than saving a setting: the name is
+  // rendered by the admin shell header and every public group page, so drop the
+  // whole subtree's cache instead of just this page.
+  if ("group_name" in parsed) revalidatePath(`/groups/${groupId}`, "layout");
   return { ok: true as const };
 }
 

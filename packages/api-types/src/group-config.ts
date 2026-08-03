@@ -45,6 +45,8 @@ export interface ConfigField {
   /** For `int` fields. */
   min?: number;
   max?: number;
+  /** For text-ish fields: character cap, enforced on the input and in Zod. */
+  maxLength?: number;
   /** Whether a `seasonal_`-prefixed mirror of this key exists (§11.1). */
   seasonalMirror?: boolean;
   /** Subscription entitlement required to edit this field (Task 15). */
@@ -185,7 +187,10 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "vc_to_display_droptracker_users_text", label: "Member count channel text", category: "integration", type: "string", help: "Template for the member-count voice channel name. Placeholder: {member_count}.", default: "{member_count} members" },
 
   // --- Misc / integration -------------------------------------------------
-  { key: "group_name", label: "Group name", category: "integration", type: "string", help: "Display name of the group.", default: "" },
+  // Not a setting of its own — this is the group's actual name (backend column
+  // `groups.group_name`, VARCHAR(30)). Saving it renames the group everywhere:
+  // profile, leaderboards, search, Discord embeds, pretty URL.
+  { key: "group_name", label: "Group name", category: "integration", type: "string", help: "Display name of the group. Renaming updates it everywhere — group page, leaderboards, search and Discord messages.", default: "", maxLength: 30 },
   { key: "group_description", label: "Description", category: "integration", type: "text", help: "Short description shown on the public group page.", default: "" },
   { key: "clan_chat_name", label: "Clan chat name", category: "integration", type: "string", help: "In-game clan chat name used for auto-provisioning.", default: "" },
   { key: "discord_url", label: "Discord invite URL", category: "integration", type: "string", help: "Public Discord invite shown on the group page.", default: "" },
@@ -241,8 +246,12 @@ function fieldSchema(f: ConfigField): z.ZodTypeAny {
     case "text":
     case "csv":
     case "bosslist":
-    case "boardstyle":
+    case "boardstyle": {
+      // A declared maxLength means "trimmed, bounded string" — matches the
+      // backend registry's coerce_to_storage.
+      if (f.maxLength != null) return z.string().trim().max(f.maxLength);
       return z.string();
+    }
     default:
       return z.string();
   }

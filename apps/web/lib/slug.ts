@@ -26,6 +26,26 @@ export function isNumericId(segment: string): boolean {
 }
 
 /**
+ * Read the id out of a legacy XenForo entity ref.
+ *
+ * The pre-2026 site addressed every entity as `{Title}.{id}` and hung the
+ * action off the end — `/groups/PlayTheGame.176/view`, `/players/Zezima.5/drops`.
+ * Those links are still in Discord history, old embeds and search results, and
+ * the trailing id makes them unambiguous *without* a backend round-trip, so the
+ * ref is resolved as a first-class URL form rather than 404'd.
+ *
+ * A modern slug can never be mistaken for one: `slugify()` turns every run of
+ * non-alphanumerics — the `.` included — into `-`, so a `.` in a segment only
+ * ever came from XF. Returns `null` for anything that isn't the ref shape.
+ */
+export function legacyRefId(segment: string): number | null {
+  const m = /^.+\.(\d+)$/.exec(segment);
+  if (!m) return null;
+  const id = Number(m[1]);
+  return Number.isSafeInteger(id) ? id : null;
+}
+
+/**
  * Build the public path for an entity, preferring the pretty slug URL when a
  * name is available and slugifiable, else the id URL. The slug URL is the
  * canonical one; the rare colliding name routes through the disambiguation page

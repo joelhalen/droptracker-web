@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import type { ResolveCandidate } from "@droptracker/api-types";
 import { api } from "@/lib/api";
-import { isNumericId, type EntityKind } from "@/lib/slug";
+import { isNumericId, legacyRefId, type EntityKind } from "@/lib/slug";
 
 /** Singular kind used by the `/resolve` API (vs. the plural URL path segment). */
 export type ResolveKind = "group" | "player" | "npc" | "item";
@@ -16,12 +16,19 @@ export type EntityRef =
  * Turn an id-or-slug URL segment into an entity reference.
  *
  * - A numeric segment is an id (existing behaviour, no backend round-trip).
+ * - A legacy XenForo `{Title}.{id}` ref carries its own id, so it resolves
+ *   without a round-trip too. `next.config.ts` already 308s the XF shapes it
+ *   knows about to the bare id URL, so this is the net for a shape that map
+ *   misses: an unmapped XF link renders the right page instead of 404ing.
  * - A slug is resolved via `api.resolve`: a single match yields its id; several
  *   matches yield `ambiguous` + candidates; no match calls `notFound()`.
  */
 export async function resolveRef(kind: ResolveKind, segment: string): Promise<EntityRef> {
   const decoded = decodeURIComponent(segment);
   if (isNumericId(decoded)) return { ambiguous: false, id: Number(decoded) };
+
+  const legacyId = legacyRefId(decoded);
+  if (legacyId !== null) return { ambiguous: false, id: legacyId };
 
   const result = await api.resolve(kind, decoded);
   if (result.match) return { ambiguous: false, id: result.match.id, name: result.match.name };

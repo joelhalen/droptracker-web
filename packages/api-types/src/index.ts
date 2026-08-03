@@ -828,6 +828,9 @@ export type ResolveResult = z.infer<typeof ResolveResultSchema>;
  * The proof image/video is uploaded separately via the B2 presign flow; this
  * carries the metadata.
  */
+/** Mirrors MAX_SPLIT_SIZE in the backend (CoX's 100-player cap). */
+export const MAX_SPLIT_SIZE = 100;
+
 export const ManualSubmissionSchema = z.object({
   type: z.enum(["drop", "clog", "pb", "ca", "pet"]),
   player_id: z.number().int(),
@@ -846,6 +849,19 @@ export const ManualSubmissionSchema = z.object({
   tier: z.enum(["easy", "medium", "hard", "elite", "master", "grandmaster"]).optional(),
   /** Collection log / pet: kill count when the unlock happened. */
   kc: z.number().int().nonnegative().optional(),
+  /**
+   * Drop split: the OTHER players it was split with (RSNs, receiver excluded).
+   * Only players in a group with split tracking on can actually be credited.
+   */
+  split_players: z.array(z.string().max(12)).max(MAX_SPLIT_SIZE).optional(),
+  /**
+   * Drop split: how many people it was split between IN TOTAL, receiver
+   * included. Deliberately not `split_players.length + 1` — a share taken by
+   * someone who isn't on the DropTracker still has to shrink everyone else's
+   * cut, and this is the only way to express that. Must be >= the number of
+   * named players + 1.
+   */
+  split_size: z.number().int().min(2).max(MAX_SPLIT_SIZE).optional(),
   proof_upload_key: z.string().optional(),
   notes: z.string().max(500).optional(),
 });

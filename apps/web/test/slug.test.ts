@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { slugify, isNumericId, entityPath } from "../lib/slug";
+import { slugify, isNumericId, entityPath, legacyRefId } from "../lib/slug";
 
 test("slugify matches the backend rule", () => {
   assert.equal(slugify("Awesome Clan"), "awesome-clan");
@@ -37,4 +37,27 @@ test("entityPath prefers the pretty slug, falls back to id", () => {
   assert.equal(entityPath("players", 7), "/players/7");
   assert.equal(entityPath("groups", 9, "!!!"), "/groups/9");
   assert.equal(entityPath("items", 5, null), "/items/5");
+});
+
+test("legacyRefId reads the id out of a XenForo entity ref", () => {
+  assert.equal(legacyRefId("PlayTheGame.176"), 176);
+  assert.equal(legacyRefId("Zezima.5"), 5);
+  assert.equal(legacyRefId("Twisted-bow.20997"), 20997);
+  // XF kept the raw case and punctuation of the title; only the id matters.
+  assert.equal(legacyRefId("Vet-ion.6611"), 6611);
+  assert.equal(legacyRefId("My.Clan.Name.42"), 42);
+  // Not the ref shape → null, so the segment falls through to slug resolution.
+  assert.equal(legacyRefId("playthegame"), null);
+  assert.equal(legacyRefId("176"), null);
+  assert.equal(legacyRefId("clan.name"), null);
+  assert.equal(legacyRefId(".176"), null);
+  assert.equal(legacyRefId(""), null);
+});
+
+test("legacyRefId never fires on a modern slug", () => {
+  // slugify() collapses every non-alphanumeric run — the `.` included — to `-`,
+  // so a slug can never carry the `.{digits}` suffix the ref form is built on.
+  for (const name of ["Mr. Fluffy", "Clan 1.5", "Vet'ion", "3.4 Kings", "v2.0"]) {
+    assert.equal(legacyRefId(slugify(name)), null, `slugify(${name}) must not look like a ref`);
+  }
 });

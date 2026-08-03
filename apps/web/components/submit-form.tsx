@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import type { ManualPolicyNotice, ManualSubmission, Me } from "@droptracker/api-types";
+import { MAX_SPLIT_SIZE, type ManualPolicyNotice, type ManualSubmission, type Me } from "@droptracker/api-types";
 import {
   manualPreflight,
   searchItems,
@@ -60,6 +60,70 @@ function formatMs(ms: number): string {
   return h ? `${h}:${String(m).padStart(2, "0")}:${secStr}` : `${m}:${secStr}`;
 }
 
+const MAX_RSN_LENGTH = 12; // OSRS display names cap at 12 characters
+
+/**
+ * Parse the "split with" box into RSNs, dropping blanks, duplicates and the
+ * receiver themselves. The receiver is filtered here as well as server-side:
+ * the account is already known from the player picker, so counting them twice
+ * would shrink everyone's share. Mirrors `parse_split_players` in
+ * data/submissions/manual_discord.py.
+ */
+export function parseSplitNames(raw: string, receiverName: string): string[] {
+  const key = (s: string) => s.trim().toLowerCase().replace(/_/g, " ");
+  const receiverKey = key(receiverName);
+  const seen = new Set<string>();
+  return raw
+    .split(/[,\n]/)
+    .map((s) => s.trim())
+    .filter((s) => {
+      if (!s || key(s) === receiverKey || seen.has(key(s))) return false;
+      seen.add(key(s));
+      return true;
+    });
+}
+
+/**
+ * The real party size, receiver included — NOT `named + 1` whenever a share
+ * went to someone untracked, which is the entire reason it's a separate field.
+ * A blank box means "exactly the people I named"; blank with nobody named means
+ * there's no split to record.
+ */
+export function resolveSplitSize(typed: string, namedCount: number): number | undefined {
+  const n = Number(typed);
+  if (typed.trim() && Number.isFinite(n)) return Math.floor(n);
+  return namedCount ? namedCount + 1 : undefined;
+}
+
+/** Mirrors the server-side checks in web_api/routes/submissions.py::_parse_split. */
+export function splitValidationError(size: number | undefined, names: string[]): string | null {
+  if (size == null) return null;
+  if (size < 2 || size > MAX_SPLIT_SIZE)
+    return `A split has to be between 2 and ${MAX_SPLIT_SIZE} players.`;
+  if (size < names.length + 1)
+    return `You listed ${names.length} other player(s), so the split is at least ${
+      names.length + 1
+    } ways.`;
+  const tooLong = names.find((n) => n.length > MAX_RSN_LENGTH);
+  return tooLong ? `“${tooLong}” isn't a valid RuneScape name.` : null;
+}
+
+/** Plain-English preview, so the shares going to untracked players are visible
+ * before submitting rather than surprising anyone on the leaderboard after. */
+export function describeSplit(
+  size: number,
+  namedCount: number,
+  perShare: number | null,
+): string {
+  const untracked = size - namedCount - 1;
+  const each = perShare != null ? ` (${perShare.toLocaleString()} gp each)` : "";
+  const tail =
+    untracked > 0
+      ? ` — ${untracked} share${untracked === 1 ? "" : "s"} to players not tracked here, credited to nobody`
+      : "";
+  return `Split ${size} ways${each}${tail}.`;
+}
+
 export function SubmitForm({ players }: { players: Me["players"] }) {
   const [pending, startTransition] = useTransition();
   const [, startUpload] = useTransition();
@@ -80,6 +144,9 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
   const [caTier, setCaTier] = useState<(typeof CA_TIERS)[number]>("easy");
   const [kc, setKc] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+  const [wasSplit, setWasSplit] = useState<boolean>(false);
+  const [splitWith, setSplitWith] = useState<string>("");
+  const [splitSize, setSplitSize] = useState<string>("");
   const [proofKey, setProofKey] = useState<string | undefined>(undefined);
   const [notices, setNotices] = useState<ManualPolicyNotice[]>([]);
 
@@ -164,6 +231,26 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
     }
   })();
 
+  const receiverName = players.find((p) => p.id === playerId)?.name ?? "";
+  const splitNames = useMemo(
+    () => parseSplitNames(splitWith, receiverName),
+    [splitWith, receiverName],
+  );
+  const resolvedSplitSize = useMemo(
+    () => (wasSplit ? resolveSplitSize(splitSize, splitNames.length) : undefined),
+    [wasSplit, splitSize, splitNames],
+  );
+  const splitError = wasSplit ? splitValidationError(resolvedSplitSize, splitNames) : null;
+  const splitPreview = (() => {
+    if (!wasSplit || splitError || resolvedSplitSize == null) return null;
+    const gp = Number(value);
+    const perShare =
+      value.trim() && Number.isFinite(gp) && gp > 0
+        ? Math.floor((gp * Math.max(1, quantity)) / resolvedSplitSize)
+        : null;
+    return describeSplit(resolvedSplitSize, splitNames.length, perShare);
+  })();
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -181,6 +268,10 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
       payload.quantity = Math.max(1, quantity);
       const gp = Number(value);
       if (value.trim() && Number.isFinite(gp) && gp >= 0) payload.value = Math.floor(gp);
+      if (wasSplit && resolvedSplitSize != null) {
+        if (splitNames.length) payload.split_players = splitNames;
+        payload.split_size = resolvedSplitSize;
+      }
     } else if (type === "clog") {
       payload.item_name = item[0]?.name;
       if (item[0]?.id != null) payload.item_id = item[0].id;
@@ -328,6 +419,55 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
         </div>
       )}
 
+      {type === "drop" && (
+        <div className="border-osrs-bronze/30 space-y-3 rounded border p-3">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={wasSplit}
+              onChange={(e) => setWasSplit(e.target.checked)}
+            />
+            This drop was split with other players
+          </label>
+          {wasSplit && (
+            <>
+              <label className="block">
+                <span className={label}>Split with</span>
+                <input
+                  value={splitWith}
+                  onChange={(e) => setSplitWith(e.target.value)}
+                  className={field}
+                  placeholder="RSNs, comma-separated — don't include yourself"
+                />
+                <p className={hint}>
+                  {splitNames.length
+                    ? `${splitNames.length} other player${splitNames.length === 1 ? "" : "s"}: ${splitNames.join(", ")}`
+                    : "Leave blank if nobody else you split with is on the DropTracker."}
+                </p>
+              </label>
+              <label className="block">
+                <span className={label}>Split how many ways?</span>
+                <input
+                  type="number"
+                  min={2}
+                  max={MAX_SPLIT_SIZE}
+                  value={splitSize}
+                  onChange={(e) => setSplitSize(e.target.value)}
+                  className={field}
+                  placeholder={String(splitNames.length + 1)}
+                />
+                <p className={hint}>
+                  Counting yourself. Set this higher than the names above if some
+                  of the people you split with aren&apos;t tracked here — their
+                  share still comes out of everyone&apos;s cut.
+                </p>
+              </label>
+              {splitPreview && <p className="text-osrs-gold text-xs">{splitPreview}</p>}
+            </>
+          )}
+        </div>
+      )}
+
       {type === "pb" && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block">
@@ -446,7 +586,9 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
-          disabled={pending || proof.status === "uploading" || !playerId || missing != null}
+          disabled={
+            pending || proof.status === "uploading" || !playerId || missing != null || splitError != null
+          }
           className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {pending ? "Submitting…" : "Submit"}
