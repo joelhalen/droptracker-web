@@ -67,9 +67,24 @@ function EntityIcon({
   );
 }
 
+/** Sort a drop table A→Z, case/accent-insensitively.
+ *
+ * `/events/meta/npc-drops` returns items ordered by when we last SAW each one,
+ * which puts every bulk drop first and buries the uniques. On a boss with no
+ * wiki table (so the list is built from observed drops) that read as the item
+ * being absent: Shellbane Gryphon's "Jar of feathers" sat at #45 of 54, below
+ * 30-odd chips of bones, seeds and grimy herbs. Alphabetical is the order
+ * someone hunting a named item can actually navigate. */
+const byName = (rows: EventMetaEntry[]): EventMetaEntry[] =>
+  [...rows].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+
 /** Collapsible "type a boss, get its drops" panel under the item picker —
  * search an NPC, list its droppable items, add them per-item or all at once
- * instead of hunting each item down individually. */
+ * instead of hunting each item down individually.
+ *
+ * Big drop tables overflow the chip box, so the list carries its own filter and
+ * an explicit "scroll for more" cue — without them a clipped list looks like a
+ * complete one. */
 function BossDropsImport({
   api,
   selectedNames,
@@ -93,6 +108,11 @@ function BossDropsImport({
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const seq = useRef(0);
+  // Drop-table filter + overflow state for the chip list (see byName above).
+  const [dropFilter, setDropFilter] = useState("");
+  const [overflowing, setOverflowing] = useState(false);
+  const [atEnd, setAtEnd] = useState(false);
+  const listRef = useRef<HTMLUListElement | null>(null);
 
   // Debounced NPC autocomplete (same pattern as the main search pane).
   useEffect(() => {
@@ -123,10 +143,11 @@ function BossDropsImport({
     setNpcResults([]);
     setNpcOpen(false);
     setDrops(null);
+    setDropFilter("");
     setFailed(false);
     setLoading(true);
     try {
-      setDrops(await api.fetchDrops(entry.id));
+      setDrops(byName(await api.fetchDrops(entry.id)));
     } catch {
       setFailed(true);
     } finally {
@@ -134,7 +155,27 @@ function BossDropsImport({
     }
   };
 
-  const missing = (drops ?? []).filter((d) => !selectedNames.has(d.name));
+  const needle = dropFilter.trim().toLowerCase();
+  const total = drops?.length ?? 0;
+  const visible = (drops ?? []).filter((d) => !needle || d.name.toLowerCase().includes(needle));
+  // "Add all" adds what's actually on screen — with a filter typed, that's the
+  // matches, not the whole table.
+  const missing = visible.filter((d) => !selectedNames.has(d.name));
+
+  // Re-measure whenever the rendered set changes: a filtered-down list may stop
+  // overflowing, and the cue must not claim there is more below when there
+  // isn't. Also snaps back to the top so a new filter shows its first match.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) {
+      setOverflowing(false);
+      setAtEnd(false);
+      return;
+    }
+    el.scrollTop = 0;
+    setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    setAtEnd(false);
+  }, [drops, needle]);
 
   if (!open) {
     return (
@@ -162,6 +203,7 @@ function BossDropsImport({
             setNpc(null);
             setDrops(null);
             setQuery("");
+            setDropFilter("");
           }}
           className="text-osrs-parchment-dark/50 hover:text-osrs-red ml-auto text-xs"
         >
@@ -212,7 +254,13 @@ function BossDropsImport({
             <div className="flex items-center gap-2">
               <EntityIcon kind="npc" id={npc.id} size={20} />
               <span className="text-osrs-gold-bright text-xs font-semibold">
-                {npc.name} — {drops.length} item{drops.length === 1 ? "" : "s"}
+                {npc.name} — {total} item{total === 1 ? "" : "s"}
+                {needle && (
+                  <span className="text-osrs-parchment-dark/60 font-normal">
+                    {" "}
+                    · {visible.length} shown
+                  </span>
+                )}
               </span>
               <button
                 type="button"
@@ -220,11 +268,29 @@ function BossDropsImport({
                 disabled={disabled || !missing.length}
                 className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright ml-auto rounded border px-2 py-1 text-xs disabled:opacity-50"
               >
-                {missing.length ? `Add all (${missing.length})` : "All added ✓"}
+                {!missing.length
+                  ? "All added ✓"
+                  : needle
+                    ? `Add matching (${missing.length})`
+                    : `Add all (${missing.length})`}
               </button>
             </div>
-            <ul className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto">
-              {drops.map((d) => {
+            <input
+              value={dropFilter}
+              onChange={(e) => setDropFilter(e.target.value)}
+              placeholder={`Filter ${npc.name}'s drops…`}
+              disabled={disabled}
+              className="bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 focus:ring-osrs-gold/60 w-full rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1"
+            />
+            <ul
+              ref={listRef}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                setAtEnd(el.scrollHeight - el.scrollTop - el.clientHeight < 4);
+              }}
+              className="flex max-h-64 flex-wrap gap-1.5 overflow-y-auto"
+            >
+              {visible.map((d) => {
                 const isSelected = selectedNames.has(d.name);
                 const untracked = d.tracked === false;
                 return (
@@ -259,6 +325,19 @@ function BossDropsImport({
                 );
               })}
             </ul>
+            {/* The chip box clips at its max height with no scrollbar gutter, so
+             * a partial list is indistinguishable from a complete one. Say so. */}
+            {!visible.length ? (
+              <p className="text-osrs-parchment-dark/50 text-xs">
+                No drop of {npc.name}&apos;s matches &ldquo;{dropFilter.trim()}&rdquo;.
+              </p>
+            ) : overflowing ? (
+              <p className="text-osrs-parchment-dark/50 text-[11px]">
+                {atEnd
+                  ? `End of list — ${visible.length} item${visible.length === 1 ? "" : "s"}.`
+                  : `↓ Scroll for the rest — ${visible.length} item${visible.length === 1 ? "" : "s"} in this list.`}
+              </p>
+            ) : null}
           </>
         ) : (
           <p className="text-osrs-parchment-dark/50 text-xs">
