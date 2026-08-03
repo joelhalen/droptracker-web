@@ -21,7 +21,7 @@ const primaryBtn =
   "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50";
 
 const PLUGIN_URL = "https://www.droptracker.io/runelite";
-const DISCORD_URL = "https://www.droptracker.io/discord";
+const DISCORD_URL = "https://discord.gg/droptracker";
 
 export function ClaimRsnFlow({
   client,

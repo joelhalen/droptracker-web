@@ -302,7 +302,7 @@ export function mockGroupProfile(id: number): GroupProfile {
     member_count: 128,
     global_rank: (id % 100) + 1,
     monthly_loot: money(9_870_000_000),
-    discord_url: "https://www.droptracker.io/discord",
+    discord_url: "https://discord.gg/droptracker",
     flair: { tier_key: "premium", tier_name: "Premium", style: "gold" },
     top_player: { id: 1337, name: "Zezima", total_loot: money(2_000_000_000) },
     top_players: [

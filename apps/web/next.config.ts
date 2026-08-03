@@ -180,9 +180,9 @@ const nextConfig: NextConfig = {
       { source: "/account/:page*", destination: "/settings", permanent: false },
 
       // External shortlinks used by the Discord bot, RuneLite plugin, and old docs.
-      // /discord is intentionally NOT permanent: invite links can be rotated, and a
+      // /discord is intentionally NOT permanent: the vanity has been lost before, and a
       // 308 would let browsers cache a dead invite forever.
-      { source: "/discord", destination: "https://discord.gg/dvb7yP7JJH", permanent: false },
+      { source: "/discord", destination: "https://discord.gg/droptracker", permanent: false },
       {
         source: "/invite",
         destination: "https://discord.com/oauth2/authorize?client_id=1172933457010245762",
