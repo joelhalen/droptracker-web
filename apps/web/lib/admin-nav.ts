@@ -76,6 +76,7 @@ export const ADMIN_SECTIONS: AdminNavSection[] = [
     label: "System",
     items: [
       { href: "/admin/services", label: "Services", desc: "Start, stop, or restart backend services; view logs." },
+      { href: "/admin/status", label: "Status & issues", desc: "Live pipeline health and the known-issues board shown in Discord." },
       { href: "/admin/backups", label: "Backups", desc: "Nightly database backup status and offsite copies." },
       { href: "/admin/b2", label: "B2 usage", desc: "Bucket storage usage and estimated monthly cost." },
       { href: "/admin/logs", label: "Logs", desc: "Tail application logs by source." },
