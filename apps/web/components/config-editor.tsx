@@ -15,7 +15,7 @@ import {
   fetchGroupPbBosses,
   fetchLootboardStyles,
 } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
 import { viewerZone } from "@/components/local-time";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
@@ -68,6 +68,49 @@ function normalize(map: ConfigMap): ConfigMap {
 /** Anchor id for a category's card, used by the jump-to sidebar + scroll-spy. */
 const sectionId = (categoryId: string) => `cfg-${categoryId}`;
 
+/* --- Unsaved-edit stash (deploy-skew recovery) -------------------------------
+   Admins routinely stage dozens of config edits before pressing Save. If a
+   deploy lands in that window the Server Action id goes stale (see
+   lib/errors.isStaleDeploymentError) and the only cure is a reload — which,
+   unaided, throws the whole batch away. So on that specific failure we park the
+   pending patch in sessionStorage (per-tab, dies with the tab) and re-apply it
+   after the reload. Written only on that failure, never on every keystroke: a
+   draft resurfacing after an ordinary reload would be its own surprise. */
+const draftKey = (groupId: number) => `dt:config-draft:${groupId}`;
+
+/** Read and consume this tab's stashed patch, if any. */
+function takeDraft(groupId: number): ConfigMap | null {
+  try {
+    const raw = sessionStorage.getItem(draftKey(groupId));
+    if (!raw) return null;
+    sessionStorage.removeItem(draftKey(groupId));
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed as ConfigMap;
+  } catch {
+    // Storage disabled/full, or a malformed entry — recover as if there were none.
+    return null;
+  }
+}
+
+/** Stash a patch for the post-reload restore. False when storage is unavailable. */
+function stashDraft(groupId: number, patch: ConfigMap): boolean {
+  try {
+    sessionStorage.setItem(draftKey(groupId), JSON.stringify(patch));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function clearDraft(groupId: number) {
+  try {
+    sessionStorage.removeItem(draftKey(groupId));
+  } catch {
+    /* nothing to clear if storage is unavailable */
+  }
+}
+
 export function ConfigEditor({
   groupId,
   initial,
@@ -90,6 +133,22 @@ export function ConfigEditor({
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /* Set when a save failed purely because this tab predates the running build.
+     Retrying can only fail again, so the form pivots to offering a reload. */
+  const [staleDeploy, setStaleDeploy] = useState(false);
+  /* How many edits were carried across that reload, for the confirmation notice. */
+  const [restoredCount, setRestoredCount] = useState(0);
+
+  // Re-apply edits stashed by a deploy-skew failure before the reload. Merged
+  // over `values` and not `baseline`, so they read as unsaved changes exactly
+  // as they did pre-reload — and any key the server meanwhile already agrees
+  // with simply drops out of `changed`.
+  useEffect(() => {
+    const draft = takeDraft(groupId);
+    if (!draft) return;
+    setValues((v) => ({ ...v, ...draft }));
+    setRestoredCount(Object.keys(draft).length);
+  }, [groupId]);
 
   /* Seed the clan's recap timezone from the first admin to open this page, so
      "post at hour 0" means their midnight instead of UTC's. Written once and
@@ -215,6 +274,9 @@ export function ConfigEditor({
   const onReset = () => {
     setValues(baseline);
     setError(null);
+    setStaleDeploy(false);
+    setRestoredCount(0);
+    clearDraft(groupId);
   };
 
   const onSubmit = (e: React.FormEvent) => {
@@ -226,9 +288,22 @@ export function ConfigEditor({
         await saveGroupConfig(groupId, changed);
         // Adopt the saved values as the new baseline.
         setBaseline({ ...baseline, ...changed });
+        setRestoredCount(0);
+        clearDraft(groupId);
         setSaved(true);
         setTimeout(() => setSaved(false), 2000);
       } catch (err) {
+        if (isStaleDeploymentError(err)) {
+          // Nothing reached the backend — park the batch and send them to a reload.
+          const kept = stashDraft(groupId, changed);
+          setStaleDeploy(true);
+          setError(
+            kept
+              ? `${STALE_DEPLOYMENT_MESSAGE} Your ${dirtyCount} unsaved change${dirtyCount === 1 ? "" : "s"} will be restored automatically.`
+              : STALE_DEPLOYMENT_MESSAGE,
+          );
+          return;
+        }
         setError(getErrorMessage(err, "Couldn't save configuration. Please try again."));
       }
     });
@@ -400,11 +475,32 @@ export function ConfigEditor({
         })}
 
         <div className="bg-osrs-surface-1/95 border-osrs-bronze/30 sticky bottom-0 -mx-1 space-y-2 rounded-lg border px-4 py-3 shadow-lg backdrop-blur">
-          {error && <Alert variant="error">{error}</Alert>}
+          {restoredCount > 0 && (
+            <Alert variant="info">
+              Restored {restoredCount} unsaved change{restoredCount === 1 ? "" : "s"} from before the site updated —
+              review them and save.
+            </Alert>
+          )}
+          {error && (
+            <Alert variant="error">
+              {error}
+              {staleDeploy && (
+                <button
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  className="bg-osrs-red/20 hover:bg-osrs-red/30 ml-2 rounded px-2 py-0.5 font-medium underline underline-offset-2"
+                >
+                  Reload now
+                </button>
+              )}
+            </Alert>
+          )}
           <div className="flex items-center gap-3">
             <button
               type="submit"
-              disabled={!dirtyCount || pending}
+              // Once the build has moved on, another Save can only fail the same
+              // way — the reload above is the only path forward.
+              disabled={!dirtyCount || pending || staleDeploy}
               className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {pending ? "Saving…" : `Save ${dirtyCount || ""} change${dirtyCount === 1 ? "" : "s"}`.trim()}
