@@ -134,6 +134,21 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
     seasonalMirror: true,
   },
 
+  // --- Achievement diaries -------------------------------------------------
+  {
+    key: "min_diary_tier_to_notify",
+    label: "Minimum diary tier",
+    category: "drops",
+    type: "select",
+    help: "Lowest achievement-diary tier that triggers a notification.",
+    default: "EASY",
+    options: ["EASY", "MEDIUM", "HARD", "ELITE"].map((t) => ({
+      value: t,
+      label: t.charAt(0) + t.slice(1).toLowerCase(),
+    })),
+    seasonalMirror: true,
+  },
+
   // --- Board settings -----------------------------------------------------
   // boardstyle: the full ~87-style catalog (GET /lootboard-styles) chosen via
   // the preview picker modal; the backend PATCH validates the id exists.
