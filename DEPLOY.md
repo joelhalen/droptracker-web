@@ -112,6 +112,43 @@ two `server` lines in the upstream conf and `sudo nginx -s reload`.
 > both the ~10-20s offline window and the 2026-07-07 in-place-`.next`
 > ChunkLoadError outage. Always deploy through `scripts/deploy.sh`.
 
+#### `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` — keep the two colours in sync
+
+Next salts Server Action ids with the build's encryption key
+(`serverReferenceHashSalt`), and it otherwise caches that key **per `distDir`**
+(`.next-<colour>/cache/.rscinfo`). Left alone, blue and green therefore mint
+*different* action ids from byte-identical source — so every deploy, which
+always flips colour, invalidated every open tab. A tab that had been sitting on
+a form posted an id the newly-live colour had never seen and got a 404 +
+`x-nextjs-action-not-found`; on 2026-08-03 an admin lost 29 staged config edits
+that way.
+
+The repo-root `.env` now pins the key, which both `next build` and both
+`next start` units pick up through the `apps/web/.env.local` symlink. Action ids
+become purely source-derived, so a tab only breaks when that action's own code
+changes — and the ~14-day auto-rotation of the cached key stops mattering too.
+
+- **Do not remove or rotate it casually.** Changing the value re-hashes every
+  action id at once, i.e. breaks every open tab — the exact failure it prevents.
+- **It is not in git** (`.env` is ignored). A `.env` restored without this line
+  silently reverts to per-colour keys; re-add it before deploying.
+- **After changing it, deploy twice** (once per colour) so both are rebuilt on
+  the new key. Verify convergence:
+
+```bash
+cd /store/droptracker/web/apps/web && python3 -c "
+import json
+k=lambda d: json.load(open(d+'/server/server-reference-manifest.json'))
+b,g=k('.next-blue'),k('.next-green')
+print('keys identical     :', b['encryptionKey']==g['encryptionKey'])
+print('action ids identical:', set(b['node'])==set(g['node']))"
+```
+
+Client-side, [`isStaleDeploymentError`](apps/web/lib/errors.ts) still catches
+the residual case (an action whose source really did change) and turns it into
+reload guidance rather than raw Next.js error text; the group-config editor also
+stashes pending edits and restores them across that reload.
+
 ## What works in mock mode
 
 Everything is clickable without a backend:
