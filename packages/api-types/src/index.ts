@@ -657,6 +657,11 @@ export const MeSchema = z.object({
          * OR a granted event-manager) without necessarily being a group admin.
          * Drives canManageEvents; a pure manager has role "member" + this true. */
         can_manage_events: z.boolean().default(false),
+        /** web86a: the group's single owner. Three-valued on purpose —
+         * `undefined` means the viewer doesn't administer this group and isn't
+         * told; `null` means the group genuinely has NO owner (the migration
+         * couldn't attribute it) and any admin may claim it. */
+        owner_user_id: z.number().int().nullable().optional(),
         /** Group tier flair, present for subscribed groups. */
         flair: GroupFlairSchema.optional(),
       }),
@@ -1030,6 +1035,13 @@ export type AuthorizedUser = z.infer<typeof AuthorizedUserSchema>;
 
 export const AuthorizedUsersResponseSchema = z.object({
   users: z.array(AuthorizedUserSchema),
+  /** web86a: the group's one owner, or null when it has none (claimable). */
+  owner_user_id: z.number().int().nullable().default(null),
+  /** Whether the VIEWER may add/remove admins and transfer the group. Only the
+   * owner (and site staff) can; admins get a read-only roster. */
+  can_manage_admins: z.boolean().default(false),
+  /** Whether Discord "Manage Server" still confers implicit admin here. */
+  discord_perms_grant_admin: z.boolean().default(true),
 });
 export type AuthorizedUsersResponse = z.infer<typeof AuthorizedUsersResponseSchema>;
 

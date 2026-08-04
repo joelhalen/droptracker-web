@@ -66,6 +66,45 @@ export function canAdminGroup(user: Me, groupId: number): boolean {
 }
 
 /**
+ * Whether the user may change who administers this group (web86a): add/remove
+ * admins, transfer ownership, flip the Discord-perms policy.
+ *
+ * Since web86a a `role` of "owner" can only come from the group's single
+ * `group_admins` owner row — Discord MANAGE_GUILD now resolves to "admin" — so
+ * the role check alone is exact. Superadmins short-circuit for the same reason
+ * `canAdminGroup` does: they may not appear in `user.groups` at all.
+ *
+ * The backend enforces this independently (`deps.assert_group_owner`); this is
+ * for deciding what to render.
+ */
+export function isGroupOwner(user: Me, groupId: number): boolean {
+  if (user.is_superadmin) return true;
+  return groupRole(user, groupId) === "owner";
+}
+
+/**
+ * True when the group has no owner at all — the web86a migration could not
+ * attribute it, so any of its admins may claim the seat once.
+ *
+ * Distinguishes `null` (ownerless) from `undefined` (viewer isn't an admin and
+ * wasn't told), so a member never sees the claim prompt.
+ */
+export function isGroupOwnerless(user: Me, groupId: number): boolean {
+  const entry = user.groups.find((g) => g.id === groupId);
+  return entry !== undefined && entry.owner_user_id === null;
+}
+
+/**
+ * Guard an owner-only group page. Same rejection shape as
+ * `requireGroupAdminPage` — the 403 interrupt, not a silent bounce.
+ */
+export async function requireGroupOwnerPage(groupId: number): Promise<Me> {
+  const user = await requireUser(`/groups/${groupId}/admin`);
+  if (!isGroupOwner(user, groupId)) forbidden();
+  return user;
+}
+
+/**
  * Whether the user may manage this group's EVENTS (web64a): any group admin, or
  * a member granted the event-manager role (`can_manage_events` on the `/me`
  * group entry). Event managers reach the Events admin surface WITHOUT full

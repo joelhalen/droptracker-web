@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { forbidden, notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { requireUser, canAdminGroup, canManageEvents } from "@/lib/auth";
+import { requireUser, canAdminGroup, canManageEvents, isGroupOwnerless } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
 import { TabNav, type NavTab } from "@/components/tab-nav";
-import { NameTile, SubscriptionStatusBadge, TierBadge } from "@/components/ui";
+import { Alert, NameTile, SubscriptionStatusBadge, TierBadge } from "@/components/ui";
 
 type Params = Promise<{ id: string }>;
 
@@ -71,7 +71,10 @@ export default async function GroupAdminLayout({
           label: "Submissions",
           badge: manualQueue?.pending_count ?? 0,
         },
-        { href: `/groups/${groupId}/authorized`, label: "Authorized users" },
+        // Route kept as /authorized so existing links and bookmarks survive;
+        // the tab covers the owner seat and the Discord policy now, not just a
+        // flat list of authorized users.
+        { href: `/groups/${groupId}/authorized`, label: "Roles & access" },
         { href: `/groups/${groupId}/event-managers`, label: "Event managers" },
         eventsTab,
         {
@@ -117,6 +120,19 @@ export default async function GroupAdminLayout({
           {group.global_rank != null && <> · Global rank #{group.global_rank}</>}
         </p>
       </header>
+
+      {/* web86a: a group whose owner couldn't be identified on migration has
+          nobody able to manage its admin roster until someone claims it. Shown
+          on every admin tab so it can't be missed. */}
+      {isAdmin && isGroupOwnerless(user, groupId) && (
+        <Alert variant="info">
+          This group has no owner, so nobody can currently add or remove admins.{" "}
+          <Link href={`/groups/${groupId}/authorized`} className="underline">
+            Claim ownership on the Roles &amp; access tab
+          </Link>
+          .
+        </Alert>
+      )}
 
       <TabNav tabs={tabs} />
 

@@ -3278,6 +3278,49 @@ export const api = {
     );
   },
 
+  /** web86a: hand the group to one of its existing admins (owner-only). */
+  async transferGroupOwnership(
+    groupId: number,
+    userId: number,
+  ): Promise<AuthorizedUsersResponse> {
+    return withFallback(
+      async () =>
+        AuthorizedUsersResponseSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/ownership/transfer`, {
+            user_id: userId,
+          }),
+        ),
+      () => mockAuthorizedUsers(),
+    );
+  },
+
+  /** web86a: take the owner seat of a group that has none (any admin, once). */
+  async claimGroupOwnership(groupId: number): Promise<AuthorizedUsersResponse> {
+    return withFallback(
+      async () =>
+        AuthorizedUsersResponseSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/ownership/claim`, {}),
+        ),
+      () => mockAuthorizedUsers(),
+    );
+  },
+
+  /** web86a: does Discord "Manage Server" still confer admin? (owner-only) */
+  async setGroupAdminPolicy(
+    groupId: number,
+    discordPermsGrantAdmin: boolean,
+  ): Promise<AuthorizedUsersResponse> {
+    return withFallback(
+      async () =>
+        AuthorizedUsersResponseSchema.parse(
+          await apiSend("PATCH", `/groups/${groupId}/admin-policy`, {
+            discord_perms_grant_admin: discordPermsGrantAdmin,
+          }),
+        ),
+      () => mockAuthorizedUsers(),
+    );
+  },
+
   // --- Event managers (web64a: full event control, no group admin) --------
   async groupEventManagers(groupId: number): Promise<EventManagersResponse> {
     return withFallback(

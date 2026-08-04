@@ -985,6 +985,9 @@ export function mockAuthorizedUsers(): AuthorizedUsersResponse {
         sources: ["discord"],
       },
     ],
+    owner_user_id: 1,
+    can_manage_admins: true,
+    discord_perms_grant_admin: true,
   };
 }
 

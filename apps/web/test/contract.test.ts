@@ -30,6 +30,7 @@ import {
   ItemDetailSchema,
   ManualSubmissionReviewResultSchema,
   MeSchema,
+  AuthorizedUsersResponseSchema,
   EventManagersResponseSchema,
   EventPlayersResponseSchema,
   EventPlayerDetailSchema,
@@ -77,6 +78,7 @@ import {
   mockMyTickets,
   mockTicket,
   mockMe,
+  mockAuthorizedUsers,
   mockEventManagers,
   mockEventPlayers,
   mockEventPlayerDetail,
@@ -125,6 +127,7 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => PlayerLootTrackerSchema.parse(mockPlayerLoot(42, "all")));
   assert.doesNotThrow(() => AnnouncementPageSchema.parse(mockAnnouncements()));
   assert.doesNotThrow(() => MeSchema.parse(mockMe()));
+  assert.doesNotThrow(() => AuthorizedUsersResponseSchema.parse(mockAuthorizedUsers()));
   assert.doesNotThrow(() => EventManagersResponseSchema.parse(mockEventManagers()));
   assert.doesNotThrow(() => EventPlayersResponseSchema.parse(mockEventPlayers(1)));
   assert.doesNotThrow(() => EventPlayerDetailSchema.parse(mockEventPlayerDetail(1, 2001)));
