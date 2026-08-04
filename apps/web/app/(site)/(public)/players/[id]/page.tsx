@@ -10,7 +10,8 @@ import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { LootTracker } from "@/components/loot-tracker";
 import { PlayerBadgeList } from "@/components/player-badges";
-import { BossActivityList, PersonalBestsShowcase } from "@/components/profile-stats";
+import { PersonalBestsGrid } from "@/components/personal-bests-grid";
+import { BossActivityList } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
 import { Badge, Card, EntityChip, NameTile, StatTile } from "@/components/ui";
 
@@ -153,7 +154,7 @@ export default async function PlayerPage({ params }: { params: Params }) {
             </h2>
             <Badge tone="sky">{player.personal_bests!.length} bosses</Badge>
           </div>
-          <PersonalBestsShowcase pbs={player.personal_bests!} />
+          <PersonalBestsGrid pbs={player.personal_bests!} />
         </section>
       )}
 

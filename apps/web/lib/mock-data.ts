@@ -164,24 +164,33 @@ export function mockPlayerProfile(id: number): PlayerProfile {
       { npc_id: 2042, name: "Zulrah", loot: money(260_000_000), drops: 388 },
       { npc_id: 12214, name: "Araxxor", loot: money(120_000_000), drops: 145 },
     ],
-    personal_bests: [
-      {
-        npc_id: 12214,
-        boss: "Araxxor",
-        time_ms: 58800,
-        time_display: "0:58.8",
-        team_size: "Solo",
-        date_ts: Math.floor(Date.now() / 1000) - 86400,
-      },
-      {
-        npc_id: 8061,
-        boss: "Vorkath",
-        time_ms: 72400,
-        time_display: "1:12.4",
-        team_size: "Solo",
-        date_ts: Math.floor(Date.now() / 1000) - 604800,
-      },
-    ],
+    // >12 entries so the profile's collapsed grid + "Show all" toggle is
+    // exercisable in mock mode.
+    personal_bests: (
+      [
+        [12214, "Araxxor", 58800, "0:58.8", "Solo"],
+        [8061, "Vorkath", 72400, "1:12.4", "Solo"],
+        [2042, "Zulrah", 55200, "0:55.2", "Solo"],
+        [13699, "Theatre of Blood", 872400, "14:32.4", "4"],
+        [13695, "Tombs of Amascut", 1204800, "20:04.8", "Solo"],
+        [7554, "Chambers of Xeric", 1522200, "25:22.2", "3"],
+        [9425, "The Nightmare", 1101000, "18:21.0", "5"],
+        [11278, "Nex", 291000, "4:51.0", "6+"],
+        [318, "Alchemical Hydra", 88200, "1:28.2", "Solo"],
+        [9021, "The Gauntlet", 412200, "6:52.2", "Solo"],
+        [12849, "Duke Sucellus", 94800, "1:34.8", "Solo"],
+        [12166, "The Whisperer", 133200, "2:13.2", "Solo"],
+        [12821, "The Leviathan", 105600, "1:45.6", "Solo"],
+        [12167, "Vardorvis", 79800, "1:19.8", "Solo"],
+      ] as const
+    ).map(([npc_id, boss, time_ms, time_display, team_size], i) => ({
+      npc_id,
+      boss,
+      time_ms,
+      time_display,
+      team_size,
+      date_ts: Math.floor(Date.now() / 1000) - 86400 * (i + 1),
+    })),
     groups: [{ id: 2, name: "Global" }],
     recent_submissions: [
       {

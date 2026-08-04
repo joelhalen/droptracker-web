@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { entityPath } from "@/lib/slug";
-import type { GroupRecord, GroupTopPlayer, PersonalBestSummary, TopBoss } from "@droptracker/api-types";
+import type { GroupRecord, GroupTopPlayer, TopBoss } from "@droptracker/api-types";
 
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { Badge, Card, EntityChip, RankMedal } from "@/components/ui";
@@ -154,39 +154,6 @@ export function RecordsShowcase({ records }: { records: GroupRecord[] }) {
           </Card>
         );
       })}
-    </div>
-  );
-}
-
-/** A player's best time per boss. */
-export function PersonalBestsShowcase({ pbs }: { pbs: PersonalBestSummary[] }) {
-  return (
-    <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {pbs.map((pb) => (
-        <Card key={pb.npc_id} padding="p-4">
-          <div className="flex items-center gap-2.5">
-            <img
-              src={`${IMG_BASE}/npcdb/${pb.npc_id}.png`}
-              alt=""
-              className="size-8 shrink-0 rounded object-contain"
-              loading="lazy"
-            />
-            <Link
-              href={entityPath("npcs", pb.npc_id, pb.boss)}
-              className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
-              title={pb.boss}
-            >
-              {pb.boss}
-            </Link>
-          </div>
-          <div className="mt-2 flex items-baseline justify-between gap-2">
-            <span className="text-osrs-gold-bright font-mono text-xl font-bold tabular-nums">
-              {pb.time_display}
-            </span>
-            <span className="text-osrs-parchment-dark/60 text-xs">{pb.team_size}</span>
-          </div>
-        </Card>
-      ))}
     </div>
   );
 }
