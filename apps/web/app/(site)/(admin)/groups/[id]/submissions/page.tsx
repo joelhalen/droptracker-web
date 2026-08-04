@@ -24,7 +24,10 @@ export default async function GroupSubmissionsPage({ params }: { params: Params 
           <span className="text-osrs-parchment-dark">Hold for admin approval</span> policy. Approving
           counts the drop toward this group&apos;s leaderboards (and posts the notification if it
           meets your thresholds); rejecting leaves it off this group entirely. Either way the drop
-          still counts globally and for the player&apos;s other groups.
+          still counts globally and for the player&apos;s other groups. Got one wrong?{" "}
+          <span className="text-osrs-parchment-dark">Undo</span> puts it back in the queue and
+          reverses an approval — the leaderboard credit comes back off and the Discord announcement
+          is deleted.
         </p>
       </div>
       <ManualSubmissionsReview groupId={groupId} initial={queue} />

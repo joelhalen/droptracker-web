@@ -892,6 +892,29 @@ export const ManualSubmissionQueueSchema = z.object({
 });
 export type ManualSubmissionQueue = z.infer<typeof ManualSubmissionQueueSchema>;
 
+/**
+ * Outcome of an approve / reject / undo on one review row. The extras are
+ * per-action: approve reports what it credited and whether it announced, undo
+ * reports what it took back off the boards and out of Discord.
+ */
+export const ManualSubmissionReviewResultSchema = z.object({
+  drop_id: z.number().int(),
+  group_id: z.number().int(),
+  status: z.enum(["pending", "approved", "rejected"]),
+  /** approve: GP added to this group's boards. */
+  credited: z.number().int().optional(),
+  /** approve: whether the withheld group notification was released. */
+  notified: z.boolean().optional(),
+  /** undo: the decision that was taken back. */
+  previous_status: z.enum(["approved", "rejected"]).optional(),
+  /** undo: GP removed from this group's boards. */
+  debited: z.number().int().optional(),
+  /** undo: notifications cancelled before sending / queued for deletion. */
+  notification_dequeued: z.number().int().optional(),
+  notification_deleted: z.number().int().optional(),
+});
+export type ManualSubmissionReviewResult = z.infer<typeof ManualSubmissionReviewResultSchema>;
+
 /** Per-group manual-policy notice for the submit page (suggestion #45, Ph 3). */
 export const ManualPolicyNoticeSchema = z.object({
   group_id: z.number().int(),

@@ -7,6 +7,7 @@ import { Alert, EmptyState } from "@/components/ui";
 import {
   approveManualSubmission,
   rejectManualSubmission,
+  undoManualSubmission,
 } from "@/app/(site)/(admin)/groups/[id]/submissions/actions";
 
 const relTime = (ts: number | null): string => {
@@ -92,6 +93,25 @@ export function ManualSubmissionsReview({
     });
   };
 
+  /** Put a reviewed row back in the queue — the decision, and an approval's
+   * leaderboard credit and Discord announcement, are all reversed. */
+  const undo = (row: ManualSubmissionRow) => {
+    setError(null);
+    setBusyId(row.drop_id);
+    startTransition(async () => {
+      try {
+        await undoManualSubmission(groupId, row.drop_id);
+        const requeued: ManualSubmissionRow = { ...row, status: "pending", reviewed_ts: null };
+        setRecent((prev) => prev.filter((r) => r.drop_id !== row.drop_id));
+        setPending((prev) => [requeued, ...prev]);
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't undo that review."));
+      } finally {
+        setBusyId(null);
+      }
+    });
+  };
+
   return (
     <div className="space-y-6">
       {error && <Alert variant="error">{error}</Alert>}
@@ -144,15 +164,29 @@ export function ManualSubmissionsReview({
                 key={`r-${row.drop_id}`}
                 row={row}
                 actions={
-                  <span
-                    className={`rounded px-2 py-0.5 text-xs ${
-                      row.status === "approved"
-                        ? "bg-osrs-green/15 text-osrs-green"
-                        : "bg-osrs-red/15 text-osrs-red"
-                    }`}
-                  >
-                    {row.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded px-2 py-0.5 text-xs ${
+                        row.status === "approved"
+                          ? "bg-osrs-green/15 text-osrs-green"
+                          : "bg-osrs-red/15 text-osrs-red"
+                      }`}
+                    >
+                      {row.status}
+                    </span>
+                    <button
+                      onClick={() => undo(row)}
+                      disabled={busyId === row.drop_id}
+                      title={
+                        row.status === "approved"
+                          ? "Put this back in the queue: the group's leaderboard credit is removed and the Discord announcement deleted."
+                          : "Put this back in the queue."
+                      }
+                      className="text-osrs-parchment-dark/70 hover:text-osrs-gold rounded px-2 py-1 text-xs underline-offset-2 hover:underline disabled:opacity-50"
+                    >
+                      Undo
+                    </button>
+                  </div>
                 }
               />
             ))}

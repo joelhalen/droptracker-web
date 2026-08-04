@@ -28,6 +28,7 @@ import {
   LootSweepBoardSchema,
   LootSweepReceiptsSchema,
   ItemDetailSchema,
+  ManualSubmissionReviewResultSchema,
   MeSchema,
   EventManagersResponseSchema,
   EventPlayersResponseSchema,
@@ -493,4 +494,38 @@ test("recap schema parses a minimal card and an annual fold", () => {
       periods: [{ period: "2025", kind: "year", generated_at: null }],
     }),
   );
+});
+
+// The review endpoints all return one shape with per-action extras. Mirrors
+// web_api/routes/manual_submissions.py + services/drop_moderation.py, which
+// aren't in openapi.json — this is the only guard against the two drifting.
+test("manual-submission review results parse", () => {
+  assert.doesNotThrow(() =>
+    ManualSubmissionReviewResultSchema.parse({
+      drop_id: 900001,
+      group_id: 14,
+      status: "approved",
+      credited: 780_000_000,
+      notified: true,
+    }),
+  );
+  assert.doesNotThrow(() =>
+    ManualSubmissionReviewResultSchema.parse({
+      drop_id: 900001,
+      group_id: 14,
+      status: "rejected",
+    }),
+  );
+  // Undo reports what it took back off the boards and out of Discord.
+  const undone = ManualSubmissionReviewResultSchema.parse({
+    drop_id: 900001,
+    group_id: 14,
+    status: "pending",
+    previous_status: "approved",
+    debited: 780_000_000,
+    notification_dequeued: 0,
+    notification_deleted: 1,
+  });
+  assert.equal(undone.previous_status, "approved");
+  assert.equal(undone.notification_deleted, 1);
 });

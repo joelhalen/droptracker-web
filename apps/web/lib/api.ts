@@ -243,6 +243,8 @@ import {
   ManualPreflightSchema,
   type ManualSubmissionQueue,
   ManualSubmissionQueueSchema,
+  type ManualSubmissionReviewResult,
+  ManualSubmissionReviewResultSchema,
   type Me,
   type LootPeriod,
   type PlayerLootTracker,
@@ -3106,27 +3108,47 @@ export const api = {
     );
   },
 
-  async approveManualSubmission(groupId: number, dropId: number): Promise<{ status: string }> {
+  async approveManualSubmission(
+    groupId: number,
+    dropId: number,
+  ): Promise<ManualSubmissionReviewResult> {
     return withFallback(
       async () =>
-        (await apiSend(
-          "POST",
-          `/groups/${groupId}/manual-submissions/${dropId}/approve`,
-          {},
-        )) as { status: string },
-      () => ({ status: "approved" }),
+        ManualSubmissionReviewResultSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/manual-submissions/${dropId}/approve`, {}),
+        ),
+      () => ({ drop_id: dropId, group_id: groupId, status: "approved" as const }),
     );
   },
 
-  async rejectManualSubmission(groupId: number, dropId: number): Promise<{ status: string }> {
+  async rejectManualSubmission(
+    groupId: number,
+    dropId: number,
+  ): Promise<ManualSubmissionReviewResult> {
     return withFallback(
       async () =>
-        (await apiSend(
-          "POST",
-          `/groups/${groupId}/manual-submissions/${dropId}/reject`,
-          {},
-        )) as { status: string },
-      () => ({ status: "rejected" }),
+        ManualSubmissionReviewResultSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/manual-submissions/${dropId}/reject`, {}),
+        ),
+      () => ({ drop_id: dropId, group_id: groupId, status: "rejected" as const }),
+    );
+  },
+
+  /**
+   * Take back an approve/reject — the submission returns to the queue as
+   * pending. Undoing an approval also debits its leaderboard credit back out
+   * and removes the Discord announcement it released.
+   */
+  async undoManualSubmissionReview(
+    groupId: number,
+    dropId: number,
+  ): Promise<ManualSubmissionReviewResult> {
+    return withFallback(
+      async () =>
+        ManualSubmissionReviewResultSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/manual-submissions/${dropId}/undo`, {}),
+        ),
+      () => ({ drop_id: dropId, group_id: groupId, status: "pending" as const }),
     );
   },
 

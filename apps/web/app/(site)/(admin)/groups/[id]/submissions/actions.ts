@@ -30,3 +30,11 @@ export async function rejectManualSubmission(groupId: number, dropId: number) {
   revalidatePath(`/groups/${groupId}/submissions`);
   return res;
 }
+
+/** Take back a mistaken approve/reject — the row goes back to pending. */
+export async function undoManualSubmission(groupId: number, dropId: number) {
+  await assertAdmin(groupId);
+  const res = await api.undoManualSubmissionReview(groupId, dropId);
+  revalidatePath(`/groups/${groupId}/submissions`);
+  return res;
+}
