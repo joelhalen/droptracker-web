@@ -595,3 +595,28 @@ export function taskGoal(
     }
   }
 }
+
+/** Ledger statuses whose credit is still standing — the set the backend's
+ * revoke endpoint accepts (`APPLIED_STATUSES` in web_api/routes/event_admin.py).
+ * `pending` is decided in Review (confirm/reject), and `rejected`/`revoked`
+ * never counted or already stopped counting. */
+export const APPLIED_COMPLETION_STATUSES = ["auto", "confirmed", "manual"] as const;
+
+/** Whether an audit-log row points at a completion whose points can still be
+ * taken back. Both the ledger and audit sources report the completion's
+ * *current* status, so a confirmation that was already revoked reads as
+ * `revoked` here and offers no second revoke.
+ *
+ * Structurally typed rather than importing `AuditEntry` from `@/lib/api` —
+ * that module is the whole BFF client, and this file is imported by leaf
+ * components. */
+export function isRevocableCompletion(entry: {
+  completion_id: number | null;
+  status: string | null;
+}): boolean {
+  return (
+    entry.completion_id != null &&
+    entry.status != null &&
+    (APPLIED_COMPLETION_STATUSES as readonly string[]).includes(entry.status)
+  );
+}

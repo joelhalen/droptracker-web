@@ -2,8 +2,12 @@
 
 import { Fragment, useCallback, useEffect, useState } from "react";
 import type { AuditEntry, EventAudit } from "@/lib/api";
-import { eventAuditLog } from "@/app/(site)/(admin)/groups/[id]/events/actions";
+import {
+  eventAuditLog,
+  revokeEventCompletion,
+} from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
+import { isRevocableCompletion } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/format";
 
 const field =
@@ -59,6 +63,13 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Revoke is point-affecting and irreversible from here, so it is a two-step:
+  // the button arms the row (opening its proof + before/after), and the
+  // confirm inside that panel is what actually calls the backend.
+  const [arming, setArming] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+  const [revoking, setRevoking] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const num = (s: string) => {
     const n = Number(s);
@@ -116,6 +127,44 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
     setHasProof(false);
   };
 
+  /** Arm a row for revoke, opening its detail so the screenshot and the
+   * before/after are in view before the admin commits. */
+  const armRevoke = (entryId: string) => {
+    setError(null);
+    setNotice(null);
+    setNote("");
+    setArming(entryId);
+    setExpanded(entryId);
+  };
+
+  const cancelRevoke = () => {
+    setArming(null);
+    setNote("");
+  };
+
+  /** Unwind the armed completion, then reload this page in place: every row
+   * pointing at that completion re-reads as `revoked`, and the `event.revoke`
+   * entry the backend just wrote shows up in the timeline. */
+  const confirmRevoke = async (entry: AuditEntry) => {
+    if (entry.completion_id == null) return;
+    setRevoking(true);
+    setError(null);
+    try {
+      await revokeEventCompletion(groupId, eventId, {
+        completion_id: entry.completion_id,
+        note: note.trim() || undefined,
+      });
+      setArming(null);
+      setNote("");
+      setNotice(`Revoked completion #${entry.completion_id} — its points no longer count.`);
+      await load(page);
+    } catch (err) {
+      setError(getErrorMessage(err, "Couldn't revoke that completion."));
+    } finally {
+      setRevoking(false);
+    }
+  };
+
   const meta = data?.meta;
   const totalPages = meta ? Math.max(1, Math.ceil(meta.total / Math.max(1, meta.limit))) : 1;
 
@@ -124,7 +173,9 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
       <p className="text-osrs-parchment-dark/60 text-sm">
         Every point-affecting and administrative action inside this event — auto credits, pending
         submissions, approvals, manual awards, revokes, roster / team / board / prize / task /
-        settings changes — in one filterable timeline.
+        settings changes — in one filterable timeline. Anything still counting can be undone here
+        with <span className="text-osrs-parchment-dark">Revoke</span>: the credit is unwound and the
+        team&rsquo;s points come back off.
       </p>
 
       {/* Category chips */}
@@ -201,6 +252,7 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
       </div>
 
       {error && <div className="text-osrs-red text-sm">{error}</div>}
+      {notice && <div className="text-osrs-green text-sm">{notice}</div>}
       {meta?.capped && (
         <div className="text-osrs-gold/80 text-xs">
           This event has more history than one window shows — narrow with filters or search to reach
@@ -224,6 +276,7 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
                 <th className="px-3 py-2 font-medium">What happened</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">Actor</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">Proof</th>
+                <th className="whitespace-nowrap px-3 py-2 font-medium">Counts?</th>
               </tr>
             </thead>
             <tbody className="divide-osrs-bronze/15 divide-y">
@@ -232,7 +285,18 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
                   key={entry.id}
                   entry={entry}
                   expanded={expanded === entry.id}
-                  onToggle={() => setExpanded(expanded === entry.id ? null : entry.id)}
+                  arming={arming === entry.id}
+                  revoking={revoking}
+                  note={note}
+                  onNoteChange={setNote}
+                  onArmRevoke={() => armRevoke(entry.id)}
+                  onCancelRevoke={cancelRevoke}
+                  onConfirmRevoke={() => confirmRevoke(entry)}
+                  onToggle={() => {
+                    const next = expanded === entry.id ? null : entry.id;
+                    setExpanded(next);
+                    if (next === null) cancelRevoke();
+                  }}
                 />
               ))}
             </tbody>
@@ -275,13 +339,30 @@ function actorLabel(actor: AuditEntry["actor"]): string {
 function AuditRow({
   entry,
   expanded,
+  arming,
+  revoking,
+  note,
+  onNoteChange,
+  onArmRevoke,
+  onCancelRevoke,
+  onConfirmRevoke,
   onToggle,
 }: {
   entry: AuditEntry;
   expanded: boolean;
+  arming: boolean;
+  revoking: boolean;
+  note: string;
+  onNoteChange: (v: string) => void;
+  onArmRevoke: () => void;
+  onCancelRevoke: () => void;
+  onConfirmRevoke: () => void;
   onToggle: () => void;
 }) {
-  const hasDetail = Boolean(entry.before || entry.after || entry.proof_url);
+  const revocable = isRevocableCompletion(entry);
+  // A revocable row must open even with no screenshot and no before/after —
+  // the confirm step lives in that panel.
+  const hasDetail = Boolean(entry.before || entry.after || entry.proof_url) || revocable;
   const tint = CATEGORY_TINT[entry.category] ?? "text-osrs-parchment-dark/80";
   return (
     <Fragment>
@@ -312,10 +393,72 @@ function AuditRow({
             <span className="text-osrs-parchment-dark/30">—</span>
           )}
         </td>
+        <td className="whitespace-nowrap px-3 py-2">
+          {revocable ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onArmRevoke();
+              }}
+              title="Take this credit back: the task's progress is re-folded from the remaining entries and the team's points come off."
+              className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+              disabled={revoking}
+            >
+              Revoke
+            </button>
+          ) : entry.completion_id != null && entry.status ? (
+            <span className="text-osrs-parchment-dark/40 text-xs">{entry.status}</span>
+          ) : (
+            <span className="text-osrs-parchment-dark/30">—</span>
+          )}
+        </td>
       </tr>
       {expanded && hasDetail && (
         <tr className="bg-osrs-brown-dark/40">
-          <td colSpan={5} className="px-3 py-3">
+          <td colSpan={6} className="px-3 py-3">
+            {arming && (
+              <div className="border-osrs-red/40 bg-osrs-red/5 mb-3 rounded border p-3">
+                <p className="text-osrs-parchment-dark/80 mb-2 text-sm">
+                  Revoke this completion? Its progress is re-folded from the entries that survive,
+                  the team&rsquo;s points come off if the task no longer completes, any bingo cells
+                  it filled are cleared, and the live board is corrected. The player&rsquo;s drop
+                  itself is untouched.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    value={note}
+                    onChange={(e) => onNoteChange(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    placeholder="Reason (optional — kept on the audit trail)"
+                    maxLength={255}
+                    className={`${field} min-w-0 flex-1`}
+                  />
+                  <button
+                    type="button"
+                    disabled={revoking}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onConfirmRevoke();
+                    }}
+                    className="bg-osrs-red/80 text-osrs-parchment hover:bg-osrs-red rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
+                  >
+                    {revoking ? "Revoking…" : "Revoke completion"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={revoking}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCancelRevoke();
+                    }}
+                    className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-2 text-sm disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             {entry.proof_url && (
               <img
                 src={entry.proof_url}
