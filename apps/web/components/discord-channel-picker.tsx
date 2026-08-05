@@ -112,6 +112,10 @@ export function DiscordChannelPicker({
       : value
         ? `Unknown channel (${value})`
         : "";
+  // Saved id missing from the loaded list — usually a channel that was
+  // deleted on Discord (it drops out of the bot's cache), sometimes one the
+  // bot can no longer see. Either way it needs clearing or repointing.
+  const unknown = Boolean(value) && !selected;
 
   return (
     <div className="relative">
@@ -139,6 +143,22 @@ export function DiscordChannelPicker({
       />
       {open && !disabled && (
         <ul className="border-osrs-bronze/30 bg-osrs-brown-dark absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded border text-sm shadow-lg">
+          {value && (
+            <li>
+              <button
+                type="button"
+                // Fire before the input's onBlur closes the list.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                }}
+                className="text-osrs-parchment-dark/70 hover:bg-osrs-bronze/20 border-osrs-bronze/20 flex w-full items-center border-b px-3 py-2 text-left italic"
+              >
+                — No channel —
+              </button>
+            </li>
+          )}
           {matches.length === 0 ? (
             <li className="text-osrs-parchment-dark/60 px-3 py-2">No matching channels.</li>
           ) : (
@@ -182,6 +202,20 @@ export function DiscordChannelPicker({
             })
           )}
         </ul>
+      )}
+      {unknown && !open && (
+        <p className="mt-1 text-xs text-amber-300/90">
+          This channel no longer exists on Discord (or the bot can&apos;t see it).{" "}
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            disabled={disabled}
+            className="text-osrs-gold-bright underline hover:no-underline disabled:opacity-50"
+          >
+            Clear it
+          </button>{" "}
+          or pick another channel, then save.
+        </p>
       )}
       <button
         type="button"
