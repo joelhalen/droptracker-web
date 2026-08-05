@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { EventSummary } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
+import { pickYourEvents } from "@/lib/events";
 import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
 import { EventWindow } from "@/components/local-time";
 
@@ -15,14 +16,22 @@ export const metadata: Metadata = {
 
 export default async function EventsPage() {
   const user = await getUser().catch(() => null);
-  const [active, past, upcoming, recruiting] = await Promise.all([
+  const [active, past, upcoming, recruiting, mine] = await Promise.all([
     api.events({ status: "active" }),
     api.events({ status: "past" }),
     // Drafts the signed-in viewer may see: events of clans they belong to
     // (pre-publication landing) plus drafts they administer.
     user ? api.eventsForAdmin({ status: "draft" }).catch(() => []) : Promise.resolve([]),
     user ? api.eventRecruiting().catch(() => []) : Promise.resolve([]),
+    user ? api.eventsMine().catch(() => []) : Promise.resolve([]),
   ]);
+  // "Your events" absorbs the viewer's live + upcoming clan events; the
+  // general lists below only keep what ISN'T shown there, so no event
+  // appears twice on the page.
+  const yourEvents = pickYourEvents(mine);
+  const yourIds = new Set(yourEvents.map((e) => e.id));
+  const otherUpcoming = upcoming.filter((e) => !yourIds.has(e.id));
+  const otherActive = active.filter((e) => !yourIds.has(e.id));
 
   return (
     <div className="space-y-10">
@@ -45,10 +54,13 @@ export default async function EventsPage() {
         </p>
       </header>
       {recruiting.length > 0 && <EventRecruitingBanner items={recruiting} />}
-      {upcoming.length > 0 && (
-        <EventSection title="Upcoming" events={upcoming} empty="" />
+      {yourEvents.length > 0 && (
+        <EventSection title="Your events" events={yourEvents} empty="" glowLive />
       )}
-      <EventSection title="Active" events={active} empty="No active events right now." />
+      {otherUpcoming.length > 0 && (
+        <EventSection title="Upcoming" events={otherUpcoming} empty="" />
+      )}
+      <EventSection title="Active" events={otherActive} empty="No active events right now." />
       <EventSection title="Past" events={past} empty="No past events yet." />
     </div>
   );
@@ -58,10 +70,13 @@ function EventSection({
   title,
   events,
   empty,
+  glowLive = false,
 }: {
   title: string;
   events: EventSummary[];
   empty: string;
+  /** "Your events" only: live cards get the gold glow + a Live chip. */
+  glowLive?: boolean;
 }) {
   return (
     <section>
@@ -72,10 +87,19 @@ function EventSection({
             <li key={e.id}>
               <Link
                 href={`/events/${e.id}`}
-                className="border-osrs-bronze/20 hover:border-osrs-gold/50 block rounded border p-4 transition-colors"
+                className={
+                  glowLive && e.status === "active"
+                    ? "border-osrs-gold/60 hover:border-osrs-gold event-glow-live block rounded border p-4 transition-colors"
+                    : "border-osrs-bronze/20 hover:border-osrs-gold/50 block rounded border p-4 transition-colors"
+                }
               >
                 <div className="flex items-center gap-2">
                   <span className="text-osrs-gold-bright font-medium">{e.name}</span>
+                  {glowLive && e.status === "active" && (
+                    <span className="bg-osrs-gold/20 text-osrs-gold rounded px-1.5 py-0.5 text-xs">
+                      ⚡ Live
+                    </span>
+                  )}
                   {e.status === "draft" && (
                     <span className="bg-osrs-green/15 text-osrs-green rounded px-1.5 py-0.5 text-xs">
                       Upcoming
