@@ -3,6 +3,18 @@
 Date: 2026-08-05
 Status: approved (brainstormed with visual companion)
 
+> **Revision (same day, after trying the button row in mock mode):** the
+> standalone glow-button row duplicated events already listed on the page
+> (an upcoming event appeared as both a button and an Upcoming card). It was
+> replaced by a **"Your events" card section** at the top: the viewer's live
+> + upcoming clan events as regular event cards, uncapped, with the gold
+> glow around the whole card (plus an "⚡ Live" chip) on live ones. Events
+> shown there are filtered OUT of the Upcoming/Active sections below, so
+> nothing renders twice. Helper renamed `pickYourEventButtons` →
+> `pickYourEvents` (no cap); the `EventLiveButtons` component was removed in
+> favor of a `glowLive` flag on the page's `EventSection`. Everything below
+> describes the original button design where it conflicts, this note wins.
+
 ## Goal
 
 Give a signed-in visitor to `/events` an immediate, high-visibility path back

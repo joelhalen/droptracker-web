@@ -622,14 +622,14 @@ export function isRevocableCompletion(entry: {
   );
 }
 
-/** Pick which of the viewer's clan events (GET /events?mine=true) earn a glow
- * button on /events: live ones first (soonest end), then upcoming drafts
- * (soonest start), capped at 3. Null timestamps sort last in their bucket;
+/** Pick which of the viewer's clan events (GET /events?mine=true) appear in
+ * the "Your events" section on /events: live ones first (soonest end), then
+ * upcoming drafts (soonest start). Null timestamps sort last in their bucket;
  * past events never show. */
-export function pickYourEventButtons(events: EventSummary[]): EventSummary[] {
+export function pickYourEvents(events: EventSummary[]): EventSummary[] {
   const byTime = (t: (e: EventSummary) => number | null) => (a: EventSummary, b: EventSummary) =>
     (t(a) ?? Infinity) - (t(b) ?? Infinity);
   const live = events.filter((e) => e.status === "active").sort(byTime((e) => e.ends_at));
   const upcoming = events.filter((e) => e.status === "draft").sort(byTime((e) => e.starts_at));
-  return [...live, ...upcoming].slice(0, 3);
+  return [...live, ...upcoming];
 }

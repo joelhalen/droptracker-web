@@ -318,10 +318,10 @@ h2 {
   border-color: color-mix(in srgb, var(--dt-gold) 45%, transparent) !important;
 }
 
-/* /events glow buttons: pulsing gold halo on the viewer's live events, a
- * softer static one on upcoming. Plain classes (not arbitrary shadow
- * utilities) so color-mix survives, and so reduced motion keeps the static
- * live glow when the pulse is disabled. */
+/* /events "Your events" section: pulsing gold halo around the viewer's live
+ * event cards. A plain class (not an arbitrary shadow utility) so color-mix
+ * survives, and so reduced motion keeps the static glow when the pulse is
+ * disabled. */
 @keyframes event-glow-pulse {
   0%,
   100% {
@@ -341,11 +341,6 @@ h2 {
     animation: event-glow-pulse 2.2s ease-in-out infinite;
   }
 }
-
-.event-glow-upcoming {
-  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--dt-gold) 25%, transparent);
-}
-
 /*
  * Top-tier ("dragon") subscription flair: an ember gradient that sweeps across
  * the group name. Fixed colors (theme-independent), matching the flair palette

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EventSummarySchema, type EventSummary } from "@droptracker/api-types";
 import { mockEvents, mockEventsMine } from "../lib/mock-data";
-import { pickYourEventButtons } from "../lib/events";
+import { pickYourEvents } from "../lib/events";
 
 test("mockEventsMine parses as EventSummary[] and is a subset of mockEvents", () => {
   const mine = EventSummarySchema.array().parse(mockEventsMine());
@@ -34,8 +34,8 @@ function ev(over: Partial<EventSummary> & { id: number }): EventSummary {
   });
 }
 
-test("pickYourEventButtons: live first (soonest end), then upcoming (soonest start)", () => {
-  const picked = pickYourEventButtons([
+test("pickYourEvents: live first (soonest end), then upcoming (soonest start)", () => {
+  const picked = pickYourEvents([
     ev({ id: 1, status: "draft", starts_at: 5_000 }),
     ev({ id: 2, status: "active", ends_at: 9_000 }),
     ev({ id: 3, status: "active", ends_at: 3_000 }),
@@ -46,8 +46,8 @@ test("pickYourEventButtons: live first (soonest end), then upcoming (soonest sta
   );
 });
 
-test("pickYourEventButtons: past excluded, cap at 3", () => {
-  const picked = pickYourEventButtons([
+test("pickYourEvents: past excluded, everything else kept", () => {
+  const picked = pickYourEvents([
     ev({ id: 1, status: "past" }),
     ev({ id: 2, status: "active", ends_at: 1_000 }),
     ev({ id: 3, status: "active", ends_at: 2_000 }),
@@ -56,12 +56,12 @@ test("pickYourEventButtons: past excluded, cap at 3", () => {
   ]);
   assert.deepEqual(
     picked.map((e) => e.id),
-    [2, 3, 4],
+    [2, 3, 4, 5],
   );
 });
 
-test("pickYourEventButtons: null timestamps sort last within their bucket", () => {
-  const picked = pickYourEventButtons([
+test("pickYourEvents: null timestamps sort last within their bucket", () => {
+  const picked = pickYourEvents([
     ev({ id: 1, status: "active", ends_at: null }),
     ev({ id: 2, status: "active", ends_at: 7_000 }),
     ev({ id: 3, status: "draft", starts_at: null }),
@@ -69,10 +69,10 @@ test("pickYourEventButtons: null timestamps sort last within their bucket", () =
   ]);
   assert.deepEqual(
     picked.map((e) => e.id),
-    [2, 1, 4],
+    [2, 1, 4, 3],
   );
 });
 
-test("pickYourEventButtons: empty input renders nothing", () => {
-  assert.deepEqual(pickYourEventButtons([]), []);
+test("pickYourEvents: empty input renders nothing", () => {
+  assert.deepEqual(pickYourEvents([]), []);
 });
