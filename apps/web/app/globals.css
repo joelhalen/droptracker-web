@@ -318,15 +318,32 @@ h2 {
   border-color: color-mix(in srgb, var(--dt-gold) 45%, transparent) !important;
 }
 
-/* /events glow buttons: pulsing gold halo on the viewer's live events. */
+/* /events glow buttons: pulsing gold halo on the viewer's live events, a
+ * softer static one on upcoming. Plain classes (not arbitrary shadow
+ * utilities) so color-mix survives, and so reduced motion keeps the static
+ * live glow when the pulse is disabled. */
 @keyframes event-glow-pulse {
   0%,
   100% {
-    box-shadow: 0 0 14px 3px color-mix(in srgb, var(--dt-gold) 45%, transparent);
+    box-shadow: 0 0 8px 1px color-mix(in srgb, var(--dt-gold) 35%, transparent);
   }
   50% {
-    box-shadow: 0 0 22px 6px color-mix(in srgb, var(--dt-gold) 70%, transparent);
+    box-shadow: 0 0 12px 2px color-mix(in srgb, var(--dt-gold) 55%, transparent);
   }
+}
+
+.event-glow-live {
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--dt-gold) 35%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .event-glow-live {
+    animation: event-glow-pulse 2.2s ease-in-out infinite;
+  }
+}
+
+.event-glow-upcoming {
+  box-shadow: 0 0 6px 0 color-mix(in srgb, var(--dt-gold) 25%, transparent);
 }
 
 /*

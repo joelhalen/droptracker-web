@@ -16,8 +16,8 @@ export function EventLiveButtons({ events }: { events: EventSummary[] }) {
             href={`/events/${e.id}`}
             className={
               live
-                ? "border-osrs-gold text-osrs-gold-bright rounded-md border bg-gradient-to-b from-[#3a2f1a] to-[#241f16] px-5 py-2.5 font-semibold shadow-[0_0_14px_3px_color-mix(in_srgb,var(--dt-gold)_45%,transparent)] transition-transform hover:scale-[1.02] motion-safe:animate-[event-glow-pulse_2.2s_ease-in-out_infinite]"
-                : "border-osrs-gold/60 text-osrs-gold rounded-md border bg-gradient-to-b from-[#2d2718] to-[#241f16] px-5 py-2.5 font-semibold shadow-[0_0_9px_1px_color-mix(in_srgb,var(--dt-gold)_30%,transparent)] transition-transform hover:scale-[1.02]"
+                ? "border-osrs-gold text-osrs-gold-bright event-glow-live rounded-md border bg-gradient-to-b from-[#3a2f1a] to-[#241f16] px-5 py-2.5 font-semibold transition-transform hover:scale-[1.02]"
+                : "border-osrs-gold/60 text-osrs-gold event-glow-upcoming rounded-md border bg-gradient-to-b from-[#2d2718] to-[#241f16] px-5 py-2.5 font-semibold transition-transform hover:scale-[1.02]"
             }
           >
             {live ? <>⚡ Live: {e.name}</> : <>Upcoming: {e.name}</>} →
