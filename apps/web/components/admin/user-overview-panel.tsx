@@ -4,8 +4,8 @@ import type { Route } from "next";
 import { useState, useTransition } from "react";
 import type { AdminUserOverview } from "@/lib/api";
 import { formatDate, formatRelativeTime } from "@/lib/format";
-import { setUserModerator, setUserSuperadmin } from "@/app/(site)/(admin)/admin/users/actions";
-import { Badge, EmptyState, EntityChip, ModeratorBadge, RoleBadge, SuperadminBadge } from "@/components/ui";
+import { setUserDeveloper, setUserSuperadmin } from "@/app/(site)/(admin)/admin/users/actions";
+import { Badge, DeveloperBadge, EmptyState, EntityChip, RoleBadge, SuperadminBadge } from "@/components/ui";
 
 function actorLabel(actor: AdminUserOverview["recent_audit"][number]["actor"]): string {
   if (!actor) return "system";
@@ -21,7 +21,7 @@ export function UserOverviewPanel({
 }) {
   const { user, players, groups, recent_audit } = overview;
   const [isSuperadmin, setIsSuperadmin] = useState(user.is_superadmin);
-  const [isModerator, setIsModerator] = useState(user.is_moderator);
+  const [isDeveloper, setIsDeveloper] = useState(user.is_developer);
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
@@ -44,18 +44,18 @@ export function UserOverviewPanel({
       setConfirming(false);
     });
 
-  const onToggleModerator = () =>
+  const onToggleDeveloper = () =>
     startTransition(async () => {
       setError(null);
       setNotice(null);
-      const grant = !isModerator;
-      const result = await setUserModerator(user.user_id, grant);
+      const grant = !isDeveloper;
+      const result = await setUserDeveloper(user.user_id, grant);
       if (result.ok) {
-        setIsModerator(grant);
+        setIsDeveloper(grant);
         setNotice(
           grant
-            ? "Granted moderator. The moderator badge was added to their profiles."
-            : "Revoked moderator. The moderator badge was removed.",
+            ? "Granted developer. The developer badge was added to their profiles."
+            : "Revoked developer. The developer badge was removed.",
         );
       } else {
         setError(result.error);
@@ -73,7 +73,7 @@ export function UserOverviewPanel({
           <div className="text-osrs-gold flex flex-wrap items-center gap-2 text-2xl font-bold">
             {user.display_name ?? user.username ?? `User #${user.user_id}`}
             {isSuperadmin && <SuperadminBadge />}
-            {!isSuperadmin && isModerator && <ModeratorBadge />}
+            {!isSuperadmin && isDeveloper && <DeveloperBadge />}
           </div>
           <div className="text-osrs-parchment-dark/60 mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
             <span>ID #{user.user_id}</span>
@@ -135,27 +135,27 @@ export function UserOverviewPanel({
         <div className="border-osrs-bronze/20 flex flex-wrap items-center justify-between gap-4 border-t pt-3">
           <div>
             <div className="text-osrs-parchment-dark/70 text-xs uppercase tracking-wide">
-              Moderator
+              Developer
             </div>
             <div className="mt-1 text-sm">
               {isSuperadmin
-                ? "Superadmins already have every moderator power."
-                : isModerator
-                  ? "Can manage PB blocks, item values, and the task library via /moderation. Actions are audit-logged."
-                  : "No moderator access."}
+                ? "Superadmins already have every developer power."
+                : isDeveloper
+                  ? "Has the developer surface of /admin: diagnostics, audit log (redacted), read-only data viewer, dev tracker, and the game-data tools. Actions are audit-logged."
+                  : "No developer access."}
             </div>
           </div>
           {!isSuperadmin && (
             <button
-              onClick={onToggleModerator}
+              onClick={onToggleDeveloper}
               disabled={pending}
               className={
-                isModerator
+                isDeveloper
                   ? "text-osrs-red hover:bg-osrs-red/10 rounded px-3 py-1.5 text-sm disabled:opacity-50"
                   : "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
               }
             >
-              {pending ? "Saving…" : isModerator ? "Revoke moderator" : "Grant moderator"}
+              {pending ? "Saving…" : isDeveloper ? "Revoke developer" : "Grant developer"}
             </button>
           )}
         </div>

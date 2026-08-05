@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { EventTypesManager } from "@/components/admin/event-types-manager";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Event types" };
 
 export default async function AdminEventTypesPage() {
+  await requireSuperadmin("/admin/event-types");
   const types = await api.adminEventTypes();
 
   return (

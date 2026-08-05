@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { DocsManager } from "@/components/admin/docs-manager";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Docs" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminDocsPage() {
+  await requireSuperadmin("/admin/docs");
   const docs = await api.docs();
 
   return (

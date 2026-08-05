@@ -9,7 +9,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { ADMIN_SECTIONS, ADMIN_PAGES, type AdminNavItem } from "@/lib/admin-nav";
+import {
+  ADMIN_PAGES,
+  sectionsForRole,
+  type AdminNavItem,
+  type AdminRole,
+} from "@/lib/admin-nav";
 
 const OVERVIEW: AdminNavItem = { href: "/admin", label: "Overview", desc: "" };
 
@@ -35,11 +40,11 @@ function NavLink({ item, pathname }: { item: AdminNavItem; pathname: string }) {
   );
 }
 
-function NavList({ pathname }: { pathname: string }) {
+function NavList({ pathname, role }: { pathname: string; role: AdminRole }) {
   return (
     <nav className="space-y-4 text-sm">
       <NavLink item={OVERVIEW} pathname={pathname} />
-      {ADMIN_SECTIONS.map((section) => (
+      {sectionsForRole(role).map((section) => (
         <div key={section.label}>
           <div className="text-osrs-parchment-dark/50 mb-1 px-3 text-[11px] font-semibold tracking-wider uppercase">
             {section.label}
@@ -55,7 +60,7 @@ function NavList({ pathname }: { pathname: string }) {
   );
 }
 
-export function AdminNav() {
+export function AdminNav({ role }: { role: AdminRole }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -91,7 +96,7 @@ export function AdminNav() {
         </button>
         {open && (
           <div className="border-osrs-bronze/30 bg-osrs-surface-1/80 mt-2 rounded-lg border p-2">
-            <NavList pathname={pathname} />
+            <NavList pathname={pathname} role={role} />
           </div>
         )}
       </div>
@@ -99,7 +104,7 @@ export function AdminNav() {
       {/* Desktop: sticky sectioned sidebar. */}
       <aside className="hidden lg:block">
         <div className="sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto pr-1">
-          <NavList pathname={pathname} />
+          <NavList pathname={pathname} role={role} />
         </div>
       </aside>
     </>

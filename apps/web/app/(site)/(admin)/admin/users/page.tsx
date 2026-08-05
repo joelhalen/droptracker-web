@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { UserPicker } from "@/components/admin/user-picker";
 import { UserOverviewPanel } from "@/components/admin/user-overview-panel";
 import { getUser } from "@/lib/auth";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Users" };
 export const dynamic = "force-dynamic";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = Promise<{ userId?: string }>;
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: SearchParams }) {
+  await requireSuperadmin("/admin/users");
   const { userId: rawId } = await searchParams;
   const userId = rawId ? Number(rawId) : NaN;
   // user_id 0 is a real row in this system (unlike group/player ids) — do not

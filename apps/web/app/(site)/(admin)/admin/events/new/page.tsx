@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { orAccessDenied } from "@/lib/fetch";
 import { EventCreateEntry } from "@/components/event-create-entry";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "New global event" };
 
@@ -15,6 +16,7 @@ export default async function NewGlobalEventPage({
 }: {
   searchParams: SearchParams;
 }) {
+  await requireSuperadmin("/admin/events/new");
   const { event: eventParam, step: stepParam } = await searchParams;
 
   let initialEvent = null;

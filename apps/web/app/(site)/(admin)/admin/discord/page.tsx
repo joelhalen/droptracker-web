@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { DiscordSender } from "@/components/discord-sender";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Discord sender" };
 
-export default function AdminDiscordPage() {
+export default async function AdminDiscordPage() {
+  await requireSuperadmin("/admin/discord");
   return (
     <div>
       <p className="text-osrs-parchment-dark/70 mb-6 text-sm">

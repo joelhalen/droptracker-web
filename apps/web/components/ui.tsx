@@ -185,11 +185,11 @@ export function SuperadminBadge({ className = "" }: { className?: string }) {
   );
 }
 
-export function ModeratorBadge({ className = "" }: { className?: string }) {
+export function DeveloperBadge({ className = "" }: { className?: string }) {
   return (
-    <Badge tone="sky" className={className} title="Site moderator">
-      <span aria-hidden>🛡</span>
-      Moderator
+    <Badge tone="sky" className={className} title="Site developer">
+      <span aria-hidden>🛠</span>
+      Developer
     </Badge>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { LogsViewer } from "@/components/admin/logs-viewer";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Logs" };
 export const dynamic = "force-dynamic";
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = Promise<{ source?: string; limit?: string }>;
 
 export default async function AdminLogsPage({ searchParams }: { searchParams: SearchParams }) {
+  await requireDeveloper("/admin/logs");
   const { source = "", limit } = await searchParams;
   const limitNum = Math.min(1000, Math.max(1, Number(limit) || 200));
 

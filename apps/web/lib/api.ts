@@ -577,6 +577,7 @@ export const ADMIN_DATA_ENTITIES = [
   "group_configurations",
   "subscription_tiers",
   "group_subscriptions",
+  "user_subscriptions",
   "audit_log",
   "announcements",
   "notification_queue",
@@ -645,6 +646,9 @@ export interface AdminAuditEntry {
   target: string | null;
   before: string | null;
   after: string | null;
+  /** True when the viewer is a developer and this action's payload is
+   *  withheld (the row metadata is still shown). Absent on old backends. */
+  redacted?: boolean;
   created_at: number | null;
 }
 export interface AdminAuditLog {
@@ -661,7 +665,7 @@ export interface AdminUserOverview {
     display_name: string | null;
     avatar_url: string | null;
     is_superadmin: boolean;
-    is_moderator: boolean;
+    is_developer: boolean;
     public: boolean;
     hidden: boolean;
     date_added: number | null;
@@ -4559,7 +4563,7 @@ export const api = {
           display_name: `User #${userId}`,
           avatar_url: null,
           is_superadmin: false,
-          is_moderator: false,
+          is_developer: false,
           public: true,
           hidden: false,
           date_added: null,
@@ -4581,11 +4585,11 @@ export const api = {
     );
   },
 
-  /** Grant/revoke the moderator flag (also awards/revokes the profile badge). */
-  async adminSetUserModerator(userId: number, grant: boolean): Promise<{ ok: true }> {
+  /** Grant/revoke the developer flag (also awards/revokes the profile badge). */
+  async adminSetUserDeveloper(userId: number, grant: boolean): Promise<{ ok: true }> {
     return withFallback(
       async () => {
-        await apiSend("POST", `/admin/users/${userId}/moderator`, { grant });
+        await apiSend("POST", `/admin/users/${userId}/developer`, { grant });
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { ItemValueManager } from "@/components/admin/item-value-manager";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Item values" };
 
 export default async function AdminItemValuesPage() {
+  await requireDeveloper("/admin/item-values");
   const [overrides, exported] = await Promise.all([
     api.adminItemValues(),
     api.adminItemValuesExport(),

@@ -2,6 +2,7 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { SearchBox } from "@/components/search-box";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Lookup" };
 
@@ -20,6 +21,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default async function AdminLookupPage({ searchParams }: { searchParams: SearchParams }) {
+  await requireDeveloper("/admin/lookup");
   const { q = "" } = await searchParams;
   const data = q ? await api.adminLookup(q) : null;
 

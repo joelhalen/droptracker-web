@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { AuditLogViewer } from "@/components/admin/audit-log";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Audit log" };
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ type SearchParams = Promise<{
 }>;
 
 export default async function AdminAuditPage({ searchParams }: { searchParams: SearchParams }) {
+  await requireDeveloper("/admin/audit");
   const { action = "", actor = "", group = "", q = "", page } = await searchParams;
   const pageNum = Math.max(1, Number(page) || 1);
 

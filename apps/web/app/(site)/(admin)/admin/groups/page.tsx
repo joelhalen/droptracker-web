@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { GroupPicker } from "@/components/admin/group-picker";
 import { GroupCompPanel } from "@/components/admin/group-comp-panel";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Groups" };
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = Promise<{ groupId?: string }>;
 
 export default async function AdminGroupsPage({ searchParams }: { searchParams: SearchParams }) {
+  await requireSuperadmin("/admin/groups");
   const { groupId: rawId } = await searchParams;
   const groupId = rawId ? Number(rawId) : NaN;
   const hasGroup = Number.isFinite(groupId) && groupId > 0;

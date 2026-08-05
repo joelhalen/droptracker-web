@@ -1,7 +1,8 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { ADMIN_SECTIONS } from "@/lib/admin-nav";
+import { requireDeveloper } from "@/lib/auth";
+import { sectionsForRole, type AdminRole } from "@/lib/admin-nav";
 import { formatRelativeTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Site admin" };
@@ -70,9 +71,13 @@ const SERVICE_DOT: Record<string, string> = {
   unknown: "bg-osrs-parchment-dark/40",
 };
 
-/** Compact health strip: is anything on fire? Everything links to its page. */
-async function SystemHealth() {
-  const [services, backups] = await Promise.allSettled([api.adminServices(), api.adminBackups()]);
+/** Compact health strip: is anything on fire? Everything links to its page.
+ *  Developers get the service dots only — backups are superadmin surface. */
+async function SystemHealth({ role }: { role: AdminRole }) {
+  const [services, backups] = await Promise.allSettled([
+    api.adminServices(),
+    role === "superadmin" ? api.adminBackups() : Promise.reject(new Error("developer")),
+  ]);
 
   return (
     <div className="border-osrs-bronze/20 flex flex-wrap items-center gap-x-6 gap-y-2 rounded border px-4 py-3 text-sm">
@@ -97,9 +102,11 @@ async function SystemHealth() {
         <span className="text-osrs-parchment-dark/50">Service status unavailable</span>
       )}
 
-      <span className="border-osrs-bronze/30 hidden h-4 border-l sm:inline-block" aria-hidden />
+      {role === "superadmin" && (
+        <span className="border-osrs-bronze/30 hidden h-4 border-l sm:inline-block" aria-hidden />
+      )}
 
-      {backups.status === "fulfilled" ? (
+      {role !== "superadmin" ? null : backups.status === "fulfilled" ? (
         <Link href={"/admin/backups" as Route} className="flex items-center gap-1.5">
           {backups.value.running ? (
             <span className="text-osrs-gold">● Backup running…</span>
@@ -121,18 +128,20 @@ async function SystemHealth() {
   );
 }
 
-export default function SuperadminOverview() {
+export default async function AdminOverview() {
+  const user = await requireDeveloper("/admin");
+  const role: AdminRole = user.is_superadmin ? "superadmin" : "developer";
   return (
     <div className="space-y-8">
       <section>
         <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">At a glance</h2>
         <div className="space-y-4">
-          <SystemHealth />
+          <SystemHealth role={role} />
           <KpiGrid />
         </div>
       </section>
 
-      {ADMIN_SECTIONS.map((section) => (
+      {sectionsForRole(role).map((section) => (
         <section key={section.label}>
           <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
             {section.label}

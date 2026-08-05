@@ -18,17 +18,17 @@ export async function searchUsers(
   }));
 }
 
-/** Server Action: grant/revoke moderator on a user (also toggles the
+/** Server Action: grant/revoke developer on a user (also toggles the
  * profile badge server-side). Superadmin only. */
-export async function setUserModerator(
+export async function setUserDeveloper(
   userId: number,
   grant: boolean,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await requireSuperadmin("/admin/users");
   try {
-    await api.adminSetUserModerator(userId, grant);
+    await api.adminSetUserDeveloper(userId, grant);
   } catch (e) {
-    return { ok: false, error: (e as Error).message || "Failed to update moderator access." };
+    return { ok: false, error: (e as Error).message || "Failed to update developer access." };
   }
   revalidatePath("/admin/users");
   return { ok: true };

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { ProjectDetail } from "@/components/admin/project-detail";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Project" };
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 type Params = Promise<{ projectId: string }>;
 
 export default async function AdminProjectDetailPage({ params }: { params: Params }) {
+  await requireDeveloper("/admin/projects/[projectId]");
   const { projectId } = await params;
   const id = Number(projectId);
   if (!Number.isInteger(id) || id < 1) notFound();

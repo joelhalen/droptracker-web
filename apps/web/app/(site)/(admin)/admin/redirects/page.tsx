@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { RedirectsManager } from "@/components/admin/redirects-manager";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Redirects" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminRedirectsPage() {
+  await requireSuperadmin("/admin/redirects");
   const redirects = await api.adminRedirects();
 
   return (

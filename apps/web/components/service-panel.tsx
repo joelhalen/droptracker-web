@@ -62,7 +62,15 @@ const btn = "rounded px-2.5 py-1 text-xs font-medium transition-colors disabled:
 
 /* --- main panel ------------------------------------------------------------- */
 
-export function ServicePanel({ services: initial }: { services: ServiceStatus[] }) {
+export function ServicePanel({
+  services: initial,
+  canControl = true,
+}: {
+  services: ServiceStatus[];
+  /** False for developers: status/vitals only — no systemctl actions, no
+   *  journalctl logs (both superadmin-gated server-side). */
+  canControl?: boolean;
+}) {
   const [services, setServices] = useState(initial);
   const [updatedAt, setUpdatedAt] = useState(() => Date.now());
   const [busy, setBusy] = useState<string | null>(null);
@@ -156,6 +164,7 @@ export function ServicePanel({ services: initial }: { services: ServiceStatus[] 
                   onAct={act}
                   onConfirm={setConfirming}
                   onLogs={() => setLogsUnit(s.unit)}
+                  canControl={canControl}
                 />
               ))}
             </ul>
@@ -178,6 +187,7 @@ function ServiceRow({
   onAct,
   onConfirm,
   onLogs,
+  canControl,
 }: {
   s: ServiceStatus;
   busy: string | null;
@@ -186,6 +196,7 @@ function ServiceRow({
   onAct: (unit: string, action: "start" | "stop" | "restart", confirm?: boolean) => void;
   onConfirm: (key: string | null) => void;
   onLogs: () => void;
+  canControl: boolean;
 }) {
   const meta = STATUS_META[s.status];
   const uptime = formatUptime(s.since);
@@ -238,7 +249,8 @@ function ServiceRow({
         )}
       </div>
 
-      {/* Actions */}
+      {/* Actions (superadmin only — developers get a read-only board) */}
+      {canControl && (
       <div className="flex shrink-0 items-center gap-1.5">
         {s.kind === "deploy" ? (
           <button
@@ -311,6 +323,7 @@ function ServiceRow({
           Logs
         </button>
       </div>
+      )}
     </li>
   );
 }

@@ -380,7 +380,7 @@ export function mockMe(): Me {
     display_name: "MockUser",
     avatar_url: null,
     is_superadmin: true,
-    is_moderator: true,
+    is_developer: true,
     is_supporter: true,
     players: [
       { id: 1337, name: "Zezima", global_rank: 1, total_loot: money(2_000_000_000) },

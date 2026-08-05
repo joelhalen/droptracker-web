@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { ProjectTrackerList } from "@/components/admin/project-tracker-list";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Project tracker" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminProjectsPage() {
+  await requireDeveloper("/admin/projects");
   const projects = await api.adminDevProjects();
 
   return (

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { StatusManager } from "@/components/admin/status-manager";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Status & issues" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminStatusPage() {
+  await requireDeveloper("/admin/status");
   const [summary, categories] = await Promise.all([api.statusSummary(), api.adminStatusIssues()]);
 
   return (

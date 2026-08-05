@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { NitroBoostsManager } from "@/components/admin/nitro-boosts-manager";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Nitro boosts" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminNitroBoostsPage() {
+  await requireSuperadmin("/admin/nitro-boosts");
   const data = await api.adminNitroBoosts();
 
   return (

@@ -104,6 +104,11 @@ const nextConfig: NextConfig = {
     // `/groups/playthegame` as its canonical URL for crawlers, the same as
     // every other id link the app and the Discord bot hand out.
     return [
+      // The /moderation panel merged into the role-aware /admin shell (web87a);
+      // its three tools exist at the same slugs under /admin.
+      { source: "/moderation", destination: "/admin", permanent: true },
+      { source: "/moderation/:path*", destination: "/admin/:path*", permanent: true },
+
       // Leaderboards
       { source: "/leaderboard", destination: "/leaderboards", permanent: true },
       { source: "/players/ranks", destination: "/leaderboards", permanent: true },

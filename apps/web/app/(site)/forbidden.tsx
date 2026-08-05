@@ -4,7 +4,7 @@
  * 403 interrupt boundary (web57a): rendered when a server guard calls
  * `forbidden()` — a signed-in user without the role a subtree requires.
  * Client component so the copy can be tailored to the requested path
- * (staff area vs moderation vs a specific group's admin panel).
+ * (staff area vs a specific group's admin panel).
  */
 import { usePathname } from "next/navigation";
 import { AccessDenied } from "@/components/access-denied";
@@ -18,14 +18,7 @@ function forbiddenCopy(pathname: string): {
     return {
       title: "Staff only",
       message:
-        "The admin control panel is restricted to DropTracker site staff, and your account doesn't have staff access. If you're looking for your clan's settings, head to your group's admin panel instead.",
-    };
-  }
-  if (pathname.startsWith("/moderation")) {
-    return {
-      title: "Moderators only",
-      message:
-        "The moderation panel is restricted to site moderators, and your account doesn't have moderator access.",
+        "The admin control panel is restricted to DropTracker site staff (superadmins, and developers for the diagnostic pages), and your account doesn't have the required access. If you're looking for your clan's settings, head to your group's admin panel instead.",
     };
   }
   const groupAdmin = pathname.match(/^\/groups\/(\d+)\//);

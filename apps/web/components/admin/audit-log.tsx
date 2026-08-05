@@ -140,7 +140,17 @@ export function AuditLogViewer({
                       {formatRelativeTime(entry.created_at)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2">{actorLabel(entry.actor)}</td>
-                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">{entry.action}</td>
+                    <td className="whitespace-nowrap px-3 py-2 font-mono text-xs">
+                      {entry.action}
+                      {entry.redacted && (
+                        <span
+                          className="bg-osrs-bronze/25 text-osrs-parchment-dark/70 ml-2 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide"
+                          title="This action's before/after payload is withheld for developer viewers."
+                        >
+                          redacted
+                        </span>
+                      )}
+                    </td>
                     <td className="max-w-xs truncate px-3 py-2">{entry.target ?? "—"}</td>
                     <td className="whitespace-nowrap px-3 py-2 tabular-nums">{entry.group_id ?? "—"}</td>
                   </tr>

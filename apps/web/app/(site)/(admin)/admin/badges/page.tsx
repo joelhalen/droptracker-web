@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { BadgeManager } from "@/components/admin/badge-manager";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Badges" };
 
 export default async function AdminBadgesPage() {
+  await requireSuperadmin("/admin/badges");
   const badges = await api.adminBadges();
 
   return (

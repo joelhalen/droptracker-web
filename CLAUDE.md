@@ -45,11 +45,13 @@ scripts/deploy.sh     Blue-green production deploy
 - `(admin)` — group admin under `/groups/[id]/…` (`settings`, `members`,
   `admin`, `authorized`, `announcements`, `events[/eventId[/discord]]`,
   `event-managers`, `embeds`, `points[/manage]`, `submissions`, `subscription`,
-  `diagnostics`) + `/groups/new` wizard; `/moderation/*` for moderators; and
-  superadmin `/admin/*` (events, event-limits, event-types, groups, users,
-  audit, data, logs, announcements, docs, discord, services, lookup, tiers,
-  badges, backups, b2, subscriptions, tickets, task-library, item-values,
-  personal-bests, redirects, boardgame-shop)
+  `diagnostics`) + `/groups/new` wizard; and the staff `/admin/*` shell
+  (web87a: developers see the diagnostic subset — audit, data (read-only),
+  logs, lookup, services status, status, projects, task-library, item-values,
+  personal-bests — while superadmins additionally get events, event-limits,
+  event-types, groups, users, announcements, docs, discord, tiers, badges,
+  backups, b2, subscriptions, tickets, redirects, boardgame-shop, plus
+  service control and data editing)
 - `app/middleware.ts` — Edge middleware resolving **DB-backed redirects** ahead
   of routing, via the cached `/api/redirects` handler (it cannot import
   `lib/api` or touch the DB). Static legacy 301s in `next.config.ts` are the
@@ -76,7 +78,7 @@ scripts/deploy.sh     Blue-green production deploy
 | `apps/web/lib/api.ts` | The BFF client — ~285 `api.*()` methods (≈140 KB; schemas + helpers above, the `api` object from ~L799), forwards the `dt_session` cookie, Zod-parses responses, mock fallback |
 | `apps/web/lib/env.ts` | All server-side env reads (documented inline — read it before adding a var) |
 | `apps/web/lib/session.ts` | OAuth state HMAC + session cookie set/clear; exports `SESSION_COOKIE` |
-| `apps/web/lib/auth.ts` | `getUser`/`requireUser`/`requireSuperadmin`/`requireModerator`/`requireGroupAdminPage` + pure `groupRole`/`canAdminGroup`/`canManageEvents` |
+| `apps/web/lib/auth.ts` | `getUser`/`requireUser`/`requireSuperadmin`/`requireDeveloper`/`requireGroupAdminPage` + pure `groupRole`/`canAdminGroup`/`canManageEvents` |
 | `apps/web/lib/activity/` | Activity-only client: `discord-sdk.ts`, `auth-context.tsx`, `data-context.tsx`, `api.ts` (client-side, Zod-parsed), `nav.tsx` |
 | `apps/web/lib/use-event-stream.ts` | SSE client hook (reconnect + Zod validation) |
 | `apps/web/lib/events.ts`, `loot-sweep*.ts` | Pure event/board shaping logic — unit-tested, keep logic here not in components |

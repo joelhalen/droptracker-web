@@ -3,6 +3,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { EventTemplatesManager } from "@/components/event-templates-manager";
 import { EmptyState } from "@/components/ui";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Events" };
 
@@ -18,6 +19,7 @@ const STATUS_CHIP: Record<string, string> = {
 };
 
 export default async function AdminEventsPage() {
+  await requireSuperadmin("/admin/events");
   // Authed list: as a superadmin this includes every draft (group + global).
   const [events, templates] = await Promise.all([
     api.eventsForAdmin({}),

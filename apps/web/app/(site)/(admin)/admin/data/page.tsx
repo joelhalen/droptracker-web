@@ -2,6 +2,7 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { ADMIN_DATA_ENTITIES, api, type AdminDataEntity } from "@/lib/api";
 import { DataBrowser } from "@/components/admin/data-browser";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Data viewer" };
 export const dynamic = "force-dynamic";
@@ -14,20 +15,30 @@ const ENTITY_LABELS: Record<AdminDataEntity, string> = {
   users: "Users",
   group_configurations: "Group configs",
   subscription_tiers: "Tiers",
-  group_subscriptions: "Subscriptions",
+  group_subscriptions: "Group subs",
+  user_subscriptions: "User subs",
   audit_log: "Audit log",
   announcements: "Announcements",
   notification_queue: "Notif. queue",
   discord_outbox: "Discord outbox",
 };
 
+// Mirrors the backend registry's developer_readable flags (admin_registry.py):
+// developers browse these read-only; everything else is superadmin-only.
+const DEVELOPER_ENTITIES = ["players", "groups"] as const satisfies readonly AdminDataEntity[];
+
 function isEntity(v: string | undefined): v is AdminDataEntity {
   return !!v && (ADMIN_DATA_ENTITIES as readonly string[]).includes(v);
 }
 
 export default async function AdminDataPage({ searchParams }: { searchParams: SearchParams }) {
+  const user = await requireDeveloper("/admin/data");
+  const entities = user.is_superadmin ? ADMIN_DATA_ENTITIES : DEVELOPER_ENTITIES;
   const { entity: rawEntity, q = "", page = "1" } = await searchParams;
-  const entity: AdminDataEntity = isEntity(rawEntity) ? rawEntity : ADMIN_DATA_ENTITIES[0];
+  const requested: AdminDataEntity = isEntity(rawEntity) ? rawEntity : entities[0];
+  const entity: AdminDataEntity = (entities as readonly AdminDataEntity[]).includes(requested)
+    ? requested
+    : entities[0];
   const pageNum = Math.max(1, Number(page) || 1);
 
   let data: Awaited<ReturnType<typeof api.adminDataList>> | null = null;
@@ -41,12 +52,13 @@ export default async function AdminDataPage({ searchParams }: { searchParams: Se
   return (
     <div className="space-y-6">
       <p className="text-osrs-parchment-dark/70 text-sm">
-        Browse and edit a curated set of tables. Only whitelisted, non-sensitive fields are editable;
-        every change is recorded in the audit log.
+        {user.is_superadmin
+          ? "Browse and edit a curated set of tables. Only whitelisted, non-sensitive fields are editable; every change is recorded in the audit log."
+          : "Browse a curated, read-only set of tables. Entities carrying PII or billing data are superadmin-only."}
       </p>
 
       <nav className="border-osrs-bronze/30 flex flex-wrap gap-1 border-b pb-2 text-sm">
-        {ADMIN_DATA_ENTITIES.map((e) => {
+        {entities.map((e) => {
           const active = e === entity;
           return (
             <Link

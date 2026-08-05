@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { TaskLibraryManager } from "@/components/admin/task-library-manager";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Task library" };
 
@@ -9,6 +10,7 @@ export const metadata: Metadata = { title: "Task library" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminTaskLibraryPage() {
+  await requireDeveloper("/admin/task-library");
   // Superadmin listing includes every row — public and all groups' private.
   const initial = await api.eventTaskLibrary({}).catch(() => []);
   return <TaskLibraryManager initial={initial} />;

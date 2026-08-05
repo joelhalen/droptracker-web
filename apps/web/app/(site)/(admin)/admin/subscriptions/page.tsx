@@ -9,6 +9,7 @@ import type { AdminPaymentRow, AdminSubscriptionRow } from "@droptracker/api-typ
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { Badge, EmptyState, SubscriptionStatusBadge, TierBadge } from "@/components/ui";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Subscriptions & revenue" };
 export const dynamic = "force-dynamic";
@@ -169,6 +170,7 @@ function PaymentsTable({ rows }: { rows: AdminPaymentRow[] }) {
 }
 
 export default async function AdminSubscriptionsPage() {
+  await requireSuperadmin("/admin/subscriptions");
   const data = await api.adminSubscriptionsOverview();
   const { kpis } = data;
   const live = data.subscriptions.filter((s) => s.live);

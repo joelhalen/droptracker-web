@@ -5,6 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { orAccessDenied } from "@/lib/fetch";
 import { EventDiscordSettings } from "@/components/event-discord";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Event Discord settings" };
 
@@ -14,6 +15,7 @@ type Params = Promise<{ eventId: string }>;
 // /admin layout gates the subtree). Group events are configured on their
 // group's page, which superadmins can open for any group — redirect there.
 export default async function AdminEventDiscordPage({ params }: { params: Params }) {
+  await requireSuperadmin("/admin/events/[eventId]/discord");
   const { eventId } = await params;
   const evId = Number(eventId);
   if (!Number.isFinite(evId)) notFound();

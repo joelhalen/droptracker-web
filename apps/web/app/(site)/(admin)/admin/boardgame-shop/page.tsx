@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { ShopCatalogManager } from "@/components/admin/shop-catalog-manager";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Board-game shop" };
 
 export default async function AdminBoardgameShopPage() {
+  await requireSuperadmin("/admin/boardgame-shop");
   const items = await api.adminShopItems();
 
   return (

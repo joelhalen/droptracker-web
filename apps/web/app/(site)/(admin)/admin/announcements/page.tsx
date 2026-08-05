@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { AnnouncementComposer } from "@/components/announcement-composer";
 import { AnnouncementList } from "@/components/announcement-list";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Global news" };
 
 export default async function AdminAnnouncementsPage() {
+  await requireSuperadmin("/admin/announcements");
   const existing = await api.announcements("global");
 
   return (

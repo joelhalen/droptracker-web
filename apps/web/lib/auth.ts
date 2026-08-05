@@ -7,7 +7,7 @@
  *  - `requireUser` (personal pages — dashboard, settings, tickets): signing in
  *    always suffices, so it redirects straight into Discord OAuth and returns
  *    here — no interstitial worth showing.
- *  - `requireSuperadmin` / `requireModerator` (role-gated subtrees): signing
+ *  - `requireSuperadmin` / `requireDeveloper` (role-gated subtrees): signing
  *    in may NOT suffice, so these throw `unauthorized()` / `forbidden()`
  *    instead — rendering the (site) interrupt boundaries with an explanation
  *    (and a sign-in button on the 401 side) rather than silently bouncing
@@ -40,11 +40,13 @@ export async function requireSuperadmin(_returnTo?: string): Promise<Me> {
   return user;
 }
 
-/** Require moderator-or-superadmin; same rejection shape as requireSuperadmin. */
-export async function requireModerator(_returnTo?: string): Promise<Me> {
+/** Require developer-or-superadmin; same rejection shape as requireSuperadmin.
+ *  Gates the shared /admin shell — superadmin-only pages inside it re-assert
+ *  `requireSuperadmin` themselves (the layout gate alone is not enough). */
+export async function requireDeveloper(_returnTo?: string): Promise<Me> {
   const user = await getUser();
   if (!user) unauthorized();
-  if (!user.is_moderator && !user.is_superadmin) forbidden();
+  if (!user.is_developer && !user.is_superadmin) forbidden();
   return user;
 }
 

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { PbBlockManager } from "@/components/admin/pb-block-manager";
+import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Personal bests" };
 
 export default async function AdminPersonalBestsPage() {
+  await requireDeveloper("/admin/personal-bests");
   const data = await api.adminPbBlocks();
 
   return (

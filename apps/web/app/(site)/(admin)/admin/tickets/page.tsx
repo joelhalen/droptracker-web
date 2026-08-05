@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { StatTile } from "@/components/ui";
 import { AdminTicketTable } from "@/components/admin/ticket-table";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Tickets · Admin" };
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = Promise<{ status?: string; type?: string; q?: string; page?: string }>;
 
 export default async function AdminTicketsPage({ searchParams }: { searchParams: SearchParams }) {
+  await requireSuperadmin("/admin/tickets");
   const { status = "", type = "", q = "", page } = await searchParams;
   const pageNum = Math.max(1, Number(page) || 1);
   const data = await api.adminTickets({

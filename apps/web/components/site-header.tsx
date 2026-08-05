@@ -22,7 +22,7 @@ import type { Me } from "@droptracker/api-types";
 import { useMe } from "@/lib/use-me";
 import { HeaderNav, type NavTab } from "@/components/tab-nav";
 import { ThemeMenu } from "@/components/theme";
-import { ModeratorBadge, NameTile, SuperadminBadge } from "@/components/ui";
+import { DeveloperBadge, NameTile, SuperadminBadge } from "@/components/ui";
 
 /** Groups the user can administrate — shown in the account menus. */
 function adminGroups(me: Me) {
@@ -85,21 +85,18 @@ function AccountLinks({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
         </>
       )}
 
-      {(me.is_superadmin || me.is_moderator) && (
+      {(me.is_superadmin || me.is_developer) && (
         <>
           <div className="border-osrs-bronze/25 mx-2 my-1.5 border-t" />
-          {me.is_superadmin && (
+          {me.is_superadmin ? (
             <Link href="/admin" className={`${MENU_ITEM_CLASS} text-osrs-red`} onClick={onNavigate}>
               <span aria-hidden>⚔</span> Admin CP
             </Link>
+          ) : (
+            <Link href="/admin" className={`${MENU_ITEM_CLASS} text-sky-300`} onClick={onNavigate}>
+              <span aria-hidden>🛠</span> Developer CP
+            </Link>
           )}
-          <Link
-            href={"/moderation" as Route}
-            className={`${MENU_ITEM_CLASS} text-sky-300`}
-            onClick={onNavigate}
-          >
-            <span aria-hidden>🛡</span> Moderation
-          </Link>
         </>
       )}
 
@@ -189,8 +186,8 @@ function UserMenu({ me }: { me: Me }) {
               <div className="text-osrs-parchment-dark/60 text-xs">
                 {me.is_superadmin ? (
                   <SuperadminBadge />
-                ) : me.is_moderator ? (
-                  <ModeratorBadge />
+                ) : me.is_developer ? (
+                  <DeveloperBadge />
                 ) : (
                   "Signed in via Discord"
                 )}
@@ -313,7 +310,7 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
                   {me.display_name ?? "My account"}
                 </span>
                 {me.is_superadmin && <SuperadminBadge />}
-                {!me.is_superadmin && me.is_moderator && <ModeratorBadge />}
+                {!me.is_superadmin && me.is_developer && <DeveloperBadge />}
               </div>
               <AccountLinks me={me} onNavigate={() => setMobileOpen(false)} />
             </>

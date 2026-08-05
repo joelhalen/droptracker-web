@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ServiceActionSchema, type ServiceAction } from "@droptracker/api-types";
 import { api } from "@/lib/api";
-import { requireSuperadmin } from "@/lib/auth";
+import { requireDeveloper, requireSuperadmin } from "@/lib/auth";
 
 /** Server Action: start/stop/restart a backend service unit. Superadmin only. */
 export async function runServiceAction(
@@ -30,7 +30,7 @@ export async function fetchServiceLogs(unit: string, lines = 200) {
 
 /** Server Action: re-poll live unit statuses (drives the panel's auto-refresh). */
 export async function refreshServices() {
-  await requireSuperadmin("/admin/services");
+  await requireDeveloper("/admin/services");
   return api.adminServices();
 }
 

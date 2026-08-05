@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { EventRateLimitsManager } from "@/components/admin/event-rate-limits-manager";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Event limits" };
 
 export default async function AdminEventLimitsPage() {
+  await requireSuperadmin("/admin/event-limits");
   const [tiers, types, limits] = await Promise.all([
     // include_free surfaces the $0 fallback tier so non-premium groups get a
     // configurable trial row at the top of the matrix.

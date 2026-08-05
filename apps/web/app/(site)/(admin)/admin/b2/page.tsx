@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { B2UsagePanel } from "@/components/admin/b2-usage-panel";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "B2 usage" };
 
@@ -8,6 +9,7 @@ export const metadata: Metadata = { title: "B2 usage" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminB2Page() {
+  await requireSuperadmin("/admin/b2");
   let usage = null;
   let error: string | null = null;
   try {

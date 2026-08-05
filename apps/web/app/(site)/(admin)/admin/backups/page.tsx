@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { BackupPanel } from "@/components/admin/backup-panel";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Backups" };
 
 export default async function AdminBackupsPage() {
+  await requireSuperadmin("/admin/backups");
   const overview = await api.adminBackups();
 
   return (

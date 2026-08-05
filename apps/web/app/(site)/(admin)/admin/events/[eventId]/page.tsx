@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { orAccessDenied } from "@/lib/fetch";
 import { EventManager } from "@/components/event-manager";
+import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Manage event" };
 
@@ -12,6 +13,7 @@ type Params = Promise<{ eventId: string }>;
 // /admin layout gates the subtree). Group events are managed on their group's
 // page, which superadmins can open for any group — redirect there.
 export default async function AdminManageEventPage({ params }: { params: Params }) {
+  await requireSuperadmin("/admin/events/[eventId]");
   const { eventId } = await params;
   const evId = Number(eventId);
   if (!Number.isFinite(evId)) notFound();

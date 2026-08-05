@@ -2,19 +2,16 @@
 
 /**
  * 401 interrupt boundary (web57a): rendered when a server guard calls
- * `unauthorized()` — a signed-out visitor on a role-gated subtree (/admin,
- * /moderation). Client component so it can read the requested path and build
- * a sign-in link that round-trips straight back to it.
+ * `unauthorized()` — a signed-out visitor on a role-gated subtree (/admin).
+ * Client component so it can read the requested path and build a sign-in
+ * link that round-trips straight back to it.
  */
 import { usePathname } from "next/navigation";
 import { AccessDenied } from "@/components/access-denied";
 
 function contextNote(pathname: string): string | null {
   if (pathname.startsWith("/admin")) {
-    return "Heads up: this area is restricted to DropTracker site staff, so you'll also need a staff account.";
-  }
-  if (pathname.startsWith("/moderation")) {
-    return "Heads up: this area is restricted to site moderators, so you'll also need a moderator account.";
+    return "Heads up: this area is restricted to DropTracker site staff (superadmins and developers), so you'll also need a staff account.";
   }
   return null;
 }
