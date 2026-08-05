@@ -373,6 +373,7 @@ import {
   mockEventLootSweep,
   mockEventLootSweepReceipts,
   mockEvents,
+  mockEventsMine,
   mockEventTaskLibrary,
   mockEventTemplates,
   mockEventTemplateDetail,
@@ -942,6 +943,21 @@ export const api = {
     return withFallback(
       async () => EventSummarySchema.array().parse(await apiGet(`/events?${q}`, { authed: true })),
       () => mockEvents(params.groupId, params.status),
+    );
+  },
+
+  /** The viewer's clan events (GET /events?mine=true): events of every group
+   * the session user belongs to or administers, plus clan-vs-clan events those
+   * groups accepted as opponents. Anonymous callers get []. Authed + uncached
+   * (viewer-specific). Powers the /events glow buttons. */
+  async eventsMine(
+    params: { status?: "draft" | "active" | "past" } = {},
+  ): Promise<EventSummary[]> {
+    const q = new URLSearchParams({ mine: "true" });
+    if (params.status) q.set("status", params.status);
+    return withFallback(
+      async () => EventSummarySchema.array().parse(await apiGet(`/events?${q}`, { authed: true })),
+      () => mockEventsMine(params.status),
     );
   },
 

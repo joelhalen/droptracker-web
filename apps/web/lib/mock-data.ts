@@ -1696,8 +1696,29 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
       activated_at: now - 2 * DAY,
       ...eventDefaults,
     },
+    {
+      id: 5,
+      group_id: groupId ?? 101,
+      name: "Autumn Ladder",
+      description: "A ranked ladder of weekly boss targets — sign up before kickoff.",
+      status: "draft",
+      starts_at: now + 4 * DAY,
+      ends_at: now + 18 * DAY,
+      has_bingo: false,
+      kind: "standard" as const,
+      activated_at: null,
+      ...eventDefaults,
+    },
   ];
   return all.filter((e) => (status ? e.status === status : true));
+}
+
+/** Mock "mine" scope (GET /events?mine=true): the viewer's clan events —
+ * two live, one upcoming draft, one past — so mock mode exercises every
+ * glow-button state (multiple live, upcoming fallback, past excluded). */
+export function mockEventsMine(status?: string): EventSummary[] {
+  const MINE_IDS = new Set([1, 3, 5, 2]);
+  return mockEvents(undefined, status).filter((e) => MINE_IDS.has(e.id));
 }
 
 export function mockEvent(id: number): EventDetail {
