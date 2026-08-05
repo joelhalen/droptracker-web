@@ -25,7 +25,6 @@ test("mockEventsMine honors the status filter", () => {
 
 function ev(over: Partial<EventSummary> & { id: number }): EventSummary {
   return EventSummarySchema.parse({
-    id: over.id,
     group_id: 101,
     name: `Event ${over.id}`,
     status: "active",

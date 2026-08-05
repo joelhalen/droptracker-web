@@ -3,6 +3,8 @@ import Link from "next/link";
 import type { EventSummary } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
+import { pickYourEventButtons } from "@/lib/events";
+import { EventLiveButtons } from "@/components/event-live-buttons";
 import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
 import { EventWindow } from "@/components/local-time";
 
@@ -15,14 +17,16 @@ export const metadata: Metadata = {
 
 export default async function EventsPage() {
   const user = await getUser().catch(() => null);
-  const [active, past, upcoming, recruiting] = await Promise.all([
+  const [active, past, upcoming, recruiting, mine] = await Promise.all([
     api.events({ status: "active" }),
     api.events({ status: "past" }),
     // Drafts the signed-in viewer may see: events of clans they belong to
     // (pre-publication landing) plus drafts they administer.
     user ? api.eventsForAdmin({ status: "draft" }).catch(() => []) : Promise.resolve([]),
     user ? api.eventRecruiting().catch(() => []) : Promise.resolve([]),
+    user ? api.eventsMine().catch(() => []) : Promise.resolve([]),
   ]);
+  const yourEventButtons = pickYourEventButtons(mine);
 
   return (
     <div className="space-y-10">
@@ -48,6 +52,7 @@ export default async function EventsPage() {
       {upcoming.length > 0 && (
         <EventSection title="Upcoming" events={upcoming} empty="" />
       )}
+      <EventLiveButtons events={yourEventButtons} />
       <EventSection title="Active" events={active} empty="No active events right now." />
       <EventSection title="Past" events={past} empty="No past events yet." />
     </div>

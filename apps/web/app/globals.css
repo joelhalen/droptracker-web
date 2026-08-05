@@ -318,6 +318,17 @@ h2 {
   border-color: color-mix(in srgb, var(--dt-gold) 45%, transparent) !important;
 }
 
+/* /events glow buttons: pulsing gold halo on the viewer's live events. */
+@keyframes event-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 14px 3px color-mix(in srgb, var(--dt-gold) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 22px 6px color-mix(in srgb, var(--dt-gold) 70%, transparent);
+  }
+}
+
 /*
  * Top-tier ("dragon") subscription flair: an ember gradient that sweeps across
  * the group name. Fixed colors (theme-independent), matching the flair palette
