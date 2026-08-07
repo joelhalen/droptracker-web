@@ -39,8 +39,22 @@ async function loadRules(origin: string): Promise<RedirectRule[]> {
   }
 }
 
+/** Tenant mini-sites domain; see next.config.ts. Empty = surface disabled. */
+const SITES_DOMAIN = process.env.SITES_DOMAIN ?? "";
+
+function isTenantHost(host: string | null): boolean {
+  if (!SITES_DOMAIN || !host) return false;
+  const bare = host.split(":")[0] ?? host;
+  return bare === SITES_DOMAIN || bare.endsWith("." + SITES_DOMAIN);
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname, search, origin } = req.nextUrl;
+
+  // Group mini-sites on *.SITES_DOMAIN: the DB redirect rules are configured
+  // for droptracker.io paths and are host-blind, so they must not fire on
+  // tenant hosts (a rule for /groups would hijack a group-site page slug).
+  if (isTenantHost(req.headers.get("host"))) return NextResponse.next();
 
   const rules = await loadRules(origin);
   if (rules.length === 0) return NextResponse.next();
