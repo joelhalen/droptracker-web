@@ -34,6 +34,10 @@ const SITES_HOST_RE = SITES_DOMAIN ? `(?:.+\\.)?${escapeRe(SITES_DOMAIN)}(?::\\d
 const TENANT_HOST = SITES_DOMAIN
   ? { type: "host" as const, value: `(?<sub>[^.]+)\\.${escapeRe(SITES_DOMAIN)}(?::\\d+)?` }
   : null;
+/** The bare apex — serves the tiny sites-landing page, not the app homepage. */
+const APEX_HOST = SITES_DOMAIN
+  ? { type: "host" as const, value: `${escapeRe(SITES_DOMAIN)}(?::\\d+)?` }
+  : null;
 
 /**
  * The static legacy-XenForo map below predates the tenant domain and is
@@ -102,6 +106,9 @@ const nextConfig: NextConfig = {
         // `/api/*` and dotted files fall through untouched (SSE stays
         // same-origin). robots/sitemap/favicon get explicit tenant handlers so
         // the system files never leak through from the main site.
+        ...(APEX_HOST
+          ? [{ source: "/", has: [APEX_HOST], destination: "/sites-landing" }]
+          : []),
         ...(TENANT_HOST
           ? [
               { source: "/", has: [TENANT_HOST], destination: "/sites/:sub" },
