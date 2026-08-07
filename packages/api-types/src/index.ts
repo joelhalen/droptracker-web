@@ -1414,6 +1414,13 @@ export type EmbedField = z.infer<typeof EmbedFieldSchema>;
 export const GroupEmbedSchema = z.object({
   embed_type: z.enum(EMBED_TYPES),
   title: z.string(),
+  /**
+   * Makes the title clickable. Discord renders titles as plain text, so a
+   * markdown link written into `title` shows its raw brackets — this is the
+   * only mechanism. Null keeps the wiki auto-link the backend applies when the
+   * title mentions {npc_name}/{item_name}.
+   */
+  url: z.string().nullable().default(null),
   description: z.string().default(""),
   /** Hex color like `#ffb83f`, or null for Discord's default. */
   color: z.string().nullable().default(null),
@@ -1439,6 +1446,7 @@ export type GroupEmbedsResponse = z.infer<typeof GroupEmbedsResponseSchema>;
 /** PUT body for saving a group's template for one embed type. */
 export const GroupEmbedInputSchema = z.object({
   title: z.string().min(1).max(255),
+  url: z.string().max(200).nullable().optional(),
   description: z.string().max(1000).default(""),
   color: z
     .string()

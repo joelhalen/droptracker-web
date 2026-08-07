@@ -20,6 +20,7 @@ import {
   resetGroupEmbedAction,
   saveGroupEmbedAction,
 } from "@/app/(site)/(admin)/groups/[id]/embeds/actions";
+import { flattenTitleMarkdown } from "@/lib/embeds";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
 
@@ -43,7 +44,8 @@ const PLUGIN_VERSION: PlaceholderDoc = {
 
 const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
   drop: [
-    { token: "{player_name}", help: "Player who received the drop", sample: "RuneLite Ron" },
+    { token: "{player_name}", help: "Player who received the drop (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who received the drop, with no profile link", sample: "RuneLite Ron" },
     { token: "{item_name}", help: "Item name (linked to the wiki)", sample: "Abyssal whip" },
     { token: "{item_id}", help: "OSRS item id (icon URLs)", sample: "4151" },
     { token: "{item_value}", help: "GE value of a single item", sample: "1,624,461" },
@@ -65,7 +67,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   clog: [
-    { token: "{player_name}", help: "Player who filled the log slot", sample: "RuneLite Ron" },
+    { token: "{player_name}", help: "Player who filled the log slot (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who filled the log slot, with no profile link", sample: "RuneLite Ron" },
     { token: "{item_name}", help: "New collection log item", sample: "Dragon warhammer" },
     { token: "{item_id}", help: "OSRS item id", sample: "13576" },
     { token: "{collection_name}", help: "Collection the item belongs to", sample: "Lizardman Shamans" },
@@ -77,7 +80,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   pb: [
-    { token: "{player_name}", help: "Player who set the personal best", sample: "RuneLite Ron" },
+    { token: "{player_name}", help: "Player who set the personal best (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who set the personal best, with no profile link", sample: "RuneLite Ron" },
     { token: "{npc_name}", help: "Boss / raid name", sample: "Theatre of Blood" },
     { token: "{npc_id}", help: "NPC id", sample: "10852" },
     { token: "{personal_best}", help: "New personal best time", sample: "14:23.4" },
@@ -90,7 +94,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   ca: [
-    { token: "{player_name}", help: "Player who completed the task", sample: "RuneLite Ron" },
+    { token: "{player_name}", help: "Player who completed the task (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who completed the task, with no profile link", sample: "RuneLite Ron" },
     { token: "{task_name}", help: "Combat achievement task", sample: "Perfect Zulrah" },
     { token: "{task_tier}", help: "Tier of the completed task", sample: "Elite" },
     { token: "{points_awarded}", help: "Points from this task", sample: "4" },
@@ -104,7 +109,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   pet: [
-    { token: "{player_name}", help: "Player who received the pet", sample: "RuneLite Ron" },
+    { token: "{player_name}", help: "Player who received the pet (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who received the pet, with no profile link", sample: "RuneLite Ron" },
     { token: "{pet_name}", help: "Pet name", sample: "Pet zilyana" },
     { token: "{source}", help: "Where the pet came from", sample: "Commander Zilyana" },
     { token: "{npc_name}", help: "NPC name", sample: "Commander Zilyana" },
@@ -116,7 +122,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   level_up: [
-    { token: "{player_name}", help: "Player who leveled up", sample: "RuneLite Ron" },
+    { token: "{player_name}", help: "Player who leveled up (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who leveled up, with no profile link", sample: "RuneLite Ron" },
     { token: "{skill_name}", help: "Skill that leveled", sample: "Slayer" },
     { token: "{skills_names}", help: "All skills that leveled (multi)", sample: "Slayer, Attack" },
     { token: "{skills_text}", help: "Formatted level-up summary", sample: "Slayer 99 (+1)" },
@@ -130,7 +137,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   quest: [
-    { token: "{player_name}", help: "Player who completed the quest", sample: "RuneLite Ron" },
+    { token: "{player_name}", help: "Player who completed the quest (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who completed the quest, with no profile link", sample: "RuneLite Ron" },
     { token: "{quest_name}", help: "Quest name", sample: "Desert Treasure II" },
     { token: "{quests_completed}", help: "Quests completed", sample: "158" },
     { token: "{total_quests}", help: "Total quests in the game", sample: "165" },
@@ -143,7 +151,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   death: [
-    { token: "{player_name}", help: "Player who died", sample: "RuneLite Ron" },
+    { token: "{player_name}", help: "Player who died (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who died, with no profile link", sample: "RuneLite Ron" },
     { token: "{source}", help: "What killed the player", sample: "Abyssal demon" },
     { token: "{killer}", help: "Alias for {source}", sample: "Abyssal demon" },
     { token: "{location}", help: "Where the death occurred", sample: "Catacombs of Kourend" },
@@ -153,7 +162,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   diary: [
-    { token: "{player_name}", help: "Player who completed the diary", sample: "RuneLite Ron" },
+    { token: "{player_name}", help: "Player who completed the diary (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who completed the diary, with no profile link", sample: "RuneLite Ron" },
     { token: "{diary_name}", help: "Achievement diary area", sample: "Kourend & Kebos" },
     { token: "{diary_tier}", help: "Tier completed", sample: "Elite" },
     { token: "{timestamp}", help: "Completion time", sample: "today" },
@@ -185,6 +195,7 @@ const TYPE_HELP: Record<EmbedType, string> = {
 type DraftField = { name: string; value: string; inline: boolean };
 type Draft = {
   title: string;
+  url: string;
   description: string;
   color: string; // "" = Discord default
   thumbnail: string;
@@ -195,6 +206,7 @@ type Draft = {
 
 const EMPTY_DRAFT: Draft = {
   title: "",
+  url: "",
   description: "",
   color: "#ffb83f",
   thumbnail: "",
@@ -207,6 +219,7 @@ function draftFrom(embed: GroupEmbed | null | undefined): Draft {
   if (!embed) return { ...EMPTY_DRAFT, fields: [] };
   return {
     title: embed.title,
+    url: embed.url ?? "",
     description: embed.description,
     color: embed.color ?? "",
     thumbnail: embed.thumbnail ?? "",
@@ -219,6 +232,7 @@ function draftFrom(embed: GroupEmbed | null | undefined): Draft {
 function toInput(draft: Draft): GroupEmbedInput {
   return {
     title: draft.title.trim(),
+    url: draft.url.trim() || null,
     description: draft.description,
     color: /^#[0-9a-fA-F]{6}$/.test(draft.color) ? draft.color : null,
     thumbnail: draft.thumbnail.trim() || null,
@@ -278,6 +292,30 @@ function formatInline(text: string, keyPrefix: string): React.ReactNode[] {
       );
     return <span key={key}>{part}</span>;
   });
+}
+
+/**
+ * Title preview: plain text, because that is all Discord renders. Placeholder
+ * tokens are still chipped — that shows what gets substituted, it does not
+ * claim markdown support. `url` (not markdown) is what colours it as a link.
+ */
+function PreviewTitle({ text, url }: { text: string; url: string }) {
+  const parts = flattenTitleMarkdown(text)
+    .split(/(\{[a-z_]+\})/g)
+    .filter(Boolean);
+  return (
+    <span className={url.trim() ? "text-[#00a8fc] hover:underline" : ""}>
+      {parts.map((part, i) =>
+        /^\{[a-z_]+\}$/.test(part) ? (
+          <span key={i} className="rounded bg-[#5865f2]/30 px-0.5 text-[#c9cdfb]">
+            {part}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </span>
+  );
 }
 
 function PreviewText({ text, className = "" }: { text: string; className?: string }) {
@@ -341,7 +379,7 @@ function DiscordPreview({
               <div className="min-w-0 grow">
                 {draft.title.trim() && (
                   <div className="text-[15px] font-semibold text-white">
-                    <PreviewText text={sub(draft.title)} />
+                    <PreviewTitle text={sub(draft.title)} url={draft.url} />
                   </div>
                 )}
                 {draft.description.trim() && (
@@ -532,6 +570,30 @@ export function EmbedEditor({
               className={`${fieldInputClass} w-full`}
               placeholder="{item_name} — new drop!"
             />
+            <p className="text-osrs-parchment-dark/50 mt-1 text-xs">
+              Discord shows titles as <strong>plain text</strong> — markdown does not render here.
+              Use the link field below to make the title clickable, and put bold, code and links in
+              the description or a field instead.
+            </p>
+          </div>
+
+          <div>
+            <label className="text-osrs-parchment mb-1 block text-sm font-medium">
+              Title link
+              <span className="text-osrs-parchment-dark/50 ml-2 text-xs font-normal">optional</span>
+            </label>
+            <input
+              type="text"
+              value={draft.url}
+              maxLength={200}
+              onChange={(e) => update({ url: e.target.value })}
+              className={`${fieldInputClass} w-full`}
+              placeholder="https://www.droptracker.io/npcs/{npc_id}"
+            />
+            <p className="text-osrs-parchment-dark/50 mt-1 text-xs">
+              Makes the whole title clickable. Placeholders work here too. Leave blank and titles
+              containing {"{npc_name}"} or {"{item_name}"} keep linking to the OSRS Wiki.
+            </p>
           </div>
 
           <div>

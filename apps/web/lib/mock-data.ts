@@ -1249,7 +1249,11 @@ export function mockGroupEmbeds(): GroupEmbedsResponse {
         embed_type === "drop"
           ? {
               embed_type,
+              // Titles are plain text in Discord; `url` is what links them, and
+              // markdown belongs in the description/fields. Keep the mocks
+              // demonstrating that, since they double as the worked example.
               title: "{item_name} — nice drop!",
+              url: "https://www.droptracker.io/items/{item_id}",
               description: "**{player_name}** just received **{item_name}** from {npc_name}!",
               color: "#ffb83f",
               thumbnail: "https://static.runelite.net/cache/item/icon/{item_id}.png",
@@ -1263,8 +1267,9 @@ export function mockGroupEmbeds(): GroupEmbedsResponse {
           : null,
       default: {
         embed_type,
-        title: "{player_name} — new {item_name}",
-        description: "Default DropTracker notification.",
+        title: "{item_name}",
+        url: null,
+        description: "Default DropTracker notification for {player_name}.",
         color: "#7a5a32",
         thumbnail: null,
         image: null,
