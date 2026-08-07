@@ -93,7 +93,49 @@ export default async function TenantSiteLayout({
 
   const { sub } = await params;
   const site = await loadSite(sub);
-  if (!site) notFound();
+
+  // Unknown subdomain: render a branded "address available" landing rather
+  // than notFound() — throwing from this layout would bubble to the MAIN
+  // site's not-found page, whose chrome links don't exist on tenant hosts
+  // (every nav link would 404). generateMetadata already marks this noindex.
+  if (!site) {
+    return (
+      <div
+        style={sitePaletteStyle("dusk", undefined)}
+        className="bg-osrs-surface-0 text-osrs-parchment flex min-h-screen items-center justify-center p-8"
+      >
+        <div className="max-w-lg text-center">
+          <h1 className="text-osrs-gold font-display text-4xl font-bold">
+            {sub}.{SITES_DOMAIN}
+          </h1>
+          <p className="text-osrs-parchment-dark/90 mt-4 text-lg">
+            No clan has claimed this address yet.
+          </p>
+          <p className="text-osrs-parchment-dark/70 mt-2 text-sm">
+            Clan websites here are built with{" "}
+            <a className="text-osrs-gold underline" href="https://www.droptracker.io/">
+              DropTracker
+            </a>{" "}
+            — live loot, leaderboards and records, designed by the clan itself.
+          </p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href="https://www.droptracker.io/premium"
+              className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-5 py-2.5 font-medium transition-colors"
+            >
+              Claim it for your clan
+            </a>
+            <a
+              href={`https://${SITES_DOMAIN}/`}
+              className="border-osrs-bronze/60 hover:bg-osrs-bronze/30 rounded-lg border px-5 py-2.5 font-medium transition-colors"
+            >
+              About {SITES_DOMAIN}
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (site.status !== "ok") {
     const suspended = site.status === "suspended";
