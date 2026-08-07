@@ -307,6 +307,8 @@ import {
 import {
   SiteResolveSchema,
   SitePagePayloadSchema,
+  WomAchievementsPayloadSchema,
+  type WomAchievementsPayload,
   SiteAdminSchema,
   SiteMetaSchema,
   SitePageDetailSchema,
@@ -1017,6 +1019,14 @@ export const api = {
       token: string;
       site_url: string;
     };
+  },
+
+  /** Recent WOM group achievements (sites-v1 wom_achievements block).
+   *  Backend caches upstream 30 min; fails soft to an empty list. */
+  async womAchievements(groupId: number, limit = 10): Promise<WomAchievementsPayload> {
+    return WomAchievementsPayloadSchema.parse(
+      await apiGet(`/groups/${groupId}/wom-achievements?limit=${limit}`, { revalidate: 300 }),
+    );
   },
 
   /** Tenant mini-site shell for `{sub}.SITES_DOMAIN` (sites-v1). */

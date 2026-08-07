@@ -27,6 +27,7 @@ export const SITE_BLOCK_TYPES = [
   "buttons",
   "divider",
   "custom_html",
+  "wom_achievements",
 ] as const;
 export type SiteBlockType = (typeof SITE_BLOCK_TYPES)[number];
 
@@ -72,7 +73,7 @@ export const SiteBlockSchema = z.discriminatedUnion("type", [
     type: z.literal("leaderboard"),
     limit: z.number().int().min(5).max(25).catch(10),
   }),
-  z.object({ ...blockBase, type: z.literal("recap"), period: z.enum(["week", "month"]).catch("month") }),
+  z.object({ ...blockBase, type: z.literal("recap"), period: z.enum(["month", "year"]).catch("month") }),
   z.object({
     ...blockBase,
     type: z.literal("announcements"),
@@ -108,8 +109,27 @@ export const SiteBlockSchema = z.discriminatedUnion("type", [
     /** Author's original source; editor round-trip only. */
     source: z.string().max(64_000).optional(),
   }),
+  z.object({
+    ...blockBase,
+    type: z.literal("wom_achievements"),
+    limit: z.number().int().min(3).max(25).catch(10),
+  }),
 ]);
 export type SiteBlock = z.infer<typeof SiteBlockSchema>;
+
+/** `GET /groups/{id}/wom-achievements` — recent Wise Old Man group
+ *  achievements (names come pre-formatted from WOM, e.g. "500 Araxxor kills"). */
+export const WomAchievementSchema = z.object({
+  player_name: z.string(),
+  name: z.string(),
+  metric: z.string().catch(""),
+  created_at: z.string().catch(""),
+});
+export type WomAchievement = z.infer<typeof WomAchievementSchema>;
+export const WomAchievementsPayloadSchema = z.object({
+  items: z.array(WomAchievementSchema),
+});
+export type WomAchievementsPayload = z.infer<typeof WomAchievementsPayloadSchema>;
 
 export const SiteNavItemSchema = z.object({
   label: z.string().min(1).max(40),

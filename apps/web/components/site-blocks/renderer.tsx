@@ -14,9 +14,16 @@
  */
 import type { GroupProfile } from "@droptracker/api-types";
 import { SiteBlockSchema, type SiteBlock } from "@droptracker/api-types";
+import { api } from "@/lib/api";
+import { formatRelativeTime } from "@/lib/format";
 import { CountUp } from "@/components/count-up";
+import { LeaderboardTable } from "@/components/leaderboard-table";
+import { LiveDropTicker } from "@/components/live-drop-ticker";
+import { LootboardCanvas } from "@/components/lootboard-canvas";
 import { Markdown } from "@/components/markdown";
+import { PbBoards } from "@/components/pb-boards";
 import { BossActivityList, RecordsShowcase, TopPlayersList } from "@/components/profile-stats";
+import { RecapCard } from "@/components/recap-card";
 import { SubmissionList } from "@/components/submission-list";
 import { Card, EmptyState, StatTile } from "@/components/ui";
 
@@ -117,6 +124,94 @@ function ButtonsBlock({ block }: { block: Extract<SiteBlock, { type: "buttons" }
 
 const DIVIDER_SPACE = { sm: "py-2", md: "py-5", lg: "py-10" } as const;
 
+/* --- data blocks: async server components, each owns its fetch + fallback --- */
+
+async function LootboardBlock({ groupId, period }: { groupId: number; period: string }) {
+  const board = await api.lootboard(groupId, period).catch(() => null);
+  if (!board) return <EmptyState title="Lootboard unavailable" />;
+  return <LootboardCanvas board={board} />;
+}
+
+async function PbBoardBlock({ groupId, bossId }: { groupId: number; bossId?: number }) {
+  let npcId = bossId;
+  if (npcId == null) {
+    const index = await api.pbBosses(groupId).catch(() => null);
+    npcId = index?.bosses[0]?.npc_id;
+  }
+  const board = npcId != null ? await api.pbBoard(npcId, groupId).catch(() => null) : null;
+  if (!board) return <EmptyState title="No personal bests yet" />;
+  return <PbBoards board={board} />;
+}
+
+async function LeaderboardBlock({ groupId, limit }: { groupId: number; limit: number }) {
+  const scope = `group:${groupId}`;
+  const page = await api.playerLeaderboard({ scope, period: "month", limit }).catch(() => null);
+  if (!page || page.entries.length === 0) return <EmptyState title="No ranked players yet" />;
+  return <LeaderboardTable entries={page.entries.slice(0, limit)} scope={scope} kind="players" />;
+}
+
+async function RecapBlock({ groupId, period }: { groupId: number; period: string }) {
+  // "month"/"year" resolve to the newest frozen card via the recap index.
+  const index = await api.recapIndex("group", groupId).catch(() => null);
+  const match = index?.periods.find((p) => p.kind === period);
+  const recap = match
+    ? await api.recap("group", groupId, match.period).catch(() => null)
+    : null;
+  if (!recap) return <EmptyState title="No recap yet" hint="Recaps appear after the period ends." />;
+  return <RecapCard recap={recap} fluid />;
+}
+
+async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
+  const page = await api.announcements(`group:${groupId}`).catch(() => null);
+  const items = page?.items.slice(0, limit) ?? [];
+  if (items.length === 0) return <EmptyState title="No announcements yet" />;
+  return (
+    <ul className="space-y-4">
+      {items.map((a) => (
+        <li key={a.id} className="border-osrs-bronze/20 border-b pb-4 last:border-0 last:pb-0">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="text-osrs-gold-bright font-semibold">{a.title}</h3>
+            <span className="text-osrs-parchment-dark/60 text-xs">
+              {new Date(a.published_at * 1000).toLocaleDateString()}
+            </span>
+          </div>
+          <div className="mt-1 text-sm">
+            <Markdown>{a.body_md}</Markdown>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+async function WomAchievementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
+  const payload = await api.womAchievements(groupId, limit).catch(() => null);
+  const items = payload?.items ?? [];
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        title="No recent achievements"
+        hint="Achievements come from Wise Old Man once the group is linked."
+      />
+    );
+  }
+  return (
+    <ul className="divide-osrs-bronze/20 divide-y">
+      {items.map((a, i) => (
+        <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+          <div>
+            <span className="text-osrs-gold-bright font-medium">{a.player_name}</span>
+            <span className="text-osrs-parchment-dark/90 ml-2 text-sm">{a.name}</span>
+          </div>
+          <span className="text-osrs-parchment-dark/60 text-xs">
+            {a.created_at ? formatRelativeTime(new Date(a.created_at).getTime() / 1000) : ""}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function renderBlock(block: SiteBlock, group: GroupProfile) {
   switch (block.type) {
     case "hero":
@@ -203,14 +298,45 @@ function renderBlock(block: SiteBlock, group: GroupProfile) {
           dangerouslySetInnerHTML={{ __html: block.html }}
         />
       );
-    // Deferred v1 block types render nothing until their pass lands.
     case "lootboard":
+      return (
+        <Card>
+          <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Lootboard</h2>
+          <LootboardBlock groupId={group.id} period={block.period} />
+        </Card>
+      );
     case "pb_board":
+      return (
+        <Card>
+          <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Personal bests</h2>
+          <PbBoardBlock groupId={group.id} bossId={block.boss_id} />
+        </Card>
+      );
     case "leaderboard":
+      return (
+        <Card>
+          <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Monthly leaderboard</h2>
+          <LeaderboardBlock groupId={group.id} limit={block.limit} />
+        </Card>
+      );
     case "recap":
+      return <RecapBlock groupId={group.id} period={block.period} />;
     case "announcements":
+      return (
+        <Card>
+          <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Announcements</h2>
+          <AnnouncementsBlock groupId={group.id} limit={block.limit} />
+        </Card>
+      );
     case "live_ticker":
-      return null;
+      return <LiveDropTicker scope={`group:${group.id}`} />;
+    case "wom_achievements":
+      return (
+        <Card>
+          <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Recent achievements</h2>
+          <WomAchievementsBlock groupId={group.id} limit={block.limit} />
+        </Card>
+      );
     default:
       return null;
   }

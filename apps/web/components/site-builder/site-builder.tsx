@@ -56,6 +56,21 @@ const ADDABLE_BLOCKS: Array<{ type: string; label: string; make: () => Block }> 
     make: () => ({ type: "buttons", items: [{ label: "Join our Discord", href: "https://" }] }),
   },
   { type: "divider", label: "Divider", make: () => ({ type: "divider", size: "md", rule: true }) },
+  { type: "lootboard", label: "Lootboard", make: () => ({ type: "lootboard", period: "month" }) },
+  { type: "pb_board", label: "PB board", make: () => ({ type: "pb_board" }) },
+  { type: "leaderboard", label: "Leaderboard", make: () => ({ type: "leaderboard", limit: 10 }) },
+  { type: "recap", label: "Recap card", make: () => ({ type: "recap", period: "month" }) },
+  {
+    type: "announcements",
+    label: "Announcements",
+    make: () => ({ type: "announcements", limit: 3 }),
+  },
+  { type: "live_ticker", label: "Live ticker", make: () => ({ type: "live_ticker" }) },
+  {
+    type: "wom_achievements",
+    label: "WOM achievements",
+    make: () => ({ type: "wom_achievements", limit: 10 }),
+  },
   { type: "custom_html", label: "Custom HTML", make: () => ({ type: "custom_html", source: "", html: "" }) },
 ];
 
@@ -141,6 +156,9 @@ function BlockForm({ block, onChange }: { block: Block; onChange: (b: Block) => 
     case "top_players":
     case "recent_drops":
     case "boss_activity":
+    case "leaderboard":
+    case "announcements":
+    case "wom_achievements":
       return (
         <Field label="How many entries">
           <input
@@ -227,6 +245,46 @@ function BlockForm({ block, onChange }: { block: Block; onChange: (b: Block) => 
         </div>
       );
     }
+    case "lootboard":
+      return (
+        <Field label="Period">
+          <select
+            className={fieldInputClass}
+            value={(block.period as string) ?? "month"}
+            onChange={(e) => set("period", e.target.value)}
+          >
+            <option value="month">This month</option>
+            <option value="week">This week</option>
+            <option value="all">All time</option>
+          </select>
+        </Field>
+      );
+    case "recap":
+      return (
+        <Field label="Period">
+          <select
+            className={fieldInputClass}
+            value={(block.period as string) ?? "month"}
+            onChange={(e) => set("period", e.target.value)}
+          >
+            <option value="month">Latest monthly recap</option>
+            <option value="year">Latest yearly recap</option>
+          </select>
+        </Field>
+      );
+    case "pb_board":
+      return (
+        <Field label="Boss NPC id (blank = your most-contested boss)">
+          <input
+            type="number"
+            className={`${fieldInputClass} w-40`}
+            value={(block.boss_id as number) ?? ""}
+            onChange={(e) =>
+              set("boss_id", e.target.value === "" ? undefined : Number(e.target.value))
+            }
+          />
+        </Field>
+      );
     case "divider":
       return (
         <div className="flex items-center gap-4 text-sm">
