@@ -70,6 +70,7 @@ export async function updateSiteAction(
     palette?: Record<string, string>;
     nav?: Array<{ label: string; page_slug?: string; href?: string }>;
     custom_css_source?: string;
+    roster_public?: boolean;
   },
 ): Promise<SiteActionResult<SiteAdmin>> {
   try {

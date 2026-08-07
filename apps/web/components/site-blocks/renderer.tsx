@@ -184,6 +184,103 @@ async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: 
   );
 }
 
+async function MemberRosterBlock({ groupId, limit }: { groupId: number; limit: number }) {
+  const roster = await api.siteRoster(groupId, limit).catch(() => null);
+  if (!roster || roster.members.length === 0) {
+    return (
+      <EmptyState
+        title="Roster not available"
+        hint="The group can enable its public member list in the site settings."
+      />
+    );
+  }
+  return (
+    <div>
+      <ul className="grid gap-x-6 sm:grid-cols-2">
+        {roster.members.map((m) => (
+          <li
+            key={m.id}
+            className="border-osrs-bronze/15 flex items-baseline justify-between gap-3 border-b py-1.5"
+          >
+            <span className="font-medium">{m.name}</span>
+            <span className="text-osrs-gold-bright text-sm">
+              {m.monthly_loot.value > 0 ? `${m.monthly_loot.value_formatted} this month` : "—"}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {roster.total > roster.members.length && (
+        <p className="text-osrs-parchment-dark/60 mt-3 text-xs">
+          Showing {roster.members.length} of {roster.total} members.
+        </p>
+      )}
+    </div>
+  );
+}
+
+async function EventStandingsBlock({ groupId, eventId }: { groupId: number; eventId?: number }) {
+  let id = eventId;
+  let eventName: string | null = null;
+  if (id == null) {
+    const events = await api.events({ groupId, status: "active" }).catch(() => []);
+    id = events[0]?.id;
+    eventName = events[0]?.name ?? null;
+  } else {
+    eventName = (await api.event(id).catch(() => null))?.name ?? null;
+  }
+  const teams = id != null ? await api.eventTeams(id).catch(() => null) : null;
+  if (!teams || teams.teams.length === 0) {
+    return <EmptyState title="No event running" hint="Standings appear during events." />;
+  }
+  const sorted = [...teams.teams].sort((a, b) => b.score - a.score);
+  return (
+    <div>
+      {eventName && (
+        <p className="text-osrs-parchment-dark/80 mb-2 text-sm font-medium">{eventName}</p>
+      )}
+      <ul className="divide-osrs-bronze/20 divide-y">
+        {sorted.map((t, i) => (
+          <li key={t.id} className="flex items-center justify-between gap-3 py-2">
+            <span className="flex items-center gap-2.5">
+              <span className="text-osrs-parchment-dark/60 w-6 text-right text-sm">{i + 1}.</span>
+              <span
+                className="size-2.5 rounded-full"
+                style={{ background: t.color ?? "var(--dt-bronze)" }}
+              />
+              <span className="font-medium">{t.name}</span>
+              <span className="text-osrs-parchment-dark/50 text-xs">
+                {t.member_count} members
+              </span>
+            </span>
+            <span className="text-osrs-gold-bright font-semibold">
+              {t.score.toLocaleString()}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+async function NpcBoardBlock({
+  groupId,
+  npcId,
+  period,
+  limit,
+}: {
+  groupId: number;
+  npcId: number;
+  period: string;
+  limit: number;
+}) {
+  const scope = `group:${groupId}:npc:${npcId}`;
+  const page = await api.playerLeaderboard({ scope, period, limit }).catch(() => null);
+  if (!page || page.entries.length === 0) {
+    return <EmptyState title="No tracked kills yet" hint="Drops from this boss will rank here." />;
+  }
+  return <LeaderboardTable entries={page.entries.slice(0, limit)} scope={scope} kind="players" />;
+}
+
 async function WomAchievementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
   const payload = await api.womAchievements(groupId, limit).catch(() => null);
   const items = payload?.items ?? [];
@@ -335,6 +432,36 @@ function renderBlock(block: SiteBlock, group: GroupProfile) {
         <Card>
           <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Recent achievements</h2>
           <WomAchievementsBlock groupId={group.id} limit={block.limit} />
+        </Card>
+      );
+    case "member_roster":
+      return (
+        <Card>
+          <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Members</h2>
+          <MemberRosterBlock groupId={group.id} limit={block.limit} />
+        </Card>
+      );
+    case "event_standings":
+      return (
+        <Card>
+          <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Event standings</h2>
+          <EventStandingsBlock groupId={group.id} eventId={block.event_id} />
+        </Card>
+      );
+    case "npc_board":
+      return (
+        <Card>
+          <h2 className="text-osrs-gold mb-3 flex items-center gap-2 text-lg font-semibold">
+            {/* Plain <img>: NPC art off the same static tree as everything else. */}
+            <img src={`/img/npcdb/${block.npc_id}.png`} alt="" className="size-6" />
+            Boss leaderboard
+          </h2>
+          <NpcBoardBlock
+            groupId={group.id}
+            npcId={block.npc_id}
+            period={block.period}
+            limit={block.limit}
+          />
         </Card>
       );
     default:

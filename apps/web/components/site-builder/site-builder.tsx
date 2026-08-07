@@ -71,6 +71,17 @@ const ADDABLE_BLOCKS: Array<{ type: string; label: string; make: () => Block }> 
     label: "WOM achievements",
     make: () => ({ type: "wom_achievements", limit: 10 }),
   },
+  {
+    type: "member_roster",
+    label: "Member roster",
+    make: () => ({ type: "member_roster", limit: 25 }),
+  },
+  {
+    type: "event_standings",
+    label: "Event standings",
+    make: () => ({ type: "event_standings" }),
+  },
+  { type: "npc_board", label: "Boss board", make: () => ({ type: "npc_board", npc_id: 0, period: "month", limit: 10 }) },
   { type: "custom_html", label: "Custom HTML", make: () => ({ type: "custom_html", source: "", html: "" }) },
 ];
 
@@ -159,6 +170,7 @@ function BlockForm({ block, onChange }: { block: Block; onChange: (b: Block) => 
     case "leaderboard":
     case "announcements":
     case "wom_achievements":
+    case "member_roster":
       return (
         <Field label="How many entries">
           <input
@@ -285,6 +297,52 @@ function BlockForm({ block, onChange }: { block: Block; onChange: (b: Block) => 
           />
         </Field>
       );
+    case "event_standings":
+      return (
+        <Field label="Event id (blank = your newest active event)">
+          <input
+            type="number"
+            className={`${fieldInputClass} w-40`}
+            value={(block.event_id as number) ?? ""}
+            onChange={(e) =>
+              set("event_id", e.target.value === "" ? undefined : Number(e.target.value))
+            }
+          />
+        </Field>
+      );
+    case "npc_board":
+      return (
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Boss NPC id">
+            <input
+              type="number"
+              className={`${fieldInputClass} w-32`}
+              value={(block.npc_id as number) || ""}
+              onChange={(e) => set("npc_id", Number(e.target.value) || 0)}
+            />
+          </Field>
+          <Field label="Period">
+            <select
+              className={fieldInputClass}
+              value={(block.period as string) ?? "month"}
+              onChange={(e) => set("period", e.target.value)}
+            >
+              <option value="month">This month</option>
+              <option value="all">All time</option>
+            </select>
+          </Field>
+          <Field label="Entries">
+            <input
+              type="number"
+              className={`${fieldInputClass} w-24`}
+              min={3}
+              max={25}
+              value={(block.limit as number) ?? 10}
+              onChange={(e) => set("limit", Number(e.target.value))}
+            />
+          </Field>
+        </div>
+      );
     case "divider":
       return (
         <div className="flex items-center gap-4 text-sm">
@@ -365,6 +423,7 @@ export function SiteBuilder({
   const [themeKey, setThemeKey] = useState(initialSite?.theme_key ?? "dusk");
   const [palette, setPalette] = useState<Record<string, string>>(initialSite?.palette ?? {});
   const [css, setCss] = useState(initialSite?.custom_css_source ?? "");
+  const [rosterPublic, setRosterPublic] = useState(initialSite?.roster_public ?? false);
 
   // pages / editor
   const [editing, setEditing] = useState<SitePageDetail | null>(null);
@@ -530,6 +589,17 @@ export function SiteBuilder({
             reset colors
           </button>
         </div>
+        <label className="mt-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={rosterPublic}
+            onChange={(e) => setRosterPublic(e.target.checked)}
+          />
+          <span className="text-osrs-parchment-dark/80">
+            Public member roster — lets the &quot;Member roster&quot; block list your members
+            (hidden players are always excluded)
+          </span>
+        </label>
         <div className="mt-4">
           <Field label={`Custom CSS (advanced — max ${Math.floor(meta.limits.max_custom_css_bytes / 1024)} KB; validated on save)`}>
             <textarea
@@ -551,6 +621,7 @@ export function SiteBuilder({
                   theme_key: themeKey,
                   palette,
                   custom_css_source: css,
+                  roster_public: rosterPublic,
                 }),
               (s) => {
                 setSite(s);

@@ -28,6 +28,9 @@ export const SITE_BLOCK_TYPES = [
   "divider",
   "custom_html",
   "wom_achievements",
+  "member_roster",
+  "event_standings",
+  "npc_board",
 ] as const;
 export type SiteBlockType = (typeof SITE_BLOCK_TYPES)[number];
 
@@ -114,8 +117,38 @@ export const SiteBlockSchema = z.discriminatedUnion("type", [
     type: z.literal("wom_achievements"),
     limit: z.number().int().min(3).max(25).catch(10),
   }),
+  z.object({
+    ...blockBase,
+    type: z.literal("member_roster"),
+    limit: z.number().int().min(5).max(100).catch(25),
+  }),
+  z.object({
+    ...blockBase,
+    type: z.literal("event_standings"),
+    /** Absent = the group's newest active event. */
+    event_id: z.number().int().optional(),
+  }),
+  z.object({
+    ...blockBase,
+    type: z.literal("npc_board"),
+    npc_id: z.number().int(),
+    period: z.enum(["month", "all"]).catch("month"),
+    limit: z.number().int().min(3).max(25).catch(10),
+  }),
 ]);
 export type SiteBlock = z.infer<typeof SiteBlockSchema>;
+
+/** `GET /groups/{id}/site-roster` — opt-in public member roster. */
+export const SiteRosterMemberSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  monthly_loot: z.object({ value: z.number(), value_formatted: z.string() }).passthrough(),
+});
+export const SiteRosterPayloadSchema = z.object({
+  members: z.array(SiteRosterMemberSchema),
+  total: z.number().int(),
+});
+export type SiteRosterPayload = z.infer<typeof SiteRosterPayloadSchema>;
 
 /** `GET /groups/{id}/wom-achievements` — recent Wise Old Man group
  *  achievements (names come pre-formatted from WOM, e.g. "500 Araxxor kills"). */
@@ -190,6 +223,7 @@ export const SitePageDetailSchema = SitePageSummarySchema.extend({
 export type SitePageDetail = z.infer<typeof SitePageDetailSchema>;
 
 export const SiteAdminSchema = z.object({
+  roster_public: z.boolean().catch(false),
   site_id: z.number().int(),
   group_id: z.number().int(),
   subdomain: z.string(),

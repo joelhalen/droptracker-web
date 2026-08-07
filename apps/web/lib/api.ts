@@ -309,6 +309,8 @@ import {
   SitePagePayloadSchema,
   WomAchievementsPayloadSchema,
   type WomAchievementsPayload,
+  SiteRosterPayloadSchema,
+  type SiteRosterPayload,
   SiteAdminSchema,
   SiteMetaSchema,
   SitePageDetailSchema,
@@ -953,6 +955,7 @@ export const api = {
       palette?: Record<string, string>;
       nav?: Array<{ label: string; page_slug?: string; href?: string }>;
       custom_css_source?: string;
+      roster_public?: boolean;
     },
   ): Promise<SiteAdmin> {
     const raw = (await apiSend("PUT", `/groups/${groupId}/site`, input)) as { site: unknown };
@@ -1019,6 +1022,13 @@ export const api = {
       token: string;
       site_url: string;
     };
+  },
+
+  /** Opt-in public member roster (sites-v1 member_roster block). */
+  async siteRoster(groupId: number, limit = 25): Promise<SiteRosterPayload> {
+    return SiteRosterPayloadSchema.parse(
+      await apiGet(`/groups/${groupId}/site-roster?limit=${limit}`, { revalidate: 300 }),
+    );
   },
 
   /** Recent WOM group achievements (sites-v1 wom_achievements block).
