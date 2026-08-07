@@ -149,3 +149,62 @@ export const SitePagePayloadSchema = z.object({
   published_at: z.string().nullable().optional(),
 });
 export type SitePagePayload = z.infer<typeof SitePagePayloadSchema>;
+
+// --- builder (admin) shapes -------------------------------------------------
+
+export const SitePageSummarySchema = z.object({
+  page_id: z.number().int(),
+  slug: z.string(),
+  title: z.string(),
+  position: z.number().int(),
+  published: z.boolean(),
+  has_draft_changes: z.boolean(),
+  updated_at: z.string().nullable(),
+  published_at: z.string().nullable(),
+});
+export type SitePageSummary = z.infer<typeof SitePageSummarySchema>;
+
+export const SitePageDetailSchema = SitePageSummarySchema.extend({
+  draft_blocks: z.array(z.record(z.string(), z.unknown())),
+});
+export type SitePageDetail = z.infer<typeof SitePageDetailSchema>;
+
+export const SiteAdminSchema = z.object({
+  site_id: z.number().int(),
+  group_id: z.number().int(),
+  subdomain: z.string(),
+  theme_key: z.string(),
+  palette: z.record(z.string(), z.string()),
+  nav: z.array(SiteNavItemSchema),
+  custom_css_source: z.string(),
+  published: z.boolean(),
+  needs_review: z.boolean(),
+  suspended: z.boolean(),
+  suspend_reason: z.string().nullable(),
+  site_url: z.string(),
+  pages: z.array(SitePageSummarySchema),
+});
+export type SiteAdmin = z.infer<typeof SiteAdminSchema>;
+
+export const SiteMetaSchema = z.object({
+  block_types: z.array(z.string()),
+  theme_keys: z.array(z.string()),
+  palette_keys: z.array(z.string()),
+  limits: z.object({
+    max_pages: z.number().int(),
+    max_blocks_per_page: z.number().int(),
+    max_custom_html_blocks_per_page: z.number().int(),
+    max_custom_html_bytes: z.number().int(),
+    max_custom_css_bytes: z.number().int(),
+    max_nav_items: z.number().int(),
+  }),
+  reserved_subdomains: z.array(z.string()),
+  schema_version: z.number().int(),
+  tos_version: z.string(),
+  sites_domain: z.string().catch(""),
+});
+export type SiteMeta = z.infer<typeof SiteMetaSchema>;
+
+/** Client-side mirror of the backend claim rules (server re-validates). */
+export const SITE_SUBDOMAIN_RE = /^[a-z0-9]([a-z0-9-]{1,28})[a-z0-9]$/;
+export const SITE_PAGE_SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/;

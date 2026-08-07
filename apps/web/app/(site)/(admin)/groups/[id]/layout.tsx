@@ -64,6 +64,11 @@ export default async function GroupAdminLayout({
           label: "Embeds",
           locked: !hasEntitlement(subscription, "custom_embeds", { isSuperadmin: user.is_superadmin }),
         },
+        {
+          href: `/groups/${groupId}/website`,
+          label: "Website",
+          locked: !hasEntitlement(subscription, "custom_site", { isSuperadmin: user.is_superadmin }),
+        },
         { href: `/groups/${groupId}/announcements`, label: "Announcements" },
         { href: `/groups/${groupId}/members`, label: "Members" },
         {
