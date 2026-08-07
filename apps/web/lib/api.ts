@@ -304,6 +304,12 @@ import {
   type RecapIndex,
   RecapIndexSchema,
 } from "@droptracker/api-types";
+import {
+  SiteResolveSchema,
+  SitePagePayloadSchema,
+  type SiteResolve,
+  type SitePagePayload,
+} from "@droptracker/api-types";
 import { env, SESSION_COOKIE } from "./env";
 import {
   DevNoteSchema,
@@ -422,6 +428,9 @@ type FetchOpts = {
    * screenshot, bypassing the viewer-visibility gate on the backend.
    */
   internalToken?: string;
+  /** Next cache tags — lets publish actions revalidateTag() a whole tenant
+   *  site (`site:{sub}`) without touching other groups' caches. */
+  tags?: string[];
 };
 
 /**
@@ -487,7 +496,10 @@ async function apiGet(path: string, opts: FetchOpts = {}): Promise<unknown> {
 
   const res = await fetch(url, {
     headers,
-    next: opts.revalidate != null ? { revalidate: opts.revalidate } : undefined,
+    next:
+      opts.revalidate != null || opts.tags
+        ? { revalidate: opts.revalidate, tags: opts.tags }
+        : undefined,
   });
 
   if (!res.ok) throw await apiError(res, path);
@@ -896,6 +908,32 @@ export const api = {
           await apiGet(`/players/${id}/loot${qs}`, { revalidate: allTime ? 300 : 60 }),
         ),
       () => mockPlayerLoot(id, partition),
+    );
+  },
+
+  /** Tenant mini-site shell for `{sub}.SITES_DOMAIN` (sites-v1). */
+  async siteResolve(sub: string): Promise<SiteResolve> {
+    return SiteResolveSchema.parse(
+      await apiGet(`/sites/resolve?host=${encodeURIComponent(sub)}`, {
+        revalidate: 60,
+        tags: [`site:${sub}`],
+      }),
+    );
+  },
+
+  /** One tenant page's stored blocks. With a preview token the backend
+   *  returns draft blocks; never cached (the token is single-purpose). */
+  async sitePage(
+    sub: string,
+    slug: string,
+    opts?: { previewToken?: string },
+  ): Promise<SitePagePayload> {
+    const qs = opts?.previewToken ? `?preview=${encodeURIComponent(opts.previewToken)}` : "";
+    return SitePagePayloadSchema.parse(
+      await apiGet(
+        `/sites/${encodeURIComponent(sub)}/pages/${encodeURIComponent(slug)}${qs}`,
+        opts?.previewToken ? {} : { revalidate: 60, tags: [`site:${sub}`] },
+      ),
     );
   },
 

@@ -4993,3 +4993,6 @@ export type RecapIndex = z.infer<typeof RecapIndexSchema>;
 export * from "./group-config";
 export * from "./entitlements";
 export * from "./tier-flair";
+
+// Group mini-sites (sites-v1)
+export * from "./sites";
