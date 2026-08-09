@@ -39,8 +39,71 @@ async function loadRules(origin: string): Promise<RedirectRule[]> {
   }
 }
 
+/** Tenant mini-sites domain; see next.config.ts. Empty = surface disabled. */
+const SITES_DOMAIN = process.env.SITES_DOMAIN ?? "";
+
+/**
+ * CSP hash for the root layout's pre-paint theme script. It is emitted into
+ * statically-prerendered HTML, so it cannot carry a per-request nonce — and
+ * reading headers() in the root layout to nonce it would force the whole main
+ * site dynamic. A hash allows exactly that script and nothing else.
+ * Lazily computed from the real constant so it can never drift.
+ */
+import { THEME_INIT_SCRIPT } from "@/components/theme";
+let themeScriptHash: string | null = null;
+async function getThemeScriptHash(): Promise<string> {
+  if (themeScriptHash) return themeScriptHash;
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(THEME_INIT_SCRIPT),
+  );
+  themeScriptHash = btoa(String.fromCharCode(...new Uint8Array(digest)));
+  return themeScriptHash;
+}
+
+function isTenantHost(host: string | null): boolean {
+  if (!SITES_DOMAIN || !host) return false;
+  const bare = host.split(":")[0] ?? host;
+  return bare === SITES_DOMAIN || bare.endsWith("." + SITES_DOMAIN);
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname, search, origin } = req.nextUrl;
+
+  // Group mini-sites on *.SITES_DOMAIN: skip the (host-blind, droptracker.io
+  // -scoped) DB redirect rules entirely, and attach the tenant CSP. The nonce
+  // is set on the REQUEST CSP header so Next tags its own inline bootstrap
+  // scripts with it; the RESPONSE ships Report-Only until the policy has
+  // soaked on dev, then flips to enforcing via SITES_CSP_ENFORCE=1.
+  if (isTenantHost(req.headers.get("host"))) {
+    const nonce = btoa(crypto.randomUUID());
+    const themeHash = await getThemeScriptHash();
+    const csp = [
+      "default-src 'none'",
+      `script-src 'nonce-${nonce}' 'sha256-${themeHash}' 'strict-dynamic' 'self'`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https://www.droptracker.io https://videos.droptracker.io",
+      "media-src https://videos.droptracker.io",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "frame-src 'none'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'none'",
+      "frame-ancestors 'none'",
+      "upgrade-insecure-requests",
+    ].join("; ");
+    const reqHeaders = new Headers(req.headers);
+    reqHeaders.set("content-security-policy", csp);
+    reqHeaders.set("x-nonce", nonce);
+    const res = NextResponse.next({ request: { headers: reqHeaders } });
+    const enforce = process.env.SITES_CSP_ENFORCE === "1";
+    res.headers.set(
+      enforce ? "content-security-policy" : "content-security-policy-report-only",
+      csp,
+    );
+    return res;
+  }
 
   const rules = await loadRules(origin);
   if (rules.length === 0) return NextResponse.next();

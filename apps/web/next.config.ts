@@ -19,6 +19,40 @@ function xf(kind: string, action: string, destination: string, permanent = true)
   return refs.map((ref) => ({ source: `/${kind}/${ref}${action}`, destination, permanent }));
 }
 
+/**
+ * Tenant mini-sites domain (working name osrs.site). Group sites are served on
+ * `{sub}.${SITES_DOMAIN}` by the `app/sites/[sub]` tree via the host rewrites
+ * below. Unset = the tenant surface is disabled entirely (rewrites and
+ * redirect scoping become no-ops), so environments without the domain behave
+ * exactly as before.
+ */
+const SITES_DOMAIN = process.env.SITES_DOMAIN ?? "";
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Matches the apex or any subdomain of the sites domain (with optional :port). */
+const SITES_HOST_RE = SITES_DOMAIN ? `(?:.+\\.)?${escapeRe(SITES_DOMAIN)}(?::\\d+)?` : "";
+/** Captures the tenant label of `{sub}.${SITES_DOMAIN}` as :sub. */
+const TENANT_HOST = SITES_DOMAIN
+  ? { type: "host" as const, value: `(?<sub>[^.]+)\\.${escapeRe(SITES_DOMAIN)}(?::\\d+)?` }
+  : null;
+/** The bare apex — serves the tiny sites-landing page, not the app homepage. */
+const APEX_HOST = SITES_DOMAIN
+  ? { type: "host" as const, value: `${escapeRe(SITES_DOMAIN)}(?::\\d+)?` }
+  : null;
+
+/**
+ * The static legacy-XenForo map below predates the tenant domain and is
+ * host-agnostic — without scoping, `/groups`, `/players`, `/discord` etc.
+ * would fire on tenant hosts and hijack group-site page slugs. `missing`
+ * skips each rule when the request host is the sites domain.
+ */
+function scopeRedirectsToMainHosts(rules: Redirect[]): Redirect[] {
+  if (!SITES_HOST_RE) return rules;
+  return rules.map((r) => ({
+    ...r,
+    missing: [...(r.missing ?? []), { type: "host" as const, value: SITES_HOST_RE }],
+  }));
+}
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Lint is a CI/dev concern, not a build/deploy concern. `next build` runs its
@@ -67,6 +101,40 @@ const nextConfig: NextConfig = {
           has: [{ type: "host", value: "activity.droptracker.io" }],
           destination: "/activity",
         },
+        // Tenant mini-sites: `{sub}.${SITES_DOMAIN}` serves the app/sites tree.
+        // Page slugs are constrained to the site-page charset so `/_next/*`,
+        // `/api/*` and dotted files fall through untouched (SSE stays
+        // same-origin). robots/sitemap/favicon get explicit tenant handlers so
+        // the system files never leak through from the main site.
+        ...(APEX_HOST
+          ? [{ source: "/", has: [APEX_HOST], destination: "/sites-landing" }]
+          : []),
+        ...(TENANT_HOST
+          ? [
+              { source: "/", has: [TENANT_HOST], destination: "/sites/:sub" },
+              {
+                source: "/:pageSlug([a-z0-9-]{1,40})",
+                has: [TENANT_HOST],
+                destination: "/sites/:sub/:pageSlug",
+              },
+              {
+                source: "/__preview/:pageSlug([a-z0-9-]{1,40})",
+                has: [TENANT_HOST],
+                destination: "/sites/:sub/__preview/:pageSlug",
+              },
+              { source: "/robots.txt", has: [TENANT_HOST], destination: "/sites/:sub/robots.txt" },
+              {
+                source: "/sitemap.xml",
+                has: [TENANT_HOST],
+                destination: "/sites/:sub/sitemap.xml",
+              },
+              {
+                source: "/favicon.ico",
+                has: [TENANT_HOST],
+                destination: "/sites/:sub/favicon.ico",
+              },
+            ]
+          : []),
       ],
       afterFiles: [
         {
@@ -103,7 +171,7 @@ const nextConfig: NextConfig = {
     // time the profile loads). `/groups/176` then declares
     // `/groups/playthegame` as its canonical URL for crawlers, the same as
     // every other id link the app and the Discord bot hand out.
-    return [
+    return scopeRedirectsToMainHosts([
       // The /moderation panel merged into the role-aware /admin shell (web87a);
       // its three tools exist at the same slugs under /admin.
       { source: "/moderation", destination: "/admin", permanent: true },
@@ -198,7 +266,7 @@ const nextConfig: NextConfig = {
         destination: "https://runelite.net/plugin-hub/show/droptracker",
         permanent: true,
       },
-    ];
+    ]);
   },
 };
 

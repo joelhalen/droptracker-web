@@ -372,13 +372,15 @@ function TickerEntry({ e }: { e: FeedEntry }) {
   );
 }
 
-export function LiveDropTicker() {
+export function LiveDropTicker({ scope }: { scope?: string } = {}) {
   const [entries, setEntries] = useState<FeedEntry[]>([]);
 
   // Hydrate with recent history on mount so the ticker is never empty on
   // first paint — it doesn't have to wait for the next live event.
   useEffect(() => {
     let cancelled = false;
+    // Scoped tickers (group sites) have no history endpoint; live-only.
+    if (scope) return;
     fetch("/api/feed/recent")
       .then((res) => (res.ok ? res.json() : []))
       .then((events: Array<{ type?: string; data: Record<string, unknown> }>) => {
@@ -399,7 +401,7 @@ export function LiveDropTicker() {
     };
   }, []);
 
-  useEventStream(["feed"], (event) => {
+  useEventStream([scope ?? "feed"], (event) => {
     const entry = toFeedEntry(
       event.type,
       event.data,
