@@ -1079,6 +1079,7 @@ export function mockGroupSubscription(groupId: number): GroupSubscription {
       custom_embeds: true,
       video_submissions: true,
       custom_points: true,
+      custom_site: true,
     },
   };
 }

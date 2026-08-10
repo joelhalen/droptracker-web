@@ -399,7 +399,7 @@ export function LiveDropTicker({ scope }: { scope?: string } = {}) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [scope]);
 
   useEventStream([scope ?? "feed"], (event) => {
     const entry = toFeedEntry(
