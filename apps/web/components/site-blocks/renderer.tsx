@@ -16,6 +16,8 @@ import type { GroupProfile } from "@droptracker/api-types";
 import { SiteBlockSchema, type SiteBlock } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { formatRelativeTime } from "@/lib/format";
+import { resolveTokens, resolveTokensInHtml } from "@/lib/site-tokens";
+import { SiteRoster } from "@/components/site-roster";
 import { CountUp } from "@/components/count-up";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { LiveDropTicker } from "@/components/live-drop-ticker";
@@ -132,15 +134,53 @@ async function LootboardBlock({ groupId, period }: { groupId: number; period: st
   return <LootboardCanvas board={board} />;
 }
 
-async function PbBoardBlock({ groupId, bossId }: { groupId: number; bossId?: number }) {
-  let npcId = bossId;
-  if (npcId == null) {
+async function PbBoardBlock({
+  groupId,
+  selections,
+}: {
+  groupId: number;
+  /** Empty `team_sizes` on a selection = every size for that boss. */
+  selections: Array<{ npc_id: number; team_sizes: string[] }>;
+}) {
+  let picks = selections;
+  if (picks.length === 0) {
+    // Nothing chosen yet: fall back to the group's most-contested boss so the
+    // block is never blank on a fresh page.
     const index = await api.pbBosses(groupId).catch(() => null);
-    npcId = index?.bosses[0]?.npc_id;
+    const first = index?.bosses[0]?.npc_id;
+    if (first == null) return <EmptyState title="No personal bests yet" />;
+    picks = [{ npc_id: first, team_sizes: [] }];
   }
-  const board = npcId != null ? await api.pbBoard(npcId, groupId).catch(() => null) : null;
-  if (!board) return <EmptyState title="No personal bests yet" />;
-  return <PbBoards board={board} />;
+
+  const boards = (
+    await Promise.all(
+      picks.slice(0, 8).map(async (pick) => {
+        const board = await api.pbBoard(pick.npc_id, groupId).catch(() => null);
+        if (!board) return null;
+        if (pick.team_sizes.length === 0) return board;
+        const wanted = new Set(pick.team_sizes);
+        const filtered = board.boards.filter((b) => wanted.has(b.team_size));
+        return filtered.length > 0 ? { ...board, boards: filtered } : null;
+      }),
+    )
+  ).filter((b): b is NonNullable<typeof b> => b != null);
+
+  if (boards.length === 0) return <EmptyState title="No ranked times yet" />;
+  return (
+    <div className="space-y-6">
+      {boards.map((board) => (
+        <div key={board.npc_id}>
+          {boards.length > 1 && (
+            <h3 className="text-osrs-gold-bright mb-2 flex items-center gap-2 text-base font-semibold">
+              {board.icon_url && <img src={board.icon_url} alt="" className="size-5" />}
+              {board.name}
+            </h3>
+          )}
+          <PbBoards board={board} />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 async function LeaderboardBlock({ groupId, limit }: { groupId: number; limit: number }) {
@@ -184,8 +224,22 @@ async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: 
   );
 }
 
-async function MemberRosterBlock({ groupId, limit }: { groupId: number; limit: number }) {
-  const roster = await api.siteRoster(groupId, limit).catch(() => null);
+async function MemberRosterBlock({
+  groupId,
+  limit,
+  sort,
+  layout,
+  showRank,
+  sortable,
+}: {
+  groupId: number;
+  limit: number;
+  sort: "monthly" | "all_time" | "name";
+  layout: "cards" | "table";
+  showRank: boolean;
+  sortable: boolean;
+}) {
+  const roster = await api.siteRoster(groupId, limit, sort).catch(() => null);
   if (!roster || roster.members.length === 0) {
     return (
       <EmptyState
@@ -195,26 +249,14 @@ async function MemberRosterBlock({ groupId, limit }: { groupId: number; limit: n
     );
   }
   return (
-    <div>
-      <ul className="grid gap-x-6 sm:grid-cols-2">
-        {roster.members.map((m) => (
-          <li
-            key={m.id}
-            className="border-osrs-bronze/15 flex items-baseline justify-between gap-3 border-b py-1.5"
-          >
-            <span className="font-medium">{m.name}</span>
-            <span className="text-osrs-gold-bright text-sm">
-              {m.monthly_loot.value > 0 ? `${m.monthly_loot.value_formatted} this month` : "—"}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {roster.total > roster.members.length && (
-        <p className="text-osrs-parchment-dark/60 mt-3 text-xs">
-          Showing {roster.members.length} of {roster.total} members.
-        </p>
-      )}
-    </div>
+    <SiteRoster
+      members={roster.members}
+      total={roster.total}
+      initialSort={sort}
+      layout={layout}
+      showRank={showRank}
+      sortable={sortable}
+    />
   );
 }
 
@@ -316,7 +358,7 @@ function renderBlock(block: SiteBlock, group: GroupProfile) {
     case "markdown":
       return (
         <div className="max-w-3xl">
-          <Markdown>{block.body}</Markdown>
+          <Markdown>{resolveTokens(block.body, group)}</Markdown>
         </div>
       );
     case "stats_row":
@@ -392,7 +434,9 @@ function renderBlock(block: SiteBlock, group: GroupProfile) {
         <div
           className="site-custom-html max-w-none"
           // Server-sanitized at save time (nh3); never the raw source.
-          dangerouslySetInnerHTML={{ __html: block.html }}
+          // Tokens resolve here (values HTML-escaped) so hand-built pages can
+          // carry live group data without hard-coding figures.
+          dangerouslySetInnerHTML={{ __html: resolveTokensInHtml(block.html, group) }}
         />
       );
     case "lootboard":
@@ -406,7 +450,13 @@ function renderBlock(block: SiteBlock, group: GroupProfile) {
       return (
         <Card>
           <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Personal bests</h2>
-          <PbBoardBlock groupId={group.id} bossId={block.boss_id} />
+          <PbBoardBlock
+            groupId={group.id}
+            selections={
+              block.bosses?.map((b) => ({ npc_id: b.npc_id, team_sizes: b.team_sizes })) ??
+              (block.boss_id ? [{ npc_id: block.boss_id, team_sizes: [] }] : [])
+            }
+          />
         </Card>
       );
     case "leaderboard":
@@ -438,7 +488,14 @@ function renderBlock(block: SiteBlock, group: GroupProfile) {
       return (
         <Card>
           <h2 className="text-osrs-gold mb-3 text-lg font-semibold">Members</h2>
-          <MemberRosterBlock groupId={group.id} limit={block.limit} />
+          <MemberRosterBlock
+            groupId={group.id}
+            limit={block.limit}
+            sort={block.sort}
+            layout={block.layout}
+            showRank={block.show_rank}
+            sortable={block.sortable}
+          />
         </Card>
       );
     case "event_standings":
