@@ -97,6 +97,23 @@ async function assertCanManageEvent(groupId: EventGroupId) {
   return user;
 }
 
+/**
+ * Weaker gate for the read-only game-metadata lookups (item/NPC/pet search,
+ * name resolve, drop tables): with no group in context these also serve the
+ * developer-gated /eventprompt generator's embedded task form, so developers
+ * are allowed alongside superadmins. Mutating global-event actions stay on
+ * assertCanManageEvent (superadmin only).
+ */
+async function assertCanUseEventMeta(groupId: EventGroupId) {
+  if (groupId != null) return assertCanManageEvent(groupId);
+  const user = await getUser();
+  if (!user) throw new Error("Forbidden: sign in required.");
+  if (!user.is_superadmin && !user.is_developer) {
+    throw new Error("Forbidden: staff only.");
+  }
+  return user;
+}
+
 /** Where this event's admin surfaces live (group manager vs superadmin area). */
 function eventsIndexPath(groupId: EventGroupId): string {
   return groupId == null ? "/admin/events" : `/groups/${groupId}/events`;
@@ -644,32 +661,32 @@ export async function searchEventTaskLibrary(
 
 /** Item-name autocomplete for the task form. */
 export async function searchEventItems(groupId: EventGroupId, q: string) {
-  await assertCanManageEvent(groupId);
+  await assertCanUseEventMeta(groupId);
   return api.searchEventItems(q.trim());
 }
 
 /** NPC-name autocomplete for the task form. */
 export async function searchEventNpcs(groupId: EventGroupId, q: string) {
-  await assertCanManageEvent(groupId);
+  await assertCanUseEventMeta(groupId);
   return api.searchEventNpcs(q.trim());
 }
 
 /** Items on one NPC's drop table — the task form's boss-import helper. */
 export async function fetchNpcDropItems(groupId: EventGroupId, npcId: number) {
-  await assertCanManageEvent(groupId);
+  await assertCanUseEventMeta(groupId);
   return api.eventNpcDropItems(npcId);
 }
 
 /** Pet-name autocomplete for the task form's item-list "Pets" search tab. */
 export async function searchEventPets(groupId: EventGroupId, q: string) {
-  await assertCanManageEvent(groupId);
+  await assertCanUseEventMeta(groupId);
   return api.searchEventPets(q.trim());
 }
 
 /** Full pet taxonomy (category → member pets) — the task form's category
  * presets that seed/preview a customizable pet list. */
 export async function fetchEventPetCategories(groupId: EventGroupId) {
-  await assertCanManageEvent(groupId);
+  await assertCanUseEventMeta(groupId);
   return api.eventPetCategories();
 }
 
@@ -680,14 +697,14 @@ export async function resolveEventMetaNames(
   kind: "item" | "npc",
   names: string[],
 ) {
-  await assertCanManageEvent(groupId);
+  await assertCanUseEventMeta(groupId);
   return api.resolveEventMeta(kind, names);
 }
 
 /** NPC drop sources for item(s) — backs the task-form "restrict to specific
  * NPC sources" picker (an item task can require a drop from a chosen NPC). */
 export async function fetchItemSources(groupId: EventGroupId, names: string[]) {
-  await assertCanManageEvent(groupId);
+  await assertCanUseEventMeta(groupId);
   return api.itemSources(names);
 }
 

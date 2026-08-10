@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * AI event-task generation (temporary admin tool, superadmin-only).
+ * AI event-task generation (temporary staff tool — developer or superadmin).
  *
  * Turns a plain-English description ("a full set of Justiciar from ToB or a
  * ToB weapon") into a complete EventTaskInput by spawning a headless,
@@ -12,7 +12,7 @@
  */
 import { EventTaskInputSchema, type EventTaskInput } from "@droptracker/api-types";
 import { api } from "@/lib/api";
-import { requireSuperadmin } from "@/lib/auth";
+import { requireDeveloper } from "@/lib/auth";
 import { ClaudeCliError, runClaudeJson } from "@/lib/claude-cli";
 import {
   GENERATION_SCHEMA,
@@ -43,7 +43,7 @@ export type GeneratedTask = {
 export type GenerateResult = GeneratedTask | { ok: false; error: string };
 
 export async function generateEventTask(description: string): Promise<GenerateResult> {
-  await requireSuperadmin("/eventprompt");
+  await requireDeveloper("/eventprompt");
 
   const desc = (description ?? "").trim();
   if (desc.length < 5) return { ok: false, error: "Describe the task in a sentence or two." };
