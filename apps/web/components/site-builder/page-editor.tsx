@@ -169,9 +169,12 @@ export function PageEditor({
   meta,
   group,
   pageTitle,
+  pagePublished,
+  hasUnpublishedChanges,
   initialBlocks,
   saving,
   onSave,
+  onPublish,
   onClose,
   onDirtyChange,
 }: {
@@ -179,9 +182,14 @@ export function PageEditor({
   meta: SiteMeta;
   group: GroupProfile;
   pageTitle: string;
+  pagePublished: boolean;
+  /** Saved draft differs from the published copy (server-computed). */
+  hasUnpublishedChanges: boolean;
   initialBlocks: Block[];
   saving: boolean;
   onSave: (blocks: Block[]) => void;
+  /** Publish the SAVED draft (the shell saves first when dirty). */
+  onPublish: (blocks: Block[], dirty: boolean) => void;
   onClose: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -275,19 +283,39 @@ export function PageEditor({
       <div className="border-osrs-bronze/30 flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
         <div className="text-sm">
           <span className="text-osrs-gold font-semibold">Editing: {pageTitle}</span>
-          {dirty && <span className="text-osrs-ember ml-2 text-xs">unsaved changes</span>}
+          {dirty ? (
+            <span className="text-osrs-ember ml-2 text-xs">unsaved changes</span>
+          ) : hasUnpublishedChanges && pagePublished ? (
+            <span className="text-osrs-ember ml-2 text-xs">
+              saved draft not published yet
+            </span>
+          ) : !pagePublished ? (
+            <span className="text-osrs-parchment-dark/60 ml-2 text-xs">page is a draft</span>
+          ) : null}
         </div>
         <div className="flex gap-2">
           <button
             type="button"
             disabled={saving || !dirty}
-            className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             onClick={() => {
               onSave(blocks);
               setDirty(false);
             }}
           >
             {saving ? "Saving…" : "Save draft"}
+          </button>
+          <button
+            type="button"
+            disabled={saving || (!dirty && !hasUnpublishedChanges && pagePublished)}
+            title="Saves your draft (if needed) and puts it live"
+            className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            onClick={() => {
+              onPublish(blocks, dirty);
+              setDirty(false);
+            }}
+          >
+            {pagePublished ? "Save & publish" : "Publish page"}
           </button>
           <button
             type="button"

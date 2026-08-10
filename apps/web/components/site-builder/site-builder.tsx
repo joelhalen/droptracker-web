@@ -228,6 +228,8 @@ export function SiteBuilder({
           meta={meta}
           group={group}
           pageTitle={editing.title}
+          pagePublished={editing.published}
+          hasUnpublishedChanges={editing.has_draft_changes}
           initialBlocks={editing.draft_blocks as Block[]}
           saving={pending}
           onDirtyChange={setEditorDirty}
@@ -243,6 +245,33 @@ export function SiteBuilder({
                   ),
                 });
                 setNotice("Draft saved. Publish the page to put it live.");
+              },
+            )
+          }
+          onPublish={(blocks, dirty) =>
+            run(
+              async () => {
+                // Publish always publishes what the admin SEES: save the
+                // draft first when there are unsaved edits, then copy
+                // draft → published.
+                if (dirty) {
+                  const saved = await saveSitePageAction(groupId, editing.page_id, { blocks });
+                  if (!saved.ok) return saved;
+                }
+                return publishSitePageAction(groupId, editing.page_id, true, site.subdomain);
+              },
+              (updated) => {
+                setEditing({
+                  ...editing,
+                  draft_blocks: blocks,
+                  published: true,
+                  has_draft_changes: false,
+                });
+                setSite({
+                  ...site,
+                  pages: site.pages.map((x) => (x.page_id === updated.page_id ? updated : x)),
+                });
+                setNotice(`Published “${updated.title}” — live within a minute.`);
               },
             )
           }
