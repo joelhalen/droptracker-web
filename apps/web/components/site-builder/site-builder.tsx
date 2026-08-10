@@ -231,11 +231,16 @@ export function SiteBuilder({
           pagePublished={editing.published}
           hasUnpublishedChanges={editing.has_draft_changes}
           initialBlocks={editing.draft_blocks as Block[]}
+          initialPageCss={editing.custom_css_source ?? ""}
           saving={pending}
           onDirtyChange={setEditorDirty}
-          onSave={(blocks) =>
+          onSave={(blocks, pageCss) =>
             run(
-              () => saveSitePageAction(groupId, editing.page_id, { blocks }),
+              () =>
+                saveSitePageAction(groupId, editing.page_id, {
+                  blocks,
+                  custom_css_source: pageCss,
+                }),
               (page) => {
                 setEditing(page);
                 setSite({
@@ -248,14 +253,17 @@ export function SiteBuilder({
               },
             )
           }
-          onPublish={(blocks, dirty) =>
+          onPublish={(blocks, pageCss, dirty) =>
             run(
               async () => {
                 // Publish always publishes what the admin SEES: save the
                 // draft first when there are unsaved edits, then copy
                 // draft → published.
                 if (dirty) {
-                  const saved = await saveSitePageAction(groupId, editing.page_id, { blocks });
+                  const saved = await saveSitePageAction(groupId, editing.page_id, {
+                    blocks,
+                    custom_css_source: pageCss,
+                  });
                   if (!saved.ok) return saved;
                 }
                 return publishSitePageAction(groupId, editing.page_id, true, site.subdomain);

@@ -116,7 +116,11 @@ export async function loadSitePageAction(
 export async function saveSitePageAction(
   groupId: number,
   pageId: number,
-  input: { title?: string; blocks?: Array<Record<string, unknown>> },
+  input: {
+    title?: string;
+    blocks?: Array<Record<string, unknown>>;
+    custom_css_source?: string;
+  },
 ): Promise<SiteActionResult<SitePageDetail>> {
   try {
     const denied = await guard(groupId, true);

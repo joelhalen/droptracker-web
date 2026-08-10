@@ -33,6 +33,7 @@ export default async function TenantPreviewPage({
       <div className="border-osrs-gold/50 bg-osrs-surface-2 text-osrs-gold mb-6 rounded-lg border px-4 py-2 text-sm font-medium">
         Draft preview — this is not the published page.
       </div>
+      {page.custom_css ? <style dangerouslySetInnerHTML={{ __html: page.custom_css }} /> : null}
       <SiteBlockRenderer blocks={page.blocks} group={group} />
     </div>
   );

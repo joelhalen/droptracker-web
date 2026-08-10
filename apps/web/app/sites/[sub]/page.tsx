@@ -21,5 +21,11 @@ export default async function TenantHomePage({ params }: { params: Params }) {
   const page = await api.sitePage(sub, "home").catch(() => null);
   if (!page) notFound();
   const group = await api.group(page.group_id);
-  return <SiteBlockRenderer blocks={page.blocks} group={group} />;
+  return (
+    <>
+      {/* Page-scoped stylesheet: validated + #site-root-scoped server-side. */}
+      {page.custom_css ? <style dangerouslySetInnerHTML={{ __html: page.custom_css }} /> : null}
+      <SiteBlockRenderer blocks={page.blocks} group={group} />
+    </>
+  );
 }

@@ -979,7 +979,12 @@ export const api = {
   async updateSitePage(
     groupId: number,
     pageId: number,
-    input: { title?: string; position?: number; blocks?: Array<Record<string, unknown>> },
+    input: {
+      title?: string;
+      position?: number;
+      blocks?: Array<Record<string, unknown>>;
+      custom_css_source?: string;
+    },
   ): Promise<SitePageDetail> {
     const raw = (await apiSend("PUT", `/groups/${groupId}/site/pages/${pageId}`, input)) as {
       page: unknown;
@@ -1025,9 +1030,15 @@ export const api = {
   },
 
   /** Opt-in public member roster (sites-v1 member_roster block). */
-  async siteRoster(groupId: number, limit = 25): Promise<SiteRosterPayload> {
+  async siteRoster(
+    groupId: number,
+    limit = 25,
+    sort: "monthly" | "all_time" | "name" = "monthly",
+  ): Promise<SiteRosterPayload> {
     return SiteRosterPayloadSchema.parse(
-      await apiGet(`/groups/${groupId}/site-roster?limit=${limit}`, { revalidate: 300 }),
+      await apiGet(`/groups/${groupId}/site-roster?limit=${limit}&sort=${sort}`, {
+        revalidate: 300,
+      }),
     );
   },
 

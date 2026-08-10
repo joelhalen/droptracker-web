@@ -172,6 +172,7 @@ export function PageEditor({
   pagePublished,
   hasUnpublishedChanges,
   initialBlocks,
+  initialPageCss,
   saving,
   onSave,
   onPublish,
@@ -186,14 +187,16 @@ export function PageEditor({
   /** Saved draft differs from the published copy (server-computed). */
   hasUnpublishedChanges: boolean;
   initialBlocks: Block[];
+  initialPageCss: string;
   saving: boolean;
-  onSave: (blocks: Block[]) => void;
+  onSave: (blocks: Block[], pageCss: string) => void;
   /** Publish the SAVED draft (the shell saves first when dirty). */
-  onPublish: (blocks: Block[], dirty: boolean) => void;
+  onPublish: (blocks: Block[], pageCss: string, dirty: boolean) => void;
   onClose: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks);
+  const [pageCss, setPageCss] = useState(initialPageCss);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
   const [dragging, setDragging] = useState<{ label: string; fromCanvas: boolean } | null>(null);
@@ -204,9 +207,10 @@ export function PageEditor({
 
   useEffect(() => {
     setBlocks(initialBlocks);
+    setPageCss(initialPageCss);
     setSelectedId(null);
     setDirty(false);
-  }, [initialBlocks]);
+  }, [initialBlocks, initialPageCss]);
 
   useEffect(() => {
     onDirtyChange?.(dirty);
@@ -299,7 +303,7 @@ export function PageEditor({
             disabled={saving || !dirty}
             className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             onClick={() => {
-              onSave(blocks);
+              onSave(blocks, pageCss);
               setDirty(false);
             }}
           >
@@ -311,7 +315,7 @@ export function PageEditor({
             title="Saves your draft (if needed) and puts it live"
             className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             onClick={() => {
-              onPublish(blocks, dirty);
+              onPublish(blocks, pageCss, dirty);
               setDirty(false);
             }}
           >
@@ -436,6 +440,7 @@ export function PageEditor({
                   <div className="border-osrs-bronze/30 rounded-lg border p-3">
                     <BlockForm
                       block={selected}
+                      groupId={site.group_id}
                       onChange={(nb) =>
                         mutate(blocks.map((x) => ((x.id as string) === selectedId ? nb : x)))
                       }
@@ -466,6 +471,27 @@ export function PageEditor({
                   )}
                 </div>
               )}
+
+              {/* Page-scoped CSS — applies to THIS page only, on top of the
+                  site-wide sheet in Appearance. */}
+              <details className="border-osrs-bronze/30 rounded border p-2">
+                <summary className="text-osrs-parchment-dark/80 cursor-pointer text-xs font-medium">
+                  Page CSS {pageCss.trim() ? "(in use)" : "(optional)"}
+                </summary>
+                <p className="text-osrs-parchment-dark/60 mt-2 text-[11px]">
+                  Styles just this page, applied after your site-wide CSS. Saved
+                  with the draft and validated server-side.
+                </p>
+                <textarea
+                  className="border-osrs-bronze/50 bg-osrs-surface-2 text-osrs-parchment mt-2 min-h-28 w-full rounded border p-2 font-mono text-[11px]"
+                  value={pageCss}
+                  placeholder=".about-us .value-card { border-radius: 20px; }"
+                  onChange={(e) => {
+                    setPageCss(e.target.value);
+                    setDirty(true);
+                  }}
+                />
+              </details>
             </div>
           </div>
         </div>

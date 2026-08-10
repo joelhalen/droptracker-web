@@ -70,7 +70,23 @@ export const SiteBlockSchema = z.discriminatedUnion("type", [
     limit: z.number().int().min(3).max(25).catch(10),
   }),
   z.object({ ...blockBase, type: z.literal("lootboard"), period: z.string().max(16).catch("month") }),
-  z.object({ ...blockBase, type: z.literal("pb_board"), boss_id: z.number().int().optional() }),
+  z.object({
+    ...blockBase,
+    type: z.literal("pb_board"),
+    /** Legacy single-boss form; still honoured when `bosses` is absent. */
+    boss_id: z.number().int().optional(),
+    /** Chosen bosses; empty `team_sizes` on an entry = show every size. */
+    bosses: z
+      .array(
+        z.object({
+          npc_id: z.number().int(),
+          name: z.string().max(80).optional(),
+          team_sizes: z.array(z.string().max(16)).max(12).catch([]),
+        }),
+      )
+      .max(8)
+      .optional(),
+  }),
   z.object({
     ...blockBase,
     type: z.literal("leaderboard"),
@@ -121,6 +137,12 @@ export const SiteBlockSchema = z.discriminatedUnion("type", [
     ...blockBase,
     type: z.literal("member_roster"),
     limit: z.number().int().min(5).max(100).catch(25),
+    /** Initial ordering; visitors can re-sort client-side. */
+    sort: z.enum(["monthly", "all_time", "name"]).catch("monthly"),
+    layout: z.enum(["cards", "table"]).catch("cards"),
+    show_rank: z.boolean().catch(true),
+    /** Let visitors change the sort themselves. */
+    sortable: z.boolean().catch(true),
   }),
   z.object({
     ...blockBase,
@@ -139,14 +161,20 @@ export const SiteBlockSchema = z.discriminatedUnion("type", [
 export type SiteBlock = z.infer<typeof SiteBlockSchema>;
 
 /** `GET /groups/{id}/site-roster` — opt-in public member roster. */
+const MoneySchema = z.object({ value: z.number(), value_formatted: z.string() }).passthrough();
 export const SiteRosterMemberSchema = z.object({
   id: z.number().int(),
   name: z.string(),
-  monthly_loot: z.object({ value: z.number(), value_formatted: z.string() }).passthrough(),
+  /** Position by monthly GP, assigned before any display sort. */
+  rank: z.number().int().catch(0),
+  monthly_loot: MoneySchema,
+  all_time_loot: MoneySchema.optional(),
 });
+export type SiteRosterMember = z.infer<typeof SiteRosterMemberSchema>;
 export const SiteRosterPayloadSchema = z.object({
   members: z.array(SiteRosterMemberSchema),
   total: z.number().int(),
+  sort: z.string().catch("monthly"),
 });
 export type SiteRosterPayload = z.infer<typeof SiteRosterPayloadSchema>;
 
@@ -197,6 +225,8 @@ export const SitePagePayloadSchema = z.object({
   title: z.string(),
   group_id: z.number().int(),
   blocks: z.array(z.record(z.string(), z.unknown())),
+  /** Page-scoped stylesheet (validated + #site-root-scoped server-side). */
+  custom_css: z.string().catch(""),
   schema_version: z.number().int(),
   preview: z.boolean().catch(false),
   published_at: z.string().nullable().optional(),
@@ -212,6 +242,7 @@ export const SitePageSummarySchema = z.object({
   position: z.number().int(),
   published: z.boolean(),
   has_draft_changes: z.boolean(),
+  custom_css_source: z.string().catch(""),
   updated_at: z.string().nullable(),
   published_at: z.string().nullable(),
 });

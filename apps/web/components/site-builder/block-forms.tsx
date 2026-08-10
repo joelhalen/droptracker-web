@@ -6,6 +6,8 @@
  * canvas, palette panel and settings inspector can share one source of truth.
  */
 import { fieldInputClass } from "@/components/ui";
+import { SITE_TOKENS } from "@/lib/site-tokens";
+import { PbBossSelect } from "./pb-boss-select";
 
 export type Block = Record<string, unknown>;
 
@@ -58,7 +60,39 @@ export function newBlockId(): string {
   return `b${Date.now().toString(36)}${blockSeq}`;
 }
 
-export function BlockForm({ block, onChange }: { block: Block; onChange: (b: Block) => void }) {
+/** Collapsible list of the group-data placeholders authors can paste into
+ *  text and custom HTML. */
+function TokenReference() {
+  return (
+    <details className="border-osrs-bronze/30 mt-2 rounded border p-2">
+      <summary className="text-osrs-parchment-dark/80 cursor-pointer text-xs font-medium">
+        Insert live clan data ({SITE_TOKENS.length} placeholders)
+      </summary>
+      <p className="text-osrs-parchment-dark/60 mt-2 text-[11px]">
+        Paste any of these into your content and it is replaced with your
+        clan&apos;s live values when the page renders.
+      </p>
+      <ul className="mt-2 space-y-1">
+        {SITE_TOKENS.map((t) => (
+          <li key={t.token} className="flex items-baseline justify-between gap-2 text-[11px]">
+            <code className="text-osrs-gold-bright">{t.token}</code>
+            <span className="text-osrs-parchment-dark/60 text-right">{t.label}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+export function BlockForm({
+  block,
+  onChange,
+  groupId,
+}: {
+  block: Block;
+  onChange: (b: Block) => void;
+  groupId: number;
+}) {
   const set = (key: string, value: unknown) => onChange({ ...block, [key]: value });
   const type = block.type as string;
 
@@ -94,14 +128,17 @@ export function BlockForm({ block, onChange }: { block: Block; onChange: (b: Blo
       );
     case "markdown":
       return (
-        <Field label="Markdown">
-          <textarea
-            className={`${fieldInputClass} min-h-32 font-mono text-xs`}
-            value={(block.body as string) ?? ""}
-            maxLength={8000}
-            onChange={(e) => set("body", e.target.value)}
-          />
-        </Field>
+        <div>
+          <Field label="Markdown">
+            <textarea
+              className={`${fieldInputClass} min-h-32 font-mono text-xs`}
+              value={(block.body as string) ?? ""}
+              maxLength={8000}
+              onChange={(e) => set("body", e.target.value)}
+            />
+          </Field>
+          <TokenReference />
+        </div>
       );
     case "stats_row": {
       const chosen = new Set((block.stats as string[]) ?? []);
@@ -128,7 +165,6 @@ export function BlockForm({ block, onChange }: { block: Block; onChange: (b: Blo
     case "leaderboard":
     case "announcements":
     case "wom_achievements":
-    case "member_roster":
       return (
         <Field label="How many entries">
           <input
@@ -242,18 +278,74 @@ export function BlockForm({ block, onChange }: { block: Block; onChange: (b: Blo
           </select>
         </Field>
       );
-    case "pb_board":
+    case "pb_board": {
+      const selections =
+        (block.bosses as Array<{ npc_id: number; name?: string; team_sizes: string[] }>) ??
+        (block.boss_id ? [{ npc_id: block.boss_id as number, team_sizes: [] }] : []);
       return (
-        <Field label="Boss NPC id (blank = your most-contested boss)">
-          <input
-            type="number"
-            className={`${fieldInputClass} w-40`}
-            value={(block.boss_id as number) ?? ""}
-            onChange={(e) =>
-              set("boss_id", e.target.value === "" ? undefined : Number(e.target.value))
-            }
-          />
-        </Field>
+        <PbBossSelect
+          groupId={groupId}
+          value={selections}
+          onChange={(next) => onChange({ ...block, bosses: next, boss_id: undefined })}
+        />
+      );
+    }
+    case "member_roster":
+      return (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Members shown">
+              <input
+                type="number"
+                className={`${fieldInputClass} w-24`}
+                min={5}
+                max={100}
+                value={(block.limit as number) ?? 25}
+                onChange={(e) => set("limit", Number(e.target.value))}
+              />
+            </Field>
+            <Field label="Default sort">
+              <select
+                className={fieldInputClass}
+                value={(block.sort as string) ?? "monthly"}
+                onChange={(e) => set("sort", e.target.value)}
+              >
+                <option value="monthly">Loot this month</option>
+                <option value="all_time">Loot all time</option>
+                <option value="name">Name (A–Z)</option>
+              </select>
+            </Field>
+            <Field label="Layout">
+              <select
+                className={fieldInputClass}
+                value={(block.layout as string) ?? "cards"}
+                onChange={(e) => set("layout", e.target.value)}
+              >
+                <option value="cards">Cards</option>
+                <option value="table">Table</option>
+              </select>
+            </Field>
+          </div>
+          <label className="flex items-center gap-1.5 text-sm">
+            <input
+              type="checkbox"
+              checked={(block.show_rank as boolean) ?? true}
+              onChange={(e) => set("show_rank", e.target.checked)}
+            />
+            Show clan rank (by loot this month)
+          </label>
+          <label className="flex items-center gap-1.5 text-sm">
+            <input
+              type="checkbox"
+              checked={(block.sortable as boolean) ?? true}
+              onChange={(e) => set("sortable", e.target.checked)}
+            />
+            Let visitors re-sort the list
+          </label>
+          <p className="text-osrs-parchment-dark/60 text-[11px]">
+            Requires the public member roster toggle in Appearance.
+          </p>
+        </div>
       );
     case "event_standings":
       return (
@@ -339,6 +431,7 @@ export function BlockForm({ block, onChange }: { block: Block; onChange: (b: Blo
             Allowed: headings, text, lists, tables, images and https links. The saved result is
             what renders — use the draft preview to see it exactly.
           </p>
+          <TokenReference />
         </div>
       );
     default:
