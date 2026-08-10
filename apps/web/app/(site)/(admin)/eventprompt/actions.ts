@@ -17,9 +17,18 @@ import { ClaudeCliError, runClaudeJson } from "@/lib/claude-cli";
 import {
   GENERATION_SCHEMA,
   MAX_DESCRIPTION_CHARS,
+  NPC_EXTRACT_SCHEMA,
+  NPC_EXTRACT_SYSTEM,
   SYSTEM_PROMPT,
+  buildCorrectionSection,
+  buildGroundingSection,
   type RawGeneration,
 } from "./prompt";
+
+/** Grounding caps: keep the prompt bounded however wild the description. */
+const MAX_GROUNDING_NPCS = 4;
+const MAX_DROP_TABLE_ITEMS = 80;
+const MAX_CORRECTED_NAMES = 8;
 
 export type GeneratedTask = {
   ok: true;
@@ -42,16 +51,40 @@ export async function generateEventTask(description: string): Promise<GenerateRe
     return { ok: false, error: `Keep the description under ${MAX_DESCRIPTION_CHARS} characters.` };
   }
 
+  const usage = { output_tokens: 0, cost_usd: 0 };
+  const track = (u: { output_tokens: number; cost_usd: number }) => {
+    usage.output_tokens += u.output_tokens;
+    usage.cost_usd += u.cost_usd;
+  };
+
+  // Pass 0 — ground the generation in real data: find which bosses/raids the
+  // description references and pull their actual drop tables from the game DB,
+  // so item names are copied from data instead of recalled from memory.
+  let grounding = "";
+  try {
+    const ext = await runClaudeJson<{ npcs: string[] }>({
+      systemPrompt: NPC_EXTRACT_SYSTEM,
+      prompt: desc,
+      jsonSchema: NPC_EXTRACT_SCHEMA,
+    });
+    track(ext.usage);
+    grounding = buildGroundingSection(await fetchDropTables(ext.result.npcs));
+  } catch (err) {
+    console.error("[eventprompt] NPC grounding failed (continuing without):", err);
+  }
+
+  const descSection = `=== TASK DESCRIPTION (untrusted form input) ===\n${desc}`;
+
+  // Pass 1 — generate the task.
   let raw: RawGeneration;
-  let usage: { output_tokens: number; cost_usd: number };
   try {
     const res = await runClaudeJson<RawGeneration>({
       systemPrompt: SYSTEM_PROMPT,
-      prompt: `=== TASK DESCRIPTION (untrusted form input) ===\n${desc}`,
+      prompt: grounding + descSection,
       jsonSchema: GENERATION_SCHEMA,
     });
+    track(res.usage);
     raw = res.result;
-    usage = { output_tokens: res.usage.output_tokens, cost_usd: res.usage.cost_usd };
   } catch (err) {
     const msg = err instanceof ClaudeCliError ? err.message : "Generation failed unexpectedly.";
     console.error("[eventprompt] generation failed:", err);
@@ -59,12 +92,65 @@ export async function generateEventTask(description: string): Promise<GenerateRe
   }
 
   try {
-    const built = await buildTaskInput(raw);
+    let built = await buildTaskInput(raw);
+
+    // Pass 2 (only when needed) — the model used names the item DB doesn't
+    // know: hand back its attempt with fuzzy-search suggestions and make it
+    // correct itself once. Anything still unresolved surfaces as a warning.
+    if (built.unresolvedItems.length) {
+      const suggestions = await Promise.all(
+        built.unresolvedItems.slice(0, MAX_CORRECTED_NAMES).map(async (name) => ({
+          name,
+          suggestions: (await api.searchEventItems(name)).slice(0, 5).map((e) => e.name),
+        })),
+      );
+      const res = await runClaudeJson<RawGeneration>({
+        systemPrompt: SYSTEM_PROMPT,
+        prompt: grounding + buildCorrectionSection(raw, suggestions) + descSection,
+        jsonSchema: GENERATION_SCHEMA,
+      });
+      track(res.usage);
+      raw = res.result;
+      built = await buildTaskInput(raw);
+    }
+
     return { ok: true, ...built, notes: raw.notes ?? "", usage };
   } catch (err) {
     console.error("[eventprompt] post-processing failed:", err);
     return { ok: false, error: "The model produced an unusable task — try rewording." };
   }
+}
+
+/** Resolve extracted NPC names (exact match, then search fallback) and fetch
+ * their drop tables for the grounding section. */
+async function fetchDropTables(names: string[]): Promise<{ npc: string; items: string[] }[]> {
+  const wanted = [...new Set(names.map((n) => n.trim()).filter(Boolean))].slice(
+    0,
+    MAX_GROUNDING_NPCS,
+  );
+  if (!wanted.length) return [];
+
+  const exact = await api.resolveEventMeta("npc", wanted);
+  const byLower = new Map(exact.map((e) => [e.name.toLowerCase(), e]));
+  const resolved = await Promise.all(
+    wanted.map(async (name) => {
+      const hit = byLower.get(name.toLowerCase());
+      if (hit) return hit;
+      // Fuzzy fallback: first search result whose name contains the query.
+      const found = await api.searchEventNpcs(name);
+      return found[0] ?? null;
+    }),
+  );
+
+  const seen = new Set<number>();
+  const tables: { npc: string; items: string[] }[] = [];
+  for (const npc of resolved) {
+    if (!npc || seen.has(npc.id)) continue;
+    seen.add(npc.id);
+    const items = await api.eventNpcDropItems(npc.id);
+    tables.push({ npc: npc.name, items: items.slice(0, MAX_DROP_TABLE_ITEMS).map((e) => e.name) });
+  }
+  return tables;
 }
 
 /** Convert the raw generation into a validated EventTaskInput, canonicalising
@@ -155,6 +241,12 @@ function collectNames(
   addItems(config.items);
   addNpcs(config.npcs);
   addNpcs(config.source_npcs);
+  if (config.item_npcs && typeof config.item_npcs === "object") {
+    for (const [itemName, npcList] of Object.entries(config.item_npcs)) {
+      if (itemName.trim()) items.add(itemName.trim());
+      addNpcs(npcList);
+    }
+  }
   if (Array.isArray(config.groups)) {
     for (const g of config.groups as { items?: unknown }[]) addItems(g.items);
   }
@@ -190,6 +282,11 @@ function rewriteNames(
   if (out.items) out.items = mapItems(out.items);
   if (out.npcs) out.npcs = mapNpcs(out.npcs);
   if (out.source_npcs) out.source_npcs = mapNpcs(out.source_npcs);
+  if (out.item_npcs && typeof out.item_npcs === "object") {
+    out.item_npcs = Object.fromEntries(
+      Object.entries(out.item_npcs).map(([k, v]) => [item(k), mapNpcs(v)]),
+    );
+  }
   if (Array.isArray(out.groups)) {
     out.groups = (out.groups as Record<string, unknown>[]).map((g) => ({
       ...g,
