@@ -1,19 +1,29 @@
 "use client";
 
 /**
- * Group mini-site builder (sites-v1). Dashboard-only client component: claim
- * a subdomain, edit site settings (theme/palette/nav/custom CSS), manage
- * pages, and edit each page's block list with per-type forms.
+ * Group mini-site builder shell (sites-v1): claim flow, appearance (theme +
+ * palette + custom CSS + roster toggle), navigation editor, page management,
+ * and the drag-and-drop page editor (page-editor.tsx).
  *
- * Deliberately form-based like the event-layout editor (add buttons + ↑/↓
- * reorder, no dnd dependency). Draft saves never touch the live site; the
- * publish buttons copy draft → published server-side. All persistence flows
- * through Server Actions that re-check admin + entitlement.
+ * Palette inputs default to the ACTIVE THEME's preset value for each key —
+ * not #000000 — so the pickers always show the color the site actually
+ * renders with until overridden. All persistence flows through Server
+ * Actions that re-check admin + entitlement.
  */
 import { useMemo, useState, useTransition } from "react";
-import type { SiteAdmin, SiteMeta, SitePageDetail, SitePageSummary } from "@droptracker/api-types";
+import type {
+  GroupProfile,
+  SiteAdmin,
+  SiteMeta,
+  SiteNavItem,
+  SitePageDetail,
+  SitePageSummary,
+} from "@droptracker/api-types";
 import { SITE_SUBDOMAIN_RE, SITE_PAGE_SLUG_RE } from "@droptracker/api-types";
+import { SITE_THEMES, type SiteThemeKey } from "@/lib/site-themes";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
+import { Field, type Block } from "./block-forms";
+import { PageEditor } from "./page-editor";
 import {
   claimSiteAction,
   createSitePageAction,
@@ -26,8 +36,6 @@ import {
   updateSiteAction,
 } from "@/app/(site)/(admin)/groups/[id]/website/actions";
 
-type Block = Record<string, unknown>;
-
 const PALETTE_EDIT_KEYS: Array<{ key: string; label: string }> = [
   { key: "--dt-gold", label: "Accent" },
   { key: "--dt-gold-bright", label: "Accent bright" },
@@ -37,373 +45,24 @@ const PALETTE_EDIT_KEYS: Array<{ key: string; label: string }> = [
   { key: "--dt-bronze", label: "Borders/buttons" },
 ];
 
-const ADDABLE_BLOCKS: Array<{ type: string; label: string; make: () => Block }> = [
-  { type: "hero", label: "Hero", make: () => ({ type: "hero", heading: "Our clan" }) },
-  { type: "markdown", label: "Text", make: () => ({ type: "markdown", body: "Write something…" }) },
-  {
-    type: "stats_row",
-    label: "Stat tiles",
-    make: () => ({ type: "stats_row", stats: ["members", "monthly_loot", "rank"] }),
-  },
-  { type: "top_players", label: "Top players", make: () => ({ type: "top_players", period: "month", limit: 10 }) },
-  { type: "records", label: "Clan records", make: () => ({ type: "records" }) },
-  { type: "boss_activity", label: "Boss activity", make: () => ({ type: "boss_activity", limit: 8 }) },
-  { type: "recent_drops", label: "Recent drops", make: () => ({ type: "recent_drops", limit: 10 }) },
-  { type: "image", label: "Image", make: () => ({ type: "image", url: "" }) },
-  {
-    type: "buttons",
-    label: "Buttons",
-    make: () => ({ type: "buttons", items: [{ label: "Join our Discord", href: "https://" }] }),
-  },
-  { type: "divider", label: "Divider", make: () => ({ type: "divider", size: "md", rule: true }) },
-  { type: "lootboard", label: "Lootboard", make: () => ({ type: "lootboard", period: "month" }) },
-  { type: "pb_board", label: "PB board", make: () => ({ type: "pb_board" }) },
-  { type: "leaderboard", label: "Leaderboard", make: () => ({ type: "leaderboard", limit: 10 }) },
-  { type: "recap", label: "Recap card", make: () => ({ type: "recap", period: "month" }) },
-  {
-    type: "announcements",
-    label: "Announcements",
-    make: () => ({ type: "announcements", limit: 3 }),
-  },
-  { type: "live_ticker", label: "Live ticker", make: () => ({ type: "live_ticker" }) },
-  {
-    type: "wom_achievements",
-    label: "WOM achievements",
-    make: () => ({ type: "wom_achievements", limit: 10 }),
-  },
-  {
-    type: "member_roster",
-    label: "Member roster",
-    make: () => ({ type: "member_roster", limit: 25 }),
-  },
-  {
-    type: "event_standings",
-    label: "Event standings",
-    make: () => ({ type: "event_standings" }),
-  },
-  { type: "npc_board", label: "Boss board", make: () => ({ type: "npc_board", npc_id: 0, period: "month", limit: 10 }) },
-  { type: "custom_html", label: "Custom HTML", make: () => ({ type: "custom_html", source: "", html: "" }) },
-];
-
-let blockSeq = 0;
-function newBlockId(): string {
-  blockSeq += 1;
-  return `b${Date.now().toString(36)}${blockSeq}`;
+/** The color the picker should show when no override is saved: the active
+ *  theme's own value for that variable (never black). */
+function themeDefault(themeKey: string, varKey: string): string {
+  const preset = SITE_THEMES[themeKey as SiteThemeKey] ?? SITE_THEMES.dusk;
+  const value = preset[varKey] ?? "#000000";
+  return value.startsWith("#") ? value : "#000000";
 }
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block text-sm">
-      <span className="text-osrs-parchment-dark/80 mb-1 block">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function BlockForm({ block, onChange }: { block: Block; onChange: (b: Block) => void }) {
-  const set = (key: string, value: unknown) => onChange({ ...block, [key]: value });
-  const type = block.type as string;
-
-  switch (type) {
-    case "hero":
-      return (
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Heading">
-            <input
-              className={fieldInputClass}
-              value={(block.heading as string) ?? ""}
-              maxLength={80}
-              onChange={(e) => set("heading", e.target.value)}
-            />
-          </Field>
-          <Field label="Tagline (optional)">
-            <input
-              className={fieldInputClass}
-              value={(block.tagline as string) ?? ""}
-              maxLength={200}
-              onChange={(e) => set("tagline", e.target.value || undefined)}
-            />
-          </Field>
-          <Field label="Image URL (optional; defaults to the group icon)">
-            <input
-              className={fieldInputClass}
-              value={(block.image_url as string) ?? ""}
-              maxLength={300}
-              onChange={(e) => set("image_url", e.target.value || undefined)}
-            />
-          </Field>
-        </div>
-      );
-    case "markdown":
-      return (
-        <Field label="Markdown">
-          <textarea
-            className={`${fieldInputClass} min-h-32 font-mono text-xs`}
-            value={(block.body as string) ?? ""}
-            maxLength={8000}
-            onChange={(e) => set("body", e.target.value)}
-          />
-        </Field>
-      );
-    case "stats_row": {
-      const chosen = new Set((block.stats as string[]) ?? []);
-      const toggle = (k: string) => {
-        const next = new Set(chosen);
-        if (next.has(k)) next.delete(k);
-        else next.add(k);
-        set("stats", Array.from(next));
-      };
-      return (
-        <div className="flex flex-wrap gap-3 text-sm">
-          {(["members", "monthly_loot", "rank", "top_player"] as const).map((k) => (
-            <label key={k} className="flex items-center gap-1.5">
-              <input type="checkbox" checked={chosen.has(k)} onChange={() => toggle(k)} />
-              {k.replace("_", " ")}
-            </label>
-          ))}
-        </div>
-      );
-    }
-    case "top_players":
-    case "recent_drops":
-    case "boss_activity":
-    case "leaderboard":
-    case "announcements":
-    case "wom_achievements":
-    case "member_roster":
-      return (
-        <Field label="How many entries">
-          <input
-            type="number"
-            className={`${fieldInputClass} w-24`}
-            min={3}
-            max={25}
-            value={(block.limit as number) ?? 10}
-            onChange={(e) => set("limit", Number(e.target.value))}
-          />
-        </Field>
-      );
-    case "image":
-      return (
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Field label="Image URL">
-            <input
-              className={fieldInputClass}
-              value={(block.url as string) ?? ""}
-              maxLength={300}
-              onChange={(e) => set("url", e.target.value)}
-            />
-          </Field>
-          <Field label="Alt text">
-            <input
-              className={fieldInputClass}
-              value={(block.alt as string) ?? ""}
-              maxLength={200}
-              onChange={(e) => set("alt", e.target.value || undefined)}
-            />
-          </Field>
-          <Field label="Caption (optional)">
-            <input
-              className={fieldInputClass}
-              value={(block.caption as string) ?? ""}
-              maxLength={300}
-              onChange={(e) => set("caption", e.target.value || undefined)}
-            />
-          </Field>
-        </div>
-      );
-    case "buttons": {
-      const items = (block.items as Array<{ label: string; href: string }>) ?? [];
-      const update = (i: number, k: "label" | "href", v: string) => {
-        const next = items.map((item, j) => (j === i ? { ...item, [k]: v } : item));
-        set("items", next);
-      };
-      return (
-        <div className="space-y-2">
-          {items.map((item, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-2">
-              <input
-                className={`${fieldInputClass} w-40`}
-                placeholder="Label"
-                maxLength={40}
-                value={item.label}
-                onChange={(e) => update(i, "label", e.target.value)}
-              />
-              <input
-                className={`${fieldInputClass} flex-1`}
-                placeholder="https://…"
-                maxLength={300}
-                value={item.href}
-                onChange={(e) => update(i, "href", e.target.value)}
-              />
-              <button
-                type="button"
-                className="text-osrs-red text-sm"
-                onClick={() => set("items", items.filter((_, j) => j !== i))}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-          {items.length < 6 && (
-            <button
-              type="button"
-              className="text-osrs-gold text-sm underline"
-              onClick={() => set("items", [...items, { label: "", href: "https://" }])}
-            >
-              + add button
-            </button>
-          )}
-        </div>
-      );
-    }
-    case "lootboard":
-      return (
-        <Field label="Period">
-          <select
-            className={fieldInputClass}
-            value={(block.period as string) ?? "month"}
-            onChange={(e) => set("period", e.target.value)}
-          >
-            <option value="month">This month</option>
-            <option value="week">This week</option>
-            <option value="all">All time</option>
-          </select>
-        </Field>
-      );
-    case "recap":
-      return (
-        <Field label="Period">
-          <select
-            className={fieldInputClass}
-            value={(block.period as string) ?? "month"}
-            onChange={(e) => set("period", e.target.value)}
-          >
-            <option value="month">Latest monthly recap</option>
-            <option value="year">Latest yearly recap</option>
-          </select>
-        </Field>
-      );
-    case "pb_board":
-      return (
-        <Field label="Boss NPC id (blank = your most-contested boss)">
-          <input
-            type="number"
-            className={`${fieldInputClass} w-40`}
-            value={(block.boss_id as number) ?? ""}
-            onChange={(e) =>
-              set("boss_id", e.target.value === "" ? undefined : Number(e.target.value))
-            }
-          />
-        </Field>
-      );
-    case "event_standings":
-      return (
-        <Field label="Event id (blank = your newest active event)">
-          <input
-            type="number"
-            className={`${fieldInputClass} w-40`}
-            value={(block.event_id as number) ?? ""}
-            onChange={(e) =>
-              set("event_id", e.target.value === "" ? undefined : Number(e.target.value))
-            }
-          />
-        </Field>
-      );
-    case "npc_board":
-      return (
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label="Boss NPC id">
-            <input
-              type="number"
-              className={`${fieldInputClass} w-32`}
-              value={(block.npc_id as number) || ""}
-              onChange={(e) => set("npc_id", Number(e.target.value) || 0)}
-            />
-          </Field>
-          <Field label="Period">
-            <select
-              className={fieldInputClass}
-              value={(block.period as string) ?? "month"}
-              onChange={(e) => set("period", e.target.value)}
-            >
-              <option value="month">This month</option>
-              <option value="all">All time</option>
-            </select>
-          </Field>
-          <Field label="Entries">
-            <input
-              type="number"
-              className={`${fieldInputClass} w-24`}
-              min={3}
-              max={25}
-              value={(block.limit as number) ?? 10}
-              onChange={(e) => set("limit", Number(e.target.value))}
-            />
-          </Field>
-        </div>
-      );
-    case "divider":
-      return (
-        <div className="flex items-center gap-4 text-sm">
-          <Field label="Size">
-            <select
-              className={fieldInputClass}
-              value={(block.size as string) ?? "md"}
-              onChange={(e) => set("size", e.target.value)}
-            >
-              <option value="sm">Small</option>
-              <option value="md">Medium</option>
-              <option value="lg">Large</option>
-            </select>
-          </Field>
-          <label className="mt-5 flex items-center gap-1.5">
-            <input
-              type="checkbox"
-              checked={(block.rule as boolean) ?? true}
-              onChange={(e) => set("rule", e.target.checked)}
-            />
-            show line
-          </label>
-        </div>
-      );
-    case "custom_html":
-      return (
-        <div>
-          <Field label="HTML source (sanitized on save — scripts, forms and styles are stripped)">
-            <textarea
-              className={`${fieldInputClass} min-h-40 font-mono text-xs`}
-              value={(block.source as string) ?? ""}
-              onChange={(e) => set("source", e.target.value)}
-            />
-          </Field>
-          <p className="text-osrs-parchment-dark/60 mt-1 text-xs">
-            Allowed: headings, text, lists, tables, images and https links. The saved result is
-            what renders — use the draft preview to see it exactly.
-          </p>
-        </div>
-      );
-    default:
-      return (
-        <p className="text-osrs-parchment-dark/60 text-xs">
-          This block type has no editable settings here yet.
-        </p>
-      );
-  }
-}
-
-const BLOCK_LABELS: Record<string, string> = Object.fromEntries(
-  ADDABLE_BLOCKS.map((b) => [b.type, b.label]),
-);
 
 export function SiteBuilder({
   groupId,
   initialSite,
   meta,
+  group,
 }: {
   groupId: number;
   initialSite: SiteAdmin | null;
   meta: SiteMeta;
+  group: GroupProfile;
 }) {
   const [site, setSite] = useState<SiteAdmin | null>(initialSite);
   const [error, setError] = useState<string | null>(null);
@@ -419,31 +78,33 @@ export function SiteBuilder({
     [claimSub, meta.reserved_subdomains],
   );
 
-  // settings
+  // appearance
   const [themeKey, setThemeKey] = useState(initialSite?.theme_key ?? "dusk");
   const [palette, setPalette] = useState<Record<string, string>>(initialSite?.palette ?? {});
   const [css, setCss] = useState(initialSite?.custom_css_source ?? "");
   const [rosterPublic, setRosterPublic] = useState(initialSite?.roster_public ?? false);
 
-  // pages / editor
+  // navigation
+  const [nav, setNav] = useState<SiteNavItem[]>(initialSite?.nav ?? []);
+
+  // page editor
   const [editing, setEditing] = useState<SitePageDetail | null>(null);
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [dirty, setDirty] = useState(false);
+  const [editorDirty, setEditorDirty] = useState(false);
 
   // new page form
   const [newSlug, setNewSlug] = useState("");
   const [newTitle, setNewTitle] = useState("");
 
-  function run<T>(fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>, then?: (data: T) => void) {
+  function run<T>(
+    fn: () => Promise<{ ok: true; data: T } | { ok: false; error: string }>,
+    then?: (data: T) => void,
+  ) {
     setError(null);
     setNotice(null);
     startTransition(async () => {
       const result = await fn();
-      if (result.ok) {
-        then?.(result.data);
-      } else {
-        setError(result.error);
-      }
+      if (result.ok) then?.(result.data);
+      else setError(result.error);
     });
   }
 
@@ -498,8 +159,7 @@ export function SiteBuilder({
       () => loadSitePageAction(groupId, page.page_id),
       (detail) => {
         setEditing(detail);
-        setBlocks(detail.draft_blocks);
-        setDirty(false);
+        setEditorDirty(false);
       },
     );
 
@@ -511,7 +171,11 @@ export function SiteBuilder({
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-osrs-gold text-lg font-semibold">{site.site_url}</h2>
+            <h2 className="text-osrs-gold text-lg font-semibold">
+              <a href={site.site_url} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                {site.site_url}
+              </a>
+            </h2>
             <p className="text-osrs-parchment-dark/70 text-sm">
               {site.published ? "Site is live." : "Site is not published yet."}
               {site.needs_review && " Search-engine indexing is pending review."}
@@ -528,7 +192,10 @@ export function SiteBuilder({
                   () => sitePreviewTokenAction(groupId),
                   ({ token, site_url }) => {
                     const slug = editing?.slug ?? "home";
-                    window.open(`${site_url}__preview/${slug}?token=${encodeURIComponent(token)}`, "_blank");
+                    window.open(
+                      `${site_url}__preview/${slug}?token=${encodeURIComponent(token)}`,
+                      "_blank",
+                    );
                   },
                 )
               }
@@ -555,84 +222,33 @@ export function SiteBuilder({
         </div>
       </Card>
 
-      <Card>
-        <h3 className="text-osrs-gold mb-3 font-semibold">Appearance</h3>
-        <div className="flex flex-wrap items-end gap-4">
-          <Field label="Theme">
-            <select
-              className={fieldInputClass}
-              value={themeKey}
-              onChange={(e) => setThemeKey(e.target.value)}
-            >
-              {meta.theme_keys.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </select>
-          </Field>
-          {PALETTE_EDIT_KEYS.map(({ key, label }) => (
-            <Field key={key} label={label}>
-              <input
-                type="color"
-                className="h-9 w-14 cursor-pointer rounded border-0 bg-transparent"
-                value={palette[key] ?? "#000000"}
-                onChange={(e) => setPalette({ ...palette, [key]: e.target.value })}
-              />
-            </Field>
-          ))}
-          <button
-            type="button"
-            className="text-osrs-parchment-dark/70 text-sm underline"
-            onClick={() => setPalette({})}
-          >
-            reset colors
-          </button>
-        </div>
-        <label className="mt-4 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={rosterPublic}
-            onChange={(e) => setRosterPublic(e.target.checked)}
-          />
-          <span className="text-osrs-parchment-dark/80">
-            Public member roster — lets the &quot;Member roster&quot; block list your members
-            (hidden players are always excluded)
-          </span>
-        </label>
-        <div className="mt-4">
-          <Field label={`Custom CSS (advanced — max ${Math.floor(meta.limits.max_custom_css_bytes / 1024)} KB; validated on save)`}>
-            <textarea
-              className={`${fieldInputClass} min-h-28 font-mono text-xs`}
-              value={css}
-              onChange={(e) => setCss(e.target.value)}
-              placeholder=".my-banner { border: 2px solid var(--dt-gold); }"
-            />
-          </Field>
-        </div>
-        <button
-          type="button"
-          disabled={pending}
-          className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark mt-3 rounded px-4 py-1.5 text-sm font-medium"
-          onClick={() =>
+      {editing && (
+        <PageEditor
+          site={{ ...site, nav }}
+          meta={meta}
+          group={group}
+          pageTitle={editing.title}
+          initialBlocks={editing.draft_blocks as Block[]}
+          saving={pending}
+          onDirtyChange={setEditorDirty}
+          onSave={(blocks) =>
             run(
-              () =>
-                updateSiteAction(groupId, {
-                  theme_key: themeKey,
-                  palette,
-                  custom_css_source: css,
-                  roster_public: rosterPublic,
-                }),
-              (s) => {
-                setSite(s);
-                setNotice("Appearance saved.");
+              () => saveSitePageAction(groupId, editing.page_id, { blocks }),
+              (page) => {
+                setEditing(page);
+                setSite({
+                  ...site,
+                  pages: site.pages.map((x) =>
+                    x.page_id === page.page_id ? { ...x, has_draft_changes: true } : x,
+                  ),
+                });
+                setNotice("Draft saved. Publish the page to put it live.");
               },
             )
           }
-        >
-          Save appearance
-        </button>
-      </Card>
+          onClose={() => setEditing(null)}
+        />
+      )}
 
       <Card>
         <h3 className="text-osrs-gold mb-3 font-semibold">Pages</h3>
@@ -651,7 +267,10 @@ export function SiteBuilder({
                 <button
                   type="button"
                   className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-2 py-1 text-xs"
-                  onClick={() => openEditor(p)}
+                  onClick={() => {
+                    if (editorDirty && !window.confirm("Discard unsaved changes?")) return;
+                    openEditor(p);
+                  }}
                 >
                   Edit
                 </button>
@@ -665,9 +284,15 @@ export function SiteBuilder({
                       (updated) => {
                         setSite({
                           ...site,
-                          pages: site.pages.map((x) => (x.page_id === updated.page_id ? updated : x)),
+                          pages: site.pages.map((x) =>
+                            x.page_id === updated.page_id ? updated : x,
+                          ),
                         });
-                        setNotice(updated.published ? `Published “${updated.title}”.` : `Unpublished “${updated.title}”.`);
+                        setNotice(
+                          updated.published
+                            ? `Published “${updated.title}”.`
+                            : `Unpublished “${updated.title}”.`,
+                        );
                       },
                     )
                   }
@@ -684,7 +309,10 @@ export function SiteBuilder({
                       run(
                         () => deleteSitePageAction(groupId, p.page_id, site.subdomain),
                         () => {
-                          setSite({ ...site, pages: site.pages.filter((x) => x.page_id !== p.page_id) });
+                          setSite({
+                            ...site,
+                            pages: site.pages.filter((x) => x.page_id !== p.page_id),
+                          });
                           if (editing?.page_id === p.page_id) setEditing(null);
                         },
                       );
@@ -733,124 +361,236 @@ export function SiteBuilder({
         )}
       </Card>
 
-      {editing && (
-        <Card>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-osrs-gold font-semibold">
-              Editing: {editing.title}
-              {dirty && <span className="text-osrs-ember ml-2 text-xs">unsaved changes</span>}
-            </h3>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={pending || !dirty}
-                className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-                onClick={() =>
-                  run(
-                    () => saveSitePageAction(groupId, editing.page_id, { blocks }),
-                    (page) => {
-                      setEditing(page);
-                      setBlocks(page.draft_blocks);
-                      setDirty(false);
-                      setSite({
-                        ...site,
-                        pages: site.pages.map((x) =>
-                          x.page_id === page.page_id ? { ...x, has_draft_changes: true } : x,
-                        ),
-                      });
-                      setNotice("Draft saved.");
-                    },
-                  )
-                }
-              >
-                Save draft
-              </button>
-              <button
-                type="button"
-                className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm"
-                onClick={() => setEditing(null)}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {blocks.map((b, i) => (
-              <div key={(b.id as string) ?? i} className="border-osrs-bronze/30 rounded-lg border p-3">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-osrs-parchment-dark/80 text-xs font-semibold uppercase">
-                    {BLOCK_LABELS[b.type as string] ?? (b.type as string)}
-                  </span>
-                  <span className="flex gap-1">
-                    <button
-                      type="button"
-                      disabled={i === 0}
-                      className="border-osrs-bronze/40 rounded border px-1.5 text-xs disabled:opacity-30"
-                      onClick={() => {
-                        const next = [...blocks];
-                        [next[i - 1], next[i]] = [next[i]!, next[i - 1]!];
-                        setBlocks(next);
-                        setDirty(true);
-                      }}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      disabled={i === blocks.length - 1}
-                      className="border-osrs-bronze/40 rounded border px-1.5 text-xs disabled:opacity-30"
-                      onClick={() => {
-                        const next = [...blocks];
-                        [next[i], next[i + 1]] = [next[i + 1]!, next[i]!];
-                        setBlocks(next);
-                        setDirty(true);
-                      }}
-                    >
-                      ↓
-                    </button>
-                    <button
-                      type="button"
-                      className="text-osrs-red px-1.5 text-xs"
-                      onClick={() => {
-                        setBlocks(blocks.filter((_, j) => j !== i));
-                        setDirty(true);
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                </div>
-                <BlockForm
-                  block={b}
-                  onChange={(nb) => {
-                    setBlocks(blocks.map((x, j) => (j === i ? nb : x)));
-                    setDirty(true);
-                  }}
+      <Card>
+        <h3 className="text-osrs-gold mb-1 font-semibold">Navigation</h3>
+        <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
+          The links in your site&apos;s header, in order. Point each at one of your pages or an
+          external https:// link.
+        </p>
+        <div className="space-y-2">
+          {nav.map((item, i) => {
+            const isPage = item.page_slug != null;
+            return (
+              <div key={i} className="flex flex-wrap items-center gap-2">
+                <input
+                  className={`${fieldInputClass} w-36`}
+                  placeholder="Label"
+                  maxLength={40}
+                  value={item.label}
+                  onChange={(e) =>
+                    setNav(nav.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
+                  }
                 />
-              </div>
-            ))}
-          </div>
-
-          {blocks.length < meta.limits.max_blocks_per_page && (
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {ADDABLE_BLOCKS.map((def) => (
-                <button
-                  key={def.type}
-                  type="button"
-                  className="border-osrs-bronze/40 hover:bg-osrs-bronze/30 rounded border px-2 py-1 text-xs"
-                  onClick={() => {
-                    setBlocks([...blocks, { ...def.make(), id: newBlockId() }]);
-                    setDirty(true);
-                  }}
+                <select
+                  className={fieldInputClass}
+                  value={isPage ? "page" : "link"}
+                  onChange={(e) =>
+                    setNav(
+                      nav.map((x, j) =>
+                        j === i
+                          ? e.target.value === "page"
+                            ? { label: x.label, page_slug: site.pages[0]?.slug ?? "home" }
+                            : { label: x.label, href: "https://" }
+                          : x,
+                      ),
+                    )
+                  }
                 >
-                  + {def.label}
-                </button>
-              ))}
-            </div>
+                  <option value="page">Page</option>
+                  <option value="link">External link</option>
+                </select>
+                {isPage ? (
+                  <select
+                    className={fieldInputClass}
+                    value={item.page_slug}
+                    onChange={(e) =>
+                      setNav(
+                        nav.map((x, j) => (j === i ? { ...x, page_slug: e.target.value } : x)),
+                      )
+                    }
+                  >
+                    {site.pages.map((p) => (
+                      <option key={p.slug} value={p.slug}>
+                        {p.title} (/{p.slug === "home" ? "" : p.slug})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    className={`${fieldInputClass} min-w-56 flex-1`}
+                    placeholder="https://…"
+                    maxLength={300}
+                    value={item.href ?? ""}
+                    onChange={(e) =>
+                      setNav(nav.map((x, j) => (j === i ? { ...x, href: e.target.value } : x)))
+                    }
+                  />
+                )}
+                <span className="flex gap-1">
+                  <button
+                    type="button"
+                    disabled={i === 0}
+                    className="border-osrs-bronze/40 rounded border px-1.5 text-xs disabled:opacity-30"
+                    onClick={() => {
+                      const next = [...nav];
+                      [next[i - 1], next[i]] = [next[i]!, next[i - 1]!];
+                      setNav(next);
+                    }}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    disabled={i === nav.length - 1}
+                    className="border-osrs-bronze/40 rounded border px-1.5 text-xs disabled:opacity-30"
+                    onClick={() => {
+                      const next = [...nav];
+                      [next[i], next[i + 1]] = [next[i + 1]!, next[i]!];
+                      setNav(next);
+                    }}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="text-osrs-red px-1.5 text-xs"
+                    onClick={() => setNav(nav.filter((_, j) => j !== i))}
+                  >
+                    ✕
+                  </button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {nav.length < meta.limits.max_nav_items && (
+            <button
+              type="button"
+              className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm"
+              onClick={() =>
+                setNav([...nav, { label: "Home", page_slug: site.pages[0]?.slug ?? "home" }])
+              }
+            >
+              + Add entry
+            </button>
           )}
-        </Card>
-      )}
+          <button
+            type="button"
+            disabled={pending || nav.some((n) => !n.label.trim())}
+            className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            onClick={() =>
+              run(
+                () => updateSiteAction(groupId, { nav }),
+                (s) => {
+                  setSite(s);
+                  setNav(s.nav);
+                  setNotice("Navigation saved.");
+                },
+              )
+            }
+          >
+            Save navigation
+          </button>
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="text-osrs-gold mb-3 font-semibold">Appearance</h3>
+        <div className="flex flex-wrap items-end gap-4">
+          <Field label="Theme">
+            <select
+              className={fieldInputClass}
+              value={themeKey}
+              onChange={(e) => setThemeKey(e.target.value)}
+            >
+              {meta.theme_keys.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {PALETTE_EDIT_KEYS.map(({ key, label }) => (
+            <Field key={key} label={label}>
+              <span className="flex items-center gap-1">
+                <input
+                  type="color"
+                  className="h-9 w-14 cursor-pointer rounded border-0 bg-transparent"
+                  value={palette[key] ?? themeDefault(themeKey, key)}
+                  onChange={(e) => setPalette({ ...palette, [key]: e.target.value })}
+                />
+                {palette[key] && (
+                  <button
+                    type="button"
+                    title="Reset to theme default"
+                    className="text-osrs-parchment-dark/60 hover:text-osrs-gold text-xs"
+                    onClick={() => {
+                      const next = { ...palette };
+                      delete next[key];
+                      setPalette(next);
+                    }}
+                  >
+                    ↺
+                  </button>
+                )}
+              </span>
+            </Field>
+          ))}
+          <button
+            type="button"
+            className="text-osrs-parchment-dark/70 text-sm underline"
+            onClick={() => setPalette({})}
+          >
+            reset all colors
+          </button>
+        </div>
+        <label className="mt-4 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={rosterPublic}
+            onChange={(e) => setRosterPublic(e.target.checked)}
+          />
+          <span className="text-osrs-parchment-dark/80">
+            Public member roster — lets the &quot;Member roster&quot; block list your members
+            (hidden players are always excluded)
+          </span>
+        </label>
+        <div className="mt-4">
+          <Field
+            label={`Custom CSS (advanced — max ${Math.floor(meta.limits.max_custom_css_bytes / 1024)} KB; validated on save)`}
+          >
+            <textarea
+              className={`${fieldInputClass} min-h-28 font-mono text-xs`}
+              value={css}
+              onChange={(e) => setCss(e.target.value)}
+              placeholder=".my-banner { border: 2px solid var(--dt-gold); }"
+            />
+          </Field>
+        </div>
+        <button
+          type="button"
+          disabled={pending}
+          className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark mt-3 rounded px-4 py-1.5 text-sm font-medium"
+          onClick={() =>
+            run(
+              () =>
+                updateSiteAction(groupId, {
+                  theme_key: themeKey,
+                  palette,
+                  custom_css_source: css,
+                  roster_public: rosterPublic,
+                }),
+              (s) => {
+                setSite(s);
+                setNotice("Appearance saved.");
+              },
+            )
+          }
+        >
+          Save appearance
+        </button>
+      </Card>
     </div>
   );
 }

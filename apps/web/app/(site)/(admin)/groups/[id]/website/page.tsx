@@ -22,9 +22,11 @@ export default async function GroupWebsitePage({ params }: { params: Params }) {
     api.subscriptionTiers().catch(() => []),
     getUser(),
   ]);
-  const [siteState, meta] = await Promise.all([
+  const [siteState, meta, group] = await Promise.all([
     api.groupSite(groupId).catch(() => null),
     api.siteMeta(groupId).catch(() => null),
+    // Public profile payload — feeds the editor canvas's live previews.
+    api.group(groupId).catch(() => null),
   ]);
 
   return (
@@ -35,11 +37,12 @@ export default async function GroupWebsitePage({ params }: { params: Params }) {
       groupId={groupId}
       isSuperadmin={user?.is_superadmin ?? false}
     >
-      {meta ? (
+      {meta && group ? (
         <SiteBuilder
           groupId={groupId}
           initialSite={siteState?.site ?? null}
           meta={meta}
+          group={group}
         />
       ) : (
         <p className="text-osrs-parchment-dark/70">Couldn&apos;t load the site builder.</p>

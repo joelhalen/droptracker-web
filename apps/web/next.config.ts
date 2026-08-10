@@ -122,6 +122,19 @@ const nextConfig: NextConfig = {
                 has: [TENANT_HOST],
                 destination: "/sites/:sub/__preview/:pageSlug",
               },
+              // Entity drill-downs from clan-site widgets keep the clan's
+              // chrome: these render the same public profile pages inside the
+              // tenant layout (app/sites/[sub]/{players,groups}/[id]).
+              {
+                source: "/players/:id",
+                has: [TENANT_HOST],
+                destination: "/sites/:sub/players/:id",
+              },
+              {
+                source: "/groups/:id",
+                has: [TENANT_HOST],
+                destination: "/sites/:sub/groups/:id",
+              },
               { source: "/robots.txt", has: [TENANT_HOST], destination: "/sites/:sub/robots.txt" },
               {
                 source: "/sitemap.xml",
