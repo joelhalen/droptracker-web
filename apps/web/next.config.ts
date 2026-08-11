@@ -34,7 +34,7 @@ const SITES_HOST_RE = SITES_DOMAIN ? `(?:.+\\.)?${escapeRe(SITES_DOMAIN)}(?::\\d
 const TENANT_HOST = SITES_DOMAIN
   ? { type: "host" as const, value: `(?<sub>[^.]+)\\.${escapeRe(SITES_DOMAIN)}(?::\\d+)?` }
   : null;
-/** The bare apex — serves the tiny sites-landing page, not the app homepage. */
+/** The bare apex — serves the sites-domain homepage, not the app homepage. */
 const APEX_HOST = SITES_DOMAIN
   ? { type: "host" as const, value: `${escapeRe(SITES_DOMAIN)}(?::\\d+)?` }
   : null;
@@ -109,9 +109,19 @@ const nextConfig: NextConfig = {
         ...(APEX_HOST
           ? [
               { source: "/", has: [APEX_HOST], destination: "/sites-landing" },
-              // Services/marketing page. Kept as its own path so it can be
-              // promoted to the apex root later by pointing "/" here instead.
-              { source: "/temp", has: [APEX_HOST], destination: "/sites-landing/temp" },
+              // The apex needs its own crawl files: the main app's robots.ts
+              // and sitemap.ts are single-host and would advertise
+              // droptracker.io's sitemap on this domain.
+              {
+                source: "/robots.txt",
+                has: [APEX_HOST],
+                destination: "/sites-landing/robots.txt",
+              },
+              {
+                source: "/sitemap.xml",
+                has: [APEX_HOST],
+                destination: "/sites-landing/sitemap.xml",
+              },
             ]
           : []),
         ...(TENANT_HOST
@@ -189,7 +199,12 @@ const nextConfig: NextConfig = {
     // time the profile loads). `/groups/176` then declares
     // `/groups/playthegame` as its canonical URL for crawlers, the same as
     // every other id link the app and the Discord bot hand out.
-    return scopeRedirectsToMainHosts([
+    return [
+      // The services page used to live at /temp; it is the homepage now.
+      ...(APEX_HOST
+        ? [{ source: "/temp", destination: "/", permanent: true, has: [APEX_HOST] }]
+        : []),
+      ...scopeRedirectsToMainHosts([
       // The /moderation panel merged into the role-aware /admin shell (web87a);
       // its three tools exist at the same slugs under /admin.
       { source: "/moderation", destination: "/admin", permanent: true },
@@ -284,7 +299,8 @@ const nextConfig: NextConfig = {
         destination: "https://runelite.net/plugin-hub/show/droptracker",
         permanent: true,
       },
-    ]);
+      ]),
+    ];
   },
 };
 
