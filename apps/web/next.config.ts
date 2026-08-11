@@ -107,7 +107,12 @@ const nextConfig: NextConfig = {
         // same-origin). robots/sitemap/favicon get explicit tenant handlers so
         // the system files never leak through from the main site.
         ...(APEX_HOST
-          ? [{ source: "/", has: [APEX_HOST], destination: "/sites-landing" }]
+          ? [
+              { source: "/", has: [APEX_HOST], destination: "/sites-landing" },
+              // Services/marketing page. Kept as its own path so it can be
+              // promoted to the apex root later by pointing "/" here instead.
+              { source: "/temp", has: [APEX_HOST], destination: "/sites-landing/temp" },
+            ]
           : []),
         ...(TENANT_HOST
           ? [
