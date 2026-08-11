@@ -222,6 +222,39 @@ export default function ServicesLandingPage() {
           ))}
         </section>
 
+        {/* Orientation band for visitors who arrived from a clan's site by
+            stripping the subdomain — they land here curious about the domain,
+            not shopping for development work. Placed above the services pitch
+            so it answers that question before they bounce, but kept to a
+            single strip so it doesn't compete with it. */}
+        <section className="border-osrs-bronze/30 bg-osrs-surface-1/60 mt-10 rounded-2xl border px-6 py-5">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h2 className="text-osrs-gold-bright text-sm font-semibold">
+                Came from a clan&apos;s site?
+              </h2>
+              <p className="text-osrs-parchment-dark/80 mt-1 text-sm">
+                Addresses like{" "}
+                <span className="text-osrs-gold-bright font-mono">
+                  your-clan.{SITES_DOMAIN}
+                </span>{" "}
+                belong to Old School RuneScape clans, set up by their own leaders through{" "}
+                <a className="text-osrs-gold hover:underline" href={DROPTRACKER}>
+                  DropTracker
+                </a>
+                . Claiming an address is free for any tracked clan — point it at your
+                Discord, or build a full site on it.
+              </p>
+            </div>
+            <a
+              href={DROPTRACKER}
+              className="border-osrs-bronze/60 hover:bg-osrs-bronze/30 shrink-0 rounded-lg border px-5 py-2.5 text-sm font-semibold transition-colors"
+            >
+              Get one for your clan
+            </a>
+          </div>
+        </section>
+
         {/* Services */}
         <section className="mt-16">
           <h2 className="text-osrs-gold font-display text-center text-2xl font-bold sm:text-3xl">
