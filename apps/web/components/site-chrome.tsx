@@ -97,6 +97,9 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
             <Link href="/suggestions" className="hover:text-osrs-gold-bright">
               Suggestions
             </Link>
+            <Link href={"/privacy" as Route} className="hover:text-osrs-gold-bright">
+              Privacy
+            </Link>
           </nav>
         </div>
       </footer>
