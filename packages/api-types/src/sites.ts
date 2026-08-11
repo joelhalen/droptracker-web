@@ -184,6 +184,9 @@ export const WomAchievementSchema = z.object({
   player_name: z.string(),
   name: z.string(),
   metric: z.string().catch(""),
+  /** First-party skill/boss/activity art resolved server-side; null when the
+   *  metric has no asset (new skills, some activities) — render text only. */
+  icon_url: z.string().nullish(),
   created_at: z.string().catch(""),
 });
 export type WomAchievement = z.infer<typeof WomAchievementSchema>;

@@ -337,12 +337,27 @@ async function WomAchievementsBlock({ groupId, limit }: { groupId: number; limit
   return (
     <ul className="divide-osrs-bronze/20 divide-y">
       {items.map((a, i) => (
-        <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-          <div>
+        <li key={i} className="flex flex-wrap items-center gap-3 py-2.5">
+          {/* Skill/boss/activity art, resolved server-side. Fixed box so rows
+              stay aligned whether or not a metric has an asset. */}
+          <span className="flex size-7 shrink-0 items-center justify-center">
+            {a.icon_url ? (
+              // Plain <img>: same convention as every other game asset here.
+              <img
+                src={a.icon_url}
+                alt=""
+                loading="lazy"
+                className="max-h-7 max-w-7 object-contain"
+              />
+            ) : (
+              <span className="text-osrs-parchment-dark/35 text-sm">◆</span>
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
             <span className="text-osrs-gold-bright font-medium">{a.player_name}</span>
             <span className="text-osrs-parchment-dark/90 ml-2 text-sm">{a.name}</span>
-          </div>
-          <span className="text-osrs-parchment-dark/60 text-xs">
+          </span>
+          <span className="text-osrs-parchment-dark/60 shrink-0 text-xs">
             {a.created_at ? formatRelativeTime(new Date(a.created_at).getTime() / 1000) : ""}
           </span>
         </li>
