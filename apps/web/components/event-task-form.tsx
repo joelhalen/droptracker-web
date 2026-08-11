@@ -750,6 +750,7 @@ export function EventTaskForm({
       npcs={entry.npcs ?? []}
       onChange={setNpcs}
       fetchSources={fetchSources}
+      searchNpcs={searchNpcs}
       disabled={pending}
     />
   );

@@ -6,14 +6,19 @@
  * toggling this on requires the item to have dropped from one of the chosen
  * NPCs (a collection-log unlock never satisfies a source-restricted item).
  *
- * Sources come from the ingested OSRS Wiki drop table (`fetchSources`). The
- * restriction is opt-in: closed = any source. Turning it on pre-selects every
- * known source so the configurator prunes down; removing every chip (or turning
- * it off) reverts to any source.
+ * Selection is opt-in and additive: turning the control on starts EMPTY and
+ * you add the NPCs you want — either from the item's ingested OSRS Wiki drop
+ * sources (`fetchSources`) or, via the search box, from any monster in the
+ * database (`searchNpcs`) even if the wiki table doesn't list it. Removing
+ * every NPC (or turning the control off) reverts to "any source".
+ *
+ * "Select all sources" freezes today's wiki source list into the selection;
+ * that is deliberately different from leaving the selection empty, which stays
+ * dynamically unrestricted (counts any source, including ones added later).
  */
 
 import { useEffect, useRef, useState } from "react";
-import type { EventItemSourceNpc } from "@droptracker/api-types";
+import type { EventItemSourceNpc, EventMetaEntry } from "@droptracker/api-types";
 import { formatRarity } from "@/lib/format";
 
 const IMG_BASE = "https://www.droptracker.io/img";
@@ -29,6 +34,7 @@ export function ItemSourceRestriction({
   npcs,
   onChange,
   fetchSources,
+  searchNpcs,
   disabled = false,
 }: {
   itemName: string;
@@ -37,6 +43,8 @@ export function ItemSourceRestriction({
   onChange: (npcs: string[]) => void;
   /** Batch item-name → source NPCs (bound to the group). */
   fetchSources: (itemName: string) => Promise<EventItemSourceNpc[]>;
+  /** NPC-name autocomplete for adding sources the wiki table doesn't list. */
+  searchNpcs: (q: string) => Promise<EventMetaEntry[]>;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(npcs.length > 0);
@@ -46,27 +54,25 @@ export function ItemSourceRestriction({
   // Which item name we've fetched for, so re-picking a different item refetches.
   const fetchedFor = useRef<string | null>(null);
 
+  // Search box: filters the loaded sources AND queries the full NPC database
+  // for off-list monsters to add.
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<EventMetaEntry[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchSeq = useRef(0);
+
   useEffect(() => {
     if (!open) return;
-    // Sources already loaded for this item (e.g. re-ticking after an untick
-    // cleared the selection) — re-seed from cache instead of refetching so the
-    // "start from all sources" convenience runs every time it's turned on.
-    if (fetchedFor.current === itemName && sources !== null) {
-      if (npcs.length === 0 && sources.length) onChange(sources.flatMap(chipNames));
-      return;
-    }
+    // Already loaded for this item (e.g. re-opening after a close) — keep the
+    // catalog; selection is the source of truth and is left untouched.
+    if (fetchedFor.current === itemName && sources !== null) return;
     fetchedFor.current = itemName;
     setLoading(true);
     setError(false);
     let cancelled = false;
     fetchSources(itemName)
       .then((rows) => {
-        if (cancelled) return;
-        setSources(rows);
-        // Turning restriction on with no prior selection starts from ALL known
-        // sources — the configurator then removes the ones they don't want.
-        // Alias chips ("Wintertodt") expand to their real recorded names.
-        if (npcs.length === 0 && rows.length) onChange(rows.flatMap(chipNames));
+        if (!cancelled) setSources(rows);
       })
       .catch(() => {
         if (!cancelled) setError(true);
@@ -80,6 +86,32 @@ export function ItemSourceRestriction({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, itemName]);
 
+  // Debounced off-list NPC search — a `seq` guard drops stale responses.
+  useEffect(() => {
+    const q = query.trim();
+    if (!open || q.length < 2) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    const seq = ++searchSeq.current;
+    setSearching(true);
+    const t = setTimeout(() => {
+      searchNpcs(q)
+        .then((rows) => {
+          if (searchSeq.current === seq) setResults(rows);
+        })
+        .catch(() => {
+          if (searchSeq.current === seq) setResults([]);
+        })
+        .finally(() => {
+          if (searchSeq.current === seq) setSearching(false);
+        });
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, open, itemName]);
+
   const allowed = new Set(npcs.map((n) => n.toLowerCase()));
   const chipOn = (src: EventItemSourceNpc) =>
     chipNames(src).some((n) => allowed.has(n.toLowerCase()));
@@ -88,6 +120,36 @@ export function ItemSourceRestriction({
     if (chipOn(src)) onChange(npcs.filter((n) => !keys.has(n.toLowerCase())));
     else onChange([...npcs, ...chipNames(src).filter((n) => !allowed.has(n.toLowerCase()))]);
   };
+  const addName = (name: string) => {
+    if (!allowed.has(name.toLowerCase())) onChange([...npcs, name]);
+  };
+  const removeName = (name: string) =>
+    onChange(npcs.filter((n) => n.toLowerCase() !== name.toLowerCase()));
+  const selectAll = () => {
+    if (!sources?.length) return;
+    const seen = new Set(allowed);
+    const merged = [...npcs];
+    for (const n of sources.flatMap(chipNames)) {
+      if (!seen.has(n.toLowerCase())) {
+        seen.add(n.toLowerCase());
+        merged.push(n);
+      }
+    }
+    onChange(merged);
+  };
+
+  const q = query.trim().toLowerCase();
+  const filteredSources = (sources ?? []).filter(
+    (src) =>
+      !q ||
+      src.name.toLowerCase().includes(q) ||
+      chipNames(src).some((n) => n.toLowerCase().includes(q)),
+  );
+  // Off-list matches: search hits the loaded catalog doesn't already cover.
+  const catalogNames = new Set(
+    (sources ?? []).flatMap((src) => [src.name.toLowerCase(), ...chipNames(src).map((n) => n.toLowerCase())]),
+  );
+  const offList = results.filter((r) => !catalogNames.has(r.name.toLowerCase()));
 
   return (
     <div className="border-osrs-bronze/20 bg-osrs-brown-dark/30 mt-1.5 rounded border p-2">
@@ -106,23 +168,78 @@ export function ItemSourceRestriction({
           className="accent-osrs-gold"
         />
         <span className="text-osrs-parchment-dark/80">Only count drops from specific NPCs</span>
-        {open && sources && sources.length > 0 && (
-          <span className="text-osrs-gold-bright ml-auto shrink-0">
-            {sources.filter(chipOn).length}/{sources.length}
-          </span>
+        {open && npcs.length > 0 && (
+          <span className="text-osrs-gold-bright ml-auto shrink-0">{npcs.length} selected</span>
         )}
       </label>
 
       {open && (
         <div className="mt-2">
-          {loading ? (
-            <p className="text-osrs-parchment-dark/50 text-xs">Loading drop sources…</p>
-          ) : error ? (
-            <p className="text-osrs-red/80 text-xs">Couldn&apos;t load drop sources — try again.</p>
-          ) : sources && sources.length ? (
-            <>
+          {/* Selected NPCs — removable chips, incl. off-list ones the catalog
+              below never shows. */}
+          {npcs.length > 0 ? (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {npcs.map((name) => (
+                <button
+                  type="button"
+                  key={name}
+                  onClick={() => removeName(name)}
+                  disabled={disabled}
+                  title="Remove"
+                  className="border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright flex items-center gap-1.5 rounded border px-2 py-1 text-xs"
+                >
+                  <span>{name}</span>
+                  <span aria-hidden className="text-osrs-parchment-dark/70">
+                    ×
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="mb-2 text-[11px] text-amber-500/80">
+              No NPCs selected — this item counts drops from any source. Add the ones that should count.
+            </p>
+          )}
+
+          {/* Search + bulk affordances. */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={query}
+              disabled={disabled}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search drop sources or any monster…"
+              className="border-osrs-bronze/40 bg-osrs-brown-dark/40 text-osrs-parchment-dark placeholder:text-osrs-parchment-dark/40 min-w-0 flex-1 rounded border px-2 py-1 text-xs"
+            />
+            <button
+              type="button"
+              onClick={selectAll}
+              disabled={disabled || !sources?.length}
+              className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-gold shrink-0 rounded border px-2 py-1 text-xs disabled:opacity-40"
+            >
+              Select all
+            </button>
+            {npcs.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                disabled={disabled}
+                className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-red shrink-0 rounded border px-2 py-1 text-xs"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Drop-source catalog (add from). */}
+          <div className="mt-2">
+            {loading ? (
+              <p className="text-osrs-parchment-dark/50 text-xs">Loading drop sources…</p>
+            ) : error ? (
+              <p className="text-osrs-red/80 text-xs">Couldn&apos;t load drop sources — try again.</p>
+            ) : sources && sources.length ? (
               <div className="flex flex-wrap gap-1.5">
-                {sources.map((src) => {
+                {filteredSources.map((src) => {
                   const on = chipOn(src);
                   return (
                     <button
@@ -137,7 +254,7 @@ export function ItemSourceRestriction({
                       className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${
                         on
                           ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
-                          : "border-osrs-bronze/40 text-osrs-parchment-dark/60 hover:border-osrs-gold line-through"
+                          : "border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-gold"
                       }`}
                     >
                       <img
@@ -150,6 +267,9 @@ export function ItemSourceRestriction({
                           (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
                         }}
                       />
+                      <span aria-hidden className="text-osrs-parchment-dark/50">
+                        {on ? "✓" : "+"}
+                      </span>
                       <span>{src.name}</span>
                       {!src.tracked && (
                         <span className="text-amber-500" title="Never seen in tracked drops">
@@ -159,17 +279,72 @@ export function ItemSourceRestriction({
                     </button>
                   );
                 })}
+                {filteredSources.length === 0 && (
+                  <p className="text-osrs-parchment-dark/50 text-xs">
+                    No matching drop sources{q ? " — try the monster search below" : ""}.
+                  </p>
+                )}
               </div>
-              {npcs.length === 0 && (
-                <p className="mt-1 text-[11px] text-amber-500/80">
-                  No sources selected — this item counts from any source.
-                </p>
+            ) : (
+              <p className="text-osrs-parchment-dark/50 text-xs">
+                No known drop sources for this item — search below to add any monster.
+              </p>
+            )}
+          </div>
+
+          {/* Off-list monster search results. */}
+          {query.trim().length >= 2 && (
+            <div className="mt-2">
+              <p className="text-osrs-parchment-dark/50 mb-1 text-[11px] uppercase tracking-wide">
+                Other monsters
+              </p>
+              {searching ? (
+                <p className="text-osrs-parchment-dark/50 text-xs">Searching…</p>
+              ) : offList.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {offList.map((r) => {
+                    const on = allowed.has(r.name.toLowerCase());
+                    return (
+                      <button
+                        type="button"
+                        key={r.id}
+                        onClick={() => (on ? removeName(r.name) : addName(r.name))}
+                        aria-pressed={on}
+                        disabled={disabled}
+                        title={r.tracked === false ? `${r.name} · never seen in tracked drops` : r.name}
+                        className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${
+                          on
+                            ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
+                            : "border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-gold"
+                        }`}
+                      >
+                        <img
+                          src={`${IMG_BASE}/npcdb/${r.id}.png`}
+                          alt=""
+                          width={16}
+                          height={16}
+                          className="inline-block shrink-0 object-contain"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+                          }}
+                        />
+                        <span aria-hidden className="text-osrs-parchment-dark/50">
+                          {on ? "✓" : "+"}
+                        </span>
+                        <span>{r.name}</span>
+                        {r.tracked === false && (
+                          <span className="text-amber-500" title="Never seen in tracked drops">
+                            ⚠
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-osrs-parchment-dark/50 text-xs">No other monsters found.</p>
               )}
-            </>
-          ) : (
-            <p className="text-osrs-parchment-dark/50 text-xs">
-              No known drop sources for this item — it can&apos;t be restricted by NPC.
-            </p>
+            </div>
           )}
         </div>
       )}
