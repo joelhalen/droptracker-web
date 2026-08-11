@@ -1,79 +1,183 @@
 /**
- * Services landing for the clan-sites domain, served at `osrs.site/temp`
+ * Services landing for the sites domain, served at `osrs.site/temp`
  * (apex-host rewrite in next.config.ts).
  *
- * Advertises our Discord bot + clan website development work, using
- * DropTracker as the portfolio piece rather than as the subject. Written as a
- * standalone full page so promoting it to the apex root later is a one-line
- * rewrite change — no content rework.
+ * Positioning: general-purpose Discord bot and custom app development, with
+ * the OSRS/DropTracker work as the proof rather than the boundary — someone
+ * wanting a moderation bot for a non-gaming server should recognise
+ * themselves here too.
  *
- * Chromeless by design: it sits outside the (site) route group, so it carries
- * the OSRS palette without the DropTracker app header/footer.
+ * SEO: full metadata + JSON-LD is in place so promoting this to the apex root
+ * is a one-line rewrite change with no marketing rework. It is still
+ * `noindex` while it lives at /temp — building ranking signal on a URL that
+ * is about to move would split it. Drop the `robots` block when this becomes
+ * the real landing page.
+ *
+ * Chromeless by design: outside the (site) route group, so it carries the
+ * OSRS palette without the DropTracker app header/footer.
  */
 import type { Metadata } from "next";
 
 const SITES_DOMAIN = process.env.SITES_DOMAIN || "osrs.site";
+const PAGE_URL = `https://${SITES_DOMAIN}/temp`;
 const DISCORD = "https://discord.gg/droptracker";
 const DROPTRACKER = "https://www.droptracker.io/";
 
+const TITLE = "Discord Bot Development & Custom App Builds | DropTracker Studio";
+const DESCRIPTION =
+  "Custom Discord bot development, community management tools and bespoke web apps. Built by the team behind DropTracker — 186M+ events processed across 260+ Discord servers.";
+
 export const metadata: Metadata = {
-  title: "OSRS clan tools, built to order — Discord bots & clan websites",
-  description:
-    "We build custom Discord bots and Old School RuneScape clan websites. From the team behind DropTracker, tracking 186M+ drops for 260+ clans.",
+  metadataBase: new URL(`https://${SITES_DOMAIN}`),
+  // `absolute` bypasses the root layout's "%s · DropTracker" template: this is
+  // a standalone marketing page on its own domain, and the appended branding
+  // both duplicated "DropTracker" and pushed the title past the ~60 chars
+  // search results actually show.
+  title: { absolute: TITLE },
+  description: DESCRIPTION,
+  keywords: [
+    "discord bot development",
+    "custom discord bot",
+    "hire discord bot developer",
+    "discord bot developer for hire",
+    "community management tools",
+    "clan management software",
+    "custom web app development",
+    "discord activity development",
+    "discord server automation",
+    "gaming community tools",
+    "osrs clan website",
+    "old school runescape discord bot",
+    "runelite plugin development",
+  ],
+  applicationName: "DropTracker Studio",
+  authors: [{ name: "DropTracker", url: DROPTRACKER }],
+  creator: "DropTracker",
+  publisher: "DropTracker",
+  alternates: { canonical: PAGE_URL },
+  openGraph: {
+    type: "website",
+    url: PAGE_URL,
+    siteName: "DropTracker Studio",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [{ url: "/og-default.png", width: 1200, height: 630, alt: TITLE }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ["/og-default.png"],
+  },
+  category: "technology",
+  // Still a temporary URL — see the file header before removing this.
   robots: { index: false, follow: false },
 };
 
-/** Headline figures from the live DropTracker platform. Static on purpose —
- *  this page is public marketing, not a dashboard. */
+/** Search engines read services and credibility far better from JSON-LD than
+ *  from prose; this mirrors what the page says, nothing extra. */
+const STRUCTURED_DATA = {
+  "@context": "https://schema.org",
+  "@type": "ProfessionalService",
+  name: "DropTracker Studio",
+  url: PAGE_URL,
+  description: DESCRIPTION,
+  areaServed: "Worldwide",
+  knowsAbout: [
+    "Discord bot development",
+    "Discord Activities",
+    "Community management tooling",
+    "Custom web application development",
+    "Game data integrations",
+    "Old School RuneScape tooling",
+  ],
+  sameAs: [DROPTRACKER, DISCORD],
+  hasOfferCatalog: {
+    "@type": "OfferCatalog",
+    name: "Development services",
+    itemListElement: [
+      { "@type": "Offer", itemOffered: { "@type": "Service", name: "Custom Discord bot development" } },
+      { "@type": "Offer", itemOffered: { "@type": "Service", name: "Community & clan management tools" } },
+      { "@type": "Offer", itemOffered: { "@type": "Service", name: "Custom web apps and dashboards" } },
+      { "@type": "Offer", itemOffered: { "@type": "Service", name: "Game and platform integrations" } },
+    ],
+  },
+};
+
 const STATS: Array<{ value: string; label: string }> = [
-  { value: "186M+", label: "Drops tracked" },
-  { value: "19,000+", label: "Players" },
-  { value: "260+", label: "Clans served" },
-  { value: "263", label: "Discord servers" },
+  { value: "186M+", label: "Events processed" },
+  { value: "260+", label: "Discord servers" },
+  { value: "19,000+", label: "Tracked users" },
+  { value: "24/7", label: "Production uptime" },
 ];
 
 const SERVICES: Array<{ icon: string; title: string; blurb: string; points: string[] }> = [
   {
     icon: "🤖",
-    title: "Custom Discord bots",
-    blurb:
-      "Bots built for how your clan actually runs — not another off-the-shelf template.",
+    title: "Discord bots",
+    blurb: "For any community — gaming, creator, business or hobby.",
     points: [
-      "Slash commands, buttons and modals",
-      "Event automation: bingo, raids, competitions",
-      "Roles, moderation and onboarding flows",
-      "Game-data integrations (WOM, RuneLite, wiki)",
-      "Hosted and maintained, or handed over",
+      "Slash commands, buttons, modals and menus",
+      "Moderation, onboarding and role automation",
+      "Ticketing, applications and approval flows",
+      "Scheduled jobs, alerts and notifications",
+      "Hosted and maintained, or handed over to you",
+    ],
+  },
+  {
+    icon: "📊",
+    title: "Custom apps & dashboards",
+    blurb: "When a bot isn't enough and off-the-shelf doesn't fit.",
+    points: [
+      "Web dashboards and admin panels",
+      "Discord Activities (embedded in-client apps)",
+      "APIs, data pipelines and reporting",
+      "Payments, subscriptions and access control",
+      "Authentication via Discord, OAuth or your own",
+    ],
+  },
+  {
+    icon: "🎮",
+    title: "Game & community tooling",
+    blurb: "Our specialty — and where most of our production experience lives.",
+    points: [
+      "Old School RuneScape: RuneLite plugins, clan tracking",
+      "Leaderboards, competitions, bingo and events",
+      "Third-party game APIs and stat integrations",
+      "Member rosters, ranks and progression systems",
+      "Anti-cheat checks and submission verification",
     ],
   },
   {
     icon: "🌐",
-    title: "Custom clan websites",
-    blurb:
-      "A real site for your clan, wired to live Old School RuneScape data.",
+    title: "Websites",
+    blurb: "A real site for your community, wired to live data.",
     points: [
-      "Your own domain or a free " + SITES_DOMAIN + " subdomain",
-      "Live loot boards, leaderboards and PB records",
-      "Member rosters and recruitment pages",
-      "Built in a drag-and-drop editor you keep control of",
-      "Fully custom design work on request",
+      "Custom design, or a self-serve builder we host",
+      "Live stats pulled straight from your bot or game",
+      "Recruitment, roster and announcement pages",
+      "Your own domain, or a free " + SITES_DOMAIN + " subdomain",
+      "Fast, responsive, and yours to keep",
     ],
   },
 ];
 
-/** DropTracker as proof of work — what we have actually shipped and run. */
 const BUILT: Array<{ label: string; detail: string }> = [
-  { label: "RuneLite plugin", detail: "On the official plugin hub, in daily use." },
-  { label: "Discord bots", detail: "Live in 260+ servers, 24/7." },
-  { label: "Web platform", detail: "Profiles, leaderboards, admin tooling." },
-  { label: "Discord Activity", detail: "An embedded in-Discord app." },
+  { label: "Discord bots at scale", detail: "Live in 260+ servers, around the clock." },
+  { label: "RuneLite plugin", detail: "Published on the official plugin hub." },
+  { label: "Full web platform", detail: "Profiles, leaderboards, billing, admin tooling." },
+  { label: "Discord Activity", detail: "An embedded in-client app, not just a bot." },
   { label: "Events engine", detail: "Bingo boards, team scoring, prize pots." },
-  { label: "Data pipeline", detail: "186M+ submissions processed." },
+  { label: "Data pipeline", detail: "186M+ submissions processed and queryable." },
 ];
 
 export default function ServicesLandingPage() {
   return (
     <div className="bg-osrs-surface-0 text-osrs-parchment min-h-screen">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(STRUCTURED_DATA) }}
+      />
       <div className="mx-auto w-full max-w-5xl px-5 py-16 sm:py-24">
         {/* Hero */}
         <header className="text-center">
@@ -81,13 +185,13 @@ export default function ServicesLandingPage() {
             From the team behind DropTracker
           </span>
           <h1 className="text-osrs-gold font-display mt-3 text-4xl leading-tight font-bold sm:text-6xl">
-            We build tools for
+            Discord bots &amp; custom apps,
             <br />
-            Old School RuneScape clans
+            built to order
           </h1>
           <p className="text-osrs-parchment-dark/90 mx-auto mt-5 max-w-2xl text-lg">
-            Custom Discord bots and clan websites, built by people who have run OSRS
-            infrastructure at scale for years — not a side project.
+            We build bots, dashboards and web apps for communities that have outgrown
+            off-the-shelf tools — with deep roots in gaming and Old School RuneScape.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <a
@@ -126,27 +230,32 @@ export default function ServicesLandingPage() {
         </section>
 
         {/* Services */}
-        <section className="mt-16 grid gap-6 md:grid-cols-2">
-          {SERVICES.map((svc) => (
-            <div
-              key={svc.title}
-              className="border-osrs-bronze/40 bg-osrs-surface-1 shadow-osrs-card rounded-2xl border p-7"
-            >
-              <div className="text-3xl">{svc.icon}</div>
-              <h2 className="text-osrs-gold font-display mt-3 text-2xl font-bold">
-                {svc.title}
-              </h2>
-              <p className="text-osrs-parchment-dark/85 mt-2">{svc.blurb}</p>
-              <ul className="mt-4 space-y-1.5">
-                {svc.points.map((p) => (
-                  <li key={p} className="text-osrs-parchment-dark/80 flex gap-2 text-sm">
-                    <span className="text-osrs-gold-bright shrink-0">▸</span>
-                    <span>{p}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+        <section className="mt-16">
+          <h2 className="text-osrs-gold font-display text-center text-2xl font-bold sm:text-3xl">
+            What we build
+          </h2>
+          <div className="mt-7 grid gap-6 md:grid-cols-2">
+            {SERVICES.map((svc) => (
+              <div
+                key={svc.title}
+                className="border-osrs-bronze/40 bg-osrs-surface-1 shadow-osrs-card rounded-2xl border p-7"
+              >
+                <div className="text-3xl">{svc.icon}</div>
+                <h3 className="text-osrs-gold font-display mt-3 text-2xl font-bold">
+                  {svc.title}
+                </h3>
+                <p className="text-osrs-parchment-dark/85 mt-2">{svc.blurb}</p>
+                <ul className="mt-4 space-y-1.5">
+                  {svc.points.map((p) => (
+                    <li key={p} className="text-osrs-parchment-dark/80 flex gap-2 text-sm">
+                      <span className="text-osrs-gold-bright shrink-0">▸</span>
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Proof of work */}
@@ -155,8 +264,9 @@ export default function ServicesLandingPage() {
             What we&apos;ve already shipped
           </h2>
           <p className="text-osrs-parchment-dark/75 mx-auto mt-2 max-w-2xl text-center text-sm">
-            DropTracker is our own platform. Everything we would build for you, we run
-            ourselves — in production, for real clans, every day.
+            DropTracker is our own platform — a bot network, a plugin, a web app and a data
+            pipeline running together in production. Everything we&apos;d build for you, we
+            already run ourselves.
           </p>
           <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {BUILT.map((b) => (
@@ -174,11 +284,12 @@ export default function ServicesLandingPage() {
         {/* Closing CTA */}
         <section className="border-osrs-bronze/40 bg-osrs-surface-1 shadow-osrs-card mt-16 rounded-2xl border p-8 text-center sm:p-10">
           <h2 className="text-osrs-gold font-display text-2xl font-bold sm:text-3xl">
-            Tell us what your clan needs
+            Tell us what you need built
           </h2>
           <p className="text-osrs-parchment-dark/85 mx-auto mt-3 max-w-xl">
-            Bot, website, or both. Message us on Discord with the idea and we&apos;ll tell
-            you honestly whether we&apos;re the right people to build it.
+            Bot, app, website, or something we haven&apos;t listed. Message us on Discord
+            with the idea and we&apos;ll tell you honestly whether we&apos;re the right
+            people to build it.
           </p>
           <a
             href={DISCORD}
@@ -199,7 +310,7 @@ export default function ServicesLandingPage() {
           <a className="hover:text-osrs-gold" href={DISCORD}>
             Discord
           </a>
-          <span>Not affiliated with Jagex Ltd.</span>
+          <span>Not affiliated with Jagex Ltd. or Discord Inc.</span>
         </footer>
       </div>
     </div>
