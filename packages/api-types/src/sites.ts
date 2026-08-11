@@ -306,3 +306,13 @@ export type SiteMeta = z.infer<typeof SiteMetaSchema>;
 /** Client-side mirror of the backend claim rules (server re-validates). */
 export const SITE_SUBDOMAIN_RE = /^[a-z0-9]([a-z0-9-]{1,28})[a-z0-9]$/;
 export const SITE_PAGE_SLUG_RE = /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/;
+
+/** `GET /groups/{id}/site` envelope. `can_build` is false for groups without
+ *  the custom_site entitlement — they can still claim an address and use the
+ *  redirect modes, which are free. */
+export const SiteStateSchema = z.object({
+  site: SiteAdminSchema.nullable(),
+  tos_version: z.string(),
+  can_build: z.boolean().catch(false),
+});
+export type SiteState = z.infer<typeof SiteStateSchema>;

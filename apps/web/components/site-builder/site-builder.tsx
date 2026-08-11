@@ -21,7 +21,9 @@ import type {
   SiteMode,
 } from "@droptracker/api-types";
 import { SITE_SUBDOMAIN_RE, SITE_PAGE_SLUG_RE } from "@droptracker/api-types";
+import type { SubscriptionTier } from "@droptracker/api-types";
 import { SITE_THEMES, type SiteThemeKey } from "@/lib/site-themes";
+import { lowestTierWithEntitlement } from "@/lib/entitlements";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
 import { Field, type Block } from "./block-forms";
 import { PageEditor } from "./page-editor";
@@ -77,11 +79,16 @@ export function SiteBuilder({
   initialSite,
   meta,
   group,
+  canBuild,
+  tiers,
 }: {
   groupId: number;
   initialSite: SiteAdmin | null;
   meta: SiteMeta;
   group: GroupProfile;
+  /** Whether this group may use the builder half (custom_site entitlement). */
+  canBuild: boolean;
+  tiers: SubscriptionTier[];
 }) {
   const [site, setSite] = useState<SiteAdmin | null>(initialSite);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +112,11 @@ export function SiteBuilder({
 
   // navigation
   const [nav, setNav] = useState<SiteNavItem[]>(initialSite?.nav ?? []);
+
+  const upgradeTier = useMemo(
+    () => lowestTierWithEntitlement(tiers, "custom_site"),
+    [tiers],
+  );
 
   // what the subdomain does
   const [mode, setMode] = useState(initialSite?.mode ?? "builder");
@@ -255,7 +267,11 @@ export function SiteBuilder({
           {MODE_OPTIONS.map((opt) => (
             <label
               key={opt.value}
-              className={`flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors ${
+              className={`flex items-start gap-2.5 rounded-lg border p-3 transition-colors ${
+                opt.value === "builder" && !canBuild
+                  ? "border-osrs-bronze/20 cursor-not-allowed opacity-55"
+                  : "cursor-pointer"
+              } ${
                 mode === opt.value
                   ? "border-osrs-gold/70 bg-osrs-surface-2"
                   : "border-osrs-bronze/30 hover:bg-osrs-surface-2/50"
@@ -265,11 +281,19 @@ export function SiteBuilder({
                 type="radio"
                 name="site-mode"
                 className="mt-1"
+                disabled={opt.value === "builder" && !canBuild}
                 checked={mode === opt.value}
                 onChange={() => setMode(opt.value)}
               />
               <span>
-                <span className="block text-sm font-medium">{opt.label}</span>
+                <span className="block text-sm font-medium">
+                  {opt.label}
+                  {opt.value === "builder" && !canBuild && (
+                    <span className="text-osrs-gold-bright ml-2 text-[10px] font-semibold uppercase">
+                      Subscribers
+                    </span>
+                  )}
+                </span>
                 <span className="text-osrs-parchment-dark/70 block text-xs">{opt.help}</span>
               </span>
             </label>
@@ -329,7 +353,7 @@ export function SiteBuilder({
         </button>
       </Card>
 
-      {mode !== "builder" && (
+      {mode !== "builder" && canBuild && (
         <Card>
           <p className="text-osrs-parchment-dark/75 text-sm">
             Page building is paused while this address is a redirect. Your pages are kept —
@@ -338,7 +362,31 @@ export function SiteBuilder({
         </Card>
       )}
 
-      {mode === "builder" && editing && (
+      {!canBuild && (
+        <Card className="border-osrs-gold/30">
+          <h3 className="text-osrs-gold font-semibold">Want a full website?</h3>
+          <p className="text-osrs-parchment-dark/80 mt-2 text-sm">
+            Redirects are free for every clan. Building your own pages — live loot
+            boards, leaderboards, rosters and custom design — comes with a subscription.
+            {upgradeTier && (
+              <>
+                {" "}
+                Available on the{" "}
+                <span className="text-osrs-gold-bright font-medium">{upgradeTier.name}</span>{" "}
+                plan and above.
+              </>
+            )}
+          </p>
+          <a
+            href={`/groups/${groupId}/subscription`}
+            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-4 inline-block rounded px-4 py-2 text-sm font-medium"
+          >
+            View subscription options
+          </a>
+        </Card>
+      )}
+
+      {canBuild && mode === "builder" && editing && (
         <PageEditor
           site={{ ...site, nav }}
           meta={meta}
@@ -404,7 +452,7 @@ export function SiteBuilder({
         />
       )}
 
-      {mode === "builder" && (
+      {canBuild && mode === "builder" && (
       <Card>
         <h3 className="text-osrs-gold mb-3 font-semibold">Pages</h3>
         <ul className="divide-osrs-bronze/20 divide-y">
@@ -518,7 +566,7 @@ export function SiteBuilder({
 
       )}
 
-      {mode === "builder" && (
+      {canBuild && mode === "builder" && (
       <Card>
         <h3 className="text-osrs-gold mb-1 font-semibold">Navigation</h3>
         <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
@@ -655,7 +703,7 @@ export function SiteBuilder({
 
       )}
 
-      {mode === "builder" && (
+      {canBuild && mode === "builder" && (
       <Card>
         <h3 className="text-osrs-gold mb-3 font-semibold">Appearance</h3>
         <div className="flex flex-wrap items-end gap-4">

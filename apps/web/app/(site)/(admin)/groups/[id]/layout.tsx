@@ -64,11 +64,10 @@ export default async function GroupAdminLayout({
           label: "Embeds",
           locked: !hasEntitlement(subscription, "custom_embeds", { isSuperadmin: user.is_superadmin }),
         },
-        {
-          href: `/groups/${groupId}/website`,
-          label: "Website",
-          locked: !hasEntitlement(subscription, "custom_site", { isSuperadmin: user.is_superadmin }),
-        },
+        // Not locked: claiming an address and pointing it at your Discord or
+        // DropTracker page is free. The subscription gates the page builder,
+        // which is upsold inside the tab.
+        { href: `/groups/${groupId}/website`, label: "Website" },
         { href: `/groups/${groupId}/announcements`, label: "Announcements" },
         { href: `/groups/${groupId}/members`, label: "Members" },
         {

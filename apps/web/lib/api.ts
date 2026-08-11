@@ -925,14 +925,18 @@ export const api = {
 
   // --- sites-v1 builder (session-authed; dashboard only) --------------------
 
-  async groupSite(groupId: number): Promise<{ site: SiteAdmin | null; tos_version: string }> {
+  async groupSite(
+    groupId: number,
+  ): Promise<{ site: SiteAdmin | null; tos_version: string; can_build: boolean }> {
     const raw = (await apiGet(`/groups/${groupId}/site`, { authed: true })) as {
       site: unknown;
       tos_version: string;
+      can_build?: boolean;
     };
     return {
       site: raw.site ? SiteAdminSchema.parse(raw.site) : null,
       tos_version: raw.tos_version,
+      can_build: Boolean(raw.can_build),
     };
   },
 
