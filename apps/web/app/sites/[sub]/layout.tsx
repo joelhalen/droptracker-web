@@ -12,9 +12,9 @@
  * lives inside `#site-root`; the host footer (report link) renders outside
  * it, so scoped tenant CSS cannot select it away.
  */
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { sitePaletteStyle } from "@/lib/site-themes";
 import type { SiteNavItem, SiteResolve } from "@droptracker/api-types";
@@ -159,6 +159,17 @@ export default async function TenantSiteLayout({
         </div>
       </div>
     );
+  }
+
+  // Redirect modes: the whole subdomain is an alias for somewhere else, so
+  // every path under this layout bounces, not just "/". Deliberately after the
+  // suspended/unavailable branch above — a suspended or lapsed site must stop
+  // there rather than keep forwarding traffic. Temporary (307), never
+  // permanent: admins change these and browsers cache 308s forever.
+  if (site.mode !== "builder" && site.redirect_target) {
+    // typedRoutes types redirect() to internal routes; these are external
+    // absolute URLs by definition.
+    redirect(site.redirect_target as Route);
   }
 
   const nav = site.nav ?? [];

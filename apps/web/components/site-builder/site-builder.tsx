@@ -18,6 +18,7 @@ import type {
   SiteNavItem,
   SitePageDetail,
   SitePageSummary,
+  SiteMode,
 } from "@droptracker/api-types";
 import { SITE_SUBDOMAIN_RE, SITE_PAGE_SLUG_RE } from "@droptracker/api-types";
 import { SITE_THEMES, type SiteThemeKey } from "@/lib/site-themes";
@@ -35,6 +36,24 @@ import {
   sitePreviewTokenAction,
   updateSiteAction,
 } from "@/app/(site)/(admin)/groups/[id]/website/actions";
+
+const MODE_OPTIONS: Array<{ value: SiteMode; label: string; help: string }> = [
+  {
+    value: "builder",
+    label: "Show a site I build",
+    help: "Design pages with the block editor below.",
+  },
+  {
+    value: "group_page",
+    label: "Redirect to our DropTracker page",
+    help: "Visitors land on your group's profile — no site to maintain.",
+  },
+  {
+    value: "redirect",
+    label: "Redirect somewhere else",
+    help: "Point the address at your Discord invite, forum, or any https:// link.",
+  },
+];
 
 const PALETTE_EDIT_KEYS: Array<{ key: string; label: string }> = [
   { key: "--dt-gold", label: "Accent" },
@@ -86,6 +105,10 @@ export function SiteBuilder({
 
   // navigation
   const [nav, setNav] = useState<SiteNavItem[]>(initialSite?.nav ?? []);
+
+  // what the subdomain does
+  const [mode, setMode] = useState(initialSite?.mode ?? "builder");
+  const [redirectUrl, setRedirectUrl] = useState(initialSite?.redirect_url ?? "");
 
   // page editor
   const [editing, setEditing] = useState<SitePageDetail | null>(null);
@@ -222,7 +245,100 @@ export function SiteBuilder({
         </div>
       </Card>
 
-      {editing && (
+      <Card>
+        <h3 className="text-osrs-gold mb-1 font-semibold">What this address does</h3>
+        <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
+          Not every clan wants to run a site — your address can simply point somewhere
+          you already have.
+        </p>
+        <div className="space-y-2">
+          {MODE_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className={`flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 transition-colors ${
+                mode === opt.value
+                  ? "border-osrs-gold/70 bg-osrs-surface-2"
+                  : "border-osrs-bronze/30 hover:bg-osrs-surface-2/50"
+              }`}
+            >
+              <input
+                type="radio"
+                name="site-mode"
+                className="mt-1"
+                checked={mode === opt.value}
+                onChange={() => setMode(opt.value)}
+              />
+              <span>
+                <span className="block text-sm font-medium">{opt.label}</span>
+                <span className="text-osrs-parchment-dark/70 block text-xs">{opt.help}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {mode === "redirect" && (
+          <div className="mt-3">
+            <Field label="Send visitors to">
+              <input
+                className={fieldInputClass}
+                placeholder="https://discord.gg/your-invite"
+                maxLength={500}
+                value={redirectUrl}
+                onChange={(e) => setRedirectUrl(e.target.value)}
+              />
+            </Field>
+            <p className="text-osrs-parchment-dark/55 mt-1 text-[11px]">
+              Must be a full https:// address, and can&apos;t point back at{" "}
+              {meta.sites_domain}.
+            </p>
+          </div>
+        )}
+        {mode === "group_page" && (
+          <p className="text-osrs-parchment-dark/70 mt-3 text-xs">
+            Visitors will land on your DropTracker group profile.
+          </p>
+        )}
+
+        <button
+          type="button"
+          disabled={
+            pending || (mode === "redirect" && !redirectUrl.trim().toLowerCase().startsWith("https://"))
+          }
+          className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark mt-4 rounded px-4 py-1.5 text-sm font-medium disabled:opacity-50"
+          onClick={() =>
+            run(
+              () =>
+                updateSiteAction(groupId, {
+                  mode,
+                  ...(mode === "redirect" ? { redirect_url: redirectUrl.trim() } : {}),
+                }),
+              (s2) => {
+                setSite(s2);
+                setMode(s2.mode);
+                setRedirectUrl(s2.redirect_url);
+                setNotice(
+                  s2.mode === "builder"
+                    ? "Your address now shows the pages you build below."
+                    : `Your address now redirects to ${s2.redirect_target}.`,
+                );
+              },
+            )
+          }
+        >
+          Save
+        </button>
+      </Card>
+
+      {mode !== "builder" && (
+        <Card>
+          <p className="text-osrs-parchment-dark/75 text-sm">
+            Page building is paused while this address is a redirect. Your pages are kept —
+            switch back to &quot;Show a site I build&quot; above to use them again.
+          </p>
+        </Card>
+      )}
+
+      {mode === "builder" && editing && (
         <PageEditor
           site={{ ...site, nav }}
           meta={meta}
@@ -288,6 +404,7 @@ export function SiteBuilder({
         />
       )}
 
+      {mode === "builder" && (
       <Card>
         <h3 className="text-osrs-gold mb-3 font-semibold">Pages</h3>
         <ul className="divide-osrs-bronze/20 divide-y">
@@ -399,6 +516,9 @@ export function SiteBuilder({
         )}
       </Card>
 
+      )}
+
+      {mode === "builder" && (
       <Card>
         <h3 className="text-osrs-gold mb-1 font-semibold">Navigation</h3>
         <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
@@ -533,6 +653,9 @@ export function SiteBuilder({
         </div>
       </Card>
 
+      )}
+
+      {mode === "builder" && (
       <Card>
         <h3 className="text-osrs-gold mb-3 font-semibold">Appearance</h3>
         <div className="flex flex-wrap items-end gap-4">
@@ -629,6 +752,7 @@ export function SiteBuilder({
           Save appearance
         </button>
       </Card>
+      )}
     </div>
   );
 }

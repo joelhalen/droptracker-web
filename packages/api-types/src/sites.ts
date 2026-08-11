@@ -203,9 +203,16 @@ export const SiteNavItemSchema = z.object({
 export type SiteNavItem = z.infer<typeof SiteNavItemSchema>;
 
 /** `GET /sites/resolve?host={sub}` — the tenant layout's one fetch. */
+export const SITE_MODES = ["builder", "group_page", "redirect"] as const;
+export type SiteMode = (typeof SITE_MODES)[number];
+
 export const SiteResolveSchema = z.object({
   status: z.enum(["ok", "suspended", "unavailable"]),
   subdomain: z.string(),
+  /** builder renders pages; the others make the subdomain a redirect. */
+  mode: z.enum(SITE_MODES).catch("builder"),
+  /** Absolute destination when mode isn't "builder". */
+  redirect_target: z.string().nullish(),
   group_id: z.number().int().optional(),
   group_name: z.string().optional(),
   icon_url: z.string().nullish(),
@@ -258,6 +265,9 @@ export type SitePageDetail = z.infer<typeof SitePageDetailSchema>;
 
 export const SiteAdminSchema = z.object({
   roster_public: z.boolean().catch(false),
+  mode: z.enum(SITE_MODES).catch("builder"),
+  redirect_url: z.string().catch(""),
+  redirect_target: z.string().nullish(),
   site_id: z.number().int(),
   group_id: z.number().int(),
   subdomain: z.string(),

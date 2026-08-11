@@ -71,6 +71,8 @@ export async function updateSiteAction(
     nav?: Array<{ label: string; page_slug?: string; href?: string }>;
     custom_css_source?: string;
     roster_public?: boolean;
+    mode?: string;
+    redirect_url?: string;
   },
 ): Promise<SiteActionResult<SiteAdmin>> {
   try {

@@ -956,6 +956,8 @@ export const api = {
       nav?: Array<{ label: string; page_slug?: string; href?: string }>;
       custom_css_source?: string;
       roster_public?: boolean;
+      mode?: string;
+      redirect_url?: string;
     },
   ): Promise<SiteAdmin> {
     const raw = (await apiSend("PUT", `/groups/${groupId}/site`, input)) as { site: unknown };
