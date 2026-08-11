@@ -15,11 +15,17 @@
  * "Select all sources" freezes today's wiki source list into the selection;
  * that is deliberately different from leaving the selection empty, which stays
  * dynamically unrestricted (counts any source, including ones added later).
+ *
+ * Both fetches go through TanStack Query (keyed by item name / search term), so
+ * caching, in-flight dedupe and stale-response handling are declarative — the
+ * component holds no loading/error/seq bookkeeping of its own.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { EventItemSourceNpc, EventMetaEntry } from "@droptracker/api-types";
 import { formatRarity } from "@/lib/format";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 
@@ -48,69 +54,27 @@ export function ItemSourceRestriction({
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(npcs.length > 0);
-  const [sources, setSources] = useState<EventItemSourceNpc[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
-  // Which item name we've fetched for, so re-picking a different item refetches.
-  const fetchedFor = useRef<string | null>(null);
-
-  // Search box: filters the loaded sources AND queries the full NPC database
-  // for off-list monsters to add.
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<EventMetaEntry[]>([]);
-  const [searching, setSearching] = useState(false);
-  const searchSeq = useRef(0);
+  // Raw `query` drives the instant local filter; the debounced copy drives the
+  // network search so a keystroke burst is one request.
+  const debouncedQuery = useDebouncedValue(query.trim(), 250);
 
-  useEffect(() => {
-    if (!open) return;
-    // Already loaded for this item (e.g. re-opening after a close) — keep the
-    // catalog; selection is the source of truth and is left untouched.
-    if (fetchedFor.current === itemName && sources !== null) return;
-    fetchedFor.current = itemName;
-    setLoading(true);
-    setError(false);
-    let cancelled = false;
-    fetchSources(itemName)
-      .then((rows) => {
-        if (!cancelled) setSources(rows);
-      })
-      .catch(() => {
-        if (!cancelled) setError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, itemName]);
+  // Drop sources for this item (wiki table + observed). Group-independent, so
+  // the item name alone is a safe cache key.
+  const sourcesQuery = useQuery({
+    queryKey: ["item-sources", itemName],
+    queryFn: () => fetchSources(itemName),
+    enabled: open,
+  });
+  const sources = sourcesQuery.data ?? [];
 
-  // Debounced off-list NPC search — a `seq` guard drops stale responses.
-  useEffect(() => {
-    const q = query.trim();
-    if (!open || q.length < 2) {
-      setResults([]);
-      setSearching(false);
-      return;
-    }
-    const seq = ++searchSeq.current;
-    setSearching(true);
-    const t = setTimeout(() => {
-      searchNpcs(q)
-        .then((rows) => {
-          if (searchSeq.current === seq) setResults(rows);
-        })
-        .catch(() => {
-          if (searchSeq.current === seq) setResults([]);
-        })
-        .finally(() => {
-          if (searchSeq.current === seq) setSearching(false);
-        });
-    }, 250);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, open, itemName]);
+  // Off-list monster search — any NPC, not just the item's wiki sources.
+  const searchQuery = useQuery({
+    queryKey: ["npc-search", debouncedQuery],
+    queryFn: () => searchNpcs(debouncedQuery),
+    enabled: open && debouncedQuery.length >= 2,
+    placeholderData: keepPreviousData, // keep the last hits visible while retyping
+  });
 
   const allowed = new Set(npcs.map((n) => n.toLowerCase()));
   const chipOn = (src: EventItemSourceNpc) =>
@@ -126,7 +90,7 @@ export function ItemSourceRestriction({
   const removeName = (name: string) =>
     onChange(npcs.filter((n) => n.toLowerCase() !== name.toLowerCase()));
   const selectAll = () => {
-    if (!sources?.length) return;
+    if (!sources.length) return;
     const seen = new Set(allowed);
     const merged = [...npcs];
     for (const n of sources.flatMap(chipNames)) {
@@ -139,7 +103,7 @@ export function ItemSourceRestriction({
   };
 
   const q = query.trim().toLowerCase();
-  const filteredSources = (sources ?? []).filter(
+  const filteredSources = sources.filter(
     (src) =>
       !q ||
       src.name.toLowerCase().includes(q) ||
@@ -147,9 +111,9 @@ export function ItemSourceRestriction({
   );
   // Off-list matches: search hits the loaded catalog doesn't already cover.
   const catalogNames = new Set(
-    (sources ?? []).flatMap((src) => [src.name.toLowerCase(), ...chipNames(src).map((n) => n.toLowerCase())]),
+    sources.flatMap((src) => [src.name.toLowerCase(), ...chipNames(src).map((n) => n.toLowerCase())]),
   );
-  const offList = results.filter((r) => !catalogNames.has(r.name.toLowerCase()));
+  const offList = (searchQuery.data ?? []).filter((r) => !catalogNames.has(r.name.toLowerCase()));
 
   return (
     <div className="border-osrs-bronze/20 bg-osrs-brown-dark/30 mt-1.5 rounded border p-2">
@@ -214,7 +178,7 @@ export function ItemSourceRestriction({
             <button
               type="button"
               onClick={selectAll}
-              disabled={disabled || !sources?.length}
+              disabled={disabled || !sources.length}
               className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-gold shrink-0 rounded border px-2 py-1 text-xs disabled:opacity-40"
             >
               Select all
@@ -233,11 +197,11 @@ export function ItemSourceRestriction({
 
           {/* Drop-source catalog (add from). */}
           <div className="mt-2">
-            {loading ? (
+            {sourcesQuery.isLoading ? (
               <p className="text-osrs-parchment-dark/50 text-xs">Loading drop sources…</p>
-            ) : error ? (
+            ) : sourcesQuery.isError ? (
               <p className="text-osrs-red/80 text-xs">Couldn&apos;t load drop sources — try again.</p>
-            ) : sources && sources.length ? (
+            ) : sources.length ? (
               <div className="flex flex-wrap gap-1.5">
                 {filteredSources.map((src) => {
                   const on = chipOn(src);
@@ -298,7 +262,7 @@ export function ItemSourceRestriction({
               <p className="text-osrs-parchment-dark/50 mb-1 text-[11px] uppercase tracking-wide">
                 Other monsters
               </p>
-              {searching ? (
+              {searchQuery.isFetching || query.trim() !== debouncedQuery ? (
                 <p className="text-osrs-parchment-dark/50 text-xs">Searching…</p>
               ) : offList.length ? (
                 <div className="flex flex-wrap gap-1.5">
