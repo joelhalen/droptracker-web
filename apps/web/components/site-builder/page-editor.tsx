@@ -174,6 +174,7 @@ export function PageEditor({
   initialBlocks,
   initialPageCss,
   saving,
+  saveError,
   onSave,
   onPublish,
   onClose,
@@ -189,6 +190,9 @@ export function PageEditor({
   initialBlocks: Block[];
   initialPageCss: string;
   saving: boolean;
+  /** Last save/publish failure, surfaced in the toolbar — the shell's alert
+   *  sits above the editor and is easy to miss when scrolled into the canvas. */
+  saveError?: string | null;
   onSave: (blocks: Block[], pageCss: string) => void;
   /** Publish the SAVED draft (the shell saves first when dirty). */
   onPublish: (blocks: Block[], pageCss: string, dirty: boolean) => void;
@@ -229,6 +233,7 @@ export function PageEditor({
 
   function insertFromPalette(type: string, atIndex: number | null) {
     if (blocks.length >= meta.limits.max_blocks_per_page) return;
+    if (type === "custom_html" && htmlCount >= htmlMax) return;
     const def = BLOCK_CATALOG.find((b) => b.type === type);
     if (!def) return;
     const block = { ...def.make(), id: newBlockId() };
@@ -280,6 +285,10 @@ export function PageEditor({
 
   const paletteVars = sitePaletteStyle(site.theme_key, site.palette);
   const canAdd = blocks.length < meta.limits.max_blocks_per_page;
+  const htmlCount = blocks.filter((b) => b.type === "custom_html").length;
+  const htmlMax = meta.limits.max_custom_html_blocks_per_page;
+  const canAddType = (type: string) =>
+    canAdd && (type !== "custom_html" || htmlCount < htmlMax);
 
   return (
     <div className="border-osrs-bronze/30 bg-osrs-surface-1 shadow-osrs-card rounded-xl border">
@@ -334,6 +343,12 @@ export function PageEditor({
           </button>
         </div>
       </div>
+
+      {saveError && (
+        <div className="border-osrs-red/40 bg-osrs-red/10 text-osrs-red border-b px-4 py-2 text-sm">
+          {saveError}
+        </div>
+      )}
 
       <DndContext
         sensors={sensors}
@@ -458,12 +473,29 @@ export function PageEditor({
                     its settings.
                   </p>
                   <div className="grid grid-cols-2 gap-1.5">
-                    {BLOCK_CATALOG.map((def) => (
-                      <div key={def.type} onClick={() => canAdd && insertFromPalette(def.type, null)}>
-                        <PaletteItem type={def.type} />
-                      </div>
-                    ))}
+                    {BLOCK_CATALOG.map((def) => {
+                      const allowed = canAddType(def.type);
+                      return (
+                        <div
+                          key={def.type}
+                          className={allowed ? "" : "pointer-events-none opacity-40"}
+                          title={
+                            allowed
+                              ? undefined
+                              : `Limit reached (${htmlMax} per page) — remove one to add another.`
+                          }
+                          onClick={() => allowed && insertFromPalette(def.type, null)}
+                        >
+                          <PaletteItem type={def.type} />
+                        </div>
+                      );
+                    })}
                   </div>
+                  {htmlCount >= htmlMax && (
+                    <p className="text-osrs-parchment-dark/60 mt-2 text-[11px]">
+                      Custom HTML: {htmlCount}/{htmlMax} used on this page.
+                    </p>
+                  )}
                   {!canAdd && (
                     <p className="text-osrs-red mt-2 text-xs">
                       Page limit reached ({meta.limits.max_blocks_per_page} blocks).

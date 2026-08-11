@@ -233,6 +233,7 @@ export function SiteBuilder({
           initialBlocks={editing.draft_blocks as Block[]}
           initialPageCss={editing.custom_css_source ?? ""}
           saving={pending}
+          saveError={error}
           onDirtyChange={setEditorDirty}
           onSave={(blocks, pageCss) =>
             run(
