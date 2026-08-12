@@ -1141,7 +1141,7 @@ function BoostsSection({
     <section className="space-y-3">
       <SectionHeading
         title="Timed boosts"
-        hint="Multiply, add to, or fix the computed award during a time window — e.g. double points weekend, or bonus points for a specific boss. A boost can target several items or NPCs at once; when windows overlap, the most recently created matching boost wins (boosts never stack). 'Per clanmate present' adds its value once per clan member the plugin sees at the drop, including the receiver."
+        hint="Multiply, add to, or fix the computed award during a time window — e.g. double points weekend, or bonus points for a specific boss. A boost can target several items or NPCs at once; when windows overlap, the most recently created matching boost wins (boosts never stack). 'Per clanmate present' pays its value once for each clan member the plugin sees at the drop (including the receiver): with point sharing on, every member's share gets the bonus added once; otherwise the receiver banks the whole bonus."
       />
       {boosts.length === 0 ? (
         <EmptyState title="No boosts scheduled" hint="Awards always use the standard rules." />
