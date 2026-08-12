@@ -42,6 +42,11 @@ import {
   type EventPrizeDistribution,
 } from "@droptracker/api-types";
 import { api, ApiError, apiErrorCode, type EventAuditParams } from "@/lib/api";
+import {
+  generateFromDescription,
+  validateDescription,
+  type GenerateResult,
+} from "@/lib/ai-task-gen";
 import { getUser, canAdminGroup, canManageEvents } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
 
@@ -657,6 +662,58 @@ export async function searchEventTaskLibrary(
 ) {
   await assertCanManageEvent(groupId);
   return api.eventTaskLibrary(params);
+}
+
+// --- AI task generation (the "try describing a task instead" panel) --------
+
+/** Remaining generations for the caller in this group today. Read-only —
+ * the builder calls it to decide whether to render the panel at all. */
+export async function fetchAiTaskQuota(groupId: EventGroupId) {
+  await assertCanUseEventMeta(groupId);
+  return api.aiTaskQuota(groupId);
+}
+
+/**
+ * Turn a plain-English description into a draft EventTaskInput.
+ *
+ * Order matters: permission, then description validation (so a typo never
+ * costs a unit), then the quota charge, and only then the CLI session. A
+ * generation that fails after charging is refunded, so users are only ever
+ * billed for results they can actually use.
+ */
+export async function generateTaskFromDescription(
+  groupId: EventGroupId,
+  description: string,
+): Promise<GenerateResult & { quota?: { remaining: number; limit: number } }> {
+  await assertCanUseEventMeta(groupId);
+
+  const check = validateDescription(description);
+  if (!check.ok) return check;
+
+  let quota;
+  try {
+    quota = await api.consumeAiTaskQuota(groupId);
+  } catch (err) {
+    if (err instanceof ApiError) {
+      // 429 carries a machine-readable code plus a human message written by
+      // the backend (which knows the tier's actual numbers) — pass it through.
+      return { ok: false, error: err.message };
+    }
+    return { ok: false, error: "Couldn't check this group's AI generation allowance." };
+  }
+
+  let result: GenerateResult;
+  try {
+    result = await generateFromDescription(check.desc);
+  } catch (err) {
+    await api.refundAiTaskQuota(groupId);
+    throw err;
+  }
+  if (!result.ok) {
+    await api.refundAiTaskQuota(groupId);
+    return result;
+  }
+  return { ...result, quota: { remaining: quota.remaining, limit: quota.limit } };
 }
 
 /** Item-name autocomplete for the task form. */

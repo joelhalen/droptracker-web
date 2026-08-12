@@ -31,7 +31,7 @@ import {
 import { TASK_TYPE_LABELS } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
-import { EventTaskForm } from "@/components/event-task-form";
+import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { QuantityInput } from "@/components/quantity-input";
 import {
   saveEventBingo,
@@ -739,7 +739,7 @@ function CellEditor({
             sharing all work exactly like the Tasks section. The task is created when the board
             saves and appears under Tasks too.
           </p>
-          <EventTaskForm
+          <EventTaskFormWithAi
             groupId={groupId}
             eventId={eventId}
             initial={cell.newTask ? taskFromDraft(cell.newTask) : undefined}

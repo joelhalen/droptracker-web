@@ -77,7 +77,7 @@ import { EventBoardDesigner } from "@/components/event-board-designer";
 import { EventDiscordSettings } from "@/components/event-discord";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { EventScheduleBuilder } from "@/components/event-schedule-builder";
-import { EventTaskForm } from "@/components/event-task-form";
+import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
 import { HelpTip } from "@/components/help-tip";
 import { LocalTime, TimezoneNote } from "@/components/local-time";
@@ -1372,7 +1372,7 @@ function WizardTasksStep({
       </div>
 
       {adding && (
-        <EventTaskForm
+        <EventTaskFormWithAi
           groupId={groupId}
           eventId={detail.id}
           onSaved={(t) => {
@@ -1396,7 +1396,7 @@ function WizardTasksStep({
           {tasks.map((t) =>
             editingTaskId === t.id ? (
               <li key={t.id} className="px-3 py-2">
-                <EventTaskForm
+                <EventTaskFormWithAi
                   groupId={groupId}
                   eventId={detail.id}
                   initial={t}

@@ -4050,6 +4050,22 @@ export const EventMetaEntrySchema = z.object({
 });
 export type EventMetaEntry = z.infer<typeof EventMetaEntrySchema>;
 
+/** GET /events/meta/ai-quota — the caller's remaining AI task generations for
+ * a group today. `limit` is the tier's `ai_task_gen_daily` entitlement (0 =
+ * the feature is off for that tier, so the builder hides the panel entirely);
+ * `remaining` is already clamped by the per-user sub-cap. */
+export const AiTaskQuotaSchema = z.object({
+  limit: z.number().int(),
+  used: z.number().int(),
+  remaining: z.number().int(),
+  allowed: z.boolean(),
+  user_used: z.number().int().optional(),
+  user_limit: z.number().int().optional(),
+  /** Redis was unreachable — the counter is not being enforced right now. */
+  degraded: z.boolean().optional(),
+});
+export type AiTaskQuota = z.infer<typeof AiTaskQuotaSchema>;
+
 /** GET /events/meta/pet-categories — the full pet taxonomy, one row per
  * category (utils/osrs_pets.py), so the task builder can seed a customizable
  * pet list from a category preset. Unlike the autocomplete, `id` is nullable:

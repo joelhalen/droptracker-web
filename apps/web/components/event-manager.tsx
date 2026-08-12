@@ -58,7 +58,7 @@ import { EventMemberList } from "@/components/event-member-list";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
 import { EventSignupTools } from "@/components/event-signup-tools";
-import { EventTaskForm } from "@/components/event-task-form";
+import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
 import { EventTemplateSaver } from "@/components/event-template-saver";
 import { EventReview } from "@/components/event-review";
@@ -1299,7 +1299,7 @@ export function EventManager({
         )}
         {taskFormFor === -1 && (
           <div className="mb-4">
-            <EventTaskForm
+            <EventTaskFormWithAi
               groupId={groupId}
               eventId={event.id}
               liveEvent={liveTaskEvent}
@@ -1317,7 +1317,7 @@ export function EventManager({
             {tasks.map((t) =>
               taskFormFor === t.id ? (
                 <li key={t.id} className="py-2.5">
-                  <EventTaskForm
+                  <EventTaskFormWithAi
                     groupId={groupId}
                     eventId={event.id}
                     initial={t}

@@ -93,6 +93,8 @@ import {
   type TaskBreakdown,
   EventSummarySchema,
   EventMetaEntrySchema,
+  AiTaskQuotaSchema,
+  type AiTaskQuota,
   EventPetCategorySchema,
   type EventPetCategory,
   EventItemSourcesSchema,
@@ -1994,6 +1996,37 @@ export const api = {
         ),
       () => [],
     );
+  },
+
+  /** Remaining AI task generations for the caller in this group today.
+   * Read-only; the task builder polls it to decide whether to offer the
+   * "describe a task" panel at all. Falls back to a closed quota so a
+   * backend hiccup hides the panel rather than offering a button that 429s. */
+  async aiTaskQuota(groupId: number | null): Promise<AiTaskQuota> {
+    const q = groupId == null ? "" : `?group_id=${groupId}`;
+    return withFallback(
+      async () => AiTaskQuotaSchema.parse(await apiGet(`/events/meta/ai-quota${q}`, { authed: true })),
+      () => ({ limit: 0, used: 0, remaining: 0, allowed: false }),
+    );
+  },
+
+  /** Charge one generation. Throws ApiError(429) with `code` when a cap is
+   * hit — deliberately NOT wrapped in withFallback: silently "succeeding"
+   * here would uncap the feature whenever the backend is unreachable. */
+  async consumeAiTaskQuota(groupId: number | null): Promise<AiTaskQuota> {
+    return AiTaskQuotaSchema.parse(
+      await apiSend("POST", "/events/meta/ai-quota/consume", { group_id: groupId }),
+    );
+  },
+
+  /** Hand a charge back after a failed generation. Best-effort. */
+  async refundAiTaskQuota(groupId: number | null): Promise<void> {
+    try {
+      await apiSend("POST", "/events/meta/ai-quota/refund", { group_id: groupId });
+    } catch {
+      // A lost refund costs the group one generation; never surface it over
+      // the real generation error the caller is already handling.
+    }
   },
 
   /** Batch exact-name → game-id lookup (icon hydration for stored task
