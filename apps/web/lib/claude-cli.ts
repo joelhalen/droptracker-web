@@ -16,7 +16,7 @@
  *                            doesn't match the schema fails the call
  *  - `--strict-mcp-config` / `--setting-sources ""` / `--disable-slash-commands`
  *                            no MCP servers, no local settings, no skills
- *  - one generation at a time process-wide (serialized via a module promise)
+ *  - bounded concurrency + a bounded wait queue (see below)
  *  - hard wall-clock timeout, then SIGKILL
  */
 import { spawn } from "node:child_process";
@@ -26,10 +26,53 @@ const MODEL = process.env.EVENTPROMPT_CLAUDE_MODEL ?? "sonnet";
 const EFFORT = process.env.EVENTPROMPT_CLAUDE_EFFORT ?? "low";
 const TIMEOUT_MS = Number(process.env.EVENTPROMPT_CLAUDE_TIMEOUT_MS ?? 120_000);
 
-export class ClaudeCliError extends Error {}
+/**
+ * Machine-level backpressure. These sessions are tool-less and touch no
+ * workspace, so unlike the adminbot agent they do NOT need to be serialized —
+ * measured throughput scales ~8.5x at 10 parallel CLI processes. We still cap
+ * concurrency well below that: the subscription is shared with the adminbot
+ * (KB answerer + DM agent) and exposes no remaining-quota signal, so leaving
+ * headroom is the only way to keep owner tooling responsive under load.
+ *
+ * The queue cap is the load-shedding half: past it we fail fast with a
+ * retryable error instead of letting a burst pile up behind a 10s job each.
+ */
+const MAX_CONCURRENT = Number(process.env.CLAUDE_CLI_MAX_CONCURRENT ?? 3);
+const MAX_QUEUED = Number(process.env.CLAUDE_CLI_MAX_QUEUED ?? 12);
 
-/** Serialize generations — one subscription session at a time, like adminbot. */
-let queue: Promise<unknown> = Promise.resolve();
+export class ClaudeCliError extends Error {}
+/** Thrown when the machine is saturated — the caller should retry shortly. */
+export class ClaudeCliBusyError extends ClaudeCliError {}
+
+let active = 0;
+const waiters: (() => void)[] = [];
+
+async function acquire(): Promise<void> {
+  if (active < MAX_CONCURRENT) {
+    active += 1;
+    return;
+  }
+  if (waiters.length >= MAX_QUEUED) {
+    throw new ClaudeCliBusyError(
+      "The generator is busy right now — please try again in a few seconds.",
+    );
+  }
+  // The slot is handed over by release() without ever being freed, so a
+  // caller arriving between the handoff and this continuation cannot barge
+  // in and push us past MAX_CONCURRENT.
+  await new Promise<void>((resolve) => waiters.push(resolve));
+}
+
+function release(): void {
+  const next = waiters.shift();
+  if (next) next();
+  else active -= 1;
+}
+
+/** Current saturation, for callers that want to surface or log it. */
+export function claudeCliLoad(): { active: number; queued: number; max: number } {
+  return { active, queued: waiters.length, max: MAX_CONCURRENT };
+}
 
 export type ClaudeUsage = {
   input_tokens: number;
@@ -48,10 +91,12 @@ export async function runClaudeJson<T>(opts: {
   prompt: string;
   jsonSchema: object;
 }): Promise<{ result: T; usage: ClaudeUsage }> {
-  const run = queue.then(() => spawnOnce<T>(opts));
-  // Keep the chain alive even when a run rejects.
-  queue = run.catch(() => undefined);
-  return run;
+  await acquire();
+  try {
+    return await spawnOnce<T>(opts);
+  } finally {
+    release();
+  }
 }
 
 function spawnOnce<T>(opts: {
