@@ -1007,6 +1007,14 @@ function ListsSection({
 
 type BoostOperation = "multiply" | "add" | "set" | "add_per_member";
 
+/** Aware ISO instant → value for a datetime-local input (viewer's local wall time). */
+function toLocalInputValue(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function BoostsSection({
   groupId,
   initial,
@@ -1028,6 +1036,16 @@ function BoostsSection({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  // Resolved after mount: Intl is browser-dependent, so rendering it on the
+  // server would cause a hydration mismatch.
+  const [localTz, setLocalTz] = useState("");
+  useEffect(() => {
+    try {
+      setLocalTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    } catch {
+      /* leave generic wording */
+    }
+  }, []);
 
   const resetForm = () => {
     setEditingId(null);
@@ -1042,8 +1060,10 @@ function BoostsSection({
   };
 
   const formBody = () => ({
-    start_at: startAt,
-    end_at: endAt,
+    // datetime-local values are the admin's local wall time; send the exact
+    // UTC instant so the backend never has to guess a timezone.
+    start_at: new Date(startAt).toISOString(),
+    end_at: new Date(endAt).toISOString(),
     event_type: eventType,
     target_type: targetType,
     target_ids: targetType === "any" ? [] : targets.map((t) => t.id),
@@ -1069,8 +1089,8 @@ function BoostsSection({
 
   const startEdit = (b: PointBoost) => {
     setEditingId(b.id);
-    setStartAt(b.start_at.slice(0, 16));
-    setEndAt(b.end_at.slice(0, 16));
+    setStartAt(toLocalInputValue(b.start_at));
+    setEndAt(toLocalInputValue(b.end_at));
     setEventType(b.event_type);
     setTargetType(b.target_type);
     setTargets(b.target_ids.map((id, i) => ({ id, name: b.target_names[i] ?? `#${id}` })));
@@ -1169,6 +1189,11 @@ function BoostsSection({
       <Card padding="p-4" className="space-y-3 text-sm">
         <div className="text-osrs-parchment font-medium">
           {editingId !== null ? `Edit boost #${editingId}` : "Schedule a boost"}
+        </div>
+        <div className="text-osrs-parchment-dark/60 text-xs">
+          Start and end times are in your local timezone{localTz ? ` (${localTz})` : ""} — the
+          boost activates at that exact moment for everyone, and the listed windows above are
+          shown in your local time too.
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
