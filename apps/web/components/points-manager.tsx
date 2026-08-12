@@ -1015,6 +1015,32 @@ function toLocalInputValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** The viewer's IANA timezone, resolved after mount (Intl is browser-dependent,
+ * so rendering it during SSR would cause a hydration mismatch). */
+function useLocalTz(): string {
+  const [tz, setTz] = useState("");
+  useEffect(() => {
+    try {
+      setTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    } catch {
+      /* leave generic wording */
+    }
+  }, []);
+  return tz;
+}
+
+/** Standard disclosure under datetime-local inputs: windows are entered and
+ * shown in the viewer's local timezone but stored as exact instants. */
+function LocalTzNote({ tz, what }: { tz: string; what: string }) {
+  return (
+    <div className="text-osrs-parchment-dark/60 text-xs">
+      Start and end times are in your local timezone{tz ? ` (${tz})` : ""} — the {what} activates
+      at that exact moment for everyone, and the windows listed above are shown in your local
+      time too.
+    </div>
+  );
+}
+
 function BoostsSection({
   groupId,
   initial,
@@ -1036,16 +1062,7 @@ function BoostsSection({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  // Resolved after mount: Intl is browser-dependent, so rendering it on the
-  // server would cause a hydration mismatch.
-  const [localTz, setLocalTz] = useState("");
-  useEffect(() => {
-    try {
-      setLocalTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
-    } catch {
-      /* leave generic wording */
-    }
-  }, []);
+  const localTz = useLocalTz();
 
   const resetForm = () => {
     setEditingId(null);
@@ -1190,11 +1207,7 @@ function BoostsSection({
         <div className="text-osrs-parchment font-medium">
           {editingId !== null ? `Edit boost #${editingId}` : "Schedule a boost"}
         </div>
-        <div className="text-osrs-parchment-dark/60 text-xs">
-          Start and end times are in your local timezone{localTz ? ` (${localTz})` : ""} — the
-          boost activates at that exact moment for everyone, and the listed windows above are
-          shown in your local time too.
-        </div>
+        <LocalTzNote tz={localTz} what="boost" />
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
             <span className="text-osrs-parchment-dark/70">From</span>
@@ -1352,6 +1365,7 @@ function SeasonsSection({
   const [endAt, setEndAt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const localTz = useLocalTz();
 
   const add = () =>
     startTransition(async () => {
@@ -1359,8 +1373,10 @@ function SeasonsSection({
       try {
         const season = await addPointSeason(groupId, {
           name: name.trim(),
-          start_at: startAt,
-          end_at: endAt,
+          // Exact UTC instants — the backend honors the offset (same
+          // contract as boosts).
+          start_at: new Date(startAt).toISOString(),
+          end_at: new Date(endAt).toISOString(),
         });
         setSeasons((prev) => [season, ...prev]);
         setName("");
@@ -1429,7 +1445,9 @@ function SeasonsSection({
           </ul>
         </Card>
       )}
-      <Card padding="p-4" className="flex flex-wrap items-center gap-3 text-sm">
+      <Card padding="p-4" className="space-y-3 text-sm">
+        <LocalTzNote tz={localTz} what="season" />
+        <div className="flex flex-wrap items-center gap-3">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -1460,6 +1478,7 @@ function SeasonsSection({
         >
           Create season
         </button>
+        </div>
       </Card>
       {error && <Alert variant="error">{error}</Alert>}
     </section>
