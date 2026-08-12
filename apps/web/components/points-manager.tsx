@@ -35,6 +35,7 @@ import {
   addPointMod,
   addPointSeason,
   adjustPoints,
+  editPointBoost,
   editPointMod,
   loadPointsHistory,
   removePointBoost,
@@ -1004,6 +1005,8 @@ function ListsSection({
 
 /* --- Timed boosts ---------------------------------------------------------------- */
 
+type BoostOperation = "multiply" | "add" | "set" | "add_per_member";
+
 function BoostsSection({
   groupId,
   initial,
@@ -1018,42 +1021,71 @@ function BoostsSection({
   const [endAt, setEndAt] = useState("");
   const [eventType, setEventType] = useState("any");
   const [targetType, setTargetType] = useState<"any" | "item" | "npc">("any");
-  const [target, setTarget] = useState<PickedTarget>({});
-  const [operation, setOperation] = useState<"multiply" | "add" | "set">("multiply");
+  const [targets, setTargets] = useState<{ id: number; name: string }[]>([]);
+  const [operation, setOperation] = useState<BoostOperation>("multiply");
   const [operationValue, setOperationValue] = useState(2);
   const [description, setDescription] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const add = () =>
+  const resetForm = () => {
+    setEditingId(null);
+    setStartAt("");
+    setEndAt("");
+    setEventType("any");
+    setTargetType("any");
+    setTargets([]);
+    setOperation("multiply");
+    setOperationValue(2);
+    setDescription("");
+  };
+
+  const formBody = () => ({
+    start_at: startAt,
+    end_at: endAt,
+    event_type: eventType,
+    target_type: targetType,
+    target_ids: targetType === "any" ? [] : targets.map((t) => t.id),
+    operation,
+    operation_value: operationValue,
+    description: description || null,
+  });
+
+  const submit = () =>
     startTransition(async () => {
       setError(null);
       try {
-        const next = await addPointBoost(groupId, {
-          start_at: startAt,
-          end_at: endAt,
-          event_type: eventType,
-          target_type: targetType,
-          target_id:
-            targetType === "item" ? (target.item?.id ?? null)
-            : targetType === "npc" ? (target.npc?.id ?? null)
-            : null,
-          operation,
-          operation_value: operationValue,
-          description: description || null,
-        });
+        const next =
+          editingId !== null
+            ? await editPointBoost(groupId, editingId, formBody())
+            : await addPointBoost(groupId, formBody());
         setBoosts(next);
-        setDescription("");
+        resetForm();
       } catch (err) {
         setError(getErrorMessage(err));
       }
     });
+
+  const startEdit = (b: PointBoost) => {
+    setEditingId(b.id);
+    setStartAt(b.start_at.slice(0, 16));
+    setEndAt(b.end_at.slice(0, 16));
+    setEventType(b.event_type);
+    setTargetType(b.target_type);
+    setTargets(b.target_ids.map((id, i) => ({ id, name: b.target_names[i] ?? `#${id}` })));
+    setOperation(b.operation);
+    setOperationValue(b.operation_value);
+    setDescription(b.description);
+    setError(null);
+  };
 
   const remove = (boostId: number) =>
     startTransition(async () => {
       setError(null);
       try {
         setBoosts(await removePointBoost(groupId, boostId));
+        if (editingId === boostId) resetForm();
       } catch (err) {
         setError(getErrorMessage(err));
       }
@@ -1064,13 +1096,15 @@ function BoostsSection({
       ? `×${b.operation_value}`
       : b.operation === "add"
         ? `+${b.operation_value}`
-        : `=${b.operation_value}`;
+        : b.operation === "add_per_member"
+          ? `+${b.operation_value}/member`
+          : `=${b.operation_value}`;
 
   return (
     <section className="space-y-3">
       <SectionHeading
         title="Timed boosts"
-        hint="Multiply, add to, or fix the computed award during a time window — e.g. double points weekend, or bonus points for a specific boss."
+        hint="Multiply, add to, or fix the computed award during a time window — e.g. double points weekend, or bonus points for a specific boss. A boost can target several items or NPCs at once; when windows overlap, the most recently created matching boost wins (boosts never stack). 'Per clanmate present' adds its value once per clan member the plugin sees at the drop, including the receiver."
       />
       {boosts.length === 0 ? (
         <EmptyState title="No boosts scheduled" hint="Awards always use the standard rules." />
@@ -1103,10 +1137,20 @@ function BoostsSection({
                     {b.target_type === "any"
                       ? (EVENT_TYPE_OPTIONS.find((o) => o.value === b.event_type)?.label ??
                         b.event_type)
-                      : (b.target_name ?? `${b.target_type} #${b.target_id}`)}
+                      : b.target_names.length > 0
+                        ? b.target_names.join(", ")
+                        : `Any ${b.target_type}`}
                   </td>
                   <td className="px-4 py-2 font-semibold">{opLabel(b)}</td>
-                  <td className="px-4 py-2 text-right">
+                  <td className="space-x-3 px-4 py-2 text-right whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(b)}
+                      disabled={disabled || pending}
+                      className="text-osrs-gold/90 text-xs hover:underline disabled:opacity-50"
+                    >
+                      Edit
+                    </button>
                     <button
                       type="button"
                       onClick={() => remove(b.id)}
@@ -1123,7 +1167,9 @@ function BoostsSection({
         </Card>
       )}
       <Card padding="p-4" className="space-y-3 text-sm">
-        <div className="text-osrs-parchment font-medium">Schedule a boost</div>
+        <div className="text-osrs-parchment font-medium">
+          {editingId !== null ? `Edit boost #${editingId}` : "Schedule a boost"}
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2">
             <span className="text-osrs-parchment-dark/70">From</span>
@@ -1163,63 +1209,64 @@ function BoostsSection({
             value={targetType}
             onChange={(e) => {
               setTargetType(e.target.value as "any" | "item" | "npc");
-              setTarget({});
+              setTargets([]);
             }}
             disabled={disabled}
             className={field}
           >
             <option value="any">Any target</option>
-            <option value="item">Specific item</option>
-            <option value="npc">Specific NPC</option>
+            <option value="item">Specific item(s)</option>
+            <option value="npc">Specific NPC(s)</option>
           </select>
           {targetType !== "any" && (
-            <div className="min-w-64 flex-1">
-              {targetType === "item" ? (
-                target.item ? (
-                  <button
-                    type="button"
-                    onClick={() => setTarget({})}
-                    className="border-osrs-bronze/40 text-osrs-parchment w-full rounded border px-3 py-2 text-left"
-                  >
-                    {target.item.name} <span className="text-osrs-parchment-dark/50">✕</span>
-                  </button>
-                ) : (
-                  <NameSearch
-                    placeholder="Search items…"
-                    iconBase="itemdb"
-                    disabled={disabled}
-                    search={(q) => searchPointItems(groupId, q)}
-                    onPick={(e) => setTarget({ item: { id: e.id, name: e.name } })}
-                  />
-                )
-              ) : target.npc ? (
-                <button
-                  type="button"
-                  onClick={() => setTarget({})}
-                  className="border-osrs-bronze/40 text-osrs-parchment w-full rounded border px-3 py-2 text-left"
-                >
-                  {target.npc.name} <span className="text-osrs-parchment-dark/50">✕</span>
-                </button>
-              ) : (
-                <NameSearch
-                  placeholder="Search NPCs…"
-                  iconBase="npcdb"
-                  disabled={disabled}
-                  search={(q) => searchPointNpcs(groupId, q)}
-                  onPick={(e) => setTarget({ npc: { id: e.id, name: e.name } })}
-                />
+            <div className="min-w-64 flex-1 space-y-2">
+              <NameSearch
+                placeholder={
+                  targetType === "item"
+                    ? "Search items… (pick several to share one boost)"
+                    : "Search NPCs… (pick several to share one boost)"
+                }
+                iconBase={targetType === "item" ? "itemdb" : "npcdb"}
+                disabled={disabled}
+                search={(q) =>
+                  targetType === "item"
+                    ? searchPointItems(groupId, q)
+                    : searchPointNpcs(groupId, q)
+                }
+                onPick={(e) =>
+                  setTargets((prev) =>
+                    prev.some((t) => t.id === e.id) ? prev : [...prev, { id: e.id, name: e.name }],
+                  )
+                }
+              />
+              {targets.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {targets.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setTargets((prev) => prev.filter((p) => p.id !== t.id))}
+                      className="border-osrs-bronze/40 text-osrs-parchment bg-osrs-brown-dark/40 rounded border px-2 py-1 text-xs"
+                      title="Remove"
+                    >
+                      {t.name} <span className="text-osrs-parchment-dark/50">✕</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           )}
           <select
             value={operation}
-            onChange={(e) => setOperation(e.target.value as "multiply" | "add" | "set")}
+            onChange={(e) => setOperation(e.target.value as BoostOperation)}
             disabled={disabled}
             className={field}
           >
             <option value="multiply">Multiply award by</option>
             <option value="add">Add to award</option>
             <option value="set">Set award to</option>
+            <option value="add_per_member">Add per clanmate present</option>
           </select>
           <input
             type="number"
@@ -1238,19 +1285,24 @@ function BoostsSection({
           />
           <button
             type="button"
-            onClick={add}
+            onClick={submit}
             disabled={
-              disabled ||
-              pending ||
-              !startAt ||
-              !endAt ||
-              (targetType === "item" && !target.item) ||
-              (targetType === "npc" && !target.npc)
+              disabled || pending || !startAt || !endAt || (targetType !== "any" && targets.length === 0)
             }
             className="bg-osrs-gold/90 text-osrs-brown-dark rounded px-4 py-2 font-semibold hover:bg-osrs-gold disabled:opacity-50"
           >
-            Schedule boost
+            {editingId !== null ? "Save changes" : "Schedule boost"}
           </button>
+          {editingId !== null && (
+            <button
+              type="button"
+              onClick={resetForm}
+              disabled={pending}
+              className="text-osrs-parchment-dark/70 rounded px-3 py-2 text-sm hover:underline"
+            >
+              Cancel
+            </button>
+          )}
         </div>
       </Card>
       {error && <Alert variant="error">{error}</Alert>}

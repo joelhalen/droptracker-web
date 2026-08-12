@@ -75,6 +75,13 @@ export async function addPointBoost(groupId: number, body: unknown) {
   return boosts;
 }
 
+export async function editPointBoost(groupId: number, boostId: number, body: unknown) {
+  await assertAdmin(groupId);
+  const boosts = await api.updateGroupPointBoost(groupId, boostId, body);
+  revalidate(groupId);
+  return boosts;
+}
+
 export async function removePointBoost(groupId: number, boostId: number) {
   await assertAdmin(groupId);
   const boosts = await api.deleteGroupPointBoost(groupId, boostId);
