@@ -10,6 +10,7 @@ import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { LootTracker } from "@/components/loot-tracker";
 import { PlayerBadgeList } from "@/components/player-badges";
+import { CharacterViewer } from "@/components/character-viewer";
 import { PersonalBestsGrid } from "@/components/personal-bests-grid";
 import { BossActivityList } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
@@ -150,6 +151,21 @@ export default async function PlayerPage({ params }: { params: Params }) {
           <StatTile label="Top NPC" value={player.top_npc ?? "—"} />
         </div>
       </header>
+
+      {/* The character, when they have uploaded one. Sits right under the
+          header because it is the most identifiable thing on the page. */}
+      {player.model_fingerprint && (
+        <section className="rise-in">
+          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+            Character
+          </h2>
+          <CharacterViewer
+            playerId={player.id}
+            fingerprint={player.model_fingerprint}
+            hasPet={player.model_has_pet ?? false}
+          />
+        </section>
+      )}
 
       {player.badges && player.badges.length > 0 && (
         <section className="rise-in">

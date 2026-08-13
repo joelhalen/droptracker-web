@@ -1,13 +1,13 @@
 /**
  * Combat achievements, quests and achievement diaries for one player.
  *
- * All three come from a single backend call: they render as one card each and a
- * profile sub-page should not need three round-trips to draw them.
+ * Laid out the way the in-game interfaces are, rather than as generic stat
+ * cards: combat achievements grouped per boss with completed/total and the
+ * game's red/gold/green colouring, diaries as an area-by-tier grid. Players
+ * already know these screens, so matching them means the page needs no reading.
  *
- * Combat achievements show a completed *count* rather than a task list. Mapping
- * a completion bit back to a named task needs a task registry we do not have
- * yet, and a wrong mapping would confidently name the wrong achievements — a
- * count is correct without it.
+ * All three come from one backend call — they are three panels of one page and
+ * should not cost three round-trips.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -17,9 +17,13 @@ import type { DiaryArea } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
 import { resolveRef } from "@/lib/entity-ref";
-import { Card, EmptyState, StatTile } from "@/components/ui";
+import { EmptyState } from "@/components/ui";
+import { OsrsListRow, OsrsWindow, completionTone } from "@/components/osrs-panel";
 
 export const revalidate = 60;
+
+/** Diary tiers in the order the game lists them. */
+const DIARY_TIERS = ["Easy", "Medium", "Hard", "Elite"];
 
 export async function generateMetadata({
   params,
@@ -65,55 +69,109 @@ export default async function AchievementsPage({
     );
   }
 
-  const questTotal =
-    data.quests.finished + data.quests.in_progress + data.quests.not_started;
+  const quests = data.quests;
+  const questTotal = quests.finished + quests.in_progress + quests.not_started;
+  const bosses = data.combat_achievements.bosses ?? [];
+  const caDone = bosses.reduce((sum, b) => sum + b.completed, 0);
+  const caTotal = bosses.reduce((sum, b) => sum + b.total, 0);
 
   return (
     <div className="space-y-6">
       <Header name={player.name} playerId={playerId} />
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile
-          label="Combat achievements"
-          value={
-            data.combat_achievements.tasks_completed != null
-              ? data.combat_achievements.tasks_completed.toLocaleString()
-              : "—"
+      <div className="grid gap-4 lg:grid-cols-2">
+        <OsrsWindow
+          title="Combat Achievements"
+          subtitle={
+            caTotal > 0 ? (
+              <span className={completionTone(caDone, caTotal)}>
+                {caDone}/{caTotal}
+              </span>
+            ) : data.combat_achievements.tasks_completed != null ? (
+              <span className="text-osrs-gold-bright">
+                {data.combat_achievements.tasks_completed} completed
+              </span>
+            ) : null
           }
-        />
-        <StatTile
-          label="Quests completed"
-          value={questTotal > 0 ? `${data.quests.finished} / ${questTotal}` : "—"}
-        />
-        <StatTile
-          label="Combat level"
-          value={data.combat_level != null ? String(data.combat_level) : "—"}
-        />
+        >
+          {bosses.length === 0 ? (
+            <div className="p-4">
+              <EmptyState
+                title="No per-boss breakdown yet"
+                hint="The next sync from an up-to-date plugin records which individual tasks are done."
+              />
+            </div>
+          ) : (
+            // Scrolls like the real interface instead of growing the page to
+            // sixty-five rows tall.
+            <div className="max-h-[32rem] overflow-y-auto">
+              <div className="grid sm:grid-cols-2">
+                {bosses.map((boss) => (
+                  <OsrsListRow
+                    key={boss.boss}
+                    label={boss.boss}
+                    completed={boss.completed}
+                    total={boss.total}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </OsrsWindow>
+
+        <div className="space-y-4">
+          <OsrsWindow title="Achievement Diaries" subtitle={`${data.diaries.length} areas`}>
+            {data.diaries.length === 0 ? (
+              <div className="p-4">
+                <EmptyState title="No diary progress recorded yet" />
+              </div>
+            ) : (
+              <div className="max-h-[22rem] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-osrs-bronze/30 text-osrs-parchment-dark/60 border-b">
+                      <th className="px-2 py-1 text-left font-normal">Area</th>
+                      {DIARY_TIERS.map((tier) => (
+                        <th key={tier} className="px-2 py-1 text-right font-normal">
+                          {tier}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="font-osrs">
+                    {data.diaries.map((area) => (
+                      <DiaryRow key={area.area_id} area={area} />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </OsrsWindow>
+
+          <OsrsWindow
+            title="Quests"
+            subtitle={
+              questTotal > 0 ? (
+                <span className={completionTone(quests.finished, questTotal)}>
+                  {quests.finished}/{questTotal}
+                </span>
+              ) : null
+            }
+          >
+            {questTotal === 0 ? (
+              <div className="p-4">
+                <EmptyState title="No quest progress recorded yet" />
+              </div>
+            ) : (
+              <ul className="font-osrs divide-osrs-bronze/20 divide-y">
+                <QuestRow label="Completed" value={quests.finished} tone="text-osrs-green" />
+                <QuestRow label="Started" value={quests.in_progress} tone="text-osrs-gold-bright" />
+                <QuestRow label="Not started" value={quests.not_started} tone="text-osrs-red" />
+              </ul>
+            )}
+          </OsrsWindow>
+        </div>
       </div>
-
-      {questTotal > 0 && (
-        <section>
-          <h2 className="heading-rule mb-3 text-lg font-semibold">Quests</h2>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StatTile label="Finished" value={data.quests.finished.toLocaleString()} />
-            <StatTile label="In progress" value={data.quests.in_progress.toLocaleString()} />
-            <StatTile label="Not started" value={data.quests.not_started.toLocaleString()} />
-          </div>
-        </section>
-      )}
-
-      <section>
-        <h2 className="heading-rule mb-3 text-lg font-semibold">Achievement diaries</h2>
-        {data.diaries.length === 0 ? (
-          <EmptyState title="No diary progress recorded yet" />
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.diaries.map((area) => (
-              <DiaryCard key={area.area_id} area={area} />
-            ))}
-          </div>
-        )}
-      </section>
 
       {data.last_synced && (
         <p className="text-osrs-parchment-dark/50 text-xs">
@@ -124,24 +182,34 @@ export default async function AchievementsPage({
   );
 }
 
-function DiaryCard({ area }: { area: DiaryArea }) {
+function DiaryRow({ area }: { area: DiaryArea }) {
+  const byTier = new Map(area.tiers.map((t) => [t.tier, t.completed]));
   return (
-    <Card padding="p-4">
-      <h3 className="mb-2 text-sm font-medium">{area.name}</h3>
-      <ul className="space-y-1">
-        {area.tiers.map((tier) => (
-          <li key={tier.tier} className="flex items-baseline justify-between gap-2 text-sm">
-            <span className="text-osrs-parchment-dark/70">{tier.name}</span>
-            {/* Completed count only: the per-tier task totals are reference
-                data we do not hold yet, and inventing them would be worse than
-                omitting the denominator. */}
-            <span className="text-osrs-gold-bright font-mono tabular-nums">
-              {tier.completed}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </Card>
+    <tr className="border-osrs-bronze/15 border-b last:border-0">
+      <td className="text-osrs-parchment/90 px-2 py-1">{area.name}</td>
+      {DIARY_TIERS.map((_, tier) => {
+        const completed = byTier.get(tier) ?? 0;
+        return (
+          <td
+            key={tier}
+            className={`px-2 py-1 text-right tabular-nums ${
+              completed > 0 ? "text-osrs-gold-bright" : "text-osrs-parchment-dark/40"
+            }`}
+          >
+            {completed}
+          </td>
+        );
+      })}
+    </tr>
+  );
+}
+
+function QuestRow({ label, value, tone }: { label: string; value: number; tone: string }) {
+  return (
+    <li className="flex items-baseline justify-between px-3 py-1.5 text-sm">
+      <span className="text-osrs-parchment-dark/70">{label}</span>
+      <span className={`tabular-nums ${tone}`}>{value.toLocaleString()}</span>
+    </li>
   );
 }
 

@@ -357,6 +357,16 @@ export const PlayerAchievementsSchema = z.object({
   combat_level: z.number().int().nullable(),
   combat_achievements: z.object({
     tasks_completed: z.number().int().nullable(),
+    /** Per-boss progress, as the in-game interface groups it. */
+    bosses: z
+      .array(
+        z.object({
+          boss: z.string(),
+          completed: z.number().int(),
+          total: z.number().int(),
+        }),
+      )
+      .default([]),
   }),
   quests: z.object({
     not_started: z.number().int(),
@@ -666,6 +676,10 @@ export const PlayerProfileSchema = PlayerSummarySchema.extend({
   badges: z.array(PlayerBadgeSchema).optional(),
   /** Owner has an active supporter subscription (display flair). */
   is_supporter: z.boolean().optional(),
+  /** Outfit fingerprint of the uploaded character model; absent when none. */
+  model_fingerprint: z.string().optional(),
+  /** Whether a pet model was uploaded alongside the character. */
+  model_has_pet: z.boolean().optional(),
   /** Pretty-URL slug to declare canonical (null when the RSN collides with another visible player). */
   canonical_slug: z.string().nullish(),
 });
