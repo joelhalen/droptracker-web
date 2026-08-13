@@ -1,12 +1,15 @@
 /**
- * A player's collection log, drawn as the in-game interface rather than a flat
- * grid of icons: a titled window, filled slots in colour and the rest dimmed.
+ * A player's collection log, browsed as it is in game.
  *
- * The caveat this page has to communicate honestly: `slots` is what the game
- * reports the player has filled, while `items_known` is how many we can
- * actually show. Until they open their collection log once — which triggers a
- * full read — we only know about items that dropped while the plugin was
- * running, so the two differ and the page says so rather than looking broken.
+ * The structure (which slots exist, and how they group into tabs and pages)
+ * comes from the OSRS Wiki via scripts/sync_collection_log.py, so this can show
+ * unobtained slots too — which is most of what a collection log is.
+ *
+ * Two counts are deliberately kept apart. `slots` is what the game itself
+ * reports the player has filled; `obtained` is what we can account for against
+ * the structure. They differ until the player opens their log in game (which
+ * triggers a full read), and pretending otherwise would make the page look
+ * wrong rather than incomplete.
  */
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -15,9 +18,9 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { orNotFound } from "@/lib/fetch";
 import { resolveRef } from "@/lib/entity-ref";
-import { ItemDbIcon } from "@/components/item-db-icon";
 import { EmptyState } from "@/components/ui";
-import { OsrsItemSlot, OsrsWindow, completionTone } from "@/components/osrs-panel";
+import { OsrsWindow, completionTone } from "@/components/osrs-panel";
+import { CollectionLogBrowser } from "@/components/collection-log-browser";
 
 export const revalidate = 60;
 
@@ -65,10 +68,12 @@ export default async function CollectionLogPage({
     );
   }
 
-  const filled = log.slots ?? log.items_known;
-  const total = log.slots_total ?? 0;
+  // Prefer the game's own count for the headline: it is right even when our
+  // structure or item table lags a game update.
+  const filled = log.slots ?? log.obtained;
+  const total = log.slots_total ?? log.total;
   const percent = total > 0 ? Math.round((filled / total) * 100) : null;
-  const partial = log.slots != null && log.items_known < log.slots;
+  const partial = log.slots != null && log.obtained < log.slots;
 
   return (
     <div className="space-y-6">
@@ -78,58 +83,38 @@ export default async function CollectionLogPage({
         title="Collection Log"
         subtitle={
           <span className={completionTone(filled, total)}>
-            {total > 0
-              ? `${filled.toLocaleString()}/${total.toLocaleString()}${percent != null ? ` (${percent}%)` : ""}`
-              : filled.toLocaleString()}
+            {filled.toLocaleString()}/{total.toLocaleString()}
+            {percent != null ? ` (${percent}%)` : ""}
           </span>
         }
       >
         {partial && (
           <p className="border-osrs-bronze/20 text-osrs-parchment-dark/80 border-b px-3 py-2 text-xs">
-            Showing {log.items_known.toLocaleString()} of {filled.toLocaleString()} filled
-            slots. The rest were obtained before tracking started — opening the collection log
-            in game records the full list.
+            The game reports {filled.toLocaleString()} slots filled, but only{" "}
+            {log.obtained.toLocaleString()} have been recorded here. Opening the collection
+            log in game captures the rest.
           </p>
         )}
 
-        {log.items.length === 0 ? (
+        {!log.has_structure ? (
           <div className="p-4">
             <EmptyState
-              title="Nothing recorded yet"
-              hint="Open the collection log in game once and it will be captured here."
+              title="Collection log structure unavailable"
+              hint="The server has not synced the log's pages yet."
             />
           </div>
         ) : (
-          <div className="max-h-[38rem] overflow-y-auto p-3">
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(46px,1fr))] gap-1.5">
-              {log.items.map((item) => (
-                <OsrsItemSlot
-                  key={item.item_id}
-                  obtained
-                  title={`${item.name}${item.quantity > 1 ? ` x${item.quantity.toLocaleString()}` : ""}`}
-                >
-                  <ItemDbIcon itemId={item.item_id} size={36} />
-                  {item.quantity > 1 && (
-                    <span
-                      className="text-osrs-gold-bright font-osrs absolute top-0 left-0.5 text-[11px] leading-none"
-                      style={{ textShadow: "1px 1px 0 #000" }}
-                    >
-                      {item.quantity > 99_999
-                        ? `${Math.floor(item.quantity / 1000)}K`
-                        : item.quantity}
-                    </span>
-                  )}
-                </OsrsItemSlot>
-              ))}
-            </div>
-          </div>
+          <CollectionLogBrowser tabs={log.tabs} />
         )}
       </OsrsWindow>
 
-      <p className="text-osrs-parchment-dark/50 text-xs">
-        Grouping by collection log page needs the game&apos;s page structure, which is not
-        tracked yet — every recorded slot is shown together for now.
-      </p>
+      {log.unknown_recorded > 0 && (
+        <p className="text-osrs-parchment-dark/50 text-xs">
+          {log.unknown_recorded.toLocaleString()} recorded item
+          {log.unknown_recorded === 1 ? " is" : "s are"} not part of any known collection log
+          page — usually a sign the page structure needs re-syncing after a game update.
+        </p>
+      )}
     </div>
   );
 }

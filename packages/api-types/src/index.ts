@@ -311,26 +311,43 @@ export const PersonalBestSummarySchema = z.object({
 });
 export type PersonalBestSummary = z.infer<typeof PersonalBestSummarySchema>;
 
-/** One filled collection log slot. */
+/** One slot of a collection log page, obtained or not. */
 export const CollectionLogItemSchema = z.object({
   item_id: z.number().int(),
   name: z.string(),
   quantity: z.number().int(),
-  icon: z.string(),
+  obtained: z.boolean(),
 });
 export type CollectionLogItem = z.infer<typeof CollectionLogItemSchema>;
 
+export const CollectionLogPageSchema = z.object({
+  name: z.string(),
+  obtained: z.number().int(),
+  total: z.number().int(),
+  items: z.array(CollectionLogItemSchema),
+});
+export type CollectionLogPage = z.infer<typeof CollectionLogPageSchema>;
+
+export const CollectionLogTabSchema = z.object({
+  name: z.string(),
+  obtained: z.number().int(),
+  total: z.number().int(),
+  pages: z.array(CollectionLogPageSchema),
+});
+export type CollectionLogTab = z.infer<typeof CollectionLogTabSchema>;
+
 export const PlayerCollectionLogSchema = z.object({
   player_id: z.number().int(),
-  /** Filled slots as the game reports them; null until the player has synced. */
+  /** What the game reports; correct even when our structure lags a game update. */
   slots: z.number().int().nullable(),
   slots_total: z.number().int().nullable(),
-  /**
-   * How many slots we can actually show. Lower than `slots` until a full
-   * collection log read has run, so the UI can say so rather than look wrong.
-   */
-  items_known: z.number().int(),
-  items: z.array(CollectionLogItemSchema),
+  /** What we can account for against the structure we know. */
+  obtained: z.number().int(),
+  total: z.number().int(),
+  /** Recorded items the structure does not define — a sign it needs re-syncing. */
+  unknown_recorded: z.number().int(),
+  has_structure: z.boolean(),
+  tabs: z.array(CollectionLogTabSchema),
   last_synced: z.string().nullable(),
   has_synced: z.boolean(),
 });
