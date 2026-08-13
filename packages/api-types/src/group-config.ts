@@ -19,6 +19,7 @@ export type ConfigCategory =
   | "cas"
   | "board"
   | "recaps"
+  | "clan_log"
   | "integration";
 
 export type ConfigFieldType =
@@ -61,6 +62,7 @@ export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "cas", label: "Combat achievements" },
   { id: "board", label: "Lootboard" },
   { id: "recaps", label: "Monthly recaps" },
+  { id: "clan_log", label: "Clan Log" },
   { id: "integration", label: "Integration & info" },
 ];
 
@@ -223,6 +225,10 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "channel_id_to_post_recaps", label: "Recap channel", category: "recaps", type: "channel", help: "Where the monthly recap card is posted. Leave empty to use your lootboard channel.", default: null },
   { key: "recap_post_hour", label: "Post at (hour)", category: "recaps", type: "int", help: "Hour of the 1st, in the timezone below, to post the card. Defaults to 12 (midday) — the month closes at 00:00 UTC, which is the middle of the night for most people. A card can't exist before that close, so clans far enough ahead of UTC receive theirs at the first moment after it.", default: 12, min: 0, max: 23 },
   { key: "recap_timezone", label: "Timezone", category: "recaps", type: "string", help: "IANA timezone name, e.g. Europe/London. Set automatically from your browser the first time an admin opens this page; empty means UTC.", default: null },
+
+  { key: "clan_log_enabled", label: "Post a live Clan Log board", category: "clan_log", type: "boolean", help: "Keep a standing message in your Discord showing how far through every boss's uniques your clan is, edited automatically as members pull things. Your board is always on the website and available through /clan-log — this is only the Discord message.", default: false },
+  { key: "clan_log_channel_id", label: "Clan Log channel", category: "clan_log", type: "channel", help: "Where the standing Clan Log message lives. Pick a channel of its own: the bot edits this message continuously, so it will bury conversation in a busy channel.", default: null },
+  { key: "clan_log_message_id", label: "Clan Log message id", category: "clan_log", type: "string", help: "Message the bot edits when updating the board. Managed automatically.", default: null },
 ];
 
 export const SEASONAL_PREFIX = "seasonal_";

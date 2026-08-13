@@ -307,6 +307,9 @@ import {
   RecapSchema,
   type RecapIndex,
   RecapIndexSchema,
+  type ClanLog,
+  ClanLogSchema,
+  ClanLogPeriodsSchema,
 } from "@droptracker/api-types";
 import {
   SiteResolveSchema,
@@ -3282,6 +3285,37 @@ export const api = {
         ),
       () => null,
     ).catch(() => null);
+  },
+
+  /**
+   * A clan's unique-completion board for one period ("all", "YYYY", "YYYY-MM").
+   *
+   * 404 (→ null) is the normal answer for a group whose board has never been
+   * built, not an error worth surfacing. Short revalidate rather than the
+   * recap's hour: unlike a settled recap, this board moves whenever a member
+   * pulls something.
+   */
+  async clanLog(groupId: number, period = "all", fresh = false): Promise<ClanLog | null> {
+    return withFallback(
+      async () =>
+        ClanLogSchema.parse(
+          await apiGet(`/groups/${groupId}/clan-log?period=${encodeURIComponent(period)}`, {
+            revalidate: fresh ? 0 : 300,
+          }),
+        ),
+      () => null,
+    ).catch(() => null);
+  },
+
+  /** Every period this group's board can be shown for (all-time first). */
+  async clanLogPeriods(groupId: number): Promise<string[]> {
+    return withFallback(
+      async () =>
+        ClanLogPeriodsSchema.parse(
+          await apiGet(`/groups/${groupId}/clan-log/periods`, { revalidate: 300 }),
+        ).periods,
+      () => [] as string[],
+    ).catch(() => [] as string[]);
   },
 
   async npcDetail(npcId: number): Promise<NpcDetail | null> {

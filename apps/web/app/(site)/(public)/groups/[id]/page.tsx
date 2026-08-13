@@ -92,6 +92,12 @@ export default async function GroupPage({ params }: { params: Params }) {
             Lootboard
           </Link>
           <Link
+            href={`${base}/log` as Route}
+            className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
+          >
+            Clan Log
+          </Link>
+          <Link
             href={`${base}/personal-bests` as Route}
             className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
           >

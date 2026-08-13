@@ -5078,6 +5078,80 @@ export const RecapIndexSchema = z.object({
 });
 export type RecapIndex = z.infer<typeof RecapIndexSchema>;
 
+/* -------------------------------------------------------------------------- */
+/* Clan Log — the group unique-completion board                               */
+/* -------------------------------------------------------------------------- */
+
+/** One catalogued slot, and the group's claim on it (if any). */
+export const ClanLogItemSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  obtained: z.boolean(),
+  /**
+   * False for pets, the one slot type that never arrives as a drop. They are
+   * still shown and still credited from a `pet` submission — but their absence
+   * is weaker evidence than a missing drop, so nothing treats them as a work
+   * list.
+   */
+  attributable: z.boolean(),
+  /** Present only when obtained. Player name of the first member to get it. */
+  by: z.string().nullable().optional(),
+  player_id: z.number().int().optional(),
+  at: z.string().optional(),
+  /** Times anyone in the group obtained it within the period. */
+  count: z.number().int().optional(),
+  /** More than one member has it — the card shows the first name plus "+more". */
+  shared: z.boolean().optional(),
+  source: z.enum(["drop", "clog", "pet"]).optional(),
+  proof: z.string().nullable().optional(),
+});
+export type ClanLogItem = z.infer<typeof ClanLogItemSchema>;
+
+export const ClanLogSectionSchema = z.object({
+  slug: z.string(),
+  label: z.string(),
+  category: z.string(),
+  total: z.number().int(),
+  obtained: z.number().int(),
+  items: z.array(ClanLogItemSchema),
+});
+export type ClanLogSection = z.infer<typeof ClanLogSectionSchema>;
+
+export const ClanLogSchema = z.object({
+  schema_version: z.number().int(),
+  catalog_version: z.string().optional(),
+  generated_at: z.string().nullable().optional(),
+  group_id: z.number().int(),
+  group_name: z.string().nullable().optional(),
+  /** "all", "YYYY" or "YYYY-MM". */
+  period: z.string(),
+  sections: z.array(ClanLogSectionSchema),
+  summary: z.object({
+    total: z.number().int(),
+    obtained: z.number().int(),
+    pct: z.number(),
+    per_category: z.record(
+      z.string(),
+      z.object({ total: z.number().int(), obtained: z.number().int() }),
+    ),
+  }),
+  recent: z
+    .array(
+      z.object({
+        item_id: z.number().int(),
+        name: z.string(),
+        by: z.string().nullable().optional(),
+        at: z.string(),
+        section: z.string(),
+      }),
+    )
+    .optional(),
+});
+export type ClanLog = z.infer<typeof ClanLogSchema>;
+
+export const ClanLogPeriodsSchema = z.object({ periods: z.array(z.string()) });
+export type ClanLogPeriods = z.infer<typeof ClanLogPeriodsSchema>;
+
 export * from "./group-config";
 export * from "./entitlements";
 export * from "./tier-flair";
