@@ -61,8 +61,10 @@ export default async function ModelImagePage({
       style={{
         width: WIDTH,
         height: HEIGHT,
-        // Transparent so the capture composites cleanly; the screenshot service
-        // fills nothing behind it.
+        // The root layout paints the site background on <body>, which would be
+        // captured behind the character. Clearing it here is not enough on its
+        // own — chromium also paints its own opaque backdrop, which the
+        // screenshot service overrides.
         background: "transparent",
         margin: 0,
         display: "flex",
@@ -70,6 +72,8 @@ export default async function ModelImagePage({
         justifyContent: "center",
       }}
     >
+      {/* Overrides the root layout's background for this route only. */}
+      <style>{"html,body{background:transparent !important;}"}</style>
       <CharacterModel
         src={src}
         petSrc={petSrc}
