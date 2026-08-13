@@ -13,12 +13,16 @@ import { entityPath } from "@/lib/slug";
 import type { PersonalBestSummary } from "@droptracker/api-types";
 
 import { Card } from "@/components/ui";
+import { PbLoadout } from "@/components/pb-loadout";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 const INITIAL_CARDS = 12;
 
 export function PersonalBestsGrid({ pbs }: { pbs: PersonalBestSummary[] }) {
   const [showAll, setShowAll] = useState(false);
+  // Which entry has its loadout open. One at a time: the panels are large, and
+  // opening several turns the grid into a wall of item icons.
+  const [openLoadout, setOpenLoadout] = useState<number | null>(null);
   const visible = showAll ? pbs : pbs.slice(0, INITIAL_CARDS);
   return (
     <div>
@@ -46,6 +50,25 @@ export function PersonalBestsGrid({ pbs }: { pbs: PersonalBestSummary[] }) {
               </span>
               <span className="text-osrs-parchment-dark/60 text-xs">{pb.team_size}</span>
             </div>
+            {pb.pb_id != null && (
+              <>
+                <button
+                  type="button"
+                  aria-expanded={openLoadout === pb.pb_id}
+                  onClick={() =>
+                    setOpenLoadout((cur) => (cur === pb.pb_id ? null : pb.pb_id!))
+                  }
+                  className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright mt-2 text-xs transition-colors"
+                >
+                  {openLoadout === pb.pb_id ? "Hide gear" : "Show gear"}
+                </button>
+                {openLoadout === pb.pb_id && (
+                  <div className="border-osrs-bronze/20 mt-3 border-t pt-3">
+                    <PbLoadout pbId={pb.pb_id} />
+                  </div>
+                )}
+              </>
+            )}
           </Card>
         ))}
       </div>

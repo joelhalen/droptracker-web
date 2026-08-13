@@ -105,12 +105,26 @@ export default async function PlayerPage({ params }: { params: Params }) {
           </div>
           {/* The recap is generated on first view, so this link is the only way
               most players will ever discover they have one. */}
-          <Link
-            href={`/players/${player.id}/recap` as Route}
-            className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright ml-auto shrink-0 rounded-lg border px-3 py-1.5 text-sm transition-colors"
-          >
-            Monthly recap
-          </Link>
+          <div className="ml-auto flex shrink-0 flex-wrap gap-2">
+            <Link
+              href={`/players/${player.id}/collection-log` as Route}
+              className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright rounded-lg border px-3 py-1.5 text-sm transition-colors"
+            >
+              Collection log
+            </Link>
+            <Link
+              href={`/players/${player.id}/achievements` as Route}
+              className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright rounded-lg border px-3 py-1.5 text-sm transition-colors"
+            >
+              Achievements
+            </Link>
+            <Link
+              href={`/players/${player.id}/recap` as Route}
+              className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright rounded-lg border px-3 py-1.5 text-sm transition-colors"
+            >
+              Monthly recap
+            </Link>
+          </div>
         </div>
         <div className="stagger-children grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile

@@ -300,6 +300,8 @@ export const GroupRecordSchema = z.object({
 export type GroupRecord = z.infer<typeof GroupRecordSchema>;
 
 export const PersonalBestSummarySchema = z.object({
+  /** Row id, needed to fetch the loadout the time was set with. */
+  pb_id: z.number().int().optional(),
   npc_id: z.number().int(),
   boss: z.string(),
   time_ms: z.number().int(),
@@ -308,6 +310,81 @@ export const PersonalBestSummarySchema = z.object({
   date_ts: z.number().int(),
 });
 export type PersonalBestSummary = z.infer<typeof PersonalBestSummarySchema>;
+
+/** One filled collection log slot. */
+export const CollectionLogItemSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  quantity: z.number().int(),
+  icon: z.string(),
+});
+export type CollectionLogItem = z.infer<typeof CollectionLogItemSchema>;
+
+export const PlayerCollectionLogSchema = z.object({
+  player_id: z.number().int(),
+  /** Filled slots as the game reports them; null until the player has synced. */
+  slots: z.number().int().nullable(),
+  slots_total: z.number().int().nullable(),
+  /**
+   * How many slots we can actually show. Lower than `slots` until a full
+   * collection log read has run, so the UI can say so rather than look wrong.
+   */
+  items_known: z.number().int(),
+  items: z.array(CollectionLogItemSchema),
+  last_synced: z.string().nullable(),
+  has_synced: z.boolean(),
+});
+export type PlayerCollectionLog = z.infer<typeof PlayerCollectionLogSchema>;
+
+export const DiaryTierSchema = z.object({
+  tier: z.number().int(),
+  name: z.string(),
+  completed: z.number().int(),
+});
+
+export const DiaryAreaSchema = z.object({
+  area_id: z.number().int(),
+  name: z.string(),
+  tiers: z.array(DiaryTierSchema),
+});
+export type DiaryArea = z.infer<typeof DiaryAreaSchema>;
+
+export const PlayerAchievementsSchema = z.object({
+  player_id: z.number().int(),
+  has_synced: z.boolean(),
+  last_synced: z.string().nullable(),
+  account_type: z.number().int().nullable(),
+  combat_level: z.number().int().nullable(),
+  combat_achievements: z.object({
+    tasks_completed: z.number().int().nullable(),
+  }),
+  quests: z.object({
+    not_started: z.number().int(),
+    in_progress: z.number().int(),
+    finished: z.number().int(),
+  }),
+  diaries: z.array(DiaryAreaSchema),
+});
+export type PlayerAchievements = z.infer<typeof PlayerAchievementsSchema>;
+
+/** One occupied slot of a gear/inventory snapshot taken at a personal best. */
+export const LoadoutEntrySchema = z.object({
+  slot: z.number().int(),
+  item_id: z.number().int(),
+  quantity: z.number().int(),
+  name: z.string(),
+  icon: z.string(),
+});
+export type LoadoutEntry = z.infer<typeof LoadoutEntrySchema>;
+
+export const PersonalBestLoadoutSchema = z.object({
+  pb_id: z.number().int(),
+  has_loadout: z.boolean(),
+  boss: z.string().nullable().optional(),
+  equipment: z.array(LoadoutEntrySchema),
+  inventory: z.array(LoadoutEntrySchema),
+});
+export type PersonalBestLoadout = z.infer<typeof PersonalBestLoadoutSchema>;
 
 /** One stacked item inside a loot-tracker NPC box. */
 export const LootTrackerItemSchema = z.object({
@@ -5077,6 +5154,80 @@ export const RecapIndexSchema = z.object({
   ),
 });
 export type RecapIndex = z.infer<typeof RecapIndexSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Clan Log — the group unique-completion board                               */
+/* -------------------------------------------------------------------------- */
+
+/** One catalogued slot, and the group's claim on it (if any). */
+export const ClanLogItemSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  obtained: z.boolean(),
+  /**
+   * False for pets, the one slot type that never arrives as a drop. They are
+   * still shown and still credited from a `pet` submission — but their absence
+   * is weaker evidence than a missing drop, so nothing treats them as a work
+   * list.
+   */
+  attributable: z.boolean(),
+  /** Present only when obtained. Player name of the first member to get it. */
+  by: z.string().nullable().optional(),
+  player_id: z.number().int().optional(),
+  at: z.string().optional(),
+  /** Times anyone in the group obtained it within the period. */
+  count: z.number().int().optional(),
+  /** More than one member has it — the card shows the first name plus "+more". */
+  shared: z.boolean().optional(),
+  source: z.enum(["drop", "clog", "pet"]).optional(),
+  proof: z.string().nullable().optional(),
+});
+export type ClanLogItem = z.infer<typeof ClanLogItemSchema>;
+
+export const ClanLogSectionSchema = z.object({
+  slug: z.string(),
+  label: z.string(),
+  category: z.string(),
+  total: z.number().int(),
+  obtained: z.number().int(),
+  items: z.array(ClanLogItemSchema),
+});
+export type ClanLogSection = z.infer<typeof ClanLogSectionSchema>;
+
+export const ClanLogSchema = z.object({
+  schema_version: z.number().int(),
+  catalog_version: z.string().optional(),
+  generated_at: z.string().nullable().optional(),
+  group_id: z.number().int(),
+  group_name: z.string().nullable().optional(),
+  /** "all", "YYYY" or "YYYY-MM". */
+  period: z.string(),
+  sections: z.array(ClanLogSectionSchema),
+  summary: z.object({
+    total: z.number().int(),
+    obtained: z.number().int(),
+    pct: z.number(),
+    per_category: z.record(
+      z.string(),
+      z.object({ total: z.number().int(), obtained: z.number().int() }),
+    ),
+  }),
+  recent: z
+    .array(
+      z.object({
+        item_id: z.number().int(),
+        name: z.string(),
+        by: z.string().nullable().optional(),
+        at: z.string(),
+        section: z.string(),
+      }),
+    )
+    .optional(),
+});
+export type ClanLog = z.infer<typeof ClanLogSchema>;
+
+export const ClanLogPeriodsSchema = z.object({ periods: z.array(z.string()) });
+export type ClanLogPeriods = z.infer<typeof ClanLogPeriodsSchema>;
 
 export * from "./group-config";
 export * from "./entitlements";

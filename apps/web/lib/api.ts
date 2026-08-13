@@ -307,6 +307,15 @@ import {
   RecapSchema,
   type RecapIndex,
   RecapIndexSchema,
+  type ClanLog,
+  ClanLogSchema,
+  ClanLogPeriodsSchema,
+  type PlayerCollectionLog,
+  PlayerCollectionLogSchema,
+  type PlayerAchievements,
+  PlayerAchievementsSchema,
+  type PersonalBestLoadout,
+  PersonalBestLoadoutSchema,
 } from "@droptracker/api-types";
 import {
   SiteResolveSchema,
@@ -927,6 +936,31 @@ export const api = {
     return withFallback(
       async () => PlayerProfileSchema.parse(await apiGet(`/players/${id}`, { revalidate: 30 })),
       () => mockPlayerProfile(id),
+    );
+  },
+
+  /** Every collection log slot we know a player has filled.
+   *
+   * Note `slots` (what the game reports) can exceed `items_known` (what we can
+   * show): until the player opens their collection log once, we only know about
+   * items that dropped while the plugin was running. */
+  async playerCollectionLog(id: number): Promise<PlayerCollectionLog> {
+    return PlayerCollectionLogSchema.parse(
+      await apiGet(`/players/${id}/collection-log`, { revalidate: 60 }),
+    );
+  },
+
+  /** Combat achievements, quests and achievement diaries in one payload. */
+  async playerAchievements(id: number): Promise<PlayerAchievements> {
+    return PlayerAchievementsSchema.parse(
+      await apiGet(`/players/${id}/achievements`, { revalidate: 60 }),
+    );
+  },
+
+  /** Gear and inventory a personal best was set with, when it was captured. */
+  async personalBestLoadout(pbId: number): Promise<PersonalBestLoadout> {
+    return PersonalBestLoadoutSchema.parse(
+      await apiGet(`/personal-bests/${pbId}/loadout`, { revalidate: 300 }),
     );
   },
 
@@ -3282,6 +3316,37 @@ export const api = {
         ),
       () => null,
     ).catch(() => null);
+  },
+
+  /**
+   * A clan's unique-completion board for one period ("all", "YYYY", "YYYY-MM").
+   *
+   * 404 (→ null) is the normal answer for a group whose board has never been
+   * built, not an error worth surfacing. Short revalidate rather than the
+   * recap's hour: unlike a settled recap, this board moves whenever a member
+   * pulls something.
+   */
+  async clanLog(groupId: number, period = "all", fresh = false): Promise<ClanLog | null> {
+    return withFallback(
+      async () =>
+        ClanLogSchema.parse(
+          await apiGet(`/groups/${groupId}/clan-log?period=${encodeURIComponent(period)}`, {
+            revalidate: fresh ? 0 : 300,
+          }),
+        ),
+      () => null,
+    ).catch(() => null);
+  },
+
+  /** Every period this group's board can be shown for (all-time first). */
+  async clanLogPeriods(groupId: number): Promise<string[]> {
+    return withFallback(
+      async () =>
+        ClanLogPeriodsSchema.parse(
+          await apiGet(`/groups/${groupId}/clan-log/periods`, { revalidate: 300 }),
+        ).periods,
+      () => [] as string[],
+    ).catch(() => [] as string[]);
   },
 
   async npcDetail(npcId: number): Promise<NpcDetail | null> {
