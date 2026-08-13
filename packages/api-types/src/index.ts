@@ -374,13 +374,33 @@ export const PlayerAchievementsSchema = z.object({
   combat_level: z.number().int().nullable(),
   combat_achievements: z.object({
     tasks_completed: z.number().int().nullable(),
-    /** Per-boss progress, as the in-game interface groups it. */
-    bosses: z
+    total: z.number().int().nullable(),
+    /** Progress per tier, in the game's tier order. */
+    tiers: z
       .array(
         z.object({
-          boss: z.string(),
+          tier: z.string(),
           completed: z.number().int(),
           total: z.number().int(),
+        }),
+      )
+      .default([]),
+    /** Per-monster progress with the individual named tasks. */
+    monsters: z
+      .array(
+        z.object({
+          monster: z.string(),
+          completed: z.number().int(),
+          total: z.number().int(),
+          tasks: z.array(
+            z.object({
+              name: z.string(),
+              description: z.string(),
+              tier: z.string(),
+              type: z.string(),
+              completed: z.boolean(),
+            }),
+          ),
         }),
       )
       .default([]),

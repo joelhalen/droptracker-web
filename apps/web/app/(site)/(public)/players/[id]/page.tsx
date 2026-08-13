@@ -10,7 +10,7 @@ import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { LootTracker } from "@/components/loot-tracker";
 import { PlayerBadgeList } from "@/components/player-badges";
-import { CharacterViewer } from "@/components/character-viewer";
+import { ProfileShowcase } from "@/components/profile-showcase";
 import { PersonalBestsGrid } from "@/components/personal-bests-grid";
 import { BossActivityList } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
@@ -66,6 +66,12 @@ export default async function PlayerPage({ params }: { params: Params }) {
   const player = await orNotFound(api.player(playerId));
   // Loot tracker is non-critical: render the profile even if it fails.
   const loot = await api.playerLoot(playerId).catch(() => null);
+  // Both feed the showcase tabs. Non-critical like the loot tracker: a profile
+  // must still render for the majority who have never synced.
+  const [collectionLog, achievements] = await Promise.all([
+    api.playerCollectionLog(playerId).catch(() => null),
+    api.playerAchievements(playerId).catch(() => null),
+  ]);
 
   // JSON-LD for richer search results (FRONTEND_PLAN.md §15 SEO).
   const jsonLd = {
@@ -152,20 +158,16 @@ export default async function PlayerPage({ params }: { params: Params }) {
         </div>
       </header>
 
-      {/* The character, when they have uploaded one. Sits right under the
-          header because it is the most identifiable thing on the page. */}
-      {player.model_fingerprint && (
-        <section className="rise-in">
-          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-            Character
-          </h2>
-          <CharacterViewer
-            playerId={player.id}
-            fingerprint={player.model_fingerprint}
-            hasPet={player.model_has_pet ?? false}
-          />
-        </section>
-      )}
+      {/* Character beside the account tabs — collection log, combat
+          achievements and diaries in the place you already are, instead of
+          three separate pages. */}
+      <ProfileShowcase
+        playerId={player.id}
+        modelFingerprint={player.model_fingerprint}
+        modelHasPet={player.model_has_pet}
+        collectionLog={collectionLog}
+        achievements={achievements}
+      />
 
       {player.badges && player.badges.length > 0 && (
         <section className="rise-in">

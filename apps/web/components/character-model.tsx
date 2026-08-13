@@ -96,13 +96,12 @@ export function CharacterModel({
         return;
       }
 
-      // Game models are Y-down relative to glTF's convention, so they arrive
-      // upside down without this.
-      playerScene.scale.set(1, -1, 1);
+      // No axis flip here: the exporter already converts to glTF's convention
+      // (ModelMeshBuilder negates Y and Z when writing vertices). Flipping again
+      // renders the character upside down, which is exactly what it did.
       root.add(playerScene);
 
       if (petScene) {
-        petScene.scale.set(1, -1, 1);
         const petBox = new THREE.Box3().setFromObject(petScene);
         const petSize = petBox.getSize(new THREE.Vector3());
         // Stand the pet to one side rather than inside the player.
