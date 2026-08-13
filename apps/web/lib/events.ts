@@ -622,6 +622,28 @@ export function isRevocableCompletion(entry: {
   );
 }
 
+/** Whether a ledger row still belongs in the Review list once its status
+ * changes — the review queue applies confirm/reject/revoke optimistically, so
+ * a row that no longer matches the active status filter leaves the list before
+ * the server answers. `"all"` is the filter that keeps everything.
+ *
+ * Structurally typed (a bare status string) for the same reason as
+ * `isRevocableCompletion` above. */
+export function completionMatchesFilter(rowStatus: string, filter: string): boolean {
+  return filter === "all" || rowStatus === filter;
+}
+
+/** Undo an optimistic patch/removal: put `row` back at index `at`, the
+ * position it held before the action that failed. Any stale copy of the row is
+ * dropped first (the optimistic update may have left a patched one in place),
+ * and an index that no longer exists — the list was refetched underneath —
+ * appends instead of throwing the row away. */
+export function restoreOptimisticRow<T extends { id: number }>(rows: T[], row: T, at: number): T[] {
+  const without = rows.filter((r) => r.id !== row.id);
+  const idx = at < 0 || at > without.length ? without.length : at;
+  return [...without.slice(0, idx), row, ...without.slice(idx)];
+}
+
 /** Pick which of the viewer's clan events (GET /events?mine=true) appear in
  * the "Your events" section on /events: live ones first (soonest end), then
  * upcoming drafts (soonest start). Null timestamps sort last in their bucket;

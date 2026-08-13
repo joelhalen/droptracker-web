@@ -20,7 +20,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   EVENT_MODES,
   EVENT_SUBMISSION_POLICIES,
@@ -79,6 +79,12 @@ import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { EventScheduleBuilder } from "@/components/event-schedule-builder";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
+import {
+  EMPTY_TASK_FILTER,
+  TaskSearchBar,
+  filterTasks,
+  type TaskFilter,
+} from "@/components/event-task-search";
 import { HelpTip } from "@/components/help-tip";
 import { LocalTime, TimezoneNote } from "@/components/local-time";
 import { PlayerAddInput } from "@/components/player-add-input";
@@ -1327,6 +1333,15 @@ function WizardTasksStep({
   const [showLibrary, setShowLibrary] = useState(false);
   /** Task id being edited inline (same flow as the event manager). */
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  /** Live search/type/sort over the list (t56 — same bar as the manager). */
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>(EMPTY_TASK_FILTER);
+  const visibleTasks = useMemo(() => {
+    const filtered = filterTasks(tasks, taskFilter);
+    // Keep the row whose inline editor is open, whatever the filter says.
+    if (editingTaskId == null || filtered.some((t) => t.id === editingTaskId)) return filtered;
+    const editing = tasks.find((t) => t.id === editingTaskId);
+    return editing ? [editing, ...filtered] : filtered;
+  }, [tasks, taskFilter, editingTaskId]);
 
   return (
     <div className="space-y-4">
@@ -1391,9 +1406,18 @@ function WizardTasksStep({
         />
       )}
 
+      {tasks.length > 0 && (
+        <TaskSearchBar
+          tasks={tasks}
+          value={taskFilter}
+          onChange={setTaskFilter}
+          shown={visibleTasks.length}
+        />
+      )}
+
       {tasks.length ? (
         <ul className="divide-osrs-bronze/10 border-osrs-bronze/20 divide-y rounded border">
-          {tasks.map((t) =>
+          {visibleTasks.map((t) =>
             editingTaskId === t.id ? (
               <li key={t.id} className="px-3 py-2">
                 <EventTaskFormWithAi
@@ -1442,6 +1466,18 @@ function WizardTasksStep({
               </li>
             ),
           )}
+          {!visibleTasks.length && (
+            <li className="text-osrs-parchment-dark/60 px-3 py-3 text-sm">
+              No task matches this search.{" "}
+              <button
+                type="button"
+                onClick={() => setTaskFilter(EMPTY_TASK_FILTER)}
+                className="text-osrs-gold-bright hover:underline"
+              >
+                Show all {tasks.length}
+              </button>
+            </li>
+          )}
         </ul>
       ) : (
         <EmptyState
@@ -1453,13 +1489,24 @@ function WizardTasksStep({
       {detail.kind === "bingo" && (
         <div className="border-osrs-bronze/20 border-t pt-4">
           <h4 className="text-osrs-gold mb-3 text-base font-semibold">Bingo board</h4>
-          <EventBingoDesigner groupId={groupId} event={detail} tasks={tasks} onSaved={onDetail} />
+          <EventBingoDesigner
+            groupId={groupId}
+            event={detail}
+            tasks={tasks}
+            onSaved={onDetail}
+            onTaskUpdated={onTaskSaved}
+          />
         </div>
       )}
       {detail.kind === "board_game" && (
         <div className="border-osrs-bronze/20 border-t pt-4">
           <h4 className="text-osrs-gold mb-3 text-base font-semibold">Game board</h4>
-          <EventBoardDesigner groupId={groupId} event={detail} tasks={tasks} />
+          <EventBoardDesigner
+            groupId={groupId}
+            event={detail}
+            tasks={tasks}
+            onTaskUpdated={onTaskSaved}
+          />
         </div>
       )}
     </div>

@@ -26,6 +26,7 @@ import {
   EventPlayersResponseSchema,
   EventPrizePotSchema,
   EventSummarySchema,
+  EventTeamContributionsSchema,
   EventTeamDetailSchema,
   EventTeamsResponseSchema,
   GroupProfileSchema,
@@ -47,6 +48,7 @@ import {
   type EventPlayerDetail,
   type EventPlayersResponse,
   type EventPrizePot,
+  type EventTeamContributions,
   type EventTeamDetail,
   type EventTeamsResponse,
   type TaskBreakdown,
@@ -217,6 +219,19 @@ export async function eventTeam(
 ): Promise<EventTeamDetail> {
   return EventTeamDetailSchema.parse(
     await get(`/api/activity/events/${eventId}/teams/${teamId}`, sessionToken),
+  );
+}
+
+/** One team's submission log (t62): who contributed what, when, with proof. */
+export async function eventTeamContributions(
+  eventId: number,
+  teamId: number,
+  page: number,
+  sessionToken: string | null,
+): Promise<EventTeamContributions> {
+  const q = new URLSearchParams({ page: String(page) });
+  return EventTeamContributionsSchema.parse(
+    await get(`/api/activity/events/${eventId}/teams/${teamId}/contributions?${q}`, sessionToken),
   );
 }
 

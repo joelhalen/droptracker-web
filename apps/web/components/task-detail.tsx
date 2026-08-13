@@ -13,7 +13,9 @@
  *
  * Data comes from GET /events/{id}/tasks/{taskId}/breakdown (see
  * web_api/event_breakdown.py), fetched lazily when the card opens and again
- * when the viewer switches teams or a live SSE frame moves the rollup.
+ * when the viewer switches teams or a live SSE frame moves the rollup. It is
+ * cached at MODULE level, not per mount — the hover card remounts on every
+ * pass of the mouse, and re-fetching each time made the board unreadable.
  * Transport differs per host (site cookie BFF vs Activity bearer BFF), so the
  * fetcher is injectable; the website falls back to the same-origin BFF.
  */
@@ -53,6 +55,65 @@ function siteFetcher(eventId: number): BreakdownFetcher {
     if (!res.ok) throw new Error(`breakdown ${res.status}`);
     return TaskBreakdownSchema.parse(await res.json());
   };
+}
+
+/** Breakdown cache shared by every mount of {@link TaskDetailContent}. The
+ * bingo hover card unmounts on mouse-out, so a per-mount cache meant one
+ * request — and a "loading" flash — per hover. Entries carry the live-rollup
+ * signature they were fetched at, so an SSE frame that moves the rollup
+ * invalidates them; the TTL then covers changes no frame announced. */
+const BREAKDOWN_TTL_MS = 30_000;
+
+type BreakdownEntry = { sig: string; at: number; data: TaskBreakdown };
+
+const breakdownCache = new Map<string, BreakdownEntry>();
+const breakdownInflight = new Map<string, Promise<TaskBreakdown>>();
+
+const breakdownKey = (eventId: number, taskId: number, teamId: number) =>
+  `${eventId}:${taskId}:${teamId}`;
+
+function peekBreakdown(
+  eventId: number,
+  taskId: number,
+  teamId: number,
+): BreakdownEntry | undefined {
+  return breakdownCache.get(breakdownKey(eventId, taskId, teamId));
+}
+
+const isFresh = (entry: BreakdownEntry, sig: string) =>
+  entry.sig === sig && Date.now() - entry.at < BREAKDOWN_TTL_MS;
+
+/** Host-level refetch (e.g. the Activity's poll fallback, where SSE may never
+ * arrive) — the rollups may have moved unannounced, so re-open = re-fetch. */
+export function clearTaskBreakdownCache(): void {
+  breakdownCache.clear();
+  breakdownInflight.clear();
+}
+
+function loadBreakdown(
+  fetcher: BreakdownFetcher,
+  eventId: number,
+  taskId: number,
+  teamId: number,
+  sig: string,
+): Promise<TaskBreakdown> {
+  const key = breakdownKey(eventId, taskId, teamId);
+  // Inflight is keyed by signature as well: a live update must issue its own
+  // request instead of reusing the one in flight for the previous rollup.
+  const flightKey = `${key}|${sig}`;
+  const pending = breakdownInflight.get(flightKey);
+  if (pending) return pending;
+  const started = Date.now();
+  const promise = fetcher(taskId, teamId)
+    .then((data) => {
+      const prev = breakdownCache.get(key);
+      // Never let a slow earlier request bury a newer response.
+      if (!prev || prev.at <= started) breakdownCache.set(key, { sig, at: Date.now(), data });
+      return data;
+    })
+    .finally(() => breakdownInflight.delete(flightKey));
+  breakdownInflight.set(flightKey, promise);
+  return promise;
 }
 
 /** True on touch / no-hover devices — the signal to escalate to a bottom sheet
@@ -301,6 +362,9 @@ export function TaskDetailContent({
   /** Show the collapsible all-teams comparison; off when the host already
    * renders per-team bars (the flat task list). */
   showCompare?: boolean;
+  /** Team to open on — the host's current team filter (the board's team chips).
+   * Tracked after mount: switching the host's team moves the card with it,
+   * while a switch made inside the card is kept. */
   initialTeamId?: number | null;
 }) {
   const doFetch = useMemo(
@@ -313,12 +377,27 @@ export function TaskDetailContent({
     return [...teams].sort((a, b) => Number(b.id === viewerTeamId) - Number(a.id === viewerTeamId));
   }, [teams, viewerTeamId]);
 
-  const [selected, setSelected] = useState<number | null>(
-    initialTeamId ?? viewerTeamId ?? teams[0]?.id ?? null,
-  );
-  const [bd, setBd] = useState<TaskBreakdown | null>(null);
-  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
-  const cache = useRef<Map<number, TaskBreakdown>>(new Map());
+  // The host's team: the board's team filter when it has one, else the
+  // viewer's own. An in-card switch overrides it until the host's own choice
+  // changes (see the sync effect below).
+  const hostTeamId = initialTeamId ?? viewerTeamId ?? teams[0]?.id ?? null;
+  const [selected, setSelected] = useState<number | null>(hostTeamId);
+  // Seed from the shared cache so a re-opened card paints without a flash.
+  const seed = hostTeamId != null ? peekBreakdown(eventId, task.id, hostTeamId) : undefined;
+  const [bd, setBd] = useState<TaskBreakdown | null>(seed?.data ?? null);
+  const [state, setState] = useState<"loading" | "ready" | "error">(seed ? "ready" : "loading");
+
+  // Follow the host when IT changes team (the board's team chips) — a plain
+  // useState initialiser would keep whichever team was current at mount, which
+  // is how the card used to keep showing the viewer's team after the board was
+  // switched to another one. Guarded by the previous host value so a
+  // deliberate in-card switch survives unrelated re-renders.
+  const hostTeamRef = useRef(initialTeamId);
+  useEffect(() => {
+    if (initialTeamId === hostTeamRef.current) return;
+    hostTeamRef.current = initialTeamId;
+    setSelected(hostTeamId);
+  }, [initialTeamId, hostTeamId]);
 
   // Live rollup for the selected team — a change means refetch the detail.
   const liveCell = selected != null ? progressMap.get(progressKey(task.id, selected)) : undefined;
@@ -326,30 +405,32 @@ export function TaskDetailContent({
 
   useEffect(() => {
     if (selected == null) return;
-    let cancelled = false;
-    const cached = cache.current.get(selected);
-    if (cached) {
-      setBd(cached);
+    const hit = peekBreakdown(eventId, task.id, selected);
+    if (hit) {
+      setBd(hit.data);
       setState("ready");
     } else {
       setState("loading");
     }
-    doFetch(task.id, selected)
+    // Cached against the current rollup and still inside the TTL: paint from
+    // memory and issue no request at all — sweeping the board stays free.
+    if (hit && isFresh(hit, liveSig)) return;
+    let cancelled = false;
+    loadBreakdown(doFetch, eventId, task.id, selected, liveSig)
       .then((res) => {
         if (cancelled) return;
-        cache.current.set(selected, res);
         setBd(res);
         setState("ready");
       })
       .catch(() => {
         if (cancelled) return;
-        if (!cache.current.get(selected)) setState("error");
+        if (!peekBreakdown(eventId, task.id, selected)) setState("error");
       });
     return () => {
       cancelled = true;
     };
     // liveSig re-runs the fetch when the rollup for the selected team moves.
-  }, [selected, task.id, doFetch, liveSig]);
+  }, [selected, task.id, eventId, doFetch, liveSig]);
 
   const selColor = selected != null ? teamColor.get(selected) : undefined;
   const showForSelected = bd && bd.team_id === selected;
@@ -415,10 +496,16 @@ export function TaskDetailContent({
             </div>
           )}
 
-          {state === "error" && !showForSelected ? (
-            <p className="text-osrs-parchment-dark/50 text-xs">Couldn’t load progress. Try again shortly.</p>
-          ) : !showForSelected ? (
-            <p className="text-osrs-parchment-dark/40 text-xs">Loading progress…</p>
+          {!showForSelected ? (
+            <>
+              {/* Coarse have/need straight from the board's own live rollup, so
+                  the card is never blank — only the item-level detail (which
+                  needs a request) streams in behind it. */}
+              <TaskProgressBar task={task} cell={liveCell} color={selColor} />
+              <p className="text-osrs-parchment-dark/45 mt-1.5 text-xs">
+                {state === "error" ? "Couldn’t load the detail. Try again shortly." : "Loading detail…"}
+              </p>
+            </>
           ) : (
             <>
               {/* Pending-review banner (web53a): every queued row confirmed

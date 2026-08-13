@@ -18,7 +18,7 @@ import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventStandingsStrip } from "@/components/event-standings-strip";
 import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
 import { EventTaskBoard } from "@/components/event-task-progress";
-import type { BreakdownFetcher } from "@/components/task-detail";
+import { clearTaskBreakdownCache, type BreakdownFetcher } from "@/components/task-detail";
 import { EventWindow, ScoringWindowBadge } from "@/components/local-time";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useActivityAuth } from "@/lib/activity/auth-context";
@@ -125,7 +125,13 @@ export function EventView({
         const detail = await eventDetail(eventId, sessionToken);
         setEvent(detail);
         setError(null);
-        if (isRefresh) setRefreshKey((k) => k + 1);
+        if (isRefresh) {
+          // This poll exists because SSE may not survive Discord's proxy — so
+          // the cached per-team task breakdowns can be stale for the same
+          // reason (no live frame ever moved their rollup signature).
+          clearTaskBreakdownCache();
+          setRefreshKey((k) => k + 1);
+        }
       } catch {
         if (!isRefresh) setError("Couldn't load this event.");
       }

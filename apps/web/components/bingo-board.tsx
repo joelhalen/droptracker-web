@@ -150,6 +150,7 @@ function CellCard({
   completions,
   pendingState,
   viewerTeamId,
+  selectedTeam,
   eventId,
   fetchBreakdown,
 }: {
@@ -162,6 +163,10 @@ function CellCard({
   /** Pending-review overlay for the current team filter (web53a). */
   pendingState?: "complete" | "partial" | null;
   viewerTeamId?: number | null;
+  /** The board's team filter — the detail opens on the team whose board is
+   * being looked at, not on the viewer's own. Null ("All teams") falls back
+   * to the viewer's team inside the detail body. */
+  selectedTeam?: number | null;
   eventId?: number;
   fetchBreakdown?: BreakdownFetcher;
 }) {
@@ -203,6 +208,7 @@ function CellCard({
             teamColor={teamColor}
             progressMap={progressMap}
             viewerTeamId={viewerTeamId}
+            initialTeamId={selectedTeam}
             fetchBreakdown={fetchBreakdown}
           />
         </div>
@@ -367,6 +373,7 @@ export function BingoBoard({
       completions={completions.get(cell.index) ?? []}
       pendingState={cellPending(cell.index)}
       viewerTeamId={viewerTeamId}
+      selectedTeam={selectedTeam}
       eventId={eventId}
       fetchBreakdown={fetchBreakdown}
     />

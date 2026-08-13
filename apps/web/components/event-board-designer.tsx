@@ -38,6 +38,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { TASK_DIFFICULTY_LABELS } from "@/lib/events";
 import { Alert } from "@/components/ui";
+import { BoundTaskPanel, EventTaskCombobox } from "@/components/event-task-search";
 import { ItemDbIcon } from "@/components/item-db-icon";
 
 /** Elemental rune item ids — the tile icons in "rune" render mode. */
@@ -108,11 +109,15 @@ export function EventBoardDesigner({
   event,
   tasks,
   onSaved,
+  onTaskUpdated,
 }: {
   groupId: number | null;
   event: EventDetail;
   tasks: EventTask[];
   onSaved?: (board: BoardDetail) => void;
+  /** A task edited from inside the tile editor. The layout is untouched —
+   * only the parent's task list needs the update. */
+  onTaskUpdated?: (task: EventTask) => void;
 }) {
   // Deliberately stricter than the bingo board's live-edit unlock (web68a):
   // piece positions reference tiles, so replacing the layout mid-game would
@@ -776,13 +781,23 @@ export function EventBoardDesigner({
 
       {selected != null && tiles[selected] && (
         <TileEditor
+          // Keyed by tile so switching tiles resets the editor's own UI state
+          // (task search box, open task form) instead of carrying it over.
+          key={selected}
+          groupId={groupId}
+          eventId={event.id}
           tile={tiles[selected]}
           idx={selected}
           count={tiles.length}
           tasks={tasks}
           taskById={taskById}
           editable={editable}
+          // The LAYOUT locks once the game starts, but the tasks it points at
+          // stay editable until the event is a frozen record.
+          taskEditable={event.status !== "past"}
+          liveEvent={event.status === "active"}
           onChange={(patch) => updateTile(selected, patch)}
+          onTaskUpdated={onTaskUpdated}
           onDelete={() => deleteTile(selected)}
           onClose={closeEditor}
         />
@@ -891,28 +906,41 @@ function TileMarker({
 }
 
 function TileEditor({
+  groupId,
+  eventId,
   tile,
   idx,
   count,
   tasks,
   taskById,
   editable,
+  taskEditable,
+  liveEvent,
   onChange,
+  onTaskUpdated,
   onDelete,
   onClose,
 }: {
+  groupId: number | null;
+  eventId: number;
   tile: DesignerTile;
   idx: number;
   count: number;
   tasks: EventTask[];
   taskById: Map<number, EventTask>;
   editable: boolean;
+  /** Whether the pinned task itself can be edited (looser than `editable`,
+   * which gates the layout). */
+  taskEditable: boolean;
+  liveEvent: boolean;
   onChange: (patch: Partial<DesignerTile>) => void;
+  onTaskUpdated?: (task: EventTask) => void;
   onDelete: () => void;
   onClose: () => void;
 }) {
   const field =
     "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none";
+  const pinned = tile.taskId != null ? taskById.get(tile.taskId) : undefined;
   return (
     <div className="border-osrs-bronze/30 bg-osrs-brown-dark/50 space-y-3 rounded border p-3">
       <div className="flex items-center justify-between">
@@ -974,35 +1002,46 @@ function TileEditor({
         </div>
       </div>
 
-      <label className="block text-sm">
-        <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+      <div className="space-y-2 text-sm">
+        <span className="text-osrs-parchment-dark/70 block text-xs">
           …or pin one specific task (every landing gets exactly this task)
         </span>
-        <select
-          value={tile.taskId ?? ""}
+        <EventTaskCombobox
+          tasks={tasks}
+          value={tile.taskId}
           disabled={!editable}
-          onChange={(e) =>
-            onChange(
-              e.target.value
-                ? { taskId: Number(e.target.value), difficulty: null }
-                : { taskId: null },
-            )
+          onChange={(taskId) =>
+            onChange(taskId != null ? { taskId, difficulty: null } : { taskId: null })
           }
-          className={field}
-        >
-          <option value="">— not pinned —</option>
-          {tasks.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+          placeholder="Type to find a task — leave empty for “not pinned”"
+          clearLabel="Unpin"
+        />
         {tile.taskId != null && !taskById.has(tile.taskId) && (
-          <span className="text-osrs-red mt-1 block text-xs">
+          <span className="text-osrs-red block text-xs">
             Pinned task no longer exists — pick another or a difficulty.
           </span>
         )}
-      </label>
+        {/* Points live on the task, not the tile: the API's tile payload has
+            no points field (difficulty tiles score whatever task they roll),
+            so the tile editor edits the pinned task itself. */}
+        {pinned ? (
+          <BoundTaskPanel
+            groupId={groupId}
+            eventId={eventId}
+            task={pinned}
+            editable={taskEditable}
+            liveEvent={liveEvent}
+            onTaskUpdated={onTaskUpdated}
+          />
+        ) : (
+          tile.difficulty != null && (
+            <p className="text-osrs-parchment-dark/50 text-xs">
+              Points come from whichever {DIFFICULTY_LABELS[tile.difficulty].toLowerCase()} task
+              this tile rolls — set them on the tasks themselves in the Tasks tab.
+            </p>
+          )
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <label className="block text-sm">

@@ -8,22 +8,23 @@
  * see who is on it and what everyone has actually done, so each member card
  * carries their contribution counters, the last thing they credited, and an
  * expandable per-task / per-item breakdown. The team's task progress, item
- * gallery and activity feed follow underneath.
+ * gallery and submission log follow underneath.
  *
  * Every row is built to wrap rather than truncate: the Activity iframe on a
  * phone is ~340px wide, and the old single-line rows pushed the contribution
  * stats off the edge so a member read as nothing but a name and a GP figure.
  *
  * Subscribes to the event SSE channel while the event is active — progress and
- * completion frames move the bars, bump the score, prepend feed rows, and
- * refresh the contributing member's "last contribution" line in place.
+ * completion frames move the bars, bump the score, refresh the contributing
+ * member's "last contribution" line in place, and (on a completion) reload the
+ * submission log so its new line arrives with the real proof URL attached.
  */
 import { useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { entityPath } from "@/lib/slug";
 import type {
   EventMemberLastContribution,
-  EventTeamActivity,
+  EventTeamContributions,
   EventTeamDetail,
   EventTeamMemberStats,
   EventTeamRole,
@@ -53,13 +54,10 @@ import { EmptyState } from "@/components/ui";
 import { EventMemberList } from "@/components/event-member-list";
 import { EheChip, EheValue } from "@/components/event-ehe";
 import { TeamNotificationsButton } from "@/components/event-teams-panel";
-import {
-  TaskProgressBar,
-  formatProgressValue,
-  type ProgressCell,
-} from "@/components/event-task-progress";
+import { EventTeamContributionLog } from "@/components/event-team-contribution-log";
+import { TaskProgressBar, type ProgressCell } from "@/components/event-task-progress";
 
-/** Why the contribution counter reads lower than the activity feed suggests. */
+/** Why the contribution counter reads lower than the submission log suggests. */
 const CONTRIBUTIONS_HINT =
   "Times this player moved a task forward. Kill-count, XP and GP tasks count " +
   "once however many updates they took; each item obtained counts separately.";
@@ -137,6 +135,7 @@ export function EventTeamView({
   readOnly = false,
   onBack,
   onOpenPlayer,
+  loadContributions,
 }: {
   detail: EventTeamDetail;
   live: boolean;
@@ -148,11 +147,17 @@ export function EventTeamView({
   onBack?: () => void;
   /** Discord Activity: swaps player links for in-app view pushes. */
   onOpenPlayer?: (playerId: number) => void;
+  /** Discord Activity: bearer-authed loader for the submission log, which is
+   * fetched separately from `detail` (cookies don't reach the iframe). */
+  loadContributions?: (page: number) => Promise<EventTeamContributions>;
 }) {
   const { event, team, members, tasks } = detail;
 
   const [score, setScore] = useState(team.score);
-  const [activity, setActivity] = useState<EventTeamActivity[]>(detail.activity);
+  // Bumped on every completion frame so the submission log below refetches —
+  // it owns its own (paginated, proof-carrying) rows rather than being fed
+  // synthesized ones, so a reload is how a new line arrives.
+  const [logVersion, setLogVersion] = useState(0);
   const [progress, setProgress] = useState<Map<number, ProgressCell>>(
     () =>
       new Map(
@@ -305,26 +310,11 @@ export function EventTeamView({
             ? Math.floor(Date.now() / 1000)
             : (before?.completed_at ?? null),
         };
-        // Feed row from the delta (frames carry cumulative progress).
+        // Frames carry cumulative progress; the delta is what just happened.
         const delta = Math.max(after.progress - (before?.progress ?? 0), 0);
         if (delta > 0 || completed) {
           const at = Math.floor(Date.now() / 1000);
           const quantity = Math.max(delta, 1);
-          setActivity((feed) =>
-            [
-              {
-                id: -Date.now(),
-                task_id: taskId,
-                task_label: taskById.get(taskId)?.label ?? null,
-                player_id: null,
-                player_name: data.player_name ?? null,
-                quantity,
-                source_type: completed ? "completion" : null,
-                created_at: at,
-              },
-              ...feed,
-            ].slice(0, 50),
-          );
           // Freshen the contributor's roster line so "last contribution"
           // doesn't go stale while someone watches the page.
           const pid = data.player_name
@@ -349,6 +339,9 @@ export function EventTeamView({
         next.set(taskId, after);
         return next;
       });
+      // A completion mints a real ledger row — pull the submission log again
+      // so the new line (and its screenshot) lands without a page reload.
+      if (completed) setLogVersion((v) => v + 1);
     } else if (data.kind === "revoke" && !data.bonus) {
       setProgress((prev) => {
         const next = new Map(prev);
@@ -787,7 +780,7 @@ export function EventTeamView({
         )}
       </section>
 
-      <div className="grid min-w-0 gap-8 lg:grid-cols-2">
+      <div className="grid min-w-0 gap-8">
         {/* ── items earned (applied ledger, aggregated) ─────────────────── */}
         {detail.items.length > 0 && (
           <section className="min-w-0">
@@ -801,76 +794,25 @@ export function EventTeamView({
           </section>
         )}
 
-        {/* ── activity feed ─────────────────────────────────────────────── */}
-        <section className="min-w-0">
+        {/* ── submission log (t62) ──────────────────────────────────────────
+            Replaces the old "Recent activity" feed, which rendered one line per
+            applied ledger row: on a GP or kill-count task that is a line per
+            drop, so the drops people actually want to see were buried. The log
+            keeps acquisitions (with proof) and rolls the ticks up. */}
+        <section id="submission-log" className="min-w-0 scroll-mt-24">
           <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-            Recent activity
+            Submission log
           </h2>
-          {activity.length ? (
-            <ul className="divide-osrs-bronze/15 divide-y text-sm">
-              {activity.map((a) => {
-                const task = a.task_id != null ? taskById.get(a.task_id) : undefined;
-                return (
-                  <li
-                    key={a.id}
-                    className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-2"
-                  >
-                    <span className="min-w-0 break-words">
-                      {a.player_id != null && a.player_name ? (
-                        onOpenPlayer ? (
-                          <button
-                            type="button"
-                            onClick={() => onOpenPlayer(a.player_id!)}
-                            className="text-osrs-parchment hover:text-osrs-gold-bright"
-                          >
-                            {a.player_name}
-                          </button>
-                        ) : (
-                          <Link
-                            href={entityPath("players", a.player_id, a.player_name)}
-                            className="text-osrs-parchment hover:text-osrs-gold-bright"
-                          >
-                            {a.player_name}
-                          </Link>
-                        )
-                      ) : (
-                        <span className="text-osrs-parchment">
-                          {a.player_name ?? (a.source_type === "manual" ? "Admin award" : "Team")}
-                        </span>
-                      )}
-                      <span className="text-osrs-parchment-dark/60">
-                        {" "}
-                        {a.source_type === "completion" ? "completed" : "advanced"}{" "}
-                      </span>
-                      <span className="text-osrs-parchment">
-                        {a.task_label ?? `task ${a.task_id}`}
-                      </span>
-                      {a.matched_target && (
-                        <span className="text-osrs-parchment-dark/60"> ({a.matched_target})</span>
-                      )}
-                      {a.quantity > 1 && task && (
-                        <span className="text-osrs-gold/80">
-                          {" "}
-                          +{formatProgressValue(task, a.quantity)}
-                        </span>
-                      )}
-                      {a.note && (
-                        <span className="text-osrs-parchment-dark/50 italic"> — “{a.note}”</span>
-                      )}
-                    </span>
-                    <span className="text-osrs-parchment-dark/40 shrink-0 text-xs">
-                      {formatRelativeTime(a.created_at)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <EmptyState
-              title="Nothing yet"
-              hint="Qualifying drops, kills and records will show up here as the team plays."
-            />
-          )}
+          <p className="text-osrs-parchment-dark/60 mb-3 text-sm">
+            Everything this team has banked — who got it, when, and the screenshot.
+          </p>
+          <EventTeamContributionLog
+            eventId={event.id}
+            teamId={team.id}
+            refreshKey={logVersion}
+            loadPage={loadContributions}
+            onOpenPlayer={onOpenPlayer}
+          />
         </section>
       </div>
     </div>

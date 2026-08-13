@@ -81,8 +81,10 @@ import {
   type EventPopulateResult,
   EventTeamDetailSchema,
   EventTeamsResponseSchema,
+  EventTeamContributionsSchema,
   type EventTeamDetail,
   type EventTeamsResponse,
+  type EventTeamContributions,
   EventPlayersResponseSchema,
   type EventPlayersResponse,
   EventPlayerDetailSchema,
@@ -798,16 +800,34 @@ const CompletionHistoryEntrySchema = z.object({
   /** Organizer's reason on a manual award. */
   note: z.string().nullable().optional(),
   created_at: z.number().nullable(),
+  /** Progress ticks the backend folded into this row ("advanced N times") —
+   * absent on a plain single row. Only set when progress rows are shown. */
+  collapsed: z.number().optional(),
+  /** `created_at` of the oldest tick folded in, when `collapsed` is set. */
+  collapsed_since: z.number().nullable().optional(),
 });
 const CompletionHistorySchema = z.object({
   event_id: z.number(),
   kind: z.string(),
   is_admin: z.boolean(),
   entries: z.array(CompletionHistoryEntrySchema),
-  meta: z.object({ page: z.number(), limit: z.number(), total: z.number() }),
+  meta: z.object({
+    page: z.number(),
+    limit: z.number(),
+    total: z.number(),
+    /** Bucket sizes for the current filters *before* `mode` narrows, so the
+     * "show progress updates" toggle can be labelled without a 2nd request.
+     * Optional: an older backend deployment doesn't send them. */
+    mode: z.string().optional(),
+    completions_total: z.number().optional(),
+    progress_total: z.number().optional(),
+  }),
 });
 export type CompletionHistory = z.infer<typeof CompletionHistorySchema>;
 export type CompletionHistoryEntry = z.infer<typeof CompletionHistoryEntrySchema>;
+/** Which ledger rows the timeline shows — see `api.eventCompletionHistory`. */
+export const COMPLETION_HISTORY_MODES = ["completions", "all", "progress"] as const;
+export type CompletionHistoryMode = (typeof COMPLETION_HISTORY_MODES)[number];
 
 /** GET /events/{id}/audit — event-scoped manager audit timeline (admin only). */
 const AuditActorSchema = z.object({
@@ -1224,6 +1244,42 @@ export const api = {
           await apiGet(`/events/${eventId}/teams`, { authed: true }),
         ),
       () => mockEventTeams(eventId),
+    );
+  },
+
+  /** One team's submission log (t62): who contributed what, when, with the
+   * screenshot — the same applied ledger rows the completion history serves,
+   * scoped to one team and with metric progress ticks rolled up. Forwards the
+   * session so admins see hidden tasks / real RSNs. Newest-first, paginated. */
+  async eventTeamContributions(
+    eventId: number,
+    teamId: number,
+    params: { page?: number; limit?: number } = {},
+  ): Promise<EventTeamContributions> {
+    const q = new URLSearchParams();
+    if (params.page) q.set("page", String(params.page));
+    if (params.limit) q.set("limit", String(params.limit));
+    return withFallback(
+      async () =>
+        EventTeamContributionsSchema.parse(
+          await apiGet(`/events/${eventId}/teams/${teamId}/contributions?${q}`, {
+            authed: true,
+          }),
+        ),
+      () => ({
+        event_id: eventId,
+        team_id: teamId,
+        team_name: null,
+        is_admin: false,
+        entries: [],
+        meta: {
+          page: params.page ?? 1,
+          limit: params.limit ?? 25,
+          total: 0,
+          folded_updates: 0,
+          truncated: false,
+        },
+      }),
     );
   },
 
@@ -1644,16 +1700,27 @@ export const api = {
   },
 
   /** Public completion timeline (loot_sweep + every kind). Forwards the session
-   * when present so admins see hidden tasks / the real RSN behind masked rows. */
+   * when present so admins see hidden tasks / the real RSN behind masked rows.
+   * `mode` picks the raw ledger (`all`) vs. only rows that finished something
+   * (`completions`) vs. only the GP/KC progress ticks (`progress`). */
   async eventCompletionHistory(
     eventId: number,
-    params: { page?: number; teamId?: number; taskId?: number; player?: string } = {},
+    params: {
+      page?: number;
+      teamId?: number;
+      taskId?: number;
+      player?: string;
+      mode?: CompletionHistoryMode;
+      taskType?: string;
+    } = {},
   ): Promise<CompletionHistory> {
     const q = new URLSearchParams();
     if (params.page) q.set("page", String(params.page));
     if (params.teamId) q.set("teamId", String(params.teamId));
     if (params.taskId) q.set("taskId", String(params.taskId));
     if (params.player) q.set("player", params.player);
+    if (params.mode) q.set("mode", params.mode);
+    if (params.taskType) q.set("taskType", params.taskType);
     return withFallback(
       async () =>
         CompletionHistorySchema.parse(
@@ -1664,7 +1731,14 @@ export const api = {
         kind: "standard",
         is_admin: false,
         entries: [],
-        meta: { page: 1, limit: 50, total: 0 },
+        meta: {
+          page: 1,
+          limit: 50,
+          total: 0,
+          mode: params.mode ?? "all",
+          completions_total: 0,
+          progress_total: 0,
+        },
       }),
     );
   },

@@ -31,10 +31,13 @@ export function CardStatLine({ label, value }: { label: string; value: ReactNode
   );
 }
 
-const OPEN_DELAY_MS = 150;
+const OPEN_DELAY_MS = 120;
 const CLOSE_DELAY_MS = 200;
 const CARD_WIDTH = 288; // w-72
 const EDGE_GAP = 8;
+/** Visual gap between trigger and card. It is *padding on the portal wrapper*,
+ * not empty space: the pointer crossing it must stay over a hoverable element,
+ * or moving from the tile to the card would schedule a close. */
 const ANCHOR_GAP = 6;
 /** Rough flip threshold: place the card above when this little room remains. */
 const MIN_SPACE_BELOW = 280;
@@ -80,12 +83,13 @@ export function HoverCard({
       Math.max(rect.left, EDGE_GAP),
       Math.max(EDGE_GAP, window.innerWidth - width - EDGE_GAP),
     );
+    // Flush against the trigger — the wrapper's padding draws the gap.
     if (window.innerHeight - rect.bottom < MIN_SPACE_BELOW) {
-      setPos({ left, bottom: window.innerHeight - rect.top + ANCHOR_GAP });
+      setPos({ left, bottom: window.innerHeight - rect.top });
     } else {
-      setPos({ left, top: rect.bottom + ANCHOR_GAP });
+      setPos({ left, top: rect.bottom });
     }
-  }, []);
+  }, [width]);
 
   const scheduleOpen = () => {
     clearTimers();
@@ -152,21 +156,28 @@ export function HoverCard({
         createPortal(
           <div
             ref={cardRef}
-            role="tooltip"
             style={{
               position: "fixed",
               left: pos.left,
               top: pos.top,
               bottom: pos.bottom,
               width,
-              maxHeight: "80vh",
-              overflowY: "auto",
+              // Transparent bridge across the gap on the trigger's side, so the
+              // pointer never leaves a hoverable element on its way to the card.
+              paddingTop: pos.top != null ? ANCHOR_GAP : 0,
+              paddingBottom: pos.bottom != null ? ANCHOR_GAP : 0,
             }}
-            className="card-pop menu-in z-[70]"
+            className="z-[70]"
             onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}
           >
-            {content}
+            <div
+              role="tooltip"
+              style={{ maxHeight: "80vh", overflowY: "auto" }}
+              className="card-pop menu-in"
+            >
+              {content}
+            </div>
           </div>,
           document.body,
         )}

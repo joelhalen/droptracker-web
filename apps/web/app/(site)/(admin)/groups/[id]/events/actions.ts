@@ -777,6 +777,20 @@ export async function listEventCompletions(
   return api.eventCompletions(eventId, params);
 }
 
+/**
+ * Per-row review actions (confirm/reject/revoke) deliberately revalidate
+ * NOTHING. Any revalidate* call inside a Server Action makes Next re-render the
+ * caller's whole route tree and stream it back with the action result — here
+ * that is the group admin shell (`groups/[id]/layout.tsx`, four blocking
+ * backend fetches) plus the event page — which is what made every click in the
+ * review queue lock the UI for seconds. Nothing is lost: the admin page's own
+ * reads are uncached (`authed` fetches), the Review section applies the change
+ * optimistically and offers an explicit Refresh, and the public event page both
+ * receives the backend's SSE broadcast (`event:{id}`) and re-renders on its own
+ * `revalidate = 30` window. The two batch-shaped actions — bulk confirm and
+ * manual award — fire once per batch rather than once per row, so they keep
+ * pushing the public event page immediately.
+ */
 export async function confirmEventCompletion(
   groupId: EventGroupId,
   eventId: number,
@@ -784,8 +798,6 @@ export async function confirmEventCompletion(
 ) {
   await assertCanManageEvent(groupId);
   await api.confirmEventCompletion(eventId, completionId);
-  revalidatePath(eventAdminPath(groupId, eventId));
-  revalidatePath(`/events/${eventId}`);
   return { ok: true as const };
 }
 
@@ -796,7 +808,6 @@ export async function confirmEventCompletionsBulk(
 ) {
   await assertCanManageEvent(groupId);
   const result = await api.confirmEventCompletionsBulk(eventId, completionIds);
-  revalidatePath(eventAdminPath(groupId, eventId));
   revalidatePath(`/events/${eventId}`);
   return result;
 }
@@ -809,7 +820,6 @@ export async function rejectEventCompletion(
 ) {
   await assertCanManageEvent(groupId);
   await api.rejectEventCompletion(eventId, completionId, note);
-  revalidatePath(eventAdminPath(groupId, eventId));
   return { ok: true as const };
 }
 
@@ -822,7 +832,6 @@ export async function awardEventCompletion(
   await assertCanManageEvent(groupId);
   const parsed = EventAwardInputSchema.parse(input);
   const result = await api.awardEventCompletion(eventId, parsed);
-  revalidatePath(eventAdminPath(groupId, eventId));
   revalidatePath(`/events/${eventId}`);
   return { ok: true as const, id: result.id };
 }
@@ -835,8 +844,6 @@ export async function revokeEventCompletion(
   await assertCanManageEvent(groupId);
   const parsed = EventRevokeInputSchema.parse(input);
   await api.revokeEventCompletion(eventId, parsed);
-  revalidatePath(eventAdminPath(groupId, eventId));
-  revalidatePath(`/events/${eventId}`);
   return { ok: true as const };
 }
 

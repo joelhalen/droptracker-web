@@ -211,11 +211,12 @@ export default async function EventDetailPage({ params }: { params: Params }) {
           </h2>
           <p className="text-osrs-parchment-dark/60 mb-4 max-w-2xl text-sm">
             Every recorded task completion and the points it earned — who pulled it, for which team,
-            and when.
+            and when. GP/KC progress updates are folded away by default.
           </p>
           <EventCompletionHistory
             eventId={event.id}
             teams={event.teams.map((t) => ({ id: t.id, name: t.name }))}
+            taskTypes={event.tasks.map((t) => t.type)}
           />
         </section>
       )}

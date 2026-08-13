@@ -673,6 +673,13 @@ export function EventTaskForm({
   const [sourceNpcs, setSourceNpcs] = useState<PickerEntry[]>(
     ((initialConfig.source_npcs as string[] | undefined) ?? []).map((name) => ({ name })),
   );
+  // loot_value review floor: drops worth less still count toward the GP total,
+  // they just skip the review queue (0 = unset — everything follows the normal
+  // review policy, which is what every task did before this existed).
+  const [minDropValue, setMinDropValue] = useState<number>(
+    typeof initialConfig.min_value === "number" ? initialConfig.min_value : 0,
+  );
+  const [minDropStrict, setMinDropStrict] = useState(Boolean(initialConfig.min_value_strict));
   const [customTarget, setCustomTarget] = useState(
     initial?.type === "custom" ? (initial.target ?? "") : "",
   );
@@ -1090,14 +1097,19 @@ export function EventTaskForm({
       case "xp_target":
       case "skill_target":
         return { ...base, target: skill, target_value: numericGoal };
-      case "loot_value":
+      case "loot_value": {
+        const lootConfig = {
+          ...(sourceNpcs.length ? { source_npcs: sourceNpcs.map((n) => n.name) } : {}),
+          ...(minDropValue > 0
+            ? { min_value: minDropValue, ...(minDropStrict ? { min_value_strict: true } : {}) }
+            : {}),
+        };
         return {
           ...base,
           target_value: numericGoal,
-          config: sourceNpcs.length
-            ? JSON.stringify({ source_npcs: sourceNpcs.map((n) => n.name) })
-            : undefined,
+          config: Object.keys(lootConfig).length ? JSON.stringify(lootConfig) : undefined,
         };
+      }
       case "ehp_target":
       case "ehb_target":
         return { ...base, target_value: numericGoal };
@@ -1592,7 +1604,35 @@ export function EventTaskForm({
         <div className="grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
             {goalField("GP to earn", "e.g. 25000000")}
+            <label className="grid gap-1 text-sm">
+              <span className="text-osrs-parchment-dark/80">Minimum drop value (optional)</span>
+              <QuantityInput
+                min={1}
+                emptyAs={0}
+                value={minDropValue}
+                onChange={setMinDropValue}
+                placeholder="e.g. 100000"
+                className={field}
+              />
+              <span className="text-osrs-parchment-dark/50 text-xs">
+                {minDropValue > 0
+                  ? minDropStrict
+                    ? `Drops under ${minDropValue.toLocaleString()} GP are ignored completely.`
+                    : `Drops under ${minDropValue.toLocaleString()} GP still count toward the total, but skip admin review.`
+                  : "Leave empty to treat every drop the same — bones and ashes included."}
+              </span>
+            </label>
           </div>
+          {minDropValue > 0 && (
+            <label className="text-osrs-parchment-dark/80 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={minDropStrict}
+                onChange={(e) => setMinDropStrict(e.target.checked)}
+              />
+              Don&apos;t count drops under the minimum at all
+            </label>
+          )}
           <div className="grid gap-1 text-sm">
             <span className="text-osrs-parchment-dark/80">
               Only count drops from (optional)

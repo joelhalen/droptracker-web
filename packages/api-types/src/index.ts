@@ -3264,7 +3264,9 @@ export const EventTeamMemberStatsSchema = EventMemberSchema.extend({
 export type EventTeamMemberStats = z.infer<typeof EventTeamMemberStatsSchema>;
 
 /** One applied ledger row, public-safe (no proof URLs; `note` only ever
- * carries the organizer's manual-award reason — auto rows have none). */
+ * carries the organizer's manual-award reason — auto rows have none). This is
+ * the raw live feed; the readable submission log with screenshots is
+ * `EventTeamContributions` below, served by its own paginated endpoint. */
 export const EventTeamActivitySchema = z.object({
   id: z.number().int(),
   task_id: z.number().int(),
@@ -3280,6 +3282,64 @@ export const EventTeamActivitySchema = z.object({
   created_at: z.number().int().nullable(),
 });
 export type EventTeamActivity = z.infer<typeof EventTeamActivitySchema>;
+
+/** One line of a team's submission log (t62).
+ *
+ * Carries `proof_url` **on purpose**: this is the same applied ledger row the
+ * public completion history already publishes proof for, under the same
+ * visibility rule (public tasks only; a hidden player reads as "Hidden
+ * player" unless the viewer is an event admin).
+ *
+ * `collapsed` marks a rolled-up line: the progress ticks a metric task mints
+ * per drop/kill are folded into one entry per (player, task), with `quantity`
+ * summed, `created_at` the newest tick, `collapsed_since` the oldest, and no
+ * item name or proof (a run spans many). */
+export const EventTeamContributionSchema = z.object({
+  completion_id: z.number().int(),
+  task_id: z.number().int(),
+  task_label: z.string().nullable().optional(),
+  task_type: z.string().nullable().optional(),
+  player_id: z.number().int().nullable(),
+  player_name: z.string().nullable().optional(),
+  /** The player opted out of public attribution and is masked. */
+  hidden: z.boolean().default(false),
+  /** Item name this row credited, e.g. "Twisted bow". */
+  matched_target: z.string().nullable().optional(),
+  /** Resolved id for `matched_target`'s icon; null when unknown. */
+  item_id: z.number().int().nullable().optional(),
+  quantity: z.number().int().default(1),
+  /** What this row scored (0 on a progress line). */
+  points: z.number().default(0),
+  source_type: z.string().nullable().optional(),
+  /** Organizer's reason on a manual award. */
+  note: z.string().nullable().optional(),
+  proof_url: z.string().nullable().optional(),
+  created_at: z.number().int().nullable(),
+  collapsed: z.number().int().optional(),
+  collapsed_since: z.number().int().nullable().optional(),
+});
+export type EventTeamContribution = z.infer<typeof EventTeamContributionSchema>;
+
+/** GET /events/{id}/teams/{teamId}/contributions — one team's paginated
+ * submission log, newest-first. */
+export const EventTeamContributionsSchema = z.object({
+  event_id: z.number().int(),
+  team_id: z.number().int(),
+  team_name: z.string().nullable().optional(),
+  is_admin: z.boolean().default(false),
+  entries: z.array(EventTeamContributionSchema).default([]),
+  meta: z.object({
+    page: z.number().int(),
+    limit: z.number().int(),
+    total: z.number().int(),
+    /** Raw metric ticks the fold swallowed — the "N progress updates" note. */
+    folded_updates: z.number().int().default(0),
+    /** The team's ledger is longer than the log's cap; the full timeline
+     * lives in the event's completion history. */
+    truncated: z.boolean().default(false),
+  }),
+});
+export type EventTeamContributions = z.infer<typeof EventTeamContributionsSchema>;
 
 export const EventTeamDetailSchema = z.object({
   event: EventSummarySchema,
@@ -3692,7 +3752,9 @@ export const EventTaskInputSchema = z.object({
   visibility: z.enum(EVENT_TASK_VISIBILITIES).optional(),
   /** Board-game tier (web44a): tags the task into difficulty-tile roll pools. */
   difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
-  /** JSON string: any_of/assembly/point_collection item lists etc. */
+  /** JSON string: any_of/assembly/point_collection item lists, and per-type
+   * keys the backend validator whitelists — e.g. loot_value's `min_value`
+   * (drops under it still count but skip review) and `min_value_strict`. */
   config: z.string().nullable().optional(),
 });
 export type EventTaskInput = z.infer<typeof EventTaskInputSchema>;

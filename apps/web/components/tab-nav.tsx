@@ -7,7 +7,7 @@
  * root-ish tab like `/admin` is itself a path-prefix of every sibling tab and
  * would incorrectly light up alongside whichever sibling is actually active.
  */
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
@@ -30,6 +30,22 @@ function isActive(pathname: string, tab: NavTab): boolean {
   return Boolean(tab.matchPrefix) && pathname.startsWith(`${tab.href}/`);
 }
 
+/** Tab text plus its lock/badge decorations — shared by the tab row and the
+ * breadcrumb's dropdown so the two can't drift apart. */
+function TabLabel({ tab }: { tab: NavTab }) {
+  return (
+    <>
+      {tab.label}
+      {tab.locked ? <span className="ml-1 opacity-70">🔒</span> : null}
+      {tab.badge && tab.badge > 0 ? (
+        <span className="bg-osrs-gold text-osrs-brown-dark ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold">
+          {tab.badge > 99 ? "99+" : tab.badge}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 export function TabNav({ tabs, className = "" }: { tabs: NavTab[]; className?: string }) {
   const pathname = usePathname();
   return (
@@ -41,17 +57,7 @@ export function TabNav({ tabs, className = "" }: { tabs: NavTab[]; className?: s
             ? "bg-osrs-bronze text-osrs-parchment"
             : "hover:bg-osrs-bronze/30 text-osrs-parchment-dark/80"
         } ${t.locked ? "opacity-60" : ""}`;
-        const label = (
-          <>
-            {t.label}
-            {t.locked ? <span className="ml-1 opacity-70">🔒</span> : null}
-            {t.badge && t.badge > 0 ? (
-              <span className="bg-osrs-gold text-osrs-brown-dark ml-1.5 inline-flex min-w-[1.1rem] items-center justify-center rounded-full px-1 text-[10px] font-bold">
-                {t.badge > 99 ? "99+" : t.badge}
-              </span>
-            ) : null}
-          </>
-        );
+        const label = <TabLabel tab={t} />;
         return (
           <Link
             key={t.href}
@@ -65,6 +71,219 @@ export function TabNav({ tabs, className = "" }: { tabs: NavTab[]; className?: s
         );
       })}
     </nav>
+  );
+}
+
+export type NavCollapse = {
+  /** Tab whose record routes (`…/events/42`) replace the whole row with a
+   * breadcrumb. Sibling pages (`…/events/new`) keep the full row. */
+  href: string;
+  /** Crumb that links to the subtree root and drops down every tab, so nothing
+   * becomes unreachable. Omit when the user has only the one tab — there is
+   * nothing to drop down. */
+  root?: { href: string; label: string };
+};
+
+/** Path segments below `parentHref` when the current route is one *record*
+ * inside it, else null. The numeric check is what keeps sibling pages such as
+ * `…/events/new` on the full tab row. */
+function detailSegments(pathname: string, parentHref: string): string[] | null {
+  if (!pathname.startsWith(`${parentHref}/`)) return null;
+  const segments = pathname
+    .slice(parentHref.length + 1)
+    .split("/")
+    .filter(Boolean);
+  return segments[0] && /^\d+$/.test(segments[0]) ? segments : null;
+}
+
+const crumbSeparator = (
+  <span aria-hidden className="text-osrs-parchment-dark/35">
+    /
+  </span>
+);
+
+/** "← Dashboard ⌄" — the subtree root plus a dropdown of every tab, so the
+ * collapsed row costs at most one extra click. */
+function RootCrumb({ tabs, root }: { tabs: NavTab[]; root: { href: string; label: string } }) {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative flex items-center gap-0.5">
+      <Link href={root.href as Route} className="hover:text-osrs-gold-bright">
+        ← {root.label}
+      </Link>
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`All ${root.label} sections`}
+        onClick={() => setOpen((o) => !o)}
+        className="hover:text-osrs-gold-bright rounded p-0.5"
+      >
+        <svg
+          viewBox="0 0 12 12"
+          aria-hidden
+          className={`size-2.5 transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <path d="M2 4l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div role="menu" className="absolute left-0 top-full z-50 w-56 pt-2">
+          <div className="card-pop menu-in max-h-[70vh] overflow-y-auto p-1.5">
+            {tabs.map((t) => (
+              <Link
+                key={t.href}
+                href={t.href as Route}
+                role="menuitem"
+                title={t.locked ? "Requires a subscription upgrade" : undefined}
+                className={`hover:bg-osrs-bronze/25 block rounded-lg px-2.5 py-1.5 text-sm transition-colors ${
+                  isActive(pathname, t) ? "text-osrs-gold" : ""
+                } ${t.locked ? "opacity-60" : ""}`}
+              >
+                <TabLabel tab={t} />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** `discord` → `Discord`, `effort` → `Effort`. */
+function segmentLabel(segment: string): string {
+  const words = segment.replace(/-/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** Breadcrumb shown instead of the tab row while a record page is open (t61):
+ * a dozen equally-weighted sibling links sitting directly above the record's
+ * own tab bar were being clicked by mistake, dumping admins out of the event
+ * they were editing. */
+function DetailCrumbs({
+  tabs,
+  collapse,
+  segments,
+  detailLabel,
+  className = "",
+}: {
+  tabs: NavTab[];
+  collapse: NavCollapse;
+  segments: string[];
+  detailLabel: string | null;
+  className?: string;
+}) {
+  const parent = tabs.find((t) => t.href === collapse.href);
+  const [id, ...sub] = segments;
+  const detailHref = `${collapse.href}/${id}`;
+  const trail = [
+    ...(parent ? [{ label: parent.label, href: parent.href }] : []),
+    // `#42` until the page names itself via `useDetailCrumb` (the layout
+    // deliberately doesn't fetch the record just to title a crumb).
+    { label: detailLabel ?? `#${id}`, href: detailHref },
+    ...sub.map((segment, i) => ({
+      label: segmentLabel(segment),
+      href: `${detailHref}/${sub.slice(0, i + 1).join("/")}`,
+    })),
+  ];
+
+  return (
+    <nav
+      aria-label="Breadcrumb"
+      className={`text-osrs-parchment-dark/70 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm ${className}`}
+    >
+      {collapse.root && <RootCrumb tabs={tabs} root={collapse.root} />}
+      {trail.map((crumb, i) => (
+        <span key={crumb.href} className="flex items-center gap-x-1.5">
+          {(i > 0 || collapse.root) && crumbSeparator}
+          {i === trail.length - 1 ? (
+            <span aria-current="page" className="text-osrs-parchment font-medium">
+              {crumb.label}
+            </span>
+          ) : (
+            <Link href={crumb.href as Route} className="hover:text-osrs-gold-bright">
+              {crumb.label}
+            </Link>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+const SetDetailCrumb = createContext<((label: string | null) => void) | null>(null);
+
+/**
+ * Names the open record in the collapsed breadcrumb (`Events / Summer Bingo`)
+ * from the page that already loaded it, keeping the extra fetch off the
+ * layout's critical path. No-ops outside a `TabNavShell`, so the same
+ * component can render in shells that have no tab row (e.g. `/admin/*`).
+ */
+export function useDetailCrumb(label: string | null | undefined) {
+  const setLabel = useContext(SetDetailCrumb);
+  useEffect(() => {
+    if (!setLabel || !label) return;
+    setLabel(label);
+    return () => setLabel(null);
+  }, [setLabel, label]);
+}
+
+/**
+ * Tab row that collapses to a breadcrumb on the record routes of one tab.
+ * Wraps the subtree's content so a page inside it can fill the record crumb
+ * via `useDetailCrumb`.
+ */
+export function TabNavShell({
+  tabs,
+  collapse,
+  className = "",
+  children,
+}: {
+  tabs: NavTab[];
+  collapse: NavCollapse;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const [detailLabel, setDetailLabel] = useState<string | null>(null);
+  const segments = detailSegments(pathname, collapse.href);
+
+  return (
+    <SetDetailCrumb.Provider value={setDetailLabel}>
+      {segments ? (
+        <DetailCrumbs
+          tabs={tabs}
+          collapse={collapse}
+          segments={segments}
+          detailLabel={detailLabel}
+          className={className}
+        />
+      ) : (
+        <TabNav tabs={tabs} className={className} />
+      )}
+      {children}
+    </SetDetailCrumb.Provider>
   );
 }
 

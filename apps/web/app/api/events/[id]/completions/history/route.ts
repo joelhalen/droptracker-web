@@ -6,7 +6,7 @@
  * Zod-validates the response).
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { api } from "@/lib/api";
+import { COMPLETION_HISTORY_MODES, api, type CompletionHistoryMode } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -25,12 +25,21 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return Number.isInteger(n) && n > 0 ? n : undefined;
   };
 
+  // Unknown values fall through as undefined so the backend keeps its own
+  // default rather than 422-ing a hand-typed URL.
+  const rawMode = sp.get("mode");
+  const mode = COMPLETION_HISTORY_MODES.includes(rawMode as CompletionHistoryMode)
+    ? (rawMode as CompletionHistoryMode)
+    : undefined;
+
   try {
     const history = await api.eventCompletionHistory(eventId, {
       page: num("page"),
       teamId: num("teamId"),
       taskId: num("taskId"),
       player: sp.get("player") ?? undefined,
+      mode,
+      taskType: sp.get("taskType") ?? undefined,
     });
     return NextResponse.json(history, { headers: { "cache-control": "private, no-store" } });
   } catch (err) {

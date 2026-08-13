@@ -32,6 +32,7 @@ import { TASK_TYPE_LABELS } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
+import { BoundTaskPanel, EventTaskCombobox } from "@/components/event-task-search";
 import { QuantityInput } from "@/components/quantity-input";
 import {
   saveEventBingo,
@@ -47,7 +48,10 @@ type DesignerCell = {
   label: string;
   taskId: number | null;
   library: EventTaskLibraryItem | null;
-  /** Points override for a library pick. */
+  /** Points override for a library pick — the API applies it to the task the
+   * pick creates (`points` is only read for `library_item_id` cells; existing
+   * bindings score from the task row itself, custom ones from
+   * `new_task.points`). */
   points: number | null;
   /** Inline custom task, built by the full EventTaskForm in draft mode —
    * the complete input (config, review flag, visibility…) rides in the
@@ -102,6 +106,16 @@ function cellBindingSummary(cell: DesignerCell, tasks: EventTask[]): string {
   return "Free cell";
 }
 
+/** The points this cell actually awards, wherever they come from: the bound
+ * task's own points, a library pick's override (defaulting to the preset), or
+ * the inline custom task's. null = free cell (no task, no points). */
+function cellPoints(cell: DesignerCell, tasks: EventTask[]): number | null {
+  if (cell.taskId != null) return tasks.find((t) => t.id === cell.taskId)?.points ?? null;
+  if (cell.library) return cell.points ?? cell.library.default_points;
+  if (cell.newTask) return cell.newTask.points ?? 0;
+  return null;
+}
+
 function cellDisplayLabel(cell: DesignerCell, tasks: EventTask[]): string {
   if (cell.label.trim()) return cell.label.trim();
   if (cell.taskId != null) return tasks.find((t) => t.id === cell.taskId)?.label ?? `Task #${cell.taskId}`;
@@ -127,6 +141,7 @@ export function EventBingoDesigner({
   event,
   tasks,
   onSaved,
+  onTaskUpdated,
 }: {
   groupId: number | null;
   event: EventDetail;
@@ -134,6 +149,9 @@ export function EventBingoDesigner({
   /** Fired with the refreshed detail after a successful save (the PUT can
    * create/delete tasks, so the whole manager state refreshes). */
   onSaved: (detail: EventDetail) => void;
+  /** A task edited from inside the cell editor (points or the full form).
+   * Board state is untouched — only the parent's task list needs the update. */
+  onTaskUpdated?: (task: EventTask) => void;
 }) {
   const editable = boardEditable(event);
   const initialSize = event.bingo?.size && event.bingo.size >= 3 ? event.bingo.size : (event.board_size ?? 5);
@@ -405,6 +423,7 @@ export function EventBingoDesigner({
         {cells.map((cell, idx) => {
           const isFree = cell.taskId == null && !cell.library && !cell.newTask;
           const isSelected = selected === idx;
+          const points = cellPoints(cell, tasks);
           return (
             <button
               key={idx}
@@ -419,7 +438,15 @@ export function EventBingoDesigner({
               }`}
             >
               <span className="line-clamp-3">{cellDisplayLabel(cell, tasks)}</span>
-              {isFree && <span className="mt-0.5 text-[9px] uppercase opacity-60">free</span>}
+              {isFree ? (
+                <span className="mt-0.5 text-[9px] uppercase opacity-60">free</span>
+              ) : (
+                points != null && (
+                  <span className="text-osrs-gold-bright/80 mt-0.5 text-[9px] tabular-nums">
+                    {points} pts
+                  </span>
+                )
+              )}
             </button>
           );
         })}
@@ -435,7 +462,9 @@ export function EventBingoDesigner({
             size={size}
             cell={selectedCell}
             tasks={tasks}
+            liveEvent={event.status === "active"}
             onChange={(patch) => updateCell(selected, patch)}
+            onTaskUpdated={onTaskUpdated}
             onClose={closeEditor}
           />
         </CellEditorModal>
@@ -519,7 +548,9 @@ function CellEditor({
   size,
   cell,
   tasks,
+  liveEvent,
   onChange,
+  onTaskUpdated,
   onClose,
 }: {
   groupId: number | null;
@@ -528,13 +559,15 @@ function CellEditor({
   size: number;
   cell: DesignerCell;
   tasks: EventTask[];
+  liveEvent: boolean;
   onChange: (patch: Partial<DesignerCell>) => void;
+  onTaskUpdated?: (task: EventTask) => void;
   onClose: () => void;
 }) {
   const row = Math.floor(idx / size);
   const col = idx % size;
   const [tab, setTab] = useState<"library" | "existing" | "custom">(
-    cell.newTask ? "custom" : "library",
+    cell.newTask ? "custom" : cell.taskId != null ? "existing" : "library",
   );
 
   // Library search state.
@@ -543,23 +576,36 @@ function CellEditor({
   const [results, setResults] = useState<EventTaskLibraryItem[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const searchSeq = useRef(0);
 
-  const doSearch = async (e?: React.FormEvent) => {
-    e?.preventDefault();
+  // Search as you type: one run when the tab first opens (so presets are on
+  // screen without clicking anything) and 300 ms after each keystroke. The
+  // sequence guard drops out-of-order responses.
+  useEffect(() => {
+    if (tab !== "library") return;
+    const mine = ++searchSeq.current;
     setSearching(true);
-    setSearchError(null);
-    try {
-      const found = await searchEventTaskLibrary(groupId, {
-        query: query.trim() || undefined,
-        type: typeFilter || undefined,
-      });
-      setResults(found);
-    } catch (err) {
-      setSearchError(getErrorMessage(err, "Library search failed. Please try again."));
-    } finally {
-      setSearching(false);
-    }
-  };
+    const timer = setTimeout(async () => {
+      try {
+        const found = await searchEventTaskLibrary(groupId, {
+          query: query.trim() || undefined,
+          type: typeFilter || undefined,
+        });
+        if (searchSeq.current !== mine) return;
+        setResults(found);
+        setSearchError(null);
+      } catch (err) {
+        if (searchSeq.current !== mine) return;
+        setSearchError(getErrorMessage(err, "Library search failed. Please try again."));
+      } finally {
+        if (searchSeq.current === mine) setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [tab, query, typeFilter, groupId]);
+
+  const boundTask = cell.taskId != null ? tasks.find((t) => t.id === cell.taskId) : undefined;
+  const effectivePoints = cellPoints(cell, tasks);
 
   const tabBtn = (key: typeof tab, label: string) => (
     <button
@@ -599,6 +645,39 @@ function CellEditor({
         />
       </label>
 
+      {/* What this tile is worth, wherever the number comes from — the three
+          binding kinds each store points somewhere different. */}
+      <div className="border-osrs-bronze/25 bg-osrs-brown-dark/30 flex flex-wrap items-center gap-3 rounded border px-2 py-1.5">
+        <span className="text-osrs-parchment-dark/70 text-xs">Cell points</span>
+        {cell.library ? (
+          <>
+            <QuantityInput
+              min={0}
+              value={cell.points ?? cell.library.default_points}
+              onChange={(points) => onChange({ points })}
+              className={`${field} w-24 py-1`}
+              aria-label="Points for this cell"
+            />
+            <span className="text-osrs-parchment-dark/50 text-xs">
+              Override for “{cell.library.name}” (preset default {cell.library.default_points}).
+            </span>
+          </>
+        ) : effectivePoints != null ? (
+          <>
+            <span className="text-osrs-gold-bright text-sm tabular-nums">{effectivePoints} pts</span>
+            <span className="text-osrs-parchment-dark/50 text-xs">
+              {cell.newTask
+                ? "From the custom task below — change it in the form's Points field."
+                : "From the task itself — edit it under “Existing task”."}
+            </span>
+          </>
+        ) : (
+          <span className="text-osrs-parchment-dark/50 text-xs">
+            Free cell — no task, no points. It completes for every team at the start.
+          </span>
+        )}
+      </div>
+
       <div className="flex items-center gap-2">
         {tabBtn("library", "Task library")}
         {tabBtn("existing", "Existing task")}
@@ -615,11 +694,12 @@ function CellEditor({
 
       {tab === "library" && (
         <div className="space-y-2">
-          <form onSubmit={doSearch} className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search presets by name…"
+              aria-label="Search the task library"
               className={`${field} min-w-40 flex-1`}
             />
             <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className={field}>
@@ -630,14 +710,10 @@ function CellEditor({
                 </option>
               ))}
             </select>
-            <button
-              type="submit"
-              disabled={searching}
-              className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-2 text-sm disabled:opacity-50"
-            >
-              {searching ? "Searching…" : "Search"}
-            </button>
-          </form>
+            <span className="text-osrs-parchment-dark/50 self-center text-xs">
+              {searching ? "Searching…" : results ? `${results.length} preset${results.length === 1 ? "" : "s"}` : ""}
+            </span>
+          </div>
           {searchError && <p className="text-osrs-red text-xs">{searchError}</p>}
           {results && (
             <ul className="border-osrs-bronze/20 max-h-56 overflow-y-auto rounded border">
@@ -685,44 +761,33 @@ function CellEditor({
               )}
             </ul>
           )}
-          {cell.library && (
-            <label className="block text-sm">
-              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-                Points for “{cell.library.name}”
-              </span>
-              <QuantityInput
-                min={0}
-                value={cell.points ?? cell.library.default_points}
-                onChange={(points) => onChange({ points })}
-                className={`${field} w-28`}
-              />
-            </label>
-          )}
         </div>
       )}
 
       {tab === "existing" && (
-        <div className="space-y-1">
+        <div className="space-y-2">
           {tasks.length ? (
-            <select
-              value={cell.taskId ?? ""}
-              onChange={(e) =>
-                onChange({
-                  taskId: e.target.value ? Number(e.target.value) : null,
-                  library: null,
-                  newTask: null,
-                  points: null,
-                })
-              }
-              className={`${field} w-full`}
-            >
-              <option value="">— pick a task already on this event —</option>
-              {tasks.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {TASK_TYPE_LABELS[t.type]}: {t.label}
-                </option>
-              ))}
-            </select>
+            <>
+              <EventTaskCombobox
+                tasks={tasks}
+                value={cell.taskId}
+                onChange={(taskId) =>
+                  onChange({ taskId, library: null, newTask: null, points: null })
+                }
+                placeholder="Type to find a task already on this event…"
+                clearLabel="Unbind"
+              />
+              {boundTask && (
+                <BoundTaskPanel
+                  groupId={groupId}
+                  eventId={eventId}
+                  task={boundTask}
+                  editable
+                  liveEvent={liveEvent}
+                  onTaskUpdated={onTaskUpdated}
+                />
+              )}
+            </>
           ) : (
             <p className="text-osrs-parchment-dark/50 text-xs">
               This event has no tasks yet — add one in the Tasks section, or use the library/custom

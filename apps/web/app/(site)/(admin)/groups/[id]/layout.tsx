@@ -3,7 +3,7 @@ import { forbidden, notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { requireUser, canAdminGroup, canManageEvents, isGroupOwnerless } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
-import { TabNav, type NavTab } from "@/components/tab-nav";
+import { TabNavShell, type NavTab } from "@/components/tab-nav";
 import { Alert, NameTile, SubscriptionStatusBadge, TierBadge } from "@/components/ui";
 
 type Params = Promise<{ id: string }>;
@@ -138,9 +138,21 @@ export default async function GroupAdminLayout({
         </Alert>
       )}
 
-      <TabNav tabs={tabs} />
-
-      <div>{children}</div>
+      {/* t61: inside one event (`/events/42…`) this row collapses to a
+          breadcrumb — twelve sibling links stacked above the event manager's
+          own tab bar were getting clicked by mistake. Every tab stays one
+          click away in the breadcrumb's dropdown. */}
+      <TabNavShell
+        tabs={tabs}
+        collapse={{
+          href: `/groups/${groupId}/events`,
+          // An event manager only has the Events tab, so there is nothing to
+          // drop down — and /admin would 403 for them.
+          root: isAdmin ? { href: `/groups/${groupId}/admin`, label: "Dashboard" } : undefined,
+        }}
+      >
+        <div>{children}</div>
+      </TabNavShell>
     </div>
   );
 }

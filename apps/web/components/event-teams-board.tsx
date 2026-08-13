@@ -4,7 +4,8 @@
  * color, score, event-window loot GP, a tasks-done meter, the top items the
  * team pulled to earn points (icon strip), member/pot meta, board-game
  * coins/piece when present, and top contributors. Each card links to the full
- * per-team drill-down (roster, items, per-task progress, activity).
+ * per-team drill-down (roster, items, per-task progress) and straight to that
+ * team's submission log.
  *
  * Server component — a cached standings snapshot; the per-team page owns the
  * live SSE view. Kind-agnostic.
@@ -252,22 +253,45 @@ export function EventTeamsBoard({
                 </div>
               )}
 
-              <div className="mt-3 pl-2">
+              {/* The card is a summary; the submission log ("who got what,
+                  when", with screenshots) is the thing people actually ask
+                  for, so it gets its own entry point straight to the anchor
+                  rather than hiding at the bottom of the detail page. In the
+                  Activity there are no routes to anchor into — the in-app push
+                  lands on the same view. */}
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 pl-2 text-xs">
                 {onOpenTeam ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenTeam(team.id)}
-                    className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright text-xs"
-                  >
-                    View team detail →
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => onOpenTeam(team.id)}
+                      className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright"
+                    >
+                      View team detail →
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenTeam(team.id)}
+                      className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright"
+                    >
+                      Submission log →
+                    </button>
+                  </>
                 ) : (
-                  <Link
-                    href={`/events/${eventId}/teams/${team.id}` as Route}
-                    className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright text-xs"
-                  >
-                    View team detail →
-                  </Link>
+                  <>
+                    <Link
+                      href={`/events/${eventId}/teams/${team.id}` as Route}
+                      className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright"
+                    >
+                      View team detail →
+                    </Link>
+                    <Link
+                      href={`/events/${eventId}/teams/${team.id}#submission-log` as Route}
+                      className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright"
+                    >
+                      Submission log →
+                    </Link>
+                  </>
                 )}
               </div>
             </Card>

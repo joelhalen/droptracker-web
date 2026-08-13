@@ -1,9 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import type { EventCompletion, EventTask, EventTeam } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
-import { taskConfigItems, taskConfigPaths } from "@/lib/events";
+import {
+  completionMatchesFilter,
+  restoreOptimisticRow,
+  taskConfigItems,
+  taskConfigPaths,
+} from "@/lib/events";
 import { Alert, EmptyState } from "@/components/ui";
 import { LocalTime } from "@/components/local-time";
 import {
@@ -17,8 +23,11 @@ import {
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
+const filterField =
+  "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold max-w-[14rem] rounded border px-2 py-1 text-xs outline-none";
 
 const STATUS_FILTERS = ["pending", "all", "auto", "confirmed", "manual", "rejected", "revoked"] as const;
+type StatusFilter = (typeof STATUS_FILTERS)[number];
 /** Ledger rows an admin can still unwind. */
 const REVOCABLE = new Set(["auto", "confirmed", "manual"]);
 
@@ -34,51 +43,134 @@ export function EventReview({
   tasks: EventTask[];
   teams: EventTeam[];
 }) {
-  const [status, setStatus] = useState<(typeof STATUS_FILTERS)[number]>("pending");
+  const router = useRouter();
+  const [status, setStatus] = useState<StatusFilter>("pending");
+  const [teamFilter, setTeamFilter] = useState(0);
+  const [taskFilter, setTaskFilter] = useState(0);
   const [rows, setRows] = useState<EventCompletion[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
+  // Per-row busy set, not one shared flag: reviewing a submission must never
+  // disable the rest of the queue (a resubmitted drop is 2 rejects + 2
+  // confirms, and each used to lock every button until its round trip landed).
+  const [busy, setBusy] = useState<ReadonlySet<number>>(() => new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [awarding, setAwarding] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [, startTransition] = useTransition();
 
+  // Ledger reads are only issued on mount, filter changes and explicit
+  // refreshes now, so an out-of-order response must not clobber newer state
+  // (or the optimistic rows an in-flight action already removed).
+  const reqRef = useRef(0);
   const reload = useCallback(
-    (nextStatus = status) => {
-      startTransition(async () => {
-        try {
-          setError(null);
-          const data = await listEventCompletions(groupId, eventId, {
-            status: nextStatus === "all" ? undefined : nextStatus,
-          });
-          setRows(data);
-        } catch (err) {
-          setError(getErrorMessage(err, "Couldn't load the completion ledger."));
-        }
-      });
+    // `keepMessage` lets a caller that already reported something (the bulk
+    // confirm's skipped-rows summary) reconcile the list without wiping it.
+    async ({ keepMessage = false }: { keepMessage?: boolean } = {}) => {
+      const seq = ++reqRef.current;
+      setLoading(true);
+      try {
+        const data = await listEventCompletions(groupId, eventId, {
+          status: status === "all" ? undefined : status,
+          teamId: teamFilter || undefined,
+          taskId: taskFilter || undefined,
+        });
+        if (seq !== reqRef.current) return;
+        if (!keepMessage) setError(null);
+        setRows(data);
+      } catch (err) {
+        if (seq !== reqRef.current) return;
+        setError(getErrorMessage(err, "Couldn't load the completion ledger."));
+      } finally {
+        if (seq === reqRef.current) setLoading(false);
+      }
     },
-    [groupId, eventId, status],
+    [groupId, eventId, status, teamFilter, taskFilter],
   );
 
   useEffect(() => {
-    reload();
-  }, [status]);
+    void reload();
+  }, [reload]);
 
-  const act = (fn: () => Promise<unknown>) => {
+  /** The manual refresh that replaces the automatic post-action refetch: it
+   * re-reads the ledger and re-renders the surrounding server page (task
+   * progress, standings), which single reviews deliberately no longer do. */
+  const onRefresh = () => {
+    startTransition(async () => {
+      await reload();
+      router.refresh();
+    });
+  };
+
+  /**
+   * Optimistically move one row to `next`, then run the server action. Only
+   * that row is disabled, so a reviewer can keep working straight down the
+   * queue; a failure puts the row back exactly where it was and shows why.
+   *
+   * Server Actions themselves are dispatched through Next's router action
+   * queue, which runs them one at a time — so the round trips still drain in
+   * order (which also suits the backend, where each confirm is a full apply
+   * that locks the row). What changed is that nothing waits on them: clicks
+   * land immediately and the queue empties in the background.
+   */
+  const actOnRow = (
+    row: EventCompletion,
+    next: EventCompletion["status"],
+    verb: string,
+    run: () => Promise<unknown>,
+  ) => {
     setError(null);
+    setBusy((prev) => new Set(prev).add(row.id));
+    const at = rows?.findIndex((r) => r.id === row.id) ?? -1;
+    const optimistic: EventCompletion = { ...row, status: next };
+    const stillListed = completionMatchesFilter(next, status);
+    setRows((prev) =>
+      prev === null
+        ? prev
+        : stillListed
+          ? prev.map((r) => (r.id === row.id ? optimistic : r))
+          : prev.filter((r) => r.id !== row.id),
+    );
     startTransition(async () => {
       try {
-        await fn();
-        reload();
+        await run();
       } catch (err) {
-        setError(getErrorMessage(err, "Action failed. Please try again."));
+        setError(`Couldn't ${verb} #${row.id} — ${getErrorMessage(err, "please try again.")}`);
+        setRows((prev) => (prev === null ? prev : restoreOptimisticRow(prev, row, at)));
+      } finally {
+        setBusy((prev) => {
+          const rest = new Set(prev);
+          rest.delete(row.id);
+          return rest;
+        });
       }
     });
   };
 
-  const onConfirm = (id: number) => act(() => confirmEventCompletion(groupId, eventId, id));
-  const onReject = (id: number) => act(() => rejectEventCompletion(groupId, eventId, id));
-  const onRevoke = (id: number) => act(() => revokeEventCompletion(groupId, eventId, { completion_id: id }));
+  const onConfirm = (row: EventCompletion) =>
+    actOnRow(row, "confirmed", "confirm", () => confirmEventCompletion(groupId, eventId, row.id));
+  const onReject = (row: EventCompletion) =>
+    actOnRow(row, "rejected", "reject", () => rejectEventCompletion(groupId, eventId, row.id));
+  const onRevoke = (row: EventCompletion) =>
+    actOnRow(row, "revoked", "revoke", () =>
+      revokeEventCompletion(groupId, eventId, { completion_id: row.id }),
+    );
+
   const onConfirmAll = () => {
     const ids = (rows ?? []).filter((r) => r.status === "pending").map((r) => r.id);
     if (!ids.length) return;
     setError(null);
+    setBulkBusy(true);
+    // Clear the queue up front; the single reconciling read below puts back
+    // anything the server skipped.
+    setRows((prev) =>
+      prev === null
+        ? prev
+        : prev.flatMap((r) => {
+            if (r.status !== "pending") return [r];
+            const confirmed: EventCompletion = { ...r, status: "confirmed" };
+            return completionMatchesFilter("confirmed", status) ? [confirmed] : [];
+          }),
+    );
     startTransition(async () => {
       try {
         // Server caps one call at 200 rows; larger queues go in chunks.
@@ -98,10 +190,13 @@ export function EventReview({
               (result.skipped.length > 3 ? ` and ${result.skipped.length - 3} more.` : "."),
           );
         }
-        reload();
       } catch (err) {
-        setError(getErrorMessage(err, "Batch confirm failed. Reload to see progress."));
-        reload();
+        setError(getErrorMessage(err, "Batch confirm failed. The list below is re-read from the server."));
+      } finally {
+        // One reconciling read per batch — not one per row — and it must not
+        // wipe the skipped-rows summary just reported above.
+        await reload({ keepMessage: true });
+        setBulkBusy(false);
       }
     });
   };
@@ -148,18 +243,29 @@ export function EventReview({
     e.preventDefault();
     if (!award.taskId || !award.teamId) return;
     const part = award.mode === "progress" ? award.part : "";
-    act(() =>
-      awardEventCompletion(groupId, eventId, {
-        task_id: award.taskId,
-        team_id: award.teamId,
-        complete: award.mode === "complete" || undefined,
-        quantity: award.mode === "progress" ? award.quantity || 1 : undefined,
-        matched_target: part.startsWith("item:") ? part.slice(5) : undefined,
-        path: part.startsWith("path:") ? Number(part.slice(5)) : undefined,
-        note: award.note.trim() || undefined,
-      }),
-    );
-    setAward((a) => ({ ...a, note: "" }));
+    setError(null);
+    setAwarding(true);
+    startTransition(async () => {
+      try {
+        await awardEventCompletion(groupId, eventId, {
+          task_id: award.taskId,
+          team_id: award.teamId,
+          complete: award.mode === "complete" || undefined,
+          quantity: award.mode === "progress" ? award.quantity || 1 : undefined,
+          matched_target: part.startsWith("item:") ? part.slice(5) : undefined,
+          path: part.startsWith("path:") ? Number(part.slice(5)) : undefined,
+          note: award.note.trim() || undefined,
+        });
+        setAward((a) => ({ ...a, note: "" }));
+        // The awarded row is server-shaped (id, status, labels), so this one
+        // reads it back rather than guessing at it.
+        await reload();
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't award that completion."));
+      } finally {
+        setAwarding(false);
+      }
+    });
   };
 
   const pendingCount = (rows ?? []).filter((r) => r.status === "pending").length;
@@ -191,21 +297,77 @@ export function EventReview({
             {s}
           </button>
         ))}
-        {status === "pending" && pendingCount > 1 && (
+        <span className="ml-auto flex items-center gap-3">
+          {status === "pending" && (bulkBusy || pendingCount > 1) && (
+            <button
+              onClick={onConfirmAll}
+              disabled={bulkBusy}
+              className="text-osrs-gold-bright text-xs hover:underline disabled:opacity-50"
+            >
+              {bulkBusy ? "Confirming…" : `Confirm all (${pendingCount})`}
+            </button>
+          )}
           <button
-            onClick={onConfirmAll}
-            disabled={pending}
-            className="text-osrs-gold-bright ml-auto text-xs hover:underline disabled:opacity-50"
+            onClick={onRefresh}
+            disabled={loading}
+            title="Re-read the ledger and re-sync the rest of this page (task progress, standings)"
+            className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright text-xs disabled:opacity-50"
           >
-            Confirm all ({pendingCount})
+            {loading ? "Refreshing…" : "Refresh"}
           </button>
-        )}
+        </span>
       </div>
+
+      {(teams.length > 0 || tasks.length > 0) && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          {teams.length > 0 && (
+            <select
+              value={teamFilter}
+              onChange={(e) => setTeamFilter(Number(e.target.value))}
+              title="Only show this team's rows"
+              className={filterField}
+            >
+              <option value={0}>All teams</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {tasks.length > 0 && (
+            <select
+              value={taskFilter}
+              onChange={(e) => setTaskFilter(Number(e.target.value))}
+              title="Only show this task's rows"
+              className={filterField}
+            >
+              <option value={0}>All tasks</option>
+              {tasks.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {(teamFilter > 0 || taskFilter > 0) && (
+            <button
+              onClick={() => {
+                setTeamFilter(0);
+                setTaskFilter(0);
+              }}
+              className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright text-xs"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      )}
 
       {rows === null ? (
         <p className="text-osrs-parchment-dark/60 text-sm">Loading ledger…</p>
       ) : rows.length ? (
-        <ul className="divide-osrs-bronze/20 divide-y">
+        <ul className={`divide-osrs-bronze/20 divide-y ${loading ? "opacity-60" : ""}`}>
           {rows.map((c) => (
             <li key={c.id} className="flex items-center gap-3 py-2.5 text-sm">
               {c.proof_url ? (
@@ -239,15 +401,15 @@ export function EventReview({
               {c.status === "pending" ? (
                 <span className="flex shrink-0 gap-1">
                   <button
-                    onClick={() => onConfirm(c.id)}
-                    disabled={pending}
+                    onClick={() => onConfirm(c)}
+                    disabled={busy.has(c.id)}
                     className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-2 py-1 text-xs disabled:opacity-50"
                   >
                     Confirm
                   </button>
                   <button
-                    onClick={() => onReject(c.id)}
-                    disabled={pending}
+                    onClick={() => onReject(c)}
+                    disabled={busy.has(c.id)}
                     className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
                   >
                     Reject
@@ -255,8 +417,8 @@ export function EventReview({
                 </span>
               ) : REVOCABLE.has(c.status) ? (
                 <button
-                  onClick={() => onRevoke(c.id)}
-                  disabled={pending}
+                  onClick={() => onRevoke(c)}
+                  disabled={busy.has(c.id)}
                   className="text-osrs-red hover:bg-osrs-red/10 shrink-0 rounded px-2 py-1 text-xs disabled:opacity-50"
                 >
                   Revoke
@@ -269,9 +431,11 @@ export function EventReview({
         <EmptyState
           title={status === "pending" ? "Nothing awaiting review" : "No ledger entries"}
           hint={
-            status === "pending"
-              ? "Completions that require confirmation will appear here."
-              : "Try another status filter."
+            teamFilter > 0 || taskFilter > 0
+              ? "Nothing matches the team/task filter — clear it to see the rest of the ledger."
+              : status === "pending"
+                ? "Completions that require confirmation will appear here."
+                : "Try another status filter."
           }
         />
       )}
@@ -331,10 +495,10 @@ export function EventReview({
         />
         <button
           type="submit"
-          disabled={pending || !award.taskId || !award.teamId}
+          disabled={awarding || !award.taskId || !award.teamId}
           className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
         >
-          Award
+          {awarding ? "Awarding…" : "Award"}
         </button>
         </div>
         {partOptions.length > 0 && award.mode === "progress" && (

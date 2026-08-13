@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, useEffect } from "react";
+import { useMemo, useState, useTransition, useEffect } from "react";
 import type { EventParticipant } from "@droptracker/api-types";
 import {
   EVENT_FORMATION_MODES,
@@ -60,11 +60,18 @@ import { formatProgressValue, taskThreshold } from "@/components/event-task-prog
 import { EventSignupTools } from "@/components/event-signup-tools";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
+import {
+  EMPTY_TASK_FILTER,
+  TaskSearchBar,
+  filterTasks,
+  type TaskFilter,
+} from "@/components/event-task-search";
 import { EventTemplateSaver } from "@/components/event-template-saver";
 import { EventReview } from "@/components/event-review";
 import { EventAuditLog } from "@/components/event-audit-log";
 import { EventScheduleBuilder } from "@/components/event-schedule-builder";
 import { LocalTime, ScoringWindowBadge, TimezoneNote } from "@/components/local-time";
+import { useDetailCrumb } from "@/components/tab-nav";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
@@ -214,6 +221,8 @@ export function EventManager({
   // Delete flow: the type-to-confirm modal is open when non-null; the string
   // is what the admin has typed so far (must match the event name to enable).
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  // Names this event in the group admin breadcrumb (no-op in the /admin shell).
+  useDetailCrumb(event.name);
 
   const selectTab = (next: ManagerTab) => {
     if (next === tab) return;
@@ -465,6 +474,19 @@ export function EventManager({
 
   /** Task id being edited inline, or -1 for the create form, or null. */
   const [taskFormFor, setTaskFormFor] = useState<number | null>(null);
+  /** Live search/type/sort over the task list (t56 — this list used to be an
+   * unfiltered dump that people Ctrl+F'd). Pure client-side over state we
+   * already hold, so it costs nothing in the always-mounted tab bodies. */
+  const [taskFilter, setTaskFilter] = useState<TaskFilter>(EMPTY_TASK_FILTER);
+  const visibleTasks = useMemo(() => {
+    const filtered = filterTasks(tasks, taskFilter);
+    // The row with an open inline editor always stays on screen — filtering
+    // it away mid-edit would throw the form (and its unsaved work) out.
+    if (taskFormFor == null || taskFormFor < 0) return filtered;
+    if (filtered.some((t) => t.id === taskFormFor)) return filtered;
+    const editing = tasks.find((t) => t.id === taskFormFor);
+    return editing ? [editing, ...filtered] : filtered;
+  }, [tasks, taskFilter, taskFormFor]);
   /** Copy-from-library panel (mutually exclusive with the create form). */
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
@@ -541,6 +563,11 @@ export function EventManager({
       }
     });
   };
+
+  /** A task edited from inside a board/bingo tile editor — the designers own
+   * the board, the manager owns the task list. */
+  const onTaskUpdated = (task: EventTask) =>
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
 
   /** Task id awaiting delete confirmation (destructive: erases progress). */
   const [confirmRemoveTask, setConfirmRemoveTask] = useState<number | null>(null);
@@ -1216,39 +1243,46 @@ export function EventManager({
         </div>
       )}
 
-      {/* Tabbed sections (web48a): one bar instead of an endless scroll. */}
-      <div
-        className="border-osrs-bronze/25 flex flex-wrap gap-1 border-b pb-px"
-        role="tablist"
-        aria-label="Event settings sections"
-      >
-        {MANAGER_TABS.filter(
-          // Loot Sweep has no designable board (its board is auto-built from
-          // the set tasks) — hide the bingo/board designer tab for it.
-          (t) => !(t.key === "board" && event.kind === "loot_sweep"),
-        ).map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => selectTab(t.key)}
-            className={`-mb-px rounded-t px-3 py-2 text-sm font-medium ${
-              tab === t.key
-                ? "border-osrs-bronze/25 bg-osrs-brown-dark/40 text-osrs-gold border border-b-transparent"
-                : "text-osrs-parchment-dark/60 hover:text-osrs-gold-bright"
-            }`}
-          >
-            {t.key === "board" && event.kind === "board_game" ? "Game board" : t.label}
-            {/* Unsaved-work marker, so a switched-away Discord draft is
-                visible from any tab. */}
-            {t.key === "discord" && discordDirty && (
-              <span className="text-osrs-gold-bright ml-1" title="Unsaved changes">
-                ●
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Tabbed sections (web48a): one bar instead of an endless scroll.
+          t61: captioned and set on its own tinted strip so this bar can never
+          be mistaken for the group-dashboard nav further up the page. */}
+      <div className="bg-osrs-brown-dark/30 rounded-t-lg px-2 pt-1.5">
+        <p className="text-osrs-parchment-dark/50 px-1 text-[11px] font-semibold uppercase tracking-wide">
+          Event settings
+        </p>
+        <div
+          className="border-osrs-bronze/25 flex flex-wrap gap-1 border-b pb-px"
+          role="tablist"
+          aria-label="Event settings sections"
+        >
+          {MANAGER_TABS.filter(
+            // Loot Sweep has no designable board (its board is auto-built from
+            // the set tasks) — hide the bingo/board designer tab for it.
+            (t) => !(t.key === "board" && event.kind === "loot_sweep"),
+          ).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => selectTab(t.key)}
+              className={`-mb-px rounded-t px-3 py-2 text-sm font-medium ${
+                tab === t.key
+                  ? "border-osrs-bronze/25 bg-osrs-brown-dark/40 text-osrs-gold border border-b-transparent"
+                  : "text-osrs-parchment-dark/60 hover:text-osrs-gold-bright"
+              }`}
+            >
+              {t.key === "board" && event.kind === "board_game" ? "Game board" : t.label}
+              {/* Unsaved-work marker, so a switched-away Discord draft is
+                  visible from any tab. */}
+              {t.key === "discord" && discordDirty && (
+                <span className="text-osrs-gold-bright ml-1" title="Unsaved changes">
+                  ●
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tasks */}
@@ -1312,9 +1346,18 @@ export function EventManager({
           </div>
         )}
 
+        {tasks.length > 0 && (
+          <TaskSearchBar
+            tasks={tasks}
+            value={taskFilter}
+            onChange={setTaskFilter}
+            shown={visibleTasks.length}
+          />
+        )}
+
         {tasks.length ? (
           <ul className="divide-osrs-bronze/20 divide-y">
-            {tasks.map((t) =>
+            {visibleTasks.map((t) =>
               taskFormFor === t.id ? (
                 <li key={t.id} className="py-2.5">
                   <EventTaskFormWithAi
@@ -1452,6 +1495,17 @@ export function EventManager({
                   )}
                 </li>
               ),
+            )}
+            {!visibleTasks.length && (
+              <li className="text-osrs-parchment-dark/60 py-3 text-sm">
+                No task matches this search.{" "}
+                <button
+                  onClick={() => setTaskFilter(EMPTY_TASK_FILTER)}
+                  className="text-osrs-gold-bright hover:underline"
+                >
+                  Show all {tasks.length}
+                </button>
+              </li>
             )}
           </ul>
         ) : (
@@ -1658,7 +1712,12 @@ export function EventManager({
           <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
             Game board
           </h3>
-          <EventBoardDesigner groupId={groupId} event={event} tasks={tasks} />
+          <EventBoardDesigner
+            groupId={groupId}
+            event={event}
+            tasks={tasks}
+            onTaskUpdated={onTaskUpdated}
+          />
           <div className="mt-6">
             <EventBoardShopConfig groupId={groupId} eventId={event.id} />
           </div>
@@ -1675,6 +1734,7 @@ export function EventManager({
               // manager state from the returned detail.
               applyDetail(detail);
             }}
+            onTaskUpdated={onTaskUpdated}
           />
         </section>
       )}
