@@ -8,12 +8,10 @@ import { entityCanonical } from "@/lib/seo";
 import { EntityDisambiguation } from "@/components/entity-disambiguation";
 import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
-import { LootTracker } from "@/components/loot-tracker";
 import { PlayerBadgeList } from "@/components/player-badges";
 import { ProfileShowcase } from "@/components/profile-showcase";
 import { PersonalBestsGrid } from "@/components/personal-bests-grid";
 import { BossActivityList } from "@/components/profile-stats";
-import { SubmissionList } from "@/components/submission-list";
 import { Badge, Card, EntityChip, NameTile, StatTile } from "@/components/ui";
 
 export const revalidate = 30;
@@ -133,29 +131,6 @@ export default async function PlayerPage({ params }: { params: Params }) {
             </Link>
           </div>
         </div>
-        <div className="stagger-children grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatTile
-            label="Monthly loot"
-            value={
-              player.total_loot ? (
-                <CountUp value={player.total_loot.value} formatted={player.total_loot.value_formatted} />
-              ) : (
-                "—"
-              )
-            }
-            hint={delta?.text}
-          />
-          <StatTile
-            label="Global rank"
-            value={player.global_rank != null ? `#${player.global_rank}` : "—"}
-            hint={pctHint}
-          />
-          <StatTile
-            label="Points"
-            value={<CountUp value={player.points ?? 0} formatted={(player.points ?? 0).toLocaleString()} />}
-          />
-          <StatTile label="Top NPC" value={player.top_npc ?? "—"} />
-        </div>
       </header>
 
       {/* Character beside the account tabs — collection log, combat
@@ -167,16 +142,46 @@ export default async function PlayerPage({ params }: { params: Params }) {
         modelHasPet={player.model_has_pet}
         collectionLog={collectionLog}
         achievements={achievements}
-      />
-
-      {player.badges && player.badges.length > 0 && (
-        <section className="rise-in">
-          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Badges</h2>
-          <Card padding="p-5">
-            <PlayerBadgeList badges={player.badges} />
+        loot={loot}
+        submissions={player.recent_submissions}
+        sidebar={
+          <>
+          <Card padding="p-4">
+            <div className="grid grid-cols-2 gap-3">
+            <StatTile
+              label="Monthly loot"
+              value={
+                player.total_loot ? (
+                  <CountUp value={player.total_loot.value} formatted={player.total_loot.value_formatted} />
+                ) : (
+                  "—"
+                )
+              }
+              hint={delta?.text}
+            />
+            <StatTile
+              label="Global rank"
+              value={player.global_rank != null ? `#${player.global_rank}` : "—"}
+              hint={pctHint}
+            />
+            <StatTile
+              label="Points"
+              value={<CountUp value={player.points ?? 0} formatted={(player.points ?? 0).toLocaleString()} />}
+            />
+            <StatTile label="Top NPC" value={player.top_npc ?? "—"} />
+            </div>
           </Card>
-        </section>
-      )}
+          {player.badges && player.badges.length > 0 && (
+            <Card padding="p-4">
+              <h3 className="text-osrs-parchment-dark/60 mb-2 text-xs tracking-wide uppercase">
+                Badges
+              </h3>
+              <PlayerBadgeList badges={player.badges} />
+            </Card>
+          )}
+          </>
+        }
+      />
 
       {hasPbs && (
         <section className="rise-in">
@@ -190,21 +195,7 @@ export default async function PlayerPage({ params }: { params: Params }) {
         </section>
       )}
 
-      {loot && (
-        <section className="rise-in">
-          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-            Loot tracker
-          </h2>
-          <LootTracker playerId={playerId} initial={loot} />
-        </section>
-      )}
-
-      <div className="grid gap-8 md:grid-cols-3">
-        <section className="rise-in min-w-0 md:col-span-2">
-          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Recent submissions</h2>
-          <SubmissionList submissions={player.recent_submissions} />
-        </section>
-
+      <div className="grid gap-8 md:grid-cols-2">
         <aside className="min-w-0 space-y-6">
           {hasBosses && (
             <div className="rise-in">

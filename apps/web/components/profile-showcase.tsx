@@ -11,15 +11,22 @@
  * you need.
  */
 import { useState } from "react";
-import type { PlayerAchievements, PlayerCollectionLog } from "@droptracker/api-types";
+import type {
+  PlayerAchievements,
+  PlayerCollectionLog,
+  PlayerLootTracker,
+  Submission,
+} from "@droptracker/api-types";
 
 import { CharacterViewer } from "@/components/character-viewer";
+import { LootTracker } from "@/components/loot-tracker";
+import { SubmissionList } from "@/components/submission-list";
 import { CollectionLogBrowser } from "@/components/collection-log-browser";
 import { CombatAchievementsBrowser } from "@/components/combat-achievements-browser";
 import { EmptyState } from "@/components/ui";
 import { OsrsWindow, completionTone } from "@/components/osrs-panel";
 
-type TabKey = "collection" | "combat" | "diaries";
+type TabKey = "loot" | "submissions" | "collection" | "combat" | "diaries";
 
 export function ProfileShowcase({
   playerId,
@@ -27,28 +34,49 @@ export function ProfileShowcase({
   modelHasPet,
   collectionLog,
   achievements,
+  loot,
+  submissions,
+  sidebar,
 }: {
   playerId: number;
   modelFingerprint?: string | null;
   modelHasPet?: boolean;
   collectionLog: PlayerCollectionLog | null;
   achievements: PlayerAchievements | null;
+  loot: PlayerLootTracker | null;
+  submissions: Submission[];
+  /** Stats and badges, rendered under the character. Server-rendered by the page. */
+  sidebar?: React.ReactNode;
 }) {
   const combat = achievements?.combat_achievements;
   const hasCombat = !!combat?.monsters.length;
   const hasLog = !!collectionLog?.tabs.length;
   const hasDiaries = !!achievements?.diaries.length;
 
-  // Open on whichever tab actually has something in it, so a player who has
-  // only synced one thing does not land on an empty panel.
+  const hasLoot = !!loot;
+  const hasSubmissions = submissions.length > 0;
+
+  // Loot first by default: tracking drops is what this site is for, and a
+  // profile is far more likely to have loot than a synced collection log.
   const [tab, setTab] = useState<TabKey>(
-    hasLog ? "collection" : hasCombat ? "combat" : "diaries",
+    hasLoot
+      ? "loot"
+      : hasSubmissions
+        ? "submissions"
+        : hasLog
+          ? "collection"
+          : hasCombat
+            ? "combat"
+            : "diaries",
   );
 
-  // Nothing synced at all: the showcase would be three empty panels.
-  if (!hasLog && !hasCombat && !hasDiaries && !modelFingerprint) return null;
-
   const tabs: { key: TabKey; label: string; badge?: string; tone?: string }[] = [
+    { key: "loot", label: "Loot" },
+    {
+      key: "submissions",
+      label: "Submissions",
+      badge: hasSubmissions ? String(submissions.length) : undefined,
+    },
     {
       key: "collection",
       label: "Collection Log",
@@ -80,22 +108,25 @@ export function ProfileShowcase({
   return (
     <section className="rise-in">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,17rem)_1fr]">
-        {modelFingerprint ? (
-          <CharacterViewer
-            playerId={playerId}
-            fingerprint={modelFingerprint}
-            hasPet={modelHasPet ?? false}
-          />
-        ) : (
-          <OsrsWindow title="Character">
-            <div className="p-4">
-              <EmptyState
-                title="No character model"
-                hint="Enable “Upload character model” in the DropTracker plugin to show your character here."
-              />
-            </div>
-          </OsrsWindow>
-        )}
+        <div className="space-y-4">
+          {modelFingerprint ? (
+            <CharacterViewer
+              playerId={playerId}
+              fingerprint={modelFingerprint}
+              hasPet={modelHasPet ?? false}
+            />
+          ) : (
+            <OsrsWindow title="Character">
+              <div className="p-4">
+                <EmptyState
+                  title="No character model"
+                  hint="Enable “Upload character model” in the DropTracker plugin to show your character here."
+                />
+              </div>
+            </OsrsWindow>
+          )}
+          {sidebar}
+        </div>
 
         <OsrsWindow title="Account">
           <div className="border-osrs-bronze/40 flex flex-wrap gap-1 border-b px-2 pt-2">
@@ -120,6 +151,21 @@ export function ProfileShowcase({
               </button>
             ))}
           </div>
+
+          {tab === "loot" &&
+            (hasLoot ? (
+              <div className="p-3">
+                <LootTracker playerId={playerId} initial={loot!} />
+              </div>
+            ) : (
+              <Empty what="loot" />
+            ))}
+
+          {tab === "submissions" && (
+            <div className="max-h-[26rem] overflow-y-auto p-3">
+              <SubmissionList submissions={submissions} />
+            </div>
+          )}
 
           {tab === "collection" &&
             (hasLog ? (
