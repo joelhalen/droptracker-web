@@ -29,6 +29,9 @@ import type {
   EventLayoutsResponse,
   EventMessageLayout,
   GroupEventLayoutsResponse,
+  GroupNotificationLayoutsResponse,
+  NotificationLayout,
+  NotificationLayoutMeta,
   GroupMembersPage,
   GroupProfile,
   AuthorizedUsersResponse,
@@ -1339,6 +1342,64 @@ export function mockEventLayouts(): EventLayoutsResponse {
       message_type,
       override: null,
       effective: mockLayoutBlocks(message_type),
+    })),
+  };
+}
+
+/* Notification component layouts (mirrors services/component_layout.py). */
+const MOCK_NOTIFICATION_TYPES = ["drop", "clog", "pb"] as const;
+
+function mockNotificationLayout(): NotificationLayout {
+  return {
+    accent_color: "#c8aa6e",
+    blocks: [
+      { type: "text", content: "**{player_name}** has achieved a new personal best" },
+      { type: "separator", divider: true, spacing: "small" },
+      {
+        type: "section",
+        content: "### {npc_name}\n# {personal_best}",
+        thumbnail: "{gear_image_url}",
+      },
+      { type: "media", urls: ["{image_url}"] },
+    ],
+  };
+}
+
+export function mockNotificationLayoutMeta(): NotificationLayoutMeta {
+  return {
+    types: MOCK_NOTIFICATION_TYPES.map((key) => ({
+      key,
+      label: key,
+      group: "Notifications",
+      description: "Mock notification type.",
+      tokens: [
+        {
+          token: "player_name",
+          help: "The player, as a link",
+          sample: "[RuneLite Ron](https://www.droptracker.io/players/1)",
+          optional: false,
+        },
+        {
+          token: "image_url",
+          help: "Screenshot, when there is one",
+          sample: "https://www.droptracker.io/img/proofs/sample.png",
+          optional: true,
+        },
+      ],
+    })),
+    limits: { max_blocks: 30, max_text_len: 3500, max_media_items: 10, max_buttons: 5 },
+  };
+}
+
+export function mockGroupNotificationLayouts(): GroupNotificationLayoutsResponse {
+  return {
+    enabled: true,
+    layouts: MOCK_NOTIFICATION_TYPES.map((notification_type) => ({
+      notification_type,
+      custom: notification_type === "pb" ? mockNotificationLayout() : null,
+      active: notification_type === "pb",
+      default: mockNotificationLayout(),
+      updated_at: notification_type === "pb" ? "2026-08-14T12:00:00" : null,
     })),
   };
 }

@@ -5036,6 +5036,129 @@ export const EventLayoutMetaSchema = z.object({
 export type EventLayoutMeta = z.infer<typeof EventLayoutMetaSchema>;
 
 /* ---------------------------------------------------------------------------
+ * Notification Components-V2 layouts (backend services/component_layout.py).
+ *
+ * The same block DSL as the event layouts above, with `media` added for the
+ * screenshot gallery a notification wants and an event does not, and without
+ * `standings`. A group either sends a notification type as an embed or as
+ * these components — Discord refuses a message carrying both — so each type
+ * carries an `active` flag rather than applying the moment it is saved.
+ */
+
+export const NOTIFICATION_LAYOUT_BLOCK_TYPES = [
+  "text",
+  "section",
+  "separator",
+  "media",
+  "buttons",
+] as const;
+export type NotificationLayoutBlockType = (typeof NOTIFICATION_LAYOUT_BLOCK_TYPES)[number];
+
+/** Link buttons only: an interactive style would need a handler the bot has
+ * no way to provide for a user-authored template. */
+export const NotificationLayoutButtonSchema = z.object({
+  label: z.string().min(1).max(80),
+  url: z.string().max(500),
+});
+export type NotificationLayoutButton = z.infer<typeof NotificationLayoutButtonSchema>;
+
+export const NotificationLayoutBlockSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), content: z.string().min(1).max(3500) }),
+  z.object({
+    type: z.literal("section"),
+    content: z.string().min(1).max(3500),
+    thumbnail: z.string().max(500).nullish(),
+  }),
+  z.object({
+    type: z.literal("separator"),
+    divider: z.boolean().nullish(),
+    spacing: z.enum(["small", "large"]).nullish(),
+  }),
+  z.object({ type: z.literal("media"), urls: z.array(z.string().max(500)).min(1).max(10) }),
+  z.object({
+    type: z.literal("buttons"),
+    buttons: z.array(NotificationLayoutButtonSchema).min(1).max(5),
+  }),
+]);
+export type NotificationLayoutBlock = z.infer<typeof NotificationLayoutBlockSchema>;
+
+export const NotificationLayoutSchema = z.object({
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable(),
+  blocks: z.array(NotificationLayoutBlockSchema),
+});
+export type NotificationLayout = z.infer<typeof NotificationLayoutSchema>;
+
+/** PUT body. `active` is what changes production behaviour, so it travels with
+ * the layout rather than living on a second endpoint that could disagree. */
+export const NotificationLayoutInputSchema = z.object({
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Accent must be a hex color like #c8aa6e")
+    .nullable()
+    .optional(),
+  blocks: z.array(NotificationLayoutBlockSchema).min(1).max(30),
+  active: z.boolean().optional(),
+});
+export type NotificationLayoutInput = z.infer<typeof NotificationLayoutInputSchema>;
+
+export const NotificationLayoutEntrySchema = z.object({
+  notification_type: z.string(),
+  /** The group's authored layout, or null when it has never saved one. */
+  custom: NotificationLayoutSchema.nullable(),
+  /** Whether this type actually sends as components right now. */
+  active: z.boolean(),
+  /** The shipped starting point the editor seeds from. */
+  default: NotificationLayoutSchema,
+  updated_at: z.string().nullable(),
+});
+export type NotificationLayoutEntry = z.infer<typeof NotificationLayoutEntrySchema>;
+
+export const GroupNotificationLayoutsResponseSchema = z.object({
+  /** False for a group outside the components pilot: the editor is read-only
+   * there because the send path would ignore anything saved. */
+  enabled: z.boolean(),
+  layouts: z.array(NotificationLayoutEntrySchema),
+});
+export type GroupNotificationLayoutsResponse = z.infer<
+  typeof GroupNotificationLayoutsResponseSchema
+>;
+
+export const NotificationLayoutTokenDocSchema = z.object({
+  token: z.string(),
+  help: z.string(),
+  sample: z.string(),
+  /** Frequently absent in production (no screenshot, no render, no points).
+   * The preview blanks these to show the sparse message. */
+  optional: z.boolean(),
+});
+export type NotificationLayoutTokenDoc = z.infer<typeof NotificationLayoutTokenDocSchema>;
+
+export const NotificationLayoutTypeMetaSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  group: z.string(),
+  description: z.string(),
+  tokens: z.array(NotificationLayoutTokenDocSchema),
+});
+export type NotificationLayoutTypeMeta = z.infer<typeof NotificationLayoutTypeMetaSchema>;
+
+export const NotificationLayoutMetaSchema = z.object({
+  types: z.array(NotificationLayoutTypeMetaSchema),
+  limits: z.record(z.string(), z.number()),
+});
+export type NotificationLayoutMeta = z.infer<typeof NotificationLayoutMetaSchema>;
+
+export const SavedNotificationLayoutSchema = z.object({
+  notification_type: z.string(),
+  layout: NotificationLayoutSchema,
+  active: z.boolean(),
+});
+export type SavedNotificationLayout = z.infer<typeof SavedNotificationLayoutSchema>;
+
+/* ---------------------------------------------------------------------------
  * Recaps ("Wrapped") — monthly and annual cards.
  *
  * GP values are plain integers here, not the `MoneySchema` envelope used

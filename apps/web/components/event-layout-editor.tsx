@@ -35,6 +35,14 @@ import {
   saveGroupEventLayoutAction,
 } from "@/app/(site)/(admin)/groups/[id]/embeds/event-layout-actions";
 import { getErrorMessage } from "@/lib/errors";
+import {
+  DiscordMessageFrame,
+  EVENT_TOKEN_RE,
+  HiddenOnError,
+  PreviewLine,
+  PreviewLines,
+  resolveLines,
+} from "@/components/components-v2-preview";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
 
 /* ------------------------------------------------------------------ */
@@ -144,94 +152,6 @@ function toInput(draft: Draft): EventMessageLayoutInput {
 /* ------------------------------------------------------------------ */
 /* Preview                                                              */
 /* ------------------------------------------------------------------ */
-const TOKEN_RE = /\{[a-z_]+\}/;
-
-/** Mirror of the backend's per-line substitution: tokens with samples are
- * replaced, and (with samples on) a line still holding a token is dropped. */
-function resolveLines(text: string, samples: Map<string, string>, useSamples: boolean): string[] {
-  const out: string[] = [];
-  for (const rawLine of text.split("\n")) {
-    let line = rawLine;
-    if (useSamples) {
-      for (const [token, sample] of samples) line = line.split(token).join(sample);
-      if (TOKEN_RE.test(line)) continue;
-    }
-    out.push(line);
-  }
-  return out;
-}
-
-function formatInline(text: string, keyPrefix: string): React.ReactNode[] {
-  const pattern =
-    /(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\)|\{[a-z_]+\})/g;
-  const parts = text.split(pattern);
-  return parts.filter(Boolean).map((part, i) => {
-    const key = `${keyPrefix}-${i}`;
-    if (part.startsWith("**") && part.endsWith("**"))
-      return <strong key={key}>{part.slice(2, -2)}</strong>;
-    if (part.startsWith("__") && part.endsWith("__")) return <u key={key}>{part.slice(2, -2)}</u>;
-    if (part.startsWith("~~") && part.endsWith("~~")) return <s key={key}>{part.slice(2, -2)}</s>;
-    if (part.startsWith("*") && part.endsWith("*")) return <em key={key}>{part.slice(1, -1)}</em>;
-    if (part.startsWith("`") && part.endsWith("`"))
-      return (
-        <code key={key} className="rounded bg-black/40 px-1 text-[0.9em]">
-          {part.slice(1, -1)}
-        </code>
-      );
-    const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
-    if (link)
-      return (
-        <span key={key} className="text-[#00a8fc] hover:underline">
-          {link[1]}
-        </span>
-      );
-    if (/^\{[a-z_]+\}$/.test(part))
-      return (
-        <span key={key} className="rounded bg-[#5865f2]/30 px-0.5 text-[#c9cdfb]">
-          {part}
-        </span>
-      );
-    return <span key={key}>{part}</span>;
-  });
-}
-
-/** One markdown-ish line with Discord heading/subtext prefixes. */
-function PreviewLine({ line, keyPrefix }: { line: string; keyPrefix: string }) {
-  if (line.startsWith("## "))
-    return (
-      <div className="text-[17px] font-bold text-white">{formatInline(line.slice(3), keyPrefix)}</div>
-    );
-  if (line.startsWith("### "))
-    return (
-      <div className="text-[15px] font-semibold text-white">
-        {formatInline(line.slice(4), keyPrefix)}
-      </div>
-    );
-  if (line.startsWith("-# "))
-    return (
-      <div className="text-xs text-[#949ba4]">{formatInline(line.slice(3), keyPrefix)}</div>
-    );
-  return <div className="text-sm text-[#dbdee1]">{formatInline(line, keyPrefix)}</div>;
-}
-
-function PreviewLines({ text, keyPrefix }: { text: string; keyPrefix: string }) {
-  return (
-    <>
-      {text.split("\n").map((line, i) => (
-        <PreviewLine key={i} line={line} keyPrefix={`${keyPrefix}-${i}`} />
-      ))}
-    </>
-  );
-}
-
-function HiddenOnError({ src, className }: { src: string; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [src]);
-  if (failed || !src) return null;
-  // Plain <img>: preview URLs are arbitrary user input, not next/image targets.
-  return <img src={src} alt="" className={className} onError={() => setFailed(true)} />;
-}
-
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 function ComponentsPreview({
@@ -252,11 +172,6 @@ function ComponentsPreview({
   }, [typeMeta]);
 
   const accent = /^#[0-9a-fA-F]{6}$/.test(draft.accent) ? draft.accent : "#1e1f22";
-  const now = new Date();
-  const timeText = `Today at ${now.getHours().toString().padStart(2, "0")}:${now
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")}`;
 
   const rendered: React.ReactNode[] = [];
   draft.blocks.forEach((block, i) => {
@@ -265,12 +180,12 @@ function ComponentsPreview({
       return;
     }
     if (block.type === "text" || block.type === "section") {
-      const lines = resolveLines(block.content, samples, useSamples);
+      const lines = resolveLines(block.content, samples, useSamples, EVENT_TOKEN_RE);
       if (useSamples && lines.join("").trim() === "") return;
       const body = <PreviewLines text={lines.join("\n")} keyPrefix={`b${i}`} />;
       if (block.type === "section" && block.thumbnail.trim()) {
         const thumb = useSamples
-          ? resolveLines(block.thumbnail, samples, true).join("")
+          ? resolveLines(block.thumbnail, samples, true, EVENT_TOKEN_RE).join("")
           : "";
         rendered.push(
           <div key={i} className="flex items-start gap-3">
@@ -326,7 +241,7 @@ function ComponentsPreview({
                 b.launch ? "bg-[#5865f2] text-white" : "bg-[#4e5058] text-white"
               }`}
             >
-              {resolveLines(b.label, samples, useSamples).join("") || b.label}
+              {resolveLines(b.label, samples, useSamples, EVENT_TOKEN_RE).join("") || b.label}
               {!b.launch && <span className="ml-1 opacity-70">↗</span>}
             </span>
           ))}
@@ -336,37 +251,18 @@ function ComponentsPreview({
   });
 
   return (
-    <div className="rounded-lg bg-[#313338] p-4 font-sans">
-      <div className="flex items-start gap-3">
-        <div className="bg-osrs-gold/90 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-lg">
-          <img src="/images/logo.png" alt="DropTracker" className="h-6 w-6" />
-        </div>
-        <div className="min-w-0 grow">
-          <div className="flex items-baseline gap-2">
-            <span className="font-medium text-white">DropTracker</span>
-            <span className="rounded bg-[#5865f2] px-1 text-[10px] font-semibold text-white">
-              APP
-            </span>
-            <span className="text-xs text-[#949ba4]">{timeText}</span>
-          </div>
-          <div
-            className="mt-1 max-w-[520px] space-y-1.5 rounded border-l-4 bg-[#2b2d31] py-3 pr-4 pl-3"
-            style={{ borderLeftColor: accent }}
-          >
-            {rendered.length ? (
-              rendered
-            ) : (
-              <div className="text-sm italic text-[#949ba4]">Add blocks to build this message.</div>
-            )}
-            <hr className="my-2 border-[#3f4147]" />
-            <div className="text-xs text-[#949ba4]">
-              📅 {useSamples ? "Summer Loot Sweep" : "{event_name}"} • the universal event footer is
-              always appended
-            </div>
-          </div>
-        </div>
+    <DiscordMessageFrame accent={accent}>
+      {rendered.length ? (
+        rendered
+      ) : (
+        <div className="text-sm italic text-[#949ba4]">Add blocks to build this message.</div>
+      )}
+      <hr className="my-2 border-[#3f4147]" />
+      <div className="text-xs text-[#949ba4]">
+        📅 {useSamples ? "Summer Loot Sweep" : "{event_name}"} • the universal event footer is always
+        appended
       </div>
-    </div>
+    </DiscordMessageFrame>
   );
 }
 
