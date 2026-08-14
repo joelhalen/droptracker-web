@@ -11,7 +11,7 @@ import type { Lootboard } from "@droptracker/api-types";
 import { lootValueClass } from "@/lib/format";
 import { generateLootboardImage } from "@/app/(site)/(public)/groups/[id]/lootboard/actions";
 import { ItemContributors } from "@/components/lootboard-item-tooltip";
-import { EmptyState } from "@/components/ui";
+import { Button, EmptyState } from "@/components/ui";
 
 export function LootboardGrid({ board }: { board: Lootboard }) {
   const [pending, startTransition] = useTransition();
@@ -34,13 +34,9 @@ export function LootboardGrid({ board }: { board: Lootboard }) {
             {board.total.value_formatted}
           </span>
         </div>
-        <button
-          onClick={onDownload}
-          disabled={pending}
-          className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm disabled:opacity-50"
-        >
+        <Button variant="ghost" size="sm" onClick={onDownload} disabled={pending}>
           {pending ? "Generating…" : "Download image"}
-        </button>
+        </Button>
       </div>
 
       {notice && <p className="text-osrs-parchment-dark/70 text-sm">{notice}</p>}

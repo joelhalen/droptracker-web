@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { Button } from "@/components/ui";
 import { sendDiscordMessage } from "@/app/(site)/(admin)/admin/discord/actions";
 
 export function DiscordSender() {
@@ -50,13 +51,9 @@ export function DiscordSender() {
         </span>
       </label>
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={!valid || pending}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
-        >
+        <Button type="submit" variant="secondary" disabled={!valid || pending}>
           {pending ? "Sending…" : "Send"}
-        </button>
+        </Button>
         {done && <span className="text-osrs-green text-sm">Sent.</span>}
       </div>
     </form>

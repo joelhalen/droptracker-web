@@ -22,7 +22,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { ClanLog, ClanLogItem } from "@droptracker/api-types";
 import { ItemDbIcon } from "@/components/item-db-icon";
-import { Card } from "@/components/ui";
+import { Card, Checkbox } from "@/components/ui";
 import {
   boardSummary,
   completionTone,
@@ -90,11 +90,9 @@ export function ClanLogBoard({ board }: { board: ClanLog }) {
             </div>
           </div>
           <label className="text-osrs-parchment-dark flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={missingOnly}
               onChange={(e) => setMissingOnly(e.target.checked)}
-              className="accent-osrs-gold h-4 w-4"
             />
             Show only what&apos;s missing ({summary.missing})
           </label>

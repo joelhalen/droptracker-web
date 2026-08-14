@@ -5,6 +5,7 @@
  * failed data fetch from taking down the whole app and offers a retry.
  */
 import { useEffect } from "react";
+import { Button, buttonVariants } from "@/components/ui";
 
 export function ErrorView({
   error,
@@ -26,16 +27,10 @@ export function ErrorView({
       <h1 className="text-osrs-gold text-2xl font-bold">{title}</h1>
       <p className="text-osrs-parchment-dark/80 mt-3 text-sm">{message}</p>
       <div className="mt-6 flex items-center justify-center gap-3">
-        <button
-          onClick={reset}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium"
-        >
+        <Button variant="secondary" onClick={reset}>
           Try again
-        </button>
-        <a
-          href="/"
-          className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-4 py-2 text-sm"
-        >
+        </Button>
+        <a href="/" className={buttonVariants({ variant: "ghost" })}>
           Back to home
         </a>
       </div>

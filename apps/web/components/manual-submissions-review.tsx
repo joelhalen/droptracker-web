@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import type { ManualSubmissionQueue, ManualSubmissionRow } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, EmptyState } from "@/components/ui";
+import { Alert, Button, EmptyState } from "@/components/ui";
 import {
   approveManualSubmission,
   rejectManualSubmission,
@@ -133,13 +133,14 @@ export function ManualSubmissionsReview({
                 row={row}
                 actions={
                   <div className="flex gap-2">
-                    <button
+                    <Button
+                      variant="secondary"
+                      size="xs"
                       onClick={() => act(row, true)}
                       disabled={busyId === row.drop_id}
-                      className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1 text-xs font-medium disabled:opacity-50"
                     >
                       Approve
-                    </button>
+                    </Button>
                     <button
                       onClick={() => act(row, false)}
                       disabled={busyId === row.drop_id}

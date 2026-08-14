@@ -11,7 +11,7 @@ import {
   archiveGlobalAnnouncement,
 } from "@/app/(site)/(admin)/admin/announcements/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, EmptyState } from "@/components/ui";
+import { Alert, Button, EmptyState } from "@/components/ui";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
@@ -108,13 +108,14 @@ export function AnnouncementList({ items, groupId }: { items: Announcement[]; gr
                   Pin to top
                 </label>
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => saveEdit(a.id)}
                     disabled={pending || !draft.title.trim() || !draft.body_md.trim()}
-                    className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                   >
                     {pending ? "Saving…" : "Save"}
-                  </button>
+                  </Button>
                   <button
                     onClick={cancelEdit}
                     disabled={pending}

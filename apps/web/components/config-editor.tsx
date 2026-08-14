@@ -19,7 +19,7 @@ import {
 import { getErrorMessage, isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
 import { viewerZone } from "@/components/local-time";
-import { Alert, Badge, Card, fieldInputClass } from "@/components/ui";
+import { Alert, Badge, Button, Card, Input, Select, Textarea } from "@/components/ui";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { BossListPicker } from "@/components/boss-list-picker";
 import { BoardStylePicker } from "@/components/board-style-picker";
@@ -497,15 +497,16 @@ export function ConfigEditor({
             </Alert>
           )}
           <div className="flex items-center gap-3">
-            <button
+            <Button
               type="submit"
+              variant="secondary"
               // Once the build has moved on, another Save can only fail the same
               // way — the reload above is the only path forward.
               disabled={!dirtyCount || pending || staleDeploy}
-              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+              className="rounded-lg"
             >
               {pending ? "Saving…" : `Save ${dirtyCount || ""} change${dirtyCount === 1 ? "" : "s"}`.trim()}
-            </button>
+            </Button>
             {dirtyCount > 0 && !pending && (
               <button
                 type="button"
@@ -606,35 +607,35 @@ function InputField({
       {pendingNote ? <ComingSoonHint note={pendingNote} /> : null}
       {locked ? <LockedFieldHint groupId={groupId} /> : null}
       {field.type === "select" ? (
-        <select
+        <Select
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
+          className="w-full disabled:cursor-not-allowed"
         >
           {field.options?.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
-        </select>
+        </Select>
       ) : field.type === "text" ? (
-        <textarea
+        <Textarea
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
+          className="w-full disabled:cursor-not-allowed"
           rows={2}
         />
       ) : field.type === "int" ? (
-        <input
+        <Input
           type="number"
           min={field.min}
           max={field.max}
           value={value == null ? "" : Number(value)}
           onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
           disabled={disabled}
-          className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
+          className="w-full disabled:cursor-not-allowed"
         />
       ) : field.type === "channel" ? (
         <DiscordChannelPicker
@@ -665,13 +666,13 @@ function InputField({
           disabled={disabled}
         />
       ) : (
-        <input
+        <Input
           type="text"
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
           maxLength={field.maxLength}
-          className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
+          className="w-full disabled:cursor-not-allowed"
           placeholder={field.type === "csv" ? "comma,separated" : ""}
         />
       )}
@@ -699,7 +700,7 @@ function PasswordInput({
   const [revealed, setRevealed] = useState(false);
   return (
     <div className="relative">
-      <input
+      <Input
         type={revealed ? "text" : "password"}
         autoComplete="new-password"
         // A per-field name (not "password"/"code") keeps autofill heuristics,
@@ -709,7 +710,7 @@ function PasswordInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`${fieldInputClass} w-full pr-16 disabled:cursor-not-allowed`}
+        className="w-full pr-16 disabled:cursor-not-allowed"
       />
       <button
         type="button"

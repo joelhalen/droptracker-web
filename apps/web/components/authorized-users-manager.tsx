@@ -22,7 +22,7 @@ import {
   setAdminPolicy,
 } from "@/app/(site)/(admin)/groups/[id]/authorized/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Badge, NameTile, RoleBadge } from "@/components/ui";
+import { Alert, Badge, Button, NameTile, RoleBadge } from "@/components/ui";
 
 function displayName(u: AuthorizedUser): string {
   return u.username || (u.discord_id ? `Discord user ${u.discord_id}` : `User #${u.user_id}`);
@@ -191,14 +191,9 @@ export function AuthorizedUsersManager({
                   owner seat — the group is notified in Discord when someone does.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={onClaim}
-                disabled={pending}
-                className="bg-osrs-gold text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium hover:brightness-110 disabled:opacity-50"
-              >
+              <Button variant="primary" onClick={onClaim} disabled={pending}>
                 {pending ? "Working…" : "Claim ownership"}
-              </button>
+              </Button>
             </div>
           ) : owner ? (
             renderPerson(
@@ -274,14 +269,13 @@ export function AuthorizedUsersManager({
             />
           </label>
           <div className="flex gap-2">
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={onTransfer}
               disabled={pending || confirmName.trim() !== groupName || transferTo.user_id == null}
-              className="bg-osrs-gold text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {pending ? "Working…" : "Transfer ownership"}
-            </button>
+            </Button>
             <button
               type="button"
               onClick={() => {
@@ -313,13 +307,9 @@ export function AuthorizedUsersManager({
                 className="border-osrs-bronze/40 bg-osrs-surface-1 focus:border-osrs-gold w-72 max-w-full rounded border px-3 py-2 text-sm outline-none"
                 aria-label="Discord ID or DropTracker username"
               />
-              <button
-                type="submit"
-                disabled={pending || !identifier.trim()}
-                className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-              >
+              <Button type="submit" variant="secondary" disabled={pending || !identifier.trim()}>
                 {pending ? "Working…" : "Add admin"}
-              </button>
+              </Button>
             </form>
             <p className="text-osrs-parchment-dark/60 -mt-1 text-xs">
               Tip: a Discord ID is the long number from right-clicking someone in Discord with

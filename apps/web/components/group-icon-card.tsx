@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Card } from "@/components/ui";
+import { Button, Card } from "@/components/ui";
 import { getErrorMessage } from "@/lib/errors";
 import { removeGroupIcon, uploadGroupIcon } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 
@@ -94,23 +94,25 @@ export function GroupIconCard({
               e.target.value = "";
             }}
           />
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             type="button"
             disabled={pending}
             onClick={() => fileInput.current?.click()}
-            className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
           >
             {pending ? "Working…" : iconUrl ? "Replace icon" : "Upload icon"}
-          </button>
+          </Button>
           {iconUrl && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               type="button"
               disabled={pending}
               onClick={onRemove}
-              className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             >
               Remove
-            </button>
+            </Button>
           )}
         </div>
       </div>

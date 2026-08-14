@@ -17,7 +17,7 @@
  */
 import { useMemo, useState } from "react";
 import type { DiscordChannel } from "@/lib/api";
-import { fieldInputClass as input } from "@/components/ui";
+import { Input } from "@/components/ui";
 
 function channelLabel(c: DiscordChannel, byId: Map<string, DiscordChannel>): string {
   if (c.type === "thread") {
@@ -84,13 +84,13 @@ export function DiscordChannelPicker({
   if (manual || selectable.length === 0) {
     return (
       <div className="space-y-1">
-        <input
+        <Input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled={disabled}
-          className={`${input} w-full disabled:cursor-not-allowed disabled:opacity-60`}
+          className="w-full disabled:cursor-not-allowed disabled:opacity-60"
         />
         {selectable.length > 0 && !disabled && (
           <button
@@ -119,7 +119,7 @@ export function DiscordChannelPicker({
 
   return (
     <div className="relative">
-      <input
+      <Input
         type="text"
         value={displayValue}
         onChange={(e) => {
@@ -139,7 +139,7 @@ export function DiscordChannelPicker({
               : "Search channels…"
         }
         disabled={disabled}
-        className={`${input} w-full disabled:cursor-not-allowed disabled:opacity-60`}
+        className="w-full disabled:cursor-not-allowed disabled:opacity-60"
       />
       {open && !disabled && (
         <ul className="border-osrs-bronze/30 bg-osrs-brown-dark absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded border text-sm shadow-lg">
