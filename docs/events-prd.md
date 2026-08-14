@@ -233,7 +233,8 @@ One event platform, built on the existing `web_events` foundation:
 - Discord: bot has no GUILDS intent — enumerate guilds/channels via REST (same approach as
   the group channel picker). Reuse embed/notification infra from existing group
   notifications.
-- Frontend: extend `packages/api-types` zod schemas first, then `lib/api.ts`, then server
+- Frontend: extend `packages/api-types` zod schemas first, then the matching
+  `lib/api/<domain>.ts` module, then server
   actions + pages, matching the established backend-tasks pattern.
 - Entitlements: reuse `assertEventsEntitlement()` / `assert_group_entitlement()`; add the
   active-event-count check at activation time.

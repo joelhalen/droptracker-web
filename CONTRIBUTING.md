@@ -53,7 +53,7 @@ path and that mock data satisfies the schemas — it is the tripwire for drift.
 ## Conventions
 
 - **The browser never talks to the Web API directly.** All data flows through
-  the BFF: Server Components and Server Actions call `apps/web/lib/api.ts`,
+  the BFF: Server Components and Server Actions call `apps/web/lib/api/`,
   which forwards the `dt_session` cookie server-side. Client Components go
   through Server Actions or the `/api/*` BFF routes. Don't add client-side
   fetches to `:31325`.

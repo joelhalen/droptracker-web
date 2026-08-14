@@ -85,7 +85,7 @@ scripts/deploy.sh     Blue-green production deploy
 
 | Path | Purpose |
 |---|---|
-| `apps/web/lib/api.ts` | The BFF client — ~285 `api.*()` methods (≈140 KB; schemas + helpers above, the `api` object from ~L799), forwards the `dt_session` cookie, Zod-parses responses, mock fallback |
+| `apps/web/lib/api/` | The BFF client — ~350 `api.*()` methods split across per-domain modules (`events.ts`, `groups.ts`, `admin.ts`, …). `index.ts` re-assembles the single `api` object, so importers keep using `@/lib/api`. Shared plumbing in `_client.ts` (`apiGet`/`apiSend`/`apiSendForm`/`withFallback` + `ApiError`), hand-authored types in `types.ts`. Forwards the `dt_session` cookie, Zod-parses responses, mock fallback. **Add a method to its domain module, not to `index.ts`** |
 | `apps/web/lib/env.ts` | All server-side env reads (documented inline — read it before adding a var) |
 | `apps/web/lib/session.ts` | OAuth state HMAC + session cookie set/clear; exports `SESSION_COOKIE` |
 | `apps/web/lib/auth.ts` | `getUser`/`requireUser`/`requireSuperadmin`/`requireDeveloper`/`requireGroupAdminPage` + pure `groupRole`/`canAdminGroup`/`canManageEvents` |
@@ -106,7 +106,7 @@ scripts/deploy.sh     Blue-green production deploy
 ## Rules
 
 1. **Browser → BFF only.** Never fetch `:31325` from client code; server-side
-   `lib/api.ts` is the single door to the backend. The Activity follows the same
+   `lib/api/` is the single door to the backend. The Activity follows the same
    rule via same-origin `/api/activity/*` (also required by its CSP).
 2. **The Activity has no cookies.** Cookies do not survive the
    `discordsays.com` iframe, so `/api/activity/auth` returns the session in the
