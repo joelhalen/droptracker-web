@@ -1,0 +1,200 @@
+/*
+ * DropTracker design tokens — the portable half of the design system.
+ *
+ * Apps consume this with `@import "@droptracker/ui/theme.css";` after
+ * `@import "tailwindcss";`. It provides:
+ *   - the `--dt-*` runtime palette (three themes, swapped via `data-theme`),
+ *   - the `@theme inline` mappings that expose them as `osrs-*` Tailwind
+ *     utilities (so `bg-osrs-gold` re-resolves when the theme changes),
+ *   - static tokens (radius, the fade-up animation),
+ *   - the `.card` / `.card-pop` surface utilities the Card primitive wraps.
+ *
+ * Font tokens (`--font-figtree` / `--font-cinzel`) are provided by the host app
+ * (via next/font or @font-face); this file only references them, with sensible
+ * system fallbacks so primitives still render if an app hasn't wired fonts yet.
+ *
+ * `@source` makes Tailwind scan this package's component source for class names
+ * — otherwise utilities used ONLY inside @droptracker/ui (not in the app) would
+ * be tree-shaken away.
+ */
+@source ".";
+
+@theme inline {
+  --color-osrs-parchment: var(--dt-text);
+  --color-osrs-parchment-dark: var(--dt-text-muted);
+  --color-osrs-brown: var(--dt-brown);
+  --color-osrs-brown-dark: var(--dt-brown-dark);
+  --color-osrs-bronze: var(--dt-bronze);
+  --color-osrs-gold: var(--dt-gold);
+  --color-osrs-gold-bright: var(--dt-gold-bright);
+  --color-osrs-red: var(--dt-red);
+  --color-osrs-green: var(--dt-green);
+  --color-osrs-stone: var(--dt-stone);
+
+  /*
+   * Elevation scale (design system refresh): page canvas darkest, cards a
+   * clear step up, popovers/sticky-chrome a further step.
+   */
+  --color-osrs-surface-0: var(--dt-surface-0);
+  --color-osrs-surface-1: var(--dt-surface-1);
+  --color-osrs-surface-2: var(--dt-surface-2);
+  --color-osrs-surface-3: var(--dt-surface-3);
+
+  /* Vivid "live/active" accent — drop ticker, online indicators, active nav. */
+  --color-osrs-ember: var(--dt-ember);
+
+  /*
+   * Type system (UI refresh): Figtree (a friendly geometric sans) for body/UI
+   * text, Cinzel (a Trajan-like display face that echoes RuneScape's own
+   * lettering) for the brand mark and page/section headings. The host app
+   * provides the `--font-figtree` / `--font-cinzel` variables.
+   */
+  --font-sans: var(--font-figtree), "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+  --font-display: var(--font-cinzel), "Trebuchet MS", Georgia, serif;
+  /* The actual OSRS UI face (runescape_uf.ttf, loaded in app/layout.tsx) —
+   * game-flavored accents: GP amounts, the live ticker. */
+  --font-osrs: var(--font-runescape), "Trebuchet MS", sans-serif;
+
+  --shadow-osrs-card: var(--dt-shadow-card);
+  --shadow-osrs-pop: var(--dt-shadow-pop);
+}
+
+/* Static (theme-independent) tokens. */
+@theme {
+  --radius-osrs: 0.375rem;
+
+  /* OSRS's "≥10M stack" text green — game-authentic, so deliberately NOT a
+   * per-theme --dt-* var. Used by components/gp-amount.tsx. */
+  --color-osrs-gp-green: #00ff80;
+
+  --animate-fade-up: fade-up 2.5s ease-out forwards;
+
+  @keyframes fade-up {
+    0% {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    15% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    75% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+}
+
+/*
+ * Themes. "dusk" is the classic DropTracker dark bronze-and-gold palette and
+ * doubles as the default for first-time visitors (and for any unknown
+ * `data-theme` value, since these are the `:root` fallbacks).
+ */
+:root,
+:root[data-theme="dusk"] {
+  color-scheme: dark;
+
+  --dt-text: #efe6d2;
+  --dt-text-muted: #d8c9a3;
+  --dt-brown: #3e3529;
+  --dt-brown-dark: #28221a;
+  --dt-bronze: #7a5a32;
+  --dt-gold: #ffb83f;
+  --dt-gold-bright: #ffd966;
+  --dt-red: #e05c4d;
+  --dt-green: #6fbf73;
+  --dt-stone: #5a5a52;
+
+  --dt-surface-0: #15110c;
+  --dt-surface-1: #211a12;
+  --dt-surface-2: #2c2318;
+  --dt-surface-3: #3a2f20;
+
+  --dt-ember: #ff8c42;
+
+  /* Soft radial glow behind the page canvas. */
+  --dt-glow: #3e3529;
+
+  --dt-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --dt-shadow-pop: 0 4px 12px rgba(0, 0, 0, 0.45), 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* Bright parchment-and-ink light theme. */
+:root[data-theme="parchment"] {
+  color-scheme: light;
+
+  --dt-text: #2e2618;
+  --dt-text-muted: #5c4e34;
+  --dt-brown: #e5d8ba;
+  --dt-brown-dark: #3a2f1c;
+  --dt-bronze: #a07b42;
+  --dt-gold: #8a5f04;
+  --dt-gold-bright: #a3730a;
+  --dt-red: #b3372a;
+  --dt-green: #2f7d32;
+  --dt-stone: #8a8574;
+
+  --dt-surface-0: #ece0c6;
+  --dt-surface-1: #f6efdd;
+  --dt-surface-2: #fdf8ec;
+  --dt-surface-3: #fffdf6;
+
+  --dt-ember: #c85a17;
+
+  --dt-glow: #f9f3e2;
+
+  --dt-shadow-card: 0 1px 2px rgba(74, 58, 28, 0.1), 0 8px 24px rgba(74, 58, 28, 0.12);
+  --dt-shadow-pop: 0 4px 12px rgba(74, 58, 28, 0.18), 0 16px 40px rgba(74, 58, 28, 0.16);
+}
+
+/* Deep-black Wilderness theme — cool greys lit by ember and blood red. */
+:root[data-theme="wilderness"] {
+  color-scheme: dark;
+
+  --dt-text: #e8e4dc;
+  --dt-text-muted: #b3ada0;
+  --dt-brown: #2b2326;
+  --dt-brown-dark: #171214;
+  --dt-bronze: #7a4a3a;
+  --dt-gold: #ff8a45;
+  --dt-gold-bright: #ffb066;
+  --dt-red: #e0574a;
+  --dt-green: #74c777;
+  --dt-stone: #56565e;
+
+  --dt-surface-0: #0b0b0d;
+  --dt-surface-1: #141316;
+  --dt-surface-2: #1d1b1f;
+  --dt-surface-3: #29262b;
+
+  --dt-ember: #ff5c33;
+
+  --dt-glow: #2c1a15;
+
+  --dt-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px rgba(0, 0, 0, 0.55);
+  --dt-shadow-pop: 0 4px 12px rgba(0, 0, 0, 0.6), 0 16px 40px rgba(0, 0, 0, 0.55);
+}
+
+/*
+ * Reusable card surfaces (design system refresh). `.card` is the standard
+ * resting-state panel — replaces the old copy-pasted
+ * `border-osrs-bronze/20 rounded border p-4` pattern that had drifted
+ * slightly differently across ~15 files. `.card-pop` is for anything that
+ * should read as floating above the page (modals, dropdown panels).
+ */
+.card {
+  background: var(--dt-surface-1);
+  border: 1px solid color-mix(in srgb, var(--dt-bronze) 30%, transparent);
+  border-radius: 12px;
+  box-shadow: var(--dt-shadow-card);
+}
+
+.card-pop {
+  background: var(--dt-surface-2);
+  border: 1px solid color-mix(in srgb, var(--dt-bronze) 40%, transparent);
+  border-radius: 12px;
+  box-shadow: var(--dt-shadow-pop);
+}

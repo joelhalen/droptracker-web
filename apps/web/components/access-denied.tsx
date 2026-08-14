@@ -10,7 +10,8 @@
  */
 import Link from "next/link";
 import type { Route } from "next";
-import { FaDiscord } from "react-icons/fa6";
+import { buttonVariants } from "@droptracker/ui";
+import { DiscordIcon } from "@/components/icons";
 
 /** Sign-in button that returns to `returnTo` after the Discord OAuth dance.
  *  `prefetch={false}`: /api/auth/login is a mutating GET (it issues the OAuth
@@ -28,9 +29,9 @@ export function SignInButton({
     <Link
       href={`/api/auth/login?redirect=${encodeURIComponent(returnTo)}` as Route}
       prefetch={false}
-      className={`bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${className}`}
+      className={buttonVariants({ variant: "secondary", className: `rounded-lg ${className}` })}
     >
-      <FaDiscord className="size-4 shrink-0" aria-hidden />
+      <DiscordIcon className="size-4 shrink-0" />
       {label}
     </Link>
   );
