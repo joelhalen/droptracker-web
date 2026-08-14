@@ -45,7 +45,7 @@ import {
   type PbRequirementMode,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import {
   ItemNpcPicker,
   type BossImportApi,
@@ -1885,14 +1885,14 @@ export function EventTaskForm({
               Cancel
             </button>
           )}
-          <button
+          <Button
             type="submit"
+            variant="secondary"
             disabled={pending || validate() !== null}
             title={validate() ?? undefined}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {submitLabel ?? (editing ? "Save task" : "Add task")}
-          </button>
+          </Button>
         </div>
       </div>
       {/* web68a: live scoring edit — the editor decides what happens to the

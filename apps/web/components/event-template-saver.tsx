@@ -11,6 +11,7 @@
 import { useState, useTransition } from "react";
 import { saveEventTemplate } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
+import { Button } from "@/components/ui";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
@@ -158,13 +159,16 @@ export function EventTemplateSaver({
         </span>
       </label>
       <div className="flex items-center gap-2">
-        <button
+        <Button
           type="submit"
-          disabled={pending || !name.trim()}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+          variant="secondary"
+          size="sm"
+          loading={pending}
+          loadingLabel="Saving…"
+          disabled={!name.trim()}
         >
-          {pending ? "Saving…" : "Save template"}
-        </button>
+          Save template
+        </Button>
         <span className="text-osrs-parchment-dark/50 text-xs">
           Re-saving with the same name updates the existing template.
         </span>

@@ -24,7 +24,7 @@ import { SITE_SUBDOMAIN_RE, SITE_PAGE_SLUG_RE } from "@droptracker/api-types";
 import type { SubscriptionTier } from "@droptracker/api-types";
 import { SITE_THEMES, type SiteThemeKey } from "@/lib/site-themes";
 import { lowestTierWithEntitlement } from "@/lib/entitlements";
-import { Alert, Card, fieldInputClass } from "@/components/ui";
+import { Alert, Button, buttonVariants, Card, Input, Select, Textarea } from "@/components/ui";
 import { Field, type Block } from "./block-forms";
 import { PageEditor } from "./page-editor";
 import {
@@ -153,8 +153,8 @@ export function SiteBuilder({
         </p>
         {error && <Alert variant="error">{error}</Alert>}
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            className={`${fieldInputClass} w-56`}
+          <Input
+            className="w-56"
             placeholder="your-clan"
             value={claimSub}
             onChange={(e) => setClaimSub(e.target.value.toLowerCase().trim())}
@@ -177,14 +177,14 @@ export function SiteBuilder({
             real-world trading or rule-breaking content. Sites can be suspended for violations.
           </span>
         </label>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          className="mt-4"
           disabled={!claimShapeOk || claimReserved || !tosAccepted || pending}
-          className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark mt-4 rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
           onClick={() => run(() => claimSiteAction(groupId, claimSub), setSite)}
         >
           {pending ? "Claiming…" : "Claim address"}
-        </button>
+        </Button>
       </Card>
     );
   }
@@ -218,10 +218,10 @@ export function SiteBuilder({
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               disabled={pending}
-              className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm"
               onClick={() =>
                 run(
                   () => sitePreviewTokenAction(groupId),
@@ -236,11 +236,11 @@ export function SiteBuilder({
               }
             >
               Open draft preview
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               disabled={pending}
-              className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
               onClick={() =>
                 run(
                   () => publishSiteAction(groupId, !site.published),
@@ -252,7 +252,7 @@ export function SiteBuilder({
               }
             >
               {site.published ? "Unpublish site" : "Publish site"}
-            </button>
+            </Button>
           </div>
         </div>
       </Card>
@@ -303,8 +303,7 @@ export function SiteBuilder({
         {mode === "redirect" && (
           <div className="mt-3">
             <Field label="Send visitors to">
-              <input
-                className={fieldInputClass}
+              <Input
                 placeholder="https://discord.gg/your-invite"
                 maxLength={500}
                 value={redirectUrl}
@@ -379,7 +378,7 @@ export function SiteBuilder({
           </p>
           <a
             href={`/groups/${groupId}/subscription`}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-4 inline-block rounded px-4 py-2 text-sm font-medium"
+            className={buttonVariants({ variant: "secondary", className: "mt-4" })}
           >
             View subscription options
           </a>
@@ -530,23 +529,23 @@ export function SiteBuilder({
         </ul>
         {site.pages.length < meta.limits.max_pages && (
           <div className="border-osrs-bronze/20 mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
-            <input
-              className={`${fieldInputClass} w-40`}
+            <Input
+              className="w-40"
               placeholder="page-slug"
               value={newSlug}
               onChange={(e) => setNewSlug(e.target.value.toLowerCase().trim())}
             />
-            <input
-              className={`${fieldInputClass} w-56`}
+            <Input
+              className="w-56"
               placeholder="Page title"
               maxLength={80}
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
             />
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               disabled={pending || !SITE_PAGE_SLUG_RE.test(newSlug) || !newTitle.trim()}
-              className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
               onClick={() =>
                 run(
                   () => createSitePageAction(groupId, newSlug, newTitle.trim()),
@@ -559,7 +558,7 @@ export function SiteBuilder({
               }
             >
               Add page
-            </button>
+            </Button>
           </div>
         )}
       </Card>
@@ -578,8 +577,8 @@ export function SiteBuilder({
             const isPage = item.page_slug != null;
             return (
               <div key={i} className="flex flex-wrap items-center gap-2">
-                <input
-                  className={`${fieldInputClass} w-36`}
+                <Input
+                  className="w-36"
                   placeholder="Label"
                   maxLength={40}
                   value={item.label}
@@ -587,8 +586,7 @@ export function SiteBuilder({
                     setNav(nav.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
                   }
                 />
-                <select
-                  className={fieldInputClass}
+                <Select
                   value={isPage ? "page" : "link"}
                   onChange={(e) =>
                     setNav(
@@ -604,10 +602,9 @@ export function SiteBuilder({
                 >
                   <option value="page">Page</option>
                   <option value="link">External link</option>
-                </select>
+                </Select>
                 {isPage ? (
-                  <select
-                    className={fieldInputClass}
+                  <Select
                     value={item.page_slug}
                     onChange={(e) =>
                       setNav(
@@ -620,10 +617,10 @@ export function SiteBuilder({
                         {p.title} (/{p.slug === "home" ? "" : p.slug})
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 ) : (
-                  <input
-                    className={`${fieldInputClass} min-w-56 flex-1`}
+                  <Input
+                    className="min-w-56 flex-1"
                     placeholder="https://…"
                     maxLength={300}
                     value={item.href ?? ""}
@@ -671,20 +668,20 @@ export function SiteBuilder({
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {nav.length < meta.limits.max_nav_items && (
-            <button
-              type="button"
-              className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() =>
                 setNav([...nav, { label: "Home", page_slug: site.pages[0]?.slug ?? "home" }])
               }
             >
               + Add entry
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             disabled={pending || nav.some((n) => !n.label.trim())}
-            className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             onClick={() =>
               run(
                 () => updateSiteAction(groupId, { nav }),
@@ -697,7 +694,7 @@ export function SiteBuilder({
             }
           >
             Save navigation
-          </button>
+          </Button>
         </div>
       </Card>
 
@@ -708,8 +705,7 @@ export function SiteBuilder({
         <h3 className="text-osrs-gold mb-3 font-semibold">Appearance</h3>
         <div className="flex flex-wrap items-end gap-4">
           <Field label="Theme">
-            <select
-              className={fieldInputClass}
+            <Select
               value={themeKey}
               onChange={(e) => setThemeKey(e.target.value)}
             >
@@ -718,7 +714,7 @@ export function SiteBuilder({
                   {k}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           {PALETTE_EDIT_KEYS.map(({ key, label }) => (
             <Field key={key} label={label}>
@@ -769,8 +765,8 @@ export function SiteBuilder({
           <Field
             label={`Custom CSS (advanced — max ${Math.floor(meta.limits.max_custom_css_bytes / 1024)} KB; validated on save)`}
           >
-            <textarea
-              className={`${fieldInputClass} min-h-28 font-mono text-xs`}
+            <Textarea
+              className="min-h-28 font-mono text-xs"
               value={css}
               onChange={(e) => setCss(e.target.value)}
               placeholder=".my-banner { border: 2px solid var(--dt-gold); }"
