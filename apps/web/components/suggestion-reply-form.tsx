@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { submitReply } from "@/app/(site)/(public)/suggestions/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 
 const REPLY_MAX = 1800;
 
@@ -42,13 +42,9 @@ export function SuggestionReplyForm({ suggestionId }: { suggestionId: number }) 
       </div>
       {error && <Alert variant="error">{error}</Alert>}
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending || content.trim().length < 2}
-          className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold-bright rounded px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <Button type="submit" disabled={pending || content.trim().length < 2}>
           {pending ? "Posting…" : "Post reply"}
-        </button>
+        </Button>
         <span className="text-osrs-parchment-dark/50 text-xs">
           {content.length}/{REPLY_MAX}
         </span>

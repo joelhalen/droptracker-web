@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { entityPath } from "@/lib/slug";
 import type { PbBossSummary } from "@droptracker/api-types";
-import { Card, EmptyState, fieldInputClass } from "@/components/ui";
+import { Card, EmptyState, Input } from "@/components/ui";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 
@@ -61,13 +61,13 @@ export function PbBossGrid({ bosses }: { bosses: PbBossSummary[] }) {
 
   return (
     <div className="space-y-8">
-      <input
+      <Input
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search bosses…"
         aria-label="Search bosses"
-        className={`${fieldInputClass} w-full max-w-sm`}
+        className="w-full max-w-sm"
       />
 
       {filtered.length === 0 && (

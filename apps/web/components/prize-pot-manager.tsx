@@ -29,7 +29,7 @@ type PrizeConfigPatch = {
   show_contributors?: boolean;
   allow_leader_mark?: boolean;
 };
-import { Card, EmptyState, Badge } from "@/components/ui";
+import { Card, EmptyState, Badge, Checkbox } from "@/components/ui";
 import { QuantityInput } from "@/components/quantity-input";
 import { ProofAttach, type ProofUpload } from "@/components/proof-attach";
 import { GpAmount } from "@/components/gp-amount";
@@ -154,12 +154,10 @@ function BuyinLine({
           onRemove={() => onSetProof(null)}
         />
         <label className="flex cursor-pointer items-center gap-1.5 text-xs">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={paid}
             disabled={busy}
             onChange={(e) => onSetPaid(e.target.checked)}
-            className="accent-osrs-gold size-4"
           />
           Paid
         </label>

@@ -5,7 +5,7 @@ import type { AccountSettings } from "@droptracker/api-types";
 import { saveSettings, setPlayerHidden } from "@/app/(site)/(dashboard)/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { viewerZone } from "@/components/local-time";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 
 type ToggleKey = Exclude<
   keyof AccountSettings,
@@ -250,13 +250,9 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
         </fieldset>
 
         <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={!dirty || pending}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-          >
+          <Button type="submit" variant="secondary" disabled={!dirty || pending}>
             {pending ? "Saving…" : "Save changes"}
-          </button>
+          </Button>
           {saved && <span className="text-osrs-green text-sm">Saved.</span>}
         </div>
         {error && <Alert variant="error">{error}</Alert>}

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { SuggestionCreate, SuggestionType } from "@droptracker/api-types";
 import { submitSuggestion } from "@/app/(site)/(public)/suggestions/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { Markdown } from "@/components/markdown";
 
 const TITLE_MAX = 100;
@@ -235,13 +235,9 @@ export function SuggestionForm() {
       {error && <Alert variant="error">{error}</Alert>}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold-bright rounded px-5 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <Button type="submit" disabled={!canSubmit} className="px-5">
           {pending ? "Submitting…" : form.type === "bug" ? "Submit bug report" : "Submit suggestion"}
-        </button>
+        </Button>
         <span className="text-osrs-parchment-dark/50 text-xs">
           Posted with attribution — you&apos;ll be pinged on the Discord thread.
         </span>

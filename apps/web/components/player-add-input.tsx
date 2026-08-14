@@ -18,6 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { EventTeamBulkAddResult } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
+import { Button } from "@/components/ui";
 
 export type PlayerHit = { id: number; name: string };
 
@@ -177,16 +178,16 @@ export function PlayerAddInput({
           aria-label="Add players by name"
         />
         {listMode && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={() => void runBulk()}
             disabled={disabled || bulkPending}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark shrink-0 rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
+            className="shrink-0 px-3"
           >
             {bulkPending
               ? "Adding…"
               : `Add ${listNames.length} player${listNames.length === 1 ? "" : "s"}`}
-          </button>
+          </Button>
         )}
       </div>
 
