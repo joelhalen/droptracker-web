@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import type { AdminBadge, AdminBadgeInput, BadgeTone, PlayerBadge } from "@droptracker/api-types";
 import { BadgeToneSchema } from "@droptracker/api-types";
-import { Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { badgeDetail } from "@/components/player-badges";
 import { formatDate } from "@/lib/format";
 import {
@@ -39,12 +39,13 @@ export function BadgeManager({ badges }: { badges: AdminBadge[] }) {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-osrs-gold text-lg font-semibold">Definitions</h2>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setEditing({ badge: blankBadge(), isNew: true })}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
           >
             + New badge
-          </button>
+          </Button>
         </div>
 
         <ul className="divide-osrs-bronze/20 divide-y">
@@ -241,13 +242,15 @@ function BadgeForm({
       {error && <p className="text-osrs-red text-sm">{error}</p>}
 
       <div className="flex items-center justify-between">
-        <button
+        <Button
+          variant="secondary"
           onClick={onSave}
-          disabled={pending || !form.key || !form.name || !form.description}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+          disabled={!form.key || !form.name || !form.description}
+          loading={pending}
+          loadingLabel="Saving…"
         >
-          {pending ? "Saving…" : "Save badge"}
-        </button>
+          Save badge
+        </Button>
         {!isNew && form.active && (
           <button
             onClick={onDelete}
@@ -332,13 +335,14 @@ function AwardPanel({ badges }: { badges: AdminBadge[] }) {
           placeholder="Search players by name…"
           className={field}
         />
-        <button
+        <Button
+          variant="secondary"
+          className="shrink-0"
           onClick={onSearch}
           disabled={pending || !query.trim()}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark shrink-0 rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           Search
-        </button>
+        </Button>
       </div>
 
       {hits.length > 0 && (
@@ -381,13 +385,15 @@ function AwardPanel({ badges }: { badges: AdminBadge[] }) {
             </label>
           </div>
 
-          <button
+          <Button
+            variant="secondary"
             onClick={onAward}
-            disabled={pending || !badgeKey}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+            disabled={!badgeKey}
+            loading={pending}
+            loadingLabel="Working…"
           >
-            {pending ? "Working…" : "Award badge"}
-          </button>
+            Award badge
+          </Button>
 
           {message && (
             <p className={`text-sm ${message.ok ? "text-osrs-green" : "text-osrs-red"}`}>

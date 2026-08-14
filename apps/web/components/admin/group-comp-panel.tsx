@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { GroupSubscription, SubscriptionTier } from "@droptracker/api-types";
 import type { AdminGroupOverview } from "@/lib/api";
+import { Button, buttonVariants } from "@/components/ui";
 import { formatDate } from "@/lib/format";
 import { grantComp, revokeComp } from "@/app/(site)/(admin)/admin/groups/actions";
 
@@ -90,7 +91,7 @@ export function GroupCompPanel({
         </div>
         <Link
           href={`/groups/${group.id}/admin` as Route}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
+          className={buttonVariants({ variant: "secondary", size: "sm" })}
         >
           Manage as admin →
         </Link>
@@ -187,13 +188,15 @@ export function GroupCompPanel({
               className={`${field} w-24`}
             />
           </label>
-          <button
+          <Button
+            variant="secondary"
             onClick={onGrant}
-            disabled={pending || !tierKey}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+            disabled={!tierKey}
+            loading={pending}
+            loadingLabel="Granting…"
           >
-            {pending ? "Granting…" : isActive ? "Grant / extend" : "Grant comp"}
-          </button>
+            {isActive ? "Grant / extend" : "Grant comp"}
+          </Button>
         </div>
 
         {notice && <p className="text-osrs-green text-sm">{notice}</p>}

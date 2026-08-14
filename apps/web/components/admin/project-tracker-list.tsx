@@ -8,7 +8,7 @@
 import { useState, useTransition } from "react";
 import type { Route } from "next";
 import Link from "next/link";
-import { Alert, Badge, EmptyState, fieldInputClass } from "@/components/ui";
+import { Alert, Badge, Button, EmptyState, Input, Textarea } from "@/components/ui";
 import {
   PROJECT_STATUS_LABELS,
   type DevProjectSummary,
@@ -78,12 +78,9 @@ export function ProjectTrackerList({ projects }: { projects: DevProjectSummary[]
             </button>
           ))}
         </div>
-        <button
-          onClick={() => setCreating((v) => !v)}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
-        >
+        <Button variant="secondary" size="sm" onClick={() => setCreating((v) => !v)}>
           + New project
-        </button>
+        </Button>
       </div>
 
       {creating && (
@@ -188,28 +185,30 @@ function NewProjectForm({
           Close
         </button>
       </div>
-      <input
+      <Input
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Project name (e.g. Recap delivery v2)"
-        className={`${fieldInputClass} w-full`}
+        className="w-full"
         autoFocus
       />
-      <textarea
+      <Textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="What is this project about? (optional)"
         rows={2}
-        className={`${fieldInputClass} w-full`}
+        className="w-full"
       />
       {error && <Alert variant="error">{error}</Alert>}
-      <button
+      <Button
+        variant="secondary"
         onClick={onSave}
-        disabled={name.trim() === "" || pending}
-        className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+        disabled={name.trim() === ""}
+        loading={pending}
+        loadingLabel="Creating…"
       >
-        {pending ? "Creating…" : "Create project"}
-      </button>
+        Create project
+      </Button>
     </div>
   );
 }

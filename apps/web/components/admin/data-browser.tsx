@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { AdminDataList, AdminDataRow } from "@/lib/api";
 import { fetchRecord, saveRecord } from "@/app/(site)/(admin)/admin/data/actions";
-import { EmptyState } from "@/components/ui";
+import { Button, EmptyState } from "@/components/ui";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
@@ -61,12 +61,9 @@ export function DataBrowser({
           aria-label={`Search ${entity}`}
           className={`${field} flex-1`}
         />
-        <button
-          type="submit"
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium"
-        >
+        <Button type="submit" variant="secondary">
           Search
-        </button>
+        </Button>
         {q && (
           <button
             type="button"
@@ -349,12 +346,9 @@ function RecordDrawer({
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={() => setConfirming(true)}
-                    className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium"
-                  >
+                  <Button variant="secondary" onClick={() => setConfirming(true)}>
                     Save changes
-                  </button>
+                  </Button>
                 )}
               </div>
             )}

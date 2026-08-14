@@ -3,6 +3,7 @@
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { Button } from "@/components/ui";
 import { searchGroups } from "@/app/(site)/(admin)/admin/groups/actions";
 
 export function GroupPicker({ initial = "" }: { initial?: string }) {
@@ -43,13 +44,9 @@ export function GroupPicker({ initial = "" }: { initial?: string }) {
           aria-label="Find group"
           className={field}
         />
-        <button
-          type="submit"
-          disabled={pending}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
-        >
-          {pending ? "Searching…" : "Find"}
-        </button>
+        <Button type="submit" variant="secondary" loading={pending} loadingLabel="Searching…">
+          Find
+        </Button>
       </form>
 
       {pending ? (

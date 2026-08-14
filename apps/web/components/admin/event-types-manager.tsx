@@ -8,7 +8,7 @@ import {
   removeEventTypeTestGroup,
   searchTestGroups,
 } from "@/app/(site)/(admin)/admin/event-types/actions";
-import { Alert, Card } from "@/components/ui";
+import { Alert, Button, Card } from "@/components/ui";
 
 /**
  * Superadmin registry of event formats (web43a): per-kind enabled /
@@ -203,13 +203,9 @@ function TypeCard({
             aria-label={`Add test group for ${row.label}`}
             className={field}
           />
-          <button
-            type="submit"
-            disabled={pending || !q.trim()}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
-          >
+          <Button type="submit" variant="secondary" disabled={pending || !q.trim()}>
             Find
-          </button>
+          </Button>
         </form>
         {results && (
           <ul className="border-osrs-bronze/20 divide-osrs-bronze/20 mt-2 divide-y rounded border">

@@ -30,7 +30,7 @@ import {
   taskGoal,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, EmptyState } from "@/components/ui";
+import { Alert, Button, EmptyState } from "@/components/ui";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
 import { QuantityInput } from "@/components/quantity-input";
 import {
@@ -902,14 +902,16 @@ function PresetForm({
           >
             Cancel
           </button>
-          <button
+          <Button
             type="submit"
-            disabled={pending || validate() !== null}
+            variant="secondary"
+            disabled={validate() !== null}
+            loading={pending}
+            loadingLabel="Saving…"
             title={validate() ?? undefined}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
-            {pending ? "Saving…" : editing ? "Save preset" : "Create preset"}
-          </button>
+            {editing ? "Save preset" : "Create preset"}
+          </Button>
         </div>
       </div>
       {error && <Alert variant="error">{error}</Alert>}

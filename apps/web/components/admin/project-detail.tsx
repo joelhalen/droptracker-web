@@ -12,7 +12,7 @@
 import { useState, useTransition } from "react";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
-import { Alert, Badge, EmptyState, fieldInputClass } from "@/components/ui";
+import { Alert, Badge, EmptyState, Input, Textarea } from "@/components/ui";
 import { Markdown } from "@/components/markdown";
 import {
   PROJECT_STATUSES,
@@ -39,8 +39,6 @@ import {
   updateSubtask,
   updateTask,
 } from "@/app/(site)/(admin)/admin/projects/actions";
-
-const field = `${fieldInputClass} w-full`;
 
 const TASK_TONES: Record<TaskStatus, "neutral" | "sky" | "red" | "green"> = {
   planned: "neutral",
@@ -172,13 +170,13 @@ function ProjectHeader({
     <header className="border-osrs-bronze/30 bg-osrs-surface-1/60 space-y-3 rounded-lg border p-4">
       {editing ? (
         <div className="space-y-2">
-          <input value={name} onChange={(e) => setName(e.target.value)} className={field} />
-          <textarea
+          <Input value={name} onChange={(e) => setName(e.target.value)} className="w-full" />
+          <Textarea
             value={desc}
             onChange={(e) => setDesc(e.target.value)}
             rows={2}
             placeholder="Description (optional)"
-            className={field}
+            className="w-full"
           />
           <div className="flex gap-3 text-sm">
             <button
@@ -311,12 +309,12 @@ function CompletionNote({
   }
   return (
     <div className="space-y-2">
-      <textarea
+      <Textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         rows={2}
         placeholder="What shipped / how it wrapped up"
-        className={field}
+        className="w-full"
         autoFocus
       />
       <div className="flex gap-3 text-sm">
@@ -402,7 +400,7 @@ function TaskCard({
         <Badge tone={TASK_TONES[task.status]}>{TASK_STATUS_LABELS[task.status]}</Badge>
 
         {titleDraft !== null ? (
-          <input
+          <Input
             value={titleDraft}
             onChange={(e) => setTitleDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -413,7 +411,7 @@ function TaskCard({
               if (e.key === "Escape") setTitleDraft(null);
             }}
             onBlur={() => setTitleDraft(null)}
-            className={`${fieldInputClass} min-w-40 grow py-0.5 text-sm`}
+            className="min-w-40 grow py-0.5 text-sm"
             autoFocus
           />
         ) : (
@@ -446,12 +444,12 @@ function TaskCard({
           {/* Body / plan */}
           {editingBody ? (
             <div className="space-y-2">
-              <textarea
+              <Textarea
                 value={bodyDraft}
                 onChange={(e) => setBodyDraft(e.target.value)}
                 rows={5}
                 placeholder="Plan / details (Markdown)"
-                className={field}
+                className="w-full"
                 autoFocus
               />
               <div className="flex gap-3 text-sm">
@@ -511,7 +509,7 @@ function TaskCard({
               />
             ))}
             <div className="flex gap-2 pt-1">
-              <input
+              <Input
                 value={newSubtask}
                 onChange={(e) => setNewSubtask(e.target.value)}
                 onKeyDown={(e) => {
@@ -521,7 +519,7 @@ function TaskCard({
                   }
                 }}
                 placeholder="Add a checklist item and press Enter"
-                className={`${fieldInputClass} w-full py-1 text-xs`}
+                className="w-full py-1 text-xs"
               />
             </div>
           </div>
@@ -601,7 +599,7 @@ function SubtaskRow({
         {subtask.title}
       </span>
       {noteDraft !== null ? (
-        <input
+        <Input
           value={noteDraft}
           onChange={(e) => setNoteDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -613,7 +611,7 @@ function SubtaskRow({
           }}
           onBlur={() => setNoteDraft(null)}
           placeholder="note + Enter"
-          className={`${fieldInputClass} grow py-0.5 text-xs`}
+          className="grow py-0.5 text-xs"
           autoFocus
         />
       ) : (
@@ -672,12 +670,12 @@ function NoteList({
       ))}
       {adding ? (
         <div className="space-y-2">
-          <textarea
+          <Textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={compact ? 2 : 3}
             placeholder="Note (Markdown)"
-            className={field}
+            className="w-full"
             autoFocus
           />
           <div className="flex gap-3 text-sm">
@@ -729,11 +727,11 @@ function NoteRow({
   if (draft !== null) {
     return (
       <div className="space-y-2">
-        <textarea
+        <Textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           rows={3}
-          className={field}
+          className="w-full"
           autoFocus
         />
         <div className="flex gap-3 text-sm">
@@ -813,19 +811,19 @@ function AddTaskForm({
 
   return (
     <div className="border-osrs-gold/40 space-y-2 rounded-lg border p-3">
-      <input
+      <Input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Task title"
-        className={field}
+        className="w-full"
         autoFocus
       />
-      <textarea
+      <Textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}
         rows={3}
         placeholder="Plan / details (Markdown, optional)"
-        className={field}
+        className="w-full"
       />
       <div className="flex gap-3 text-sm">
         <button

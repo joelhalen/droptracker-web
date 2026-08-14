@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { EmptyState, Alert } from "@/components/ui";
+import { Button, EmptyState, Alert } from "@/components/ui";
 import { isExternalDestination, type Redirect, type RedirectInput } from "@/lib/redirects";
 import { isValidSource } from "@/lib/redirect-resolver";
 import { createRedirect, deleteRedirect, updateRedirect } from "@/app/(site)/(admin)/admin/redirects/actions";
@@ -58,12 +58,9 @@ export function RedirectsManager({ redirects }: { redirects: Redirect[] }) {
       {error && <Alert variant="error">{error}</Alert>}
 
       <div className="flex justify-end">
-        <button
-          onClick={() => setEditing("new")}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
-        >
+        <Button variant="secondary" size="sm" onClick={() => setEditing("new")}>
           + New redirect
-        </button>
+        </Button>
       </div>
 
       {list.length === 0 ? (
@@ -287,13 +284,15 @@ function RedirectForm({
       )}
       {error && <Alert variant="error">{error}</Alert>}
 
-      <button
+      <Button
+        variant="secondary"
         onClick={onSave}
         disabled={!canSave}
-        className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+        loading={pending}
+        loadingLabel="Saving…"
       >
-        {pending ? "Saving…" : "Save redirect"}
-      </button>
+        Save redirect
+      </Button>
     </div>
   );
 }

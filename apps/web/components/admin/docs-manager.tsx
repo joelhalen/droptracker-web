@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import type { DocInput, DocSummary } from "@droptracker/api-types";
 import { groupDocsByCategory } from "@/lib/docs";
 import { Markdown } from "@/components/markdown";
-import { EmptyState, Alert } from "@/components/ui";
+import { Button, EmptyState, Alert } from "@/components/ui";
 import { createDoc, deleteDoc, getDocForEdit, updateDoc } from "@/app/(site)/(admin)/admin/docs/actions";
 
 const field =
@@ -47,12 +47,9 @@ export function DocsManager({ docs }: { docs: DocSummary[] }) {
       {error && <Alert variant="error">{error}</Alert>}
 
       <div className="flex justify-end">
-        <button
-          onClick={() => setEditingSlug("new")}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
-        >
+        <Button variant="secondary" size="sm" onClick={() => setEditingSlug("new")}>
           + New doc
-        </button>
+        </Button>
       </div>
 
       {list.length === 0 ? (
@@ -291,13 +288,15 @@ function DocForm({
 
           {error && <Alert variant="error">{error}</Alert>}
 
-          <button
+          <Button
+            variant="secondary"
             onClick={onSave}
-            disabled={pending || !draft.slug.trim() || !draft.title.trim() || !draft.content.trim()}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+            disabled={!draft.slug.trim() || !draft.title.trim() || !draft.content.trim()}
+            loading={pending}
+            loadingLabel="Saving…"
           >
-            {pending ? "Saving…" : "Save doc page"}
-          </button>
+            Save doc page
+          </Button>
         </>
       )}
     </div>
