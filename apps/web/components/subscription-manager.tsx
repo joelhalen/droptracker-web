@@ -15,7 +15,7 @@ import type {
 } from "@droptracker/api-types";
 import { formatDate, formatPrice } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Badge, EmptyState, SubscriptionStatusBadge, TierBadge } from "@/components/ui";
+import { Alert, Badge, Button, EmptyState, SubscriptionStatusBadge, TierBadge } from "@/components/ui";
 import { InlineMarkdown } from "@/components/markdown";
 import {
   cancelLeg,
@@ -151,13 +151,9 @@ export function SubscriptionManager({
           </div>
 
           {isActive && (
-            <button
-              onClick={onPortal}
-              disabled={pending}
-              className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm disabled:opacity-50"
-            >
+            <Button variant="ghost" size="sm" onClick={onPortal} disabled={pending}>
               Manage my billing
-            </button>
+            </Button>
           )}
         </div>
 
@@ -293,10 +289,11 @@ export function SubscriptionManager({
                     </li>
                   ))}
                 </ul>
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => onCheckout(t.key)}
                   disabled={pending || covered}
-                  className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-5 rounded px-3 py-2 text-sm font-medium disabled:cursor-default disabled:opacity-50"
+                  className="mt-5 px-3 disabled:cursor-default"
                 >
                   {covered
                     ? current
@@ -305,7 +302,7 @@ export function SubscriptionManager({
                     : poolTotal > 0
                       ? `Upgrade — +${fmtUsd(delta)}/mo`
                       : "Subscribe"}
-                </button>
+                </Button>
               </div>
             );
           })}

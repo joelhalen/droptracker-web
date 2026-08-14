@@ -10,7 +10,7 @@ import {
 } from "@/app/(site)/(dashboard)/submit/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
-import { Alert } from "@/components/ui";
+import { Alert, Button, FileInput } from "@/components/ui";
 
 const MAX_PROOF_BYTES = 10 * 1024 * 1024; // 10 MB — client-side sanity cap, not enforced server-side.
 
@@ -568,13 +568,11 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
             </button>
           </div>
         ) : (
-          <input
+          <FileInput
             ref={fileInputRef}
-            type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
             onChange={onFileSelected}
             disabled={proof.status === "uploading"}
-            className="text-osrs-parchment-dark/80 file:bg-osrs-bronze/60 file:text-osrs-parchment hover:file:bg-osrs-bronze w-full text-sm file:mr-3 file:rounded file:border-0 file:px-3 file:py-1.5 file:text-xs file:font-medium"
           />
         )}
         {proof.status === "uploading" && (
@@ -584,15 +582,15 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <button
+        <Button
           type="submit"
+          variant="secondary"
           disabled={
             pending || proof.status === "uploading" || !playerId || missing != null || splitError != null
           }
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {pending ? "Submitting…" : "Submit"}
-        </button>
+        </Button>
         {missing && !pending && (
           <span className="text-osrs-parchment-dark/60 text-xs">{missing}</span>
         )}

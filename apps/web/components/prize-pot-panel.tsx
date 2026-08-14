@@ -15,6 +15,7 @@ import { useState } from "react";
 import type { EventPrizePot } from "@droptracker/api-types";
 import { ProofAttach, type ProofUpload, type ProofUploader } from "@/components/proof-attach";
 import { GpAmount } from "@/components/gp-amount";
+import { Checkbox } from "@/components/ui";
 
 export interface PrizePotActions {
   /** Flip a buy-in's paid state (the tick). */
@@ -142,14 +143,13 @@ export function PrizePotPanel({
                   {proofCell(b)}
                   {canManage ? (
                     <label className="flex cursor-pointer items-center gap-1 text-[11px]">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={paid}
                         disabled={busy.has(key)}
                         onChange={(e) =>
                           run(key, () => actions!.markPaid(b.id, e.target.checked))
                         }
-                        className="accent-osrs-gold size-3.5"
+                        className="size-3.5"
                       />
                       Paid
                     </label>

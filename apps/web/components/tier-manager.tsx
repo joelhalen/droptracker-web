@@ -10,6 +10,7 @@ import {
 import { formatPrice } from "@/lib/format";
 import { resolveFlair } from "@/lib/tier-flair";
 import { InlineMarkdown } from "@/components/markdown";
+import { Button } from "@/components/ui";
 import { deleteTier, saveTier } from "@/app/(site)/(admin)/admin/tiers/actions";
 
 const blankTier = (): SubscriptionTier => ({
@@ -54,12 +55,13 @@ export function TierManager({ tiers }: { tiers: SubscriptionTier[] }) {
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setEditing({ tier: blankTier(), isNew: true })}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
         >
           + Add tier
-        </button>
+        </Button>
       </div>
 
       <ul className="divide-osrs-bronze/20 divide-y">
@@ -327,13 +329,13 @@ function TierForm({
       </label>
 
       <div className="flex items-center justify-between">
-        <button
+        <Button
+          variant="secondary"
           onClick={onSave}
           disabled={pending || !form.key || !form.name}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {pending ? "Saving…" : "Save tier"}
-        </button>
+        </Button>
         {!isNew && (
           <button
             onClick={onDelete}

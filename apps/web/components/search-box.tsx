@@ -3,6 +3,7 @@
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Button } from "@/components/ui";
 
 export function SearchBox({
   initial = "",
@@ -31,12 +32,9 @@ export function SearchBox({
         aria-label="Search"
         className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold flex-1 rounded border px-3 py-2 text-sm outline-none"
       />
-      <button
-        type="submit"
-        className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium"
-      >
+      <Button type="submit" variant="secondary">
         Search
-      </button>
+      </Button>
     </form>
   );
 }

@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import type { SubscriptionTier, UserSubscription } from "@droptracker/api-types";
 import { formatDate, formatPrice } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Badge, SubscriptionStatusBadge } from "@/components/ui";
+import { Alert, Badge, Button, SubscriptionStatusBadge } from "@/components/ui";
 import { InlineMarkdown } from "@/components/markdown";
 import {
   cancelSupporter,
@@ -165,21 +165,13 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={onPortal}
-                      disabled={pending}
-                      className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm disabled:opacity-50"
-                    >
+                    <Button variant="ghost" size="sm" onClick={onPortal} disabled={pending}>
                       Manage billing
-                    </button>
+                    </Button>
                     {sub.cancel_at_period_end ? (
-                      <button
-                        onClick={onResume}
-                        disabled={pending}
-                        className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-                      >
+                      <Button variant="secondary" size="sm" onClick={onResume} disabled={pending}>
                         Resume
-                      </button>
+                      </Button>
                     ) : (
                       <button
                         onClick={onCancel}
@@ -253,19 +245,20 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
                       month, and the orphan is unreachable from the portal.
                       Plan and amount changes belong to the existing
                       subscription, so an active supporter is sent there. */}
-                  <button
+                  <Button
+                    variant="secondary"
                     onClick={() =>
                       isActive ? onPortal() : onCheckout(t.key, chosenDollars * 100)
                     }
                     disabled={pending || !loaded || (!isActive && !amountValid)}
-                    className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark w-full rounded px-3 py-2 text-sm font-medium disabled:cursor-default disabled:opacity-50"
+                    className="w-full px-3 disabled:cursor-default"
                   >
                     {isActive
                       ? "Change plan in billing portal"
                       : amountValid
                         ? `Become a supporter — ${formatAmount(chosenDollars * 100)}/month`
                         : `Become a supporter (min $${minDollars}/month)`}
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>

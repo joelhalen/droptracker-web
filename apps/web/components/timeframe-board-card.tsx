@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { generateTimeframeBoard } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Card, fieldInputClass } from "@/components/ui";
+import { Alert, Button, Card, Input } from "@/components/ui";
 
 /** Earliest day any loot data exists (rollup epoch, backend-enforced too). */
 const MIN_DATE = "2024-10-01";
@@ -71,34 +71,34 @@ export function TimeframeBoardCard({ groupId }: { groupId: number }) {
       <div className="flex flex-wrap items-end gap-3">
         <label className="block">
           <span className="block text-sm font-medium">Start date</span>
-          <input
+          <Input
             type="date"
             value={startDate}
             min={MIN_DATE}
             max={endDate || today}
             onChange={(e) => setStartDate(e.target.value)}
-            className={`${fieldInputClass} mt-1`}
+            className="mt-1"
           />
         </label>
         <label className="block">
           <span className="block text-sm font-medium">End date</span>
-          <input
+          <Input
             type="date"
             value={endDate}
             min={startDate || MIN_DATE}
             max={today}
             onChange={(e) => setEndDate(e.target.value)}
-            className={`${fieldInputClass} mt-1`}
+            className="mt-1"
           />
         </label>
-        <button
-          type="button"
+        <Button
+          variant="secondary"
           onClick={onGenerate}
           disabled={pending || Boolean(invalidReason)}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+          className="rounded-lg"
         >
           {pending ? "Generating…" : "Generate board"}
-        </button>
+        </Button>
       </div>
 
       {invalidReason && !pending && (

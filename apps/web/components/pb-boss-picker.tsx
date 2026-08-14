@@ -3,7 +3,7 @@
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import type { PbBossSummary } from "@droptracker/api-types";
-import { fieldInputClass } from "@/components/ui";
+import { Select } from "@/components/ui";
 
 /**
  * Boss selector for the group "Personal bests" tab — navigates via the
@@ -20,17 +20,17 @@ export function PbBossPicker({
 }) {
   const router = useRouter();
   return (
-    <select
+    <Select
       value={selected}
       onChange={(e) => router.push(`${basePath}?boss=${e.target.value}` as Route)}
       aria-label="Choose a boss"
-      className={`${fieldInputClass} w-full max-w-sm`}
+      className="w-full max-w-sm"
     >
       {bosses.map((b) => (
         <option key={b.npc_id} value={b.npc_id}>
           {b.name} ({b.player_count.toLocaleString()} ranked)
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
