@@ -36,6 +36,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import type { GroupProfile, SiteAdmin, SiteMeta } from "@droptracker/api-types";
 import { sitePaletteStyle } from "@/lib/site-themes";
+import { Button } from "@/components/ui";
 import { BLOCK_CATALOG, BLOCK_META, BlockForm, newBlockId, type Block } from "./block-forms";
 import { BlockPreview } from "./block-previews";
 
@@ -307,32 +308,32 @@ export function PageEditor({
           ) : null}
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             disabled={saving || !dirty}
-            className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             onClick={() => {
               onSave(blocks, pageCss);
               setDirty(false);
             }}
           >
             {saving ? "Saving…" : "Save draft"}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             disabled={saving || (!dirty && !hasUnpublishedChanges && pagePublished)}
             title="Saves your draft (if needed) and puts it live"
-            className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             onClick={() => {
               onPublish(blocks, pageCss, dirty);
               setDirty(false);
             }}
           >
             {pagePublished ? "Save & publish" : "Publish page"}
-          </button>
-          <button
-            type="button"
-            className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm"
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => {
               if (dirty && !window.confirm("Discard unsaved changes?")) return;
               setDirty(false);
@@ -340,7 +341,7 @@ export function PageEditor({
             }}
           >
             Close
-          </button>
+          </Button>
         </div>
       </div>
 

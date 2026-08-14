@@ -20,7 +20,7 @@
 import { useCallback, useEffect, useState, useTransition } from "react";
 import type { EventTask, EventTaskInput } from "@droptracker/api-types";
 import { EventTaskForm } from "@/components/event-task-form";
-import { Alert } from "@/components/ui";
+import { Alert, Button, Textarea } from "@/components/ui";
 import {
   fetchAiTaskQuota,
   generateTaskFromDescription,
@@ -118,8 +118,8 @@ export function EventTaskFormWithAi(props: Props) {
                 Describe what players need to do and we&apos;ll build the task for you. Check the
                 result — especially item names — before adding it.
               </p>
-              <textarea
-                className="border-osrs-bronze/40 bg-osrs-surface-2 focus:border-osrs-gold focus:ring-osrs-gold/20 min-h-20 w-full resize-y rounded-lg border px-3 py-2 text-sm outline-none transition-colors focus:ring-2"
+              <Textarea
+                className="min-h-20 w-full resize-y"
                 maxLength={1000}
                 placeholder={PLACEHOLDER}
                 value={description}
@@ -127,14 +127,14 @@ export function EventTaskFormWithAi(props: Props) {
                 disabled={pending || quota.remaining <= 0}
               />
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={generate}
                   disabled={pending || description.trim().length < 5 || quota.remaining <= 0}
-                  className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                 >
                   {pending ? "Generating…" : generated ? "Regenerate" : "Generate task"}
-                </button>
+                </Button>
                 {quota.remaining <= 0 ? (
                   <span className="text-osrs-parchment-dark/60 text-xs">
                     No generations left today — the form below still works as normal.

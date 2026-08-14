@@ -26,7 +26,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { TASK_TYPE_LABELS } from "@/lib/events";
-import { Alert } from "@/components/ui";
+import { Alert, Button, buttonVariants } from "@/components/ui";
 import { TimezoneNote } from "@/components/local-time";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -135,7 +135,7 @@ export function EventTemplatePicker({ groupId }: { groupId: number | null }) {
         </ul>
         <Link
           href={eventPath(groupId, created.id)}
-          className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold-bright inline-block rounded px-4 py-2 text-sm font-semibold"
+          className={buttonVariants({ variant: "primary" })}
         >
           Open the new event →
         </Link>
@@ -291,13 +291,16 @@ export function EventTemplatePicker({ groupId }: { groupId: number | null }) {
             The new event starts as a draft — tweak anything (tasks, board, teams, Discord) before
             activating it.
           </p>
-          <button
+          <Button
             type="submit"
-            disabled={pending || !name.trim()}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark justify-self-start rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+            variant="secondary"
+            className="justify-self-start"
+            loading={pending}
+            loadingLabel="Creating…"
+            disabled={!name.trim()}
           >
-            {pending ? "Creating…" : "Create event from template"}
-          </button>
+            Create event from template
+          </Button>
         </form>
       )}
     </div>

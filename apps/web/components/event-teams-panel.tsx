@@ -26,7 +26,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { entityPath } from "@/lib/slug";
 import { teamColorMap } from "@/lib/events";
-import { StatTile } from "@/components/ui";
+import { Button, StatTile } from "@/components/ui";
 import { GpAmount } from "@/components/gp-amount";
 import { LocalTime } from "@/components/local-time";
 import { EventMemberList } from "@/components/event-member-list";
@@ -325,14 +325,15 @@ function TeamNotificationsDialog({
           )}
         </div>
         <div className="border-osrs-bronze/20 flex items-center gap-3 border-t px-4 py-3">
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={save}
-            disabled={pending}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            loading={pending}
+            loadingLabel="Saving…"
           >
-            {pending ? "Saving…" : "Save"}
-          </button>
+            Save
+          </Button>
           {saved && <span className="text-osrs-gold-bright text-xs">Saved.</span>}
         </div>
       </div>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import type { EventDetail, EventSignup, EventTeam } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, EmptyState, fieldInputClass } from "@/components/ui";
+import { Alert, Button, EmptyState, Input, Select } from "@/components/ui";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { formatGp, formatRelativeTime } from "@/lib/format";
 import {
@@ -462,14 +462,15 @@ export function EventSignupTools({
         <div className="space-y-3">
           {/* Action bar + at-a-glance pool summary. */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onRandomize}
               disabled={pending || !(pool && pool.length) || teams.length === 0}
-              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
               title="Randomly distribute everyone in the pool across the teams — re-roll as often as you like"
             >
               🎲 Randomize teams
-            </button>
+            </Button>
             {pool == null ? (
               <span className="text-osrs-parchment-dark/60 text-xs">Loading…</span>
             ) : (
@@ -518,32 +519,30 @@ export function EventSignupTools({
               {/* Filters: name/clan search, assignment status, and (clan-vs-clan)
                   a per-clan filter. */}
               <div className="flex flex-wrap items-center gap-2">
-                <input
+                <Input
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Filter by player or clan…"
                   aria-label="Filter sign-ups by player or clan name"
-                  className={`${fieldInputClass} min-w-40 flex-1`}
+                  className="min-w-40 flex-1"
                 />
-                <select
+                <Select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as StatusFilter)}
                   aria-label="Filter by assignment status"
-                  className={fieldInputClass}
                 >
                   <option value="all">All players</option>
                   <option value="unassigned">Unassigned only</option>
                   <option value="assigned">Assigned only</option>
-                </select>
+                </Select>
                 {clanVsClan && clanOptions.length > 1 && (
-                  <select
+                  <Select
                     value={clanFilter}
                     onChange={(e) =>
                       setClanFilter(e.target.value === "all" ? "all" : Number(e.target.value))
                     }
                     aria-label="Filter by clan"
-                    className={fieldInputClass}
                   >
                     <option value="all">All clans</option>
                     {clanOptions.map((c) => (
@@ -551,7 +550,7 @@ export function EventSignupTools({
                         {c.name}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
               </div>
 

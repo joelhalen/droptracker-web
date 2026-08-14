@@ -5,7 +5,7 @@
  * Extracted from site-builder.tsx when the drag-and-drop editor landed so the
  * canvas, palette panel and settings inspector can share one source of truth.
  */
-import { fieldInputClass } from "@/components/ui";
+import { Input, Select, Textarea } from "@/components/ui";
 import { SITE_TOKENS } from "@/lib/site-tokens";
 import { PbBossSelect } from "./pb-boss-select";
 
@@ -101,24 +101,21 @@ export function BlockForm({
       return (
         <div className="grid gap-2 sm:grid-cols-2">
           <Field label="Heading">
-            <input
-              className={fieldInputClass}
+            <Input
               value={(block.heading as string) ?? ""}
               maxLength={80}
               onChange={(e) => set("heading", e.target.value)}
             />
           </Field>
           <Field label="Tagline (optional)">
-            <input
-              className={fieldInputClass}
+            <Input
               value={(block.tagline as string) ?? ""}
               maxLength={200}
               onChange={(e) => set("tagline", e.target.value || undefined)}
             />
           </Field>
           <Field label="Image URL (optional; defaults to the group icon)">
-            <input
-              className={fieldInputClass}
+            <Input
               value={(block.image_url as string) ?? ""}
               maxLength={300}
               onChange={(e) => set("image_url", e.target.value || undefined)}
@@ -130,8 +127,8 @@ export function BlockForm({
       return (
         <div>
           <Field label="Markdown">
-            <textarea
-              className={`${fieldInputClass} min-h-32 font-mono text-xs`}
+            <Textarea
+              className="min-h-32 font-mono text-xs"
               value={(block.body as string) ?? ""}
               maxLength={8000}
               onChange={(e) => set("body", e.target.value)}
@@ -167,9 +164,9 @@ export function BlockForm({
     case "wom_achievements":
       return (
         <Field label="How many entries">
-          <input
+          <Input
             type="number"
-            className={`${fieldInputClass} w-24`}
+            className="w-24"
             min={3}
             max={25}
             value={(block.limit as number) ?? 10}
@@ -181,24 +178,21 @@ export function BlockForm({
       return (
         <div className="grid gap-2 sm:grid-cols-2">
           <Field label="Image URL">
-            <input
-              className={fieldInputClass}
+            <Input
               value={(block.url as string) ?? ""}
               maxLength={300}
               onChange={(e) => set("url", e.target.value)}
             />
           </Field>
           <Field label="Alt text">
-            <input
-              className={fieldInputClass}
+            <Input
               value={(block.alt as string) ?? ""}
               maxLength={200}
               onChange={(e) => set("alt", e.target.value || undefined)}
             />
           </Field>
           <Field label="Caption (optional)">
-            <input
-              className={fieldInputClass}
+            <Input
               value={(block.caption as string) ?? ""}
               maxLength={300}
               onChange={(e) => set("caption", e.target.value || undefined)}
@@ -216,15 +210,15 @@ export function BlockForm({
         <div className="space-y-2">
           {items.map((item, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
-              <input
-                className={`${fieldInputClass} w-40`}
+              <Input
+                className="w-40"
                 placeholder="Label"
                 maxLength={40}
                 value={item.label}
                 onChange={(e) => update(i, "label", e.target.value)}
               />
-              <input
-                className={`${fieldInputClass} flex-1`}
+              <Input
+                className="flex-1"
                 placeholder="https://…"
                 maxLength={300}
                 value={item.href}
@@ -254,28 +248,26 @@ export function BlockForm({
     case "lootboard":
       return (
         <Field label="Period">
-          <select
-            className={fieldInputClass}
+          <Select
             value={(block.period as string) ?? "month"}
             onChange={(e) => set("period", e.target.value)}
           >
             <option value="month">This month</option>
             <option value="week">This week</option>
             <option value="all">All time</option>
-          </select>
+          </Select>
         </Field>
       );
     case "recap":
       return (
         <Field label="Period">
-          <select
-            className={fieldInputClass}
+          <Select
             value={(block.period as string) ?? "month"}
             onChange={(e) => set("period", e.target.value)}
           >
             <option value="month">Latest monthly recap</option>
             <option value="year">Latest yearly recap</option>
-          </select>
+          </Select>
         </Field>
       );
     case "pb_board": {
@@ -295,9 +287,9 @@ export function BlockForm({
         <div className="space-y-2">
           <div className="flex flex-wrap items-end gap-3">
             <Field label="Members shown">
-              <input
+              <Input
                 type="number"
-                className={`${fieldInputClass} w-24`}
+                className="w-24"
                 min={5}
                 max={100}
                 value={(block.limit as number) ?? 25}
@@ -305,25 +297,23 @@ export function BlockForm({
               />
             </Field>
             <Field label="Default sort">
-              <select
-                className={fieldInputClass}
+              <Select
                 value={(block.sort as string) ?? "monthly"}
                 onChange={(e) => set("sort", e.target.value)}
               >
                 <option value="monthly">Loot this month</option>
                 <option value="all_time">Loot all time</option>
                 <option value="name">Name (A–Z)</option>
-              </select>
+              </Select>
             </Field>
             <Field label="Layout">
-              <select
-                className={fieldInputClass}
+              <Select
                 value={(block.layout as string) ?? "cards"}
                 onChange={(e) => set("layout", e.target.value)}
               >
                 <option value="cards">Cards</option>
                 <option value="table">Table</option>
-              </select>
+              </Select>
             </Field>
           </div>
           <label className="flex items-center gap-1.5 text-sm">
@@ -350,9 +340,9 @@ export function BlockForm({
     case "event_standings":
       return (
         <Field label="Event id (blank = your newest active event)">
-          <input
+          <Input
             type="number"
-            className={`${fieldInputClass} w-40`}
+            className="w-40"
             value={(block.event_id as number) ?? ""}
             onChange={(e) =>
               set("event_id", e.target.value === "" ? undefined : Number(e.target.value))
@@ -364,27 +354,26 @@ export function BlockForm({
       return (
         <div className="flex flex-wrap items-end gap-3">
           <Field label="Boss NPC id">
-            <input
+            <Input
               type="number"
-              className={`${fieldInputClass} w-32`}
+              className="w-32"
               value={(block.npc_id as number) || ""}
               onChange={(e) => set("npc_id", Number(e.target.value) || 0)}
             />
           </Field>
           <Field label="Period">
-            <select
-              className={fieldInputClass}
+            <Select
               value={(block.period as string) ?? "month"}
               onChange={(e) => set("period", e.target.value)}
             >
               <option value="month">This month</option>
               <option value="all">All time</option>
-            </select>
+            </Select>
           </Field>
           <Field label="Entries">
-            <input
+            <Input
               type="number"
-              className={`${fieldInputClass} w-24`}
+              className="w-24"
               min={3}
               max={25}
               value={(block.limit as number) ?? 10}
@@ -397,15 +386,14 @@ export function BlockForm({
       return (
         <div className="flex items-center gap-4 text-sm">
           <Field label="Size">
-            <select
-              className={fieldInputClass}
+            <Select
               value={(block.size as string) ?? "md"}
               onChange={(e) => set("size", e.target.value)}
             >
               <option value="sm">Small</option>
               <option value="md">Medium</option>
               <option value="lg">Large</option>
-            </select>
+            </Select>
           </Field>
           <label className="mt-5 flex items-center gap-1.5">
             <input
@@ -421,8 +409,8 @@ export function BlockForm({
       return (
         <div>
           <Field label="HTML source (sanitized on save — scripts, forms and styles are stripped)">
-            <textarea
-              className={`${fieldInputClass} min-h-40 font-mono text-xs`}
+            <Textarea
+              className="min-h-40 font-mono text-xs"
               value={(block.source as string) ?? ""}
               onChange={(e) => set("source", e.target.value)}
             />
