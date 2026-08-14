@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { EventInvitation } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import {
   acceptEventInvitation,
   declineEventInvitation,
@@ -81,13 +81,14 @@ export function EventInvitationsInbox({
                 )}
               </div>
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="xs"
                   onClick={() => respond(inv, true)}
                   disabled={pending}
-                  className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1 text-xs font-medium disabled:opacity-50"
                 >
                   Accept
-                </button>
+                </Button>
                 <button
                   onClick={() => respond(inv, false)}
                   disabled={pending}

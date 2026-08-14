@@ -70,7 +70,7 @@ import {
 } from "@/lib/events";
 import { materializeSchedule } from "@/lib/event-schedule";
 import { confirmDiscard } from "@/lib/use-unsaved-changes";
-import { Alert, EmptyState } from "@/components/ui";
+import { Alert, buttonVariants, EmptyState } from "@/components/ui";
 import { DiscordRolePicker } from "@/components/discord-role-picker";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
@@ -91,8 +91,7 @@ import { PlayerAddInput } from "@/components/player-add-input";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
-const primaryBtn =
-  "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50";
+const primaryBtn = buttonVariants({ variant: "secondary", size: "md" });
 const ghostBtn =
   "border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-4 py-2 text-sm disabled:opacity-50";
 

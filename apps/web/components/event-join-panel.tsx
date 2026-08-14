@@ -5,7 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { EventDetail } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import {
   joinEvent as joinEventAction,
   leaveEvent as leaveEventAction,
@@ -333,13 +333,14 @@ export function EventJoinPanel({
             </label>
           )}
 
-          <button
+          <Button
             type="submit"
+            variant="secondary"
             disabled={pending || playerId === "" || (event.join_requires_code && !joinCode.trim())}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark w-full rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
+            className="w-full"
           >
             {pending ? "Signing up…" : "Sign up!"}
-          </button>
+          </Button>
         </form>
       )}
     </div>

@@ -9,6 +9,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { isRevocableCompletion } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/format";
+import { Button } from "@/components/ui";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
@@ -231,13 +232,9 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
           <input type="checkbox" checked={hasProof} onChange={(e) => setHasProof(e.target.checked)} />
           <span className="text-osrs-parchment-dark/80">Has screenshot</span>
         </label>
-        <button
-          type="button"
-          onClick={() => load(1)}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium"
-        >
+        <Button variant="secondary" onClick={() => load(1)}>
           Apply
-        </button>
+        </Button>
         <button
           type="button"
           onClick={() => {

@@ -35,7 +35,7 @@ import {
   saveGroupEventLayoutAction,
 } from "@/app/(site)/(admin)/groups/[id]/embeds/event-layout-actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Card, fieldInputClass } from "@/components/ui";
+import { Alert, Button, Card, fieldInputClass } from "@/components/ui";
 
 /* ------------------------------------------------------------------ */
 /* Scope + entry model                                                  */
@@ -812,14 +812,9 @@ export function EventLayoutEditor({
           </div>
 
           <div className="border-osrs-bronze/25 flex items-center gap-3 border-t pt-4">
-            <button
-              type="button"
-              onClick={save}
-              disabled={pending || !dirty}
-              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
+            <Button variant="secondary" onClick={save} disabled={pending || !dirty}>
               {pending ? "Saving…" : scope.kind === "group" ? "Save layout" : "Save override"}
-            </button>
+            </Button>
             {hasSaved && (
               <button
                 type="button"
