@@ -5,7 +5,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { AdminTicketPage } from "@droptracker/api-types";
-import { Card, EmptyState, fieldInputClass } from "@/components/ui";
+import { Card, EmptyState, Input, Select } from "@/components/ui";
 import { TicketStatusBadge, TicketTypeBadge } from "@/components/ticket-transcript";
 import { formatRelativeTime } from "@/lib/format";
 
@@ -52,10 +52,9 @@ export function AdminTicketTable({
   return (
     <div className="space-y-4">
       <form onSubmit={applyFilters} className="flex flex-wrap items-center gap-2">
-        <select
+        <Select
           value={form.status}
           onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-          className={fieldInputClass}
           aria-label="Filter by status"
         >
           {STATUS_OPTIONS.map((o) => (
@@ -63,11 +62,10 @@ export function AdminTicketTable({
               {o.label}
             </option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           value={form.type}
           onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
-          className={fieldInputClass}
           aria-label="Filter by type"
         >
           {TYPE_OPTIONS.map((o) => (
@@ -75,12 +73,12 @@ export function AdminTicketTable({
               {o.label}
             </option>
           ))}
-        </select>
-        <input
+        </Select>
+        <Input
           value={form.q}
           onChange={(e) => setForm((f) => ({ ...f, q: e.target.value }))}
           placeholder="Search subject or creator…"
-          className={`${fieldInputClass} min-w-52 flex-1`}
+          className="min-w-52 flex-1"
           aria-label="Search tickets"
         />
         <button

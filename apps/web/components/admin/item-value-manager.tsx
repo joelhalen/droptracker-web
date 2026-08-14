@@ -7,7 +7,7 @@ import type {
   ItemValueComponent,
   ItemSearchResult,
 } from "@droptracker/api-types";
-import { Badge } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { deleteItemValue, saveItemValue, searchItems } from "@/app/(site)/(admin)/admin/item-values/actions";
 
@@ -68,12 +68,13 @@ export function ItemValueManager({
       <section className="min-w-0 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-osrs-gold text-lg font-semibold">Overrides</h2>
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setEditing({ override: blankOverride(), isNew: true })}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
           >
             + New override
-          </button>
+          </Button>
         </div>
 
         {editing && (
@@ -392,13 +393,15 @@ function ItemValueForm({
       {error && <p className="text-osrs-red text-sm">{error}</p>}
 
       <div className="flex items-center justify-between">
-        <button
+        <Button
+          variant="secondary"
           onClick={onSave}
-          disabled={pending || !form.item_name.trim()}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+          disabled={!form.item_name.trim()}
+          loading={pending}
+          loadingLabel="Saving…"
         >
-          {pending ? "Saving…" : "Save override"}
-        </button>
+          Save override
+        </Button>
         {!isNew && (
           <button
             onClick={onDelete}
@@ -510,7 +513,9 @@ function ExportPanel({ txt }: { txt: string }) {
         <code> content/valued_items.txt</code> the plugin reads, copy the list below and commit it.
       </p>
       <textarea readOnly value={txt} rows={2} className={`${field} font-mono`} />
-      <button
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(txt);
@@ -520,10 +525,9 @@ function ExportPanel({ txt }: { txt: string }) {
             /* clipboard unavailable */
           }
         }}
-        className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
       >
         {copied ? "Copied!" : "Copy list"}
-      </button>
+      </Button>
     </section>
   );
 }

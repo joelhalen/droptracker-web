@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { B2Usage } from "@droptracker/api-types";
-import { StatTile } from "@/components/ui";
+import { Button, StatTile } from "@/components/ui";
 import { formatBytes, formatRelativeTime } from "@/lib/format";
 
 /** Friendly names for the bucket's top-level key prefixes. */
@@ -59,13 +59,14 @@ export function B2UsagePanel({ usage }: { usage: B2Usage }) {
       </div>
 
       <div className="flex items-center gap-2">
-        <button
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={() => startTransition(() => router.refresh())}
-          disabled={pending}
-          className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-2.5 py-1 text-xs disabled:opacity-50"
+          loading={pending}
         >
-          {pending ? "…" : "Rescan bucket"}
-        </button>
+          Rescan bucket
+        </Button>
         <span className="text-osrs-parchment-dark/50 text-xs">
           Estimates use current bytes; Backblaze bills on the monthly average.
         </span>

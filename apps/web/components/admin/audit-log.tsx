@@ -4,6 +4,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { Fragment, useState } from "react";
 import type { AdminAuditEntry, AdminAuditLog } from "@/lib/api";
+import { Button } from "@/components/ui";
 import { formatRelativeTime } from "@/lib/format";
 
 const field =
@@ -96,12 +97,9 @@ export function AuditLogViewer({
             className={`${field} w-24`}
           />
         </label>
-        <button
-          type="submit"
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium"
-        >
+        <Button type="submit" variant="secondary">
           Filter
-        </button>
+        </Button>
         {hasFilters && (
           <button
             type="button"

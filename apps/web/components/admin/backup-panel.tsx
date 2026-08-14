@@ -8,7 +8,7 @@ import {
   fetchOffsiteBackups,
   runBackupNow,
 } from "@/app/(site)/(admin)/admin/backups/actions";
-import { StatTile } from "@/components/ui";
+import { Button, StatTile } from "@/components/ui";
 import { formatBytes, formatRelativeTime } from "@/lib/format";
 
 const SET_STATUS: Record<BackupSet["status"], { label: string; className: string }> = {
@@ -138,20 +138,23 @@ export function BackupPanel({ overview }: { overview: BackupOverview }) {
       <div className="flex flex-wrap items-center gap-2">
         {confirmRun ? (
           <>
-            <button
+            <Button
+              variant="gold-subtle"
+              size="xs"
               onClick={runNow}
               disabled={pending}
-              className={`${btn} bg-osrs-gold/20 text-osrs-gold`}
+              loading={busy === "run"}
             >
-              {busy === "run" ? "…" : "Confirm — run full backup"}
-            </button>
-            <button
+              Confirm — run full backup
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
               onClick={() => setConfirmRun(false)}
               disabled={pending}
-              className={`${btn} border-osrs-bronze/50 hover:bg-osrs-bronze/30 border`}
             >
               Cancel
-            </button>
+            </Button>
           </>
         ) : (
           <button
@@ -162,20 +165,18 @@ export function BackupPanel({ overview }: { overview: BackupOverview }) {
             {running ? "Backup in progress…" : "Run backup now"}
           </button>
         )}
-        <button
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={viewLogs}
           disabled={pending}
-          className={`${btn} border-osrs-bronze/50 hover:bg-osrs-bronze/30 border`}
+          loading={busy === "logs"}
         >
-          {busy === "logs" ? "…" : "View logs"}
-        </button>
-        <button
-          onClick={() => router.refresh()}
-          disabled={pending}
-          className={`${btn} border-osrs-bronze/50 hover:bg-osrs-bronze/30 border`}
-        >
+          View logs
+        </Button>
+        <Button variant="ghost" size="xs" onClick={() => router.refresh()} disabled={pending}>
           Refresh
-        </button>
+        </Button>
         {error && <span className="text-osrs-red text-xs">{error}</span>}
         {confirmRun && (
           <span className="text-osrs-parchment-dark/60 text-xs">

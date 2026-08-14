@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Alert, Card, EmptyState } from "@/components/ui";
+import { Alert, Button, Card, EmptyState } from "@/components/ui";
 import {
   ISSUE_SEVERITIES,
   ISSUE_STATUSES,
@@ -26,9 +26,6 @@ import {
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
-
-const buttonPrimary =
-  "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50";
 
 const OFFLINE_TONE = { dot: "bg-red-500", label: "Offline" };
 const SERVICE_TONE: Record<string, { dot: string; label: string }> = {
@@ -238,9 +235,9 @@ export function StatusManager({
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-osrs-gold font-semibold">Known issues</h2>
-          <button onClick={() => setCategoryForm("new")} className={buttonPrimary}>
+          <Button variant="secondary" size="sm" onClick={() => setCategoryForm("new")}>
             + New category
-          </button>
+          </Button>
         </div>
 
         {error && (
@@ -548,9 +545,16 @@ function CategoryForm({
         </label>
       </div>
       {error && <Alert variant="error">{error}</Alert>}
-      <button onClick={onSave} disabled={!canSave} className={buttonPrimary}>
-        {pending ? "Saving…" : "Save category"}
-      </button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={onSave}
+        disabled={!canSave}
+        loading={pending}
+        loadingLabel="Saving…"
+      >
+        Save category
+      </Button>
     </div>
   );
 }
@@ -676,9 +680,16 @@ function IssueForm({
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}
-      <button onClick={onSave} disabled={!canSave} className={buttonPrimary}>
-        {pending ? "Saving…" : "Save issue"}
-      </button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={onSave}
+        disabled={!canSave}
+        loading={pending}
+        loadingLabel="Saving…"
+      >
+        Save issue
+      </Button>
     </div>
   );
 }
