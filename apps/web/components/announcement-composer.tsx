@@ -8,7 +8,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/announcements/actions";
 import { publishGlobalAnnouncement } from "@/app/(site)/(admin)/admin/announcements/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 
 /**
  * Announcement composer for both group (pass `groupId`) and global (omit it,
@@ -204,13 +204,9 @@ export function AnnouncementComposer({ groupId }: { groupId?: number }) {
       )}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={!valid || pending}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
-        >
+        <Button type="submit" variant="secondary" disabled={!valid || pending}>
           {pending ? "Publishing…" : "Publish"}
-        </button>
+        </Button>
         {done && <span className="text-osrs-green text-sm">Published.</span>}
       </div>
       {error && <Alert variant="error">{error}</Alert>}

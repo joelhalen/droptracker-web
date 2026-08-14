@@ -12,7 +12,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { FileTransfer } from "@droptracker/api-types";
-import { Alert, Card, EmptyState, fieldInputClass } from "@/components/ui";
+import { Alert, Card, EmptyState, Textarea } from "@/components/ui";
 import { formatBytes, formatRelativeTime } from "@/lib/format";
 import { expiryLabel, transferDownloadUrl } from "@/lib/file-transfers";
 
@@ -94,14 +94,14 @@ export function FileTransferPanel({
             <label htmlFor="transfer-note" className="mb-1 block text-sm font-medium">
               Note <span className="text-osrs-parchment-dark/50">(optional)</span>
             </label>
-            <textarea
+            <Textarea
               id="transfer-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={2}
               maxLength={2000}
               placeholder="What is this file, and what do you need done with it?"
-              className={`${fieldInputClass} w-full`}
+              className="w-full"
             />
           </div>
 

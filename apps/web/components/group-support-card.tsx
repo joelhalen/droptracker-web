@@ -10,7 +10,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import type { GroupSubscriptionSummary } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, TierBadge } from "@/components/ui";
+import { Alert, Button, Card, TierBadge, buttonVariants } from "@/components/ui";
 import { contributeToGroup } from "@/app/(site)/(public)/groups/[id]/actions";
 
 const fmtUsd = (cents: number) => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`;
@@ -49,7 +49,7 @@ export function GroupSupportCard({
   };
 
   return (
-    <div className="card p-4">
+    <Card padding="p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-osrs-gold flex items-center gap-2 font-semibold">
@@ -85,18 +85,20 @@ export function GroupSupportCard({
         </div>
         {next &&
           (signedIn ? (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onContribute}
               disabled={pending}
-              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark shrink-0 rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+              className="shrink-0"
             >
               Contribute {fmtUsd(next.delta_cents)}/mo
-            </button>
+            </Button>
           ) : (
             <Link
               href={`/api/auth/login?redirect=${encodeURIComponent(`/groups/${groupId}`)}`}
               prefetch={false}
-              className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 shrink-0 rounded border px-3 py-1.5 text-sm font-medium"
+              className={buttonVariants({ variant: "ghost", size: "sm", className: "shrink-0" })}
             >
               Sign in to contribute
             </Link>
@@ -104,6 +106,6 @@ export function GroupSupportCard({
       </div>
       {notice && <p className="text-osrs-parchment-dark/70 mt-2 text-sm">{notice}</p>}
       {error && <Alert variant="error" className="mt-2">{error}</Alert>}
-    </div>
+    </Card>
   );
 }

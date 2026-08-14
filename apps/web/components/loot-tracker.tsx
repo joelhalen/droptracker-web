@@ -20,7 +20,7 @@ import {
   type PlayerLootTracker,
 } from "@droptracker/api-types";
 import { CARD_SECTION_CLASS, CardStatLine, HoverCard } from "@/components/hover-card";
-import { Card, EmptyState } from "@/components/ui";
+import { Button, Card, EmptyState } from "@/components/ui";
 import { formatGp, formatRelativeTime } from "@/lib/format";
 
 const IMG_BASE = "https://www.droptracker.io/img";
@@ -273,13 +273,15 @@ export function LootTracker({ playerId, initial }: { playerId: number; initial: 
             ))}
           </div>
           {data.npcs.length > INITIAL_BOXES && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               type="button"
               onClick={() => setShowAll((v) => !v)}
-              className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 mt-4 rounded border px-3 py-1.5 text-sm font-medium"
+              className="mt-4"
             >
               {showAll ? "Show fewer" : `Show all ${data.npcs.length.toLocaleString()} NPCs`}
-            </button>
+            </Button>
           )}
         </>
       )}

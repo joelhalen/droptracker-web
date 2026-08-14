@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { LootboardStyle } from "@/lib/api";
-import { fieldInputClass } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 
 /**
  * Preview-driven picker for the `loot_board_type` config key — the return of
@@ -36,13 +36,13 @@ export function BoardStylePicker({
 
   if (styles.length === 0) {
     return (
-      <input
+      <Input
         type="text"
         inputMode="numeric"
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className={`${fieldInputClass} w-full disabled:cursor-not-allowed`}
+        className="w-full disabled:cursor-not-allowed"
         placeholder="Style id (catalog unavailable)"
       />
     );
@@ -67,14 +67,16 @@ export function BoardStylePicker({
           <p className="truncate text-sm font-medium">{current ? current.name : `Style ${effectiveId}`}</p>
           {current && <p className="text-osrs-parchment-dark/60 truncate text-xs">{catLabel(current.category)}</p>}
         </div>
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           type="button"
           onClick={() => !disabled && setOpen(true)}
           disabled={disabled}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark shrink-0 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+          className="shrink-0 rounded-lg"
         >
           Browse styles…
-        </button>
+        </Button>
       </div>
 
       {open && (

@@ -13,7 +13,7 @@
  * than silently dropped.
  */
 import { useMemo, useState } from "react";
-import { fieldInputClass as input } from "@/components/ui";
+import { Input, Textarea } from "@/components/ui";
 
 /** Parse a stored boss list. Tolerates the legacy `["A", "B"]` format the HoF
  * parser also accepts (it strips brackets/quotes), dedupes case-insensitively. */
@@ -74,12 +74,12 @@ export function BossListPicker({
   if (manual) {
     return (
       <div className="space-y-1">
-        <textarea
+        <Textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Comma-separated boss names"
           disabled={disabled}
-          className={`${input} w-full disabled:cursor-not-allowed disabled:opacity-60`}
+          className="w-full disabled:cursor-not-allowed disabled:opacity-60"
           rows={2}
         />
         {bosses.length > 0 && !disabled && (
@@ -146,13 +146,13 @@ export function BossListPicker({
         </div>
       )}
 
-      <input
+      <Input
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Search bosses…"
         disabled={disabled}
-        className={`${input} mb-2 w-full disabled:cursor-not-allowed disabled:opacity-60`}
+        className="mb-2 w-full disabled:cursor-not-allowed disabled:opacity-60"
       />
 
       <ul className="grid max-h-64 gap-x-4 overflow-y-auto sm:grid-cols-2">

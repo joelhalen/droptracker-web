@@ -22,7 +22,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/embeds/actions";
 import { flattenTitleMarkdown } from "@/lib/embeds";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Card, fieldInputClass } from "@/components/ui";
+import { Alert, Button, Card, Checkbox, Input, Textarea } from "@/components/ui";
 
 /* ------------------------------------------------------------------ */
 /* Placeholder documentation — mirrors what the notification service    */
@@ -562,12 +562,12 @@ export function EmbedEditor({
                 {draft.title.length}/255
               </span>
             </label>
-            <input
+            <Input
               type="text"
               value={draft.title}
               maxLength={255}
               onChange={(e) => update({ title: e.target.value })}
-              className={`${fieldInputClass} w-full`}
+              className="w-full"
               placeholder="{item_name} — new drop!"
             />
             <p className="text-osrs-parchment-dark/50 mt-1 text-xs">
@@ -582,12 +582,12 @@ export function EmbedEditor({
               Title link
               <span className="text-osrs-parchment-dark/50 ml-2 text-xs font-normal">optional</span>
             </label>
-            <input
+            <Input
               type="text"
               value={draft.url}
               maxLength={200}
               onChange={(e) => update({ url: e.target.value })}
-              className={`${fieldInputClass} w-full`}
+              className="w-full"
               placeholder="https://www.droptracker.io/npcs/{npc_id}"
             />
             <p className="text-osrs-parchment-dark/50 mt-1 text-xs">
@@ -603,12 +603,12 @@ export function EmbedEditor({
                 {draft.description.length}/1000
               </span>
             </label>
-            <textarea
+            <Textarea
               value={draft.description}
               maxLength={1000}
               rows={3}
               onChange={(e) => update({ description: e.target.value })}
-              className={`${fieldInputClass} w-full`}
+              className="w-full"
               placeholder="**{player_name}** received **{item_name}** from {npc_name}!"
             />
             <p className="text-osrs-parchment-dark/50 mt-1 text-xs">
@@ -627,22 +627,20 @@ export function EmbedEditor({
                   className="border-osrs-bronze/40 h-9 w-10 cursor-pointer rounded border bg-transparent"
                   aria-label="Embed color"
                 />
-                <input
+                <Input
                   type="text"
                   value={draft.color}
                   onChange={(e) => update({ color: e.target.value })}
-                  className={`${fieldInputClass} w-full`}
+                  className="w-full"
                   placeholder="#ffb83f (blank = default)"
                 />
               </div>
             </div>
             <div className="flex items-end pb-2">
               <label className="text-osrs-parchment flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={draft.timestamp}
                   onChange={(e) => update({ timestamp: e.target.checked })}
-                  className="accent-osrs-gold h-4 w-4"
                 />
                 Show timestamp in footer
               </label>
@@ -654,12 +652,12 @@ export function EmbedEditor({
               <label className="text-osrs-parchment mb-1 block text-sm font-medium">
                 Thumbnail URL
               </label>
-              <input
+              <Input
                 type="text"
                 value={draft.thumbnail}
                 maxLength={200}
                 onChange={(e) => update({ thumbnail: e.target.value })}
-                className={`${fieldInputClass} w-full`}
+                className="w-full"
                 placeholder="https://…/icon/{item_id}.png"
               />
             </div>
@@ -667,12 +665,12 @@ export function EmbedEditor({
               <label className="text-osrs-parchment mb-1 block text-sm font-medium">
                 Large image URL
               </label>
-              <input
+              <Input
                 type="text"
                 value={draft.image}
                 maxLength={200}
                 onChange={(e) => update({ image: e.target.value })}
-                className={`${fieldInputClass} w-full`}
+                className="w-full"
                 placeholder="https://…/banner.png"
               />
             </div>
@@ -687,27 +685,28 @@ export function EmbedEditor({
                   {draft.fields.length}/25
                 </span>
               </span>
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
                 type="button"
                 disabled={draft.fields.length >= 25}
                 onClick={() =>
                   update({ fields: [...draft.fields, { name: "", value: "", inline: true }] })
                 }
-                className="border-osrs-bronze/40 hover:bg-osrs-bronze/30 rounded border px-2 py-1 text-xs disabled:opacity-40"
               >
                 + Add field
-              </button>
+              </Button>
             </div>
             <div className="space-y-2">
               {draft.fields.map((f, i) => (
                 <div key={i} className="border-osrs-bronze/25 rounded border p-2">
                   <div className="flex items-center gap-2">
-                    <input
+                    <Input
                       type="text"
                       value={f.name}
                       maxLength={256}
                       onChange={(e) => updateField(i, { name: e.target.value })}
-                      className={`${fieldInputClass} w-full`}
+                      className="w-full"
                       placeholder="Field name"
                     />
                     <label className="text-osrs-parchment-dark/80 flex shrink-0 items-center gap-1 text-xs">
@@ -730,12 +729,12 @@ export function EmbedEditor({
                       ✕
                     </button>
                   </div>
-                  <textarea
+                  <Textarea
                     value={f.value}
                     maxLength={1024}
                     rows={2}
                     onChange={(e) => updateField(i, { value: e.target.value })}
-                    className={`${fieldInputClass} mt-2 w-full`}
+                    className="mt-2 w-full"
                     placeholder="Field value — placeholders work here too"
                   />
                 </div>
@@ -749,23 +748,13 @@ export function EmbedEditor({
           </div>
 
           <div className="border-osrs-bronze/25 flex items-center gap-3 border-t pt-4">
-            <button
-              type="button"
-              onClick={save}
-              disabled={pending || !dirty}
-              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
+            <Button variant="secondary" type="button" onClick={save} disabled={pending || !dirty}>
               {pending ? "Saving…" : "Save embed"}
-            </button>
+            </Button>
             {hasCustom && (
-              <button
-                type="button"
-                onClick={reset}
-                disabled={pending}
-                className="border-osrs-bronze/40 hover:bg-osrs-bronze/30 rounded border px-4 py-2 text-sm disabled:opacity-50"
-              >
+              <Button variant="ghost" type="button" onClick={reset} disabled={pending}>
                 Reset to default
-              </button>
+              </Button>
             )}
             {dirty && <span className="text-osrs-parchment-dark/60 text-xs">Unsaved changes</span>}
           </div>

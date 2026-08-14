@@ -8,7 +8,7 @@ import type { GroupMember, WomSyncResult } from "@droptracker/api-types";
 import { setHidden, syncWom } from "@/app/(site)/(admin)/groups/[id]/members/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { EntityHoverCard } from "@/components/entity-hover-card";
-import { Alert, Badge, EmptyState, EntityChip } from "@/components/ui";
+import { Alert, Badge, Button, EmptyState, EntityChip } from "@/components/ui";
 
 export function MembersManager({
   groupId,
@@ -71,13 +71,9 @@ export function MembersManager({
               Synced: +{sync.added} / −{sync.removed} ({sync.total} total)
             </span>
           )}
-          <button
-            onClick={onSync}
-            disabled={pending}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-          >
+          <Button variant="secondary" size="sm" onClick={onSync} disabled={pending}>
             {pending ? "Working…" : "Sync from WOM"}
-          </button>
+          </Button>
         </div>
       </div>
 

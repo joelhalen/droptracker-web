@@ -20,6 +20,7 @@ import { formatGp } from "@/lib/format";
 import { generateLootboardImage } from "@/app/(site)/(public)/groups/[id]/lootboard/actions";
 import { LootboardGrid } from "@/components/lootboard-grid";
 import { ItemContributors } from "@/components/lootboard-item-tooltip";
+import { Button } from "@/components/ui";
 import {
   CANVAS,
   FONT,
@@ -131,13 +132,9 @@ export function LootboardCanvas({ board }: { board: Lootboard }) {
             {board.total.value_formatted}
           </span>
         </div>
-        <button
-          onClick={onDownload}
-          disabled={pending}
-          className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm disabled:opacity-50"
-        >
+        <Button variant="ghost" size="sm" onClick={onDownload} disabled={pending}>
           {pending ? "Generating…" : "Download image"}
-        </button>
+        </Button>
       </div>
 
       {notice && <p className="text-osrs-parchment-dark/70 text-sm">{notice}</p>}
