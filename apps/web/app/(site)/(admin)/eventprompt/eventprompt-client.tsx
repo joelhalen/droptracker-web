@@ -11,7 +11,7 @@
 import { useState, useTransition } from "react";
 import type { EventTask, EventTaskInput } from "@droptracker/api-types";
 import { EventTaskForm } from "@/components/event-task-form";
-import { Alert, Card, fieldInputClass } from "@/components/ui";
+import { Alert, Button, Card, Textarea } from "@/components/ui";
 import { createTaskPreset } from "../admin/task-library/actions";
 import { generateEventTask, type GeneratedTask } from "./actions";
 
@@ -98,9 +98,9 @@ export function EventPromptClient() {
         <label className="text-osrs-parchment-dark/80 text-sm font-medium" htmlFor="task-desc">
           Task description
         </label>
-        <textarea
+        <Textarea
           id="task-desc"
-          className={`${fieldInputClass} min-h-24 w-full resize-y`}
+          className="min-h-24 w-full resize-y"
           maxLength={1000}
           placeholder={`e.g. "${EXAMPLES[0]}"`}
           value={description}
@@ -108,9 +108,8 @@ export function EventPromptClient() {
           disabled={generating}
         />
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
+          <Button
+            variant="secondary"
             onClick={generate}
             disabled={generating || description.trim().length < 5}
           >
@@ -119,7 +118,7 @@ export function EventPromptClient() {
               : generation
                 ? "Regenerate"
                 : "Generate task"}
-          </button>
+          </Button>
           <span className="text-osrs-parchment-dark/50 text-xs">
             Examples:{" "}
             {EXAMPLES.map((ex, i) => (

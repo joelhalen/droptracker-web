@@ -32,7 +32,7 @@ import {
 } from "@/app/(site)/chat-actions";
 import { ChatMessageRow } from "@/components/chat/chat-message-row";
 import { MAX_PROOF_BYTES, PROOF_ACCEPT, uploadProofViaBff } from "@/components/proof-attach";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { LocalTime } from "@/components/local-time";
 
 type PendingAttachment = { key: string; url: string; name: string };
@@ -319,14 +319,15 @@ export function ChatThreadPanel({
                 >
                   {uploading ? "…" : "📎"}
                 </button>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  className="px-3"
                   onClick={send}
                   disabled={busy || overLimit || (!draft.trim() && !attachments.length)}
-                  className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1 text-xs font-medium disabled:opacity-50"
                 >
                   {sending ? "Sending…" : "Send"}
-                </button>
+                </Button>
               </div>
             </div>
 

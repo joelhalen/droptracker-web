@@ -18,6 +18,7 @@ import { useActivityData } from "@/lib/activity/data-context";
 import { openExternal } from "@/lib/activity/discord-sdk";
 import { ClaimRsnFlow } from "@/components/setup/claim-rsn-flow";
 import type { ClaimResult, ClaimRsnClient, SetupEnv } from "@/components/setup/ports";
+import { Button } from "@/components/ui";
 
 export function ActivityClaimRsn({ onClaimed }: { onClaimed?: (res: ClaimResult) => void }) {
   const { sessionToken } = useActivityAuth();
@@ -56,13 +57,14 @@ export function ActivityClaimRsn({ onClaimed }: { onClaimed?: (res: ClaimResult)
             Claim your RuneScape name to see your loot, ranks, and badges here.
           </p>
         </div>
-        <button
-          type="button"
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark shrink-0 rounded px-3 py-1.5 text-sm font-medium"
+        <Button
+          variant="secondary"
+          size="sm"
+          className="shrink-0"
           onClick={() => setOpen((o) => !o)}
         >
           {open ? "Hide" : "Claim your RSN"}
-        </button>
+        </Button>
       </div>
       {open && (
         <div className="mt-3">
