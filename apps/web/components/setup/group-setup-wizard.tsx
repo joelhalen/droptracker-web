@@ -14,7 +14,7 @@
  * Server step collapses to a confirmation card.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { getErrorMessage } from "@/lib/errors";
 import {
   ChannelListDelayHint,
@@ -31,8 +31,6 @@ import type {
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
-const primaryBtn =
-  "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50";
 const ghostBtn =
   "border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-4 py-2 text-sm disabled:opacity-50";
 
@@ -508,9 +506,9 @@ export function GroupSetupWizard({
                     here. We&apos;ll detect it automatically.
                   </Alert>
                   <div className="flex items-center gap-3">
-                    <button type="button" className={primaryBtn} onClick={onInviteBot}>
+                    <Button variant="secondary" onClick={onInviteBot}>
                       Invite the DropTracker bot
-                    </button>
+                    </Button>
                     {polling && (
                       <span className="text-osrs-parchment-dark/60 text-xs">
                         Watching for the bot to join…
@@ -535,14 +533,13 @@ export function GroupSetupWizard({
           )}
 
           <div className="flex justify-end">
-            <button
-              type="button"
-              className={primaryBtn}
+            <Button
+              variant="secondary"
               disabled={!serverReady}
               onClick={() => gotoStep(1)}
             >
               Continue
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -570,14 +567,13 @@ export function GroupSetupWizard({
             </button>{" "}
             first — it drives your member list.
           </p>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onLookupWom}
             disabled={womLoading || !womInput.trim()}
-            className={primaryBtn}
           >
             {womLoading ? "Looking up…" : "Look up"}
-          </button>
+          </Button>
           {wom && !wom.already_registered && (
             <p className="text-osrs-green text-sm">
               Found <strong>{wom.name}</strong> · {wom.member_count} members ✓
@@ -587,14 +583,13 @@ export function GroupSetupWizard({
             <button type="button" className={ghostBtn} onClick={() => gotoStep(0)}>
               ← Back
             </button>
-            <button
-              type="button"
-              className={primaryBtn}
+            <Button
+              variant="secondary"
               disabled={!womReady}
               onClick={() => gotoStep(2)}
             >
               Continue
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -637,14 +632,13 @@ export function GroupSetupWizard({
             <button type="button" className={ghostBtn} onClick={() => gotoStep(1)}>
               ← Back
             </button>
-            <button
-              type="button"
-              className={primaryBtn}
+            <Button
+              variant="secondary"
               disabled={creating || !identityReady || !womReady || !serverReady}
               onClick={onCreate}
             >
               {creating ? "Creating…" : "Create group & continue"}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -682,14 +676,13 @@ export function GroupSetupWizard({
             <button type="button" className={ghostBtn} onClick={() => gotoStep(4)}>
               Skip for now
             </button>
-            <button
-              type="button"
-              className={primaryBtn}
+            <Button
+              variant="secondary"
               disabled={savingChannels || !channelsLoaded}
               onClick={onSaveChannels}
             >
               {savingChannels ? "Saving…" : "Save & continue"}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -746,13 +739,12 @@ export function GroupSetupWizard({
               Tip: relaunch the Activity to see your new clan everywhere in the app.
             </p>
           )}
-          <button
-            type="button"
-            className={primaryBtn}
+          <Button
+            variant="secondary"
             onClick={() => env.goToGroup(createdGroupId)}
           >
             Go to your group
-          </button>
+          </Button>
         </div>
       )}
     </div>

@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Alert, Card, fieldInputClass } from "@/components/ui";
+import { Alert, Button, Card, Input, Textarea } from "@/components/ui";
 
 export default function ReportSiteForm() {
   const params = useSearchParams();
@@ -58,8 +58,7 @@ export default function ReportSiteForm() {
       {state === "error" && <Alert variant="error">{error}</Alert>}
       <label className="mb-3 block text-sm">
         <span className="text-osrs-parchment-dark/80 mb-1 block">Site address (subdomain)</span>
-        <input
-          className={fieldInputClass}
+        <Input
           value={site}
           onChange={(e) => setSite(e.target.value)}
           placeholder="the-clan-site"
@@ -67,21 +66,20 @@ export default function ReportSiteForm() {
       </label>
       <label className="mb-4 block text-sm">
         <span className="text-osrs-parchment-dark/80 mb-1 block">What&apos;s wrong?</span>
-        <textarea
-          className={`${fieldInputClass} min-h-28`}
+        <Textarea
+          className="min-h-28"
           maxLength={2000}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
       </label>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
         disabled={state === "busy" || !reason.trim()}
-        className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
         onClick={submit}
       >
         {state === "busy" ? "Sending…" : "Send report"}
-      </button>
+      </Button>
     </Card>
   );
 }

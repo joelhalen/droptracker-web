@@ -11,14 +11,12 @@
  * guild's group (Activity) exactly like running the command in that server.
  */
 import { useEffect, useRef, useState } from "react";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { getErrorMessage } from "@/lib/errors";
 import type { ClaimPreview, ClaimResult, ClaimRsnClient, SetupEnv } from "./ports";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
-const primaryBtn =
-  "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50";
 
 const PLUGIN_URL = "https://www.droptracker.io/runelite";
 const DISCORD_URL = "https://discord.gg/droptracker";
@@ -185,13 +183,13 @@ export function ClaimRsnFlow({
 
       {error && <Alert variant="error">{error}</Alert>}
 
-      <button
+      <Button
+        variant="secondary"
         onClick={onClaim}
         disabled={claiming || checking || !rsn.trim() || (status !== null && status !== "claimable")}
-        className={primaryBtn}
       >
         {claiming ? "Claiming…" : "Claim this RSN"}
-      </button>
+      </Button>
     </div>
   );
 }
