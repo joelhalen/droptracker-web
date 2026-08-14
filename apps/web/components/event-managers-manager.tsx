@@ -15,7 +15,7 @@ import {
   removeEventManager,
 } from "@/app/(site)/(admin)/groups/[id]/event-managers/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Badge, NameTile } from "@/components/ui";
+import { Alert, Badge, Button, NameTile } from "@/components/ui";
 
 function displayName(m: EventManager): string {
   return m.username || (m.discord_id ? `Discord user ${m.discord_id}` : `User #${m.user_id}`);
@@ -77,13 +77,9 @@ export function EventManagersManager({
           className="border-osrs-bronze/40 bg-osrs-surface-1 focus:border-osrs-gold w-72 max-w-full rounded border px-3 py-2 text-sm outline-none"
           aria-label="Discord ID or DropTracker username"
         />
-        <button
-          type="submit"
-          disabled={pending || !identifier.trim()}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <Button type="submit" variant="secondary" disabled={pending || !identifier.trim()}>
           {pending ? "Working…" : "Add manager"}
-        </button>
+        </Button>
         {notice && <span className="text-osrs-green text-sm">{notice}</span>}
       </form>
       <p className="text-osrs-parchment-dark/60 -mt-4 text-xs">

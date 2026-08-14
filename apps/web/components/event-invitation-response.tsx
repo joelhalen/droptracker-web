@@ -15,7 +15,7 @@ import {
   declineEventInvitation,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Card } from "@/components/ui";
+import { Alert, Button, Card } from "@/components/ui";
 
 export function InvitationResponsePanel({
   groupId,
@@ -101,14 +101,9 @@ export function InvitationResponsePanel({
       </label>
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => respond(true)}
-          disabled={pending}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
-        >
+        <Button variant="secondary" onClick={() => respond(true)} disabled={pending}>
           {pending ? "Working…" : "Accept challenge"}
-        </button>
+        </Button>
         <button
           type="button"
           onClick={() => respond(false)}

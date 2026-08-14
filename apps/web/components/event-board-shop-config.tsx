@@ -25,7 +25,7 @@ import {
   saveEventBoardSettings,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
 
 const field =
@@ -365,14 +365,9 @@ export function EventBoardShopConfig({
       )}
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={saving}
-          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-        >
+        <Button variant="secondary" size="sm" onClick={onSave} disabled={saving}>
           {saving ? "Saving…" : "Save shop config"}
-        </button>
+        </Button>
         {saved && <span className="text-osrs-gold text-xs">Saved.</span>}
       </div>
     </fieldset>

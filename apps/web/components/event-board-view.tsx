@@ -120,7 +120,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { teamColorMap } from "@/lib/events";
 import { useEventStream } from "@/lib/use-event-stream";
 import { LiveStatusBadge } from "@/components/live-status-badge";
-import { Alert } from "@/components/ui";
+import { Alert, Button } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { HoverCard } from "@/components/hover-card";
 import { TaskDetailSheet, useCoarsePointer } from "@/components/task-detail";
@@ -637,14 +637,15 @@ export function EventBoardView({
 
                 {couldRoll && (
                   <>
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       disabled={rolling || !canRoll}
                       onClick={() => doRoll(p.team_id)}
-                      className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-2 w-full rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                      className="mt-2 w-full"
                     >
                       {rolling ? "Rolling…" : "🎲 Roll the dice"}
-                    </button>
+                    </Button>
                     {!canRoll && (
                       <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">
                         Your team&apos;s {leaderNoun} rolls for you

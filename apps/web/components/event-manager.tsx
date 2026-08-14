@@ -28,7 +28,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { materializeSchedule } from "@/lib/event-schedule";
 import { confirmDiscard } from "@/lib/use-unsaved-changes";
-import { Alert, EmptyState } from "@/components/ui";
+import { Alert, Button, EmptyState } from "@/components/ui";
 import {
   activateEvent,
   checkEventReadiness,
@@ -937,13 +937,14 @@ export function EventManager({
             )}
           </fieldset>
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={saveEditEvent}
               disabled={pending || !eventDraft.name.trim()}
-              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             >
               {pending ? "Saving…" : "Save"}
-            </button>
+            </Button>
             <button
               onClick={() => setEditingEvent(false)}
               disabled={pending}
@@ -1105,13 +1106,9 @@ export function EventManager({
                   >
                     {pending ? "Checking…" : "Check readiness"}
                   </button>
-                  <button
-                    onClick={onActivate}
-                    disabled={pending}
-                    className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold-bright rounded px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
-                  >
+                  <Button variant="primary" size="sm" onClick={onActivate} disabled={pending}>
                     {pending ? "Activating…" : "Activate"}
-                  </button>
+                  </Button>
                 </>
               )}
               {event.status === "active" &&
@@ -1309,15 +1306,16 @@ export function EventManager({
               </button>
             )}
             {taskFormFor !== -1 && !structuralFrozen && (
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   setTaskFormFor(-1);
                   setLibraryOpen(false);
                 }}
-                className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1.5 text-sm font-medium"
               >
                 New task
-              </button>
+              </Button>
             )}
           </span>
         </div>
