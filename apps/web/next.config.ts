@@ -69,8 +69,8 @@ const nextConfig: NextConfig = {
   // instance's build is never overwritten while it serves (deploy-web.sh sets
   // NEXT_DIST_DIR per colour). Defaults to `.next` for local dev / plain builds.
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
-  // The api-types package is consumed as TS source from the workspace.
-  transpilePackages: ["@droptracker/api-types"],
+  // The api-types and ui packages are consumed as TS source from the workspace.
+  transpilePackages: ["@droptracker/api-types", "@droptracker/ui"],
   typedRoutes: true,
   experimental: {
     // Group-icon uploads travel through a Server Action as multipart FormData;

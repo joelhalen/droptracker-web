@@ -17,7 +17,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { usePathname } from "next/navigation";
-import { FaDiscord } from "react-icons/fa6";
+import { DiscordIcon } from "@/components/icons";
+import { buttonVariants } from "@droptracker/ui";
 import type { Me } from "@droptracker/api-types";
 import { useMe } from "@/lib/use-me";
 import { HeaderNav, type NavTab } from "@/components/tab-nav";
@@ -113,9 +114,13 @@ function SignInLink({ className = "" }: { className?: string }) {
     <Link
       href="/api/auth/login"
       prefetch={false}
-      className={`bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors ${className}`}
+      className={buttonVariants({
+        variant: "secondary",
+        size: "sm",
+        className: `shrink-0 rounded-lg px-3.5 ${className}`,
+      })}
     >
-      <FaDiscord className="size-4 shrink-0" aria-hidden />
+      <DiscordIcon className="size-4 shrink-0" />
       Sign in with Discord
     </Link>
   );
