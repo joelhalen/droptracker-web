@@ -36,11 +36,18 @@ export function formatInline(text: string, keyPrefix: string): React.ReactNode[]
   const parts = text.split(pattern);
   return parts.filter(Boolean).map((part, i) => {
     const key = `${keyPrefix}-${i}`;
+    // Emphasis recurses: the most-used token of all, {player_name}, resolves
+    // to a markdown link, so `**{player_name}**` becomes `**[Ron](url)**` —
+    // which Discord draws as a bold link and a non-recursing formatter draws
+    // as the link's source text.
     if (part.startsWith("**") && part.endsWith("**"))
-      return <strong key={key}>{part.slice(2, -2)}</strong>;
-    if (part.startsWith("__") && part.endsWith("__")) return <u key={key}>{part.slice(2, -2)}</u>;
-    if (part.startsWith("~~") && part.endsWith("~~")) return <s key={key}>{part.slice(2, -2)}</s>;
-    if (part.startsWith("*") && part.endsWith("*")) return <em key={key}>{part.slice(1, -1)}</em>;
+      return <strong key={key}>{formatInline(part.slice(2, -2), key)}</strong>;
+    if (part.startsWith("__") && part.endsWith("__"))
+      return <u key={key}>{formatInline(part.slice(2, -2), key)}</u>;
+    if (part.startsWith("~~") && part.endsWith("~~"))
+      return <s key={key}>{formatInline(part.slice(2, -2), key)}</s>;
+    if (part.startsWith("*") && part.endsWith("*"))
+      return <em key={key}>{formatInline(part.slice(1, -1), key)}</em>;
     if (part.startsWith("`") && part.endsWith("`"))
       return (
         <code key={key} className="rounded bg-black/40 px-1 text-[0.9em]">
