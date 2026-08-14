@@ -33,6 +33,13 @@ const DATETIME_OPTS: Intl.DateTimeFormatOptions = {
   minute: "2-digit",
   timeZoneName: "short",
 };
+/** Clock only — for dense lists where the date is already established by a
+ * separator above (chat threads, web96a). The tooltip still carries the full
+ * UTC form, so the day is never actually ambiguous. */
+const TIME_OPTS: Intl.DateTimeFormatOptions = {
+  hour: "numeric",
+  minute: "2-digit",
+};
 
 function fmt(unix: number, opts: Intl.DateTimeFormatOptions, utc: boolean): string {
   return new Intl.DateTimeFormat(undefined, utc ? { ...opts, timeZone: "UTC" } : opts).format(
@@ -75,12 +82,12 @@ export function LocalTime({
   className,
 }: {
   unix: number | null | undefined;
-  mode?: "date" | "datetime";
+  mode?: "date" | "datetime" | "time";
   className?: string;
 }) {
   const mounted = useMounted();
   if (unix == null) return <span className={className}>—</span>;
-  const opts = mode === "date" ? DATE_OPTS : DATETIME_OPTS;
+  const opts = mode === "date" ? DATE_OPTS : mode === "time" ? TIME_OPTS : DATETIME_OPTS;
   const utcFull = `${fmt(unix, DATETIME_OPTS, true)}`;
   return (
     <time

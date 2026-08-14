@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import type { Route } from "next";
+import Link from "next/link";
 import type { EventParticipant } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
@@ -176,6 +178,24 @@ export function EventParticipantsPanel({
                 >
                   {p.status}
                 </span>
+                {/* web96a: the host's way into the per-clan negotiation — how
+                    you chase a pending invite instead of just watching it sit
+                    there. Opponents' rows have their own thread each. */}
+                {p.role !== "host" && (
+                  <Link
+                    href={
+                      `/groups/${groupId}/events/invitations/${eventId}?clan=${p.group_id}` as Route
+                    }
+                    className="text-osrs-gold-bright text-xs hover:underline"
+                  >
+                    Message
+                    {p.unread > 0 && (
+                      <span className="bg-osrs-gold text-osrs-brown-dark ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+                        {p.unread}
+                      </span>
+                    )}
+                  </Link>
+                )}
                 {isHost && p.role !== "host" && (
                   <button
                     onClick={() => onRemove(p.group_id)}

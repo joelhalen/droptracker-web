@@ -685,6 +685,11 @@ export const RealtimeEventSchema = z.object({
     "group_created",
     "new_player",
     "subscription",
+    // Chat (web96a). `chat_message` carries a full entry and only ever travels
+    // on the membership-gated `chat:{id}` scope; `chat_unread` is a badge hint
+    // (thread id only) on the viewer's own `user:{id}` scope.
+    "chat_message",
+    "chat_unread",
   ]),
   scope: z.string(),
   ts: z.number().int(),
@@ -4393,6 +4398,102 @@ export const EventTeamBulkAddResultSchema = z.object({
 });
 export type EventTeamBulkAddResult = z.infer<typeof EventTeamBulkAddResultSchema>;
 
+// --- Chat (web96a) -----------------------------------------------------------
+
+/**
+ * Threaded messaging. Deliberately generic: a thread is anchored to an
+ * arbitrary `(subject_type, subject_id)` and its participants are *parties* —
+ * a clan (`group`) spoken for by any of its authorized admins, or one person
+ * (`user`). The clan-vs-clan challenge is the first surface; nothing in these
+ * types knows about events.
+ */
+export const CHAT_PARTY_TYPES = ["group", "user"] as const;
+export type ChatPartyType = (typeof CHAT_PARTY_TYPES)[number];
+
+export const CHAT_THREAD_STATUSES = ["open", "locked", "archived"] as const;
+
+/** Typed timeline entries. The wording lives in the client, so rephrasing one
+ * never needs a backfill; the backend only stores the code and its nouns. */
+export const CHAT_SYSTEM_CODES = [
+  "invite_sent",
+  "invite_accepted",
+  "invite_declined",
+  "invite_withdrawn",
+  "event_activated",
+  "event_ended",
+] as const;
+export type ChatSystemCode = (typeof CHAT_SYSTEM_CODES)[number];
+
+/** Hard caps, mirrored from services/chat.py so the composer can enforce them
+ * before a round-trip. */
+export const CHAT_BODY_MAX_CHARS = 2000;
+export const CHAT_MAX_ATTACHMENTS = 4;
+
+export const ChatAttachmentSchema = z.object({
+  key: z.string(),
+  url: z.string(),
+});
+export type ChatAttachment = z.infer<typeof ChatAttachmentSchema>;
+
+export const ChatPartyRefSchema = z.object({
+  party_type: z.string(),
+  party_id: z.number().int(),
+  name: z.string().nullable().optional(),
+});
+export type ChatPartyRef = z.infer<typeof ChatPartyRefSchema>;
+
+/** One entry in a thread. A tombstoned (`deleted`) row keeps its id, author and
+ * timestamp so the surrounding conversation still reads correctly, but carries
+ * no body or attachments. */
+export const ChatMessageSchema = z.object({
+  id: z.number().int(),
+  thread_id: z.number().int(),
+  kind: z.enum(["message", "system"]),
+  author_user_id: z.number().int().nullable().optional(),
+  author_name: z.string().nullable().optional(),
+  party_type: z.string().nullable().optional(),
+  party_id: z.number().int().nullable().optional(),
+  created_at: z.number().int().nullable().optional(),
+  deleted: z.boolean().default(false),
+  body: z.string().nullable().optional(),
+  attachments: ChatAttachmentSchema.array().default([]),
+  system_code: z.string().nullable().optional(),
+  system_data: z.record(z.string(), z.unknown()).nullable().optional(),
+});
+export type ChatMessage = z.infer<typeof ChatMessageSchema>;
+
+export const ChatMessagePageSchema = z.object({
+  messages: ChatMessageSchema.array(),
+  has_more: z.boolean().default(false),
+});
+export type ChatMessagePage = z.infer<typeof ChatMessagePageSchema>;
+
+export const ChatThreadSchema = z.object({
+  id: z.number().int(),
+  kind: z.string(),
+  subject_type: z.string(),
+  subject_id: z.number().int(),
+  title: z.string().nullable().optional(),
+  status: z.enum(CHAT_THREAD_STATUSES),
+  created_at: z.number().int().nullable().optional(),
+  last_message_at: z.number().int().nullable().optional(),
+  unread: z.number().int().default(0),
+  participants: ChatPartyRefSchema.extend({
+    role: z.string(),
+  }).array().default([]),
+  /** Every party the viewer may speak as — usually one, but somebody who
+   * administers BOTH clans in a battle gets both rather than having one
+   * silently picked for them. */
+  my_parties: ChatPartyRefSchema.array().default([]),
+  can_post: z.boolean().default(false),
+  is_moderator: z.boolean().default(false),
+  last_read_message_id: z.number().int().optional(),
+  /** Only on the clan-vs-clan resolver (GET /events/{id}/participants/{gid}/thread). */
+  participant_status: z.string().optional(),
+  participant_role: z.string().optional(),
+});
+export type ChatThread = z.infer<typeof ChatThreadSchema>;
+
 // --- Clan-vs-clan participants (Implementation Plan B) -----------------------
 
 /** One clan on a clan-vs-clan event's roster (GET /events/{id}/participants). */
@@ -4403,6 +4504,9 @@ export const EventParticipantSchema = z.object({
   status: z.enum(EVENT_PARTICIPANT_STATUSES),
   invited_at: z.number().int().nullable().optional(),
   responded_at: z.number().int().nullable().optional(),
+  /** This clan's negotiation thread with the host (web96a), if one exists. */
+  thread_id: z.number().int().nullable().optional(),
+  unread: z.number().int().default(0),
 });
 export type EventParticipant = z.infer<typeof EventParticipantSchema>;
 
@@ -4414,6 +4518,14 @@ export const EventInvitationSchema = z.object({
   group_name: z.string().nullable().optional(),
   host_group_name: z.string().nullable().optional(),
   invited_at: z.number().int().nullable().optional(),
+  /**
+   * The negotiation thread with the challenging clan (web96a). Null for
+   * invitations sent before chat shipped — opening the invitation page
+   * creates one, so the UI links there either way and only hides the
+   * unread pill.
+   */
+  thread_id: z.number().int().nullable().optional(),
+  unread: z.number().int().default(0),
 });
 export type EventInvitation = z.infer<typeof EventInvitationSchema>;
 
@@ -4584,6 +4696,58 @@ export const TicketActionInputSchema = z.object({
   action: z.enum(["claim", "unclaim", "close"]),
 });
 export type TicketActionInput = z.infer<typeof TicketActionInputSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* File transfers (web95a) — the unlisted /file-transfer hand-off page         */
+/* -------------------------------------------------------------------------- */
+
+/** Who supplied a given version: the transfer's owner, or staff answering it. */
+export const TransferUploaderRoleSchema = z.enum(["user", "staff"]);
+export type TransferUploaderRole = z.infer<typeof TransferUploaderRoleSchema>;
+
+/** One uploaded revision. Version 1 is always the user's original; staff
+ *  replies land as 2, 3, … and every version stays downloadable. */
+export const FileTransferVersionSchema = z.object({
+  id: z.number().int(),
+  version: z.number().int(),
+  filename: z.string(),
+  content_type: z.string(),
+  size_bytes: z.number().int(),
+  uploaded_by: z.number().int(),
+  uploaded_by_name: z.string().nullable(),
+  uploaded_by_role: TransferUploaderRoleSchema,
+  /** Whether the backend will serve this inline (an inert type — never SVG or
+   *  HTML). Drives whether a "View" affordance is offered next to Download. */
+  can_preview: z.boolean(),
+  created_at: z.number().int().nullable(),
+});
+export type FileTransferVersion = z.infer<typeof FileTransferVersionSchema>;
+
+export const FileTransferSchema = z.object({
+  id: z.number().int(),
+  title: z.string(),
+  note: z.string().nullable(),
+  owner_user_id: z.number().int(),
+  owner_name: z.string().nullable(),
+  latest_version: z.number().int(),
+  created_at: z.number().int().nullable(),
+  updated_at: z.number().int().nullable(),
+  /** Retention stamp: 30 days past the NEWEST version, so a staff reply
+   *  extends the whole transfer rather than racing the original's expiry. */
+  expires_at: z.number().int().nullable(),
+  versions: z.array(FileTransferVersionSchema),
+});
+export type FileTransfer = z.infer<typeof FileTransferSchema>;
+
+/** Both the owner's list and the staff list share this shape; the limits ride
+ *  along so the browser cap can't drift from the API's. */
+export const FileTransferPageSchema = z.object({
+  items: z.array(FileTransferSchema),
+  meta: PageMetaSchema,
+  max_bytes: z.number().int(),
+  retention_days: z.number().int(),
+});
+export type FileTransferPage = z.infer<typeof FileTransferPageSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Suggestion forum (/suggestions) — threads mirrored two-way with Discord     */

@@ -42,13 +42,21 @@ scripts/deploy.sh     Blue-green production deploy
   `/personal-bests`, `/suggestions[/new|/id]`, `/premium`
 - `(dashboard)` — authed: `/dashboard`, `/settings`, `/submit`, `/register`,
   `/tickets[/id]` (guard: `requireUser()` in the layout)
+- `/file-transfer` (web95a) — authed but **unlisted**: any signed-in user may
+  send staff a file (25 MB, any type, kept 30 days). Sits directly under
+  `(site)`, NOT in `(dashboard)`, because that layout's
+  `requireUser("/dashboard")` runs before a nested page's guard and would bounce
+  a signed-out visitor to the dashboard instead of back to the link they were
+  given. Staff side: `/admin/file-transfers`.
 - `(admin)` — group admin under `/groups/[id]/…` (`settings`, `members`,
   `admin`, `authorized`, `announcements`, `events[/eventId[/discord]]`,
   `event-managers`, `embeds`, `points[/manage]`, `submissions`, `subscription`,
-  `diagnostics`) + `/groups/new` wizard; and the staff `/admin/*` shell
+  `diagnostics`, `events/invitations/[eventId]` — the clan-vs-clan challenge
+  view a Discord DM links to: accept/decline plus a live thread with the
+  challenger) + `/groups/new` wizard; and the staff `/admin/*` shell
   (web87a: developers see the diagnostic subset — audit, data (read-only),
-  logs, lookup, services status, status, projects, task-library, item-values,
-  personal-bests — while superadmins additionally get events, event-limits,
+  logs, lookup, file-transfers, services status, status, projects, task-library,
+  item-values, personal-bests — while superadmins additionally get events, event-limits,
   event-types, groups, users, announcements, docs, discord, tiers, badges,
   backups, b2, subscriptions, tickets, redirects, boardgame-shop, plus
   service control and data editing)
@@ -64,6 +72,8 @@ scripts/deploy.sh     Blue-green production deploy
 
 - Site: `auth/{login,callback,logout}`, `me`, `stream` (SSE proxy),
   `feed/recent`, `search`, `health`, `redirects`, `uploads/proof`,
+  `file-transfers[/[id]/versions/[version]/download]`,
+  `admin/file-transfers/[id]/versions`,
   `players/[id]/{card,loot}`, `groups/[id]/card`,
   `events/[id]/{completions/history,players/[playerId],tasks/[taskId]/breakdown}`
 - Activity: `api/activity/*` — a parallel BFF surface (~45 handlers) covering
@@ -82,11 +92,13 @@ scripts/deploy.sh     Blue-green production deploy
 | `apps/web/lib/activity/` | Activity-only client: `discord-sdk.ts`, `auth-context.tsx`, `data-context.tsx`, `api.ts` (client-side, Zod-parsed), `nav.tsx` |
 | `apps/web/lib/use-event-stream.ts` | SSE client hook (reconnect + Zod validation) |
 | `apps/web/lib/events.ts`, `loot-sweep*.ts` | Pure event/board shaping logic — unit-tested, keep logic here not in components |
+| `apps/web/lib/chat.ts` | Pure chat shaping — message sides (by PARTY, not author), system-entry wording, id-keyed merge, day/block grouping. Unit-tested; keep it out of the components |
 | `apps/web/lib/mock-data.ts` | Mock payloads (contract-tested), powers `USE_MOCK_API=true` |
 | `apps/web/components/ui.tsx` | Design-system primitives (`Card`, `EmptyState`, `StatTile`, …) |
 | `apps/web/components/config-editor.tsx` | Typed group-config form driven by the shared key registry |
 | `apps/web/components/event-*.tsx` | Events v2 UI: create/wizard, task form, bingo designer, board designer, manager, review queue, Discord config, layouts, sign-up tools, live board |
 | `apps/web/components/loot-sweep-*.tsx` | Loot-sweep matrix board, standings, receipt cards, editor |
+| `apps/web/components/chat/` | Generic live thread panel + message row (web96a). Props are a thread and its first page — no event-specific logic, so the next surface mounts it unchanged. Server actions live in `app/(site)/chat-actions.ts` |
 | `apps/web/components/activity/`, `components/setup/` | Activity views; shared group-setup + RSN-claim flows (site and activity) |
 | `apps/web/components/admin/` | Superadmin panels (audit, badges, data browser, docs CMS, users, logs, tickets, backups, …) |
 | `packages/api-types/src/` | Hand-authored Zod schemas + group-config/entitlements/tier-flair registries |
@@ -113,7 +125,11 @@ scripts/deploy.sh     Blue-green production deploy
    its own guard. Role failures use the `unauthorized()` / `forbidden()`
    interrupts (real 401/403 pages), not silent redirects.
 6. **Realtime = SSE** via `/api/stream` proxy; scopes: `global`, `feed`,
-   `group:{id}`, `player:{id}`, `event:{id}`.
+   `group:{id}`, `player:{id}`, `event:{id}`, `chat:{id}`, `user:{id}`. The last
+   two are web96a: `chat:` carries message bodies and the Web API gates it on
+   thread membership; `user:` carries badge hints and is identity-checked.
+   `useEventStream` already shares and refcounts one `EventSource` per channel
+   set — never open your own.
 7. **Docs content lives in the DB** (superadmin CMS `/admin/docs`), not the repo.
 8. **`next build` does not lint.** `eslint: { ignoreDuringBuilds: true }` is
    deliberate — `next build`'s own ESLint pass diverges from `eslint .` and used

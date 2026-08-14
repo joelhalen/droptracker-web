@@ -8,6 +8,9 @@ import {
   AdminSubscriptionsOverviewSchema,
   AnnouncementPageSchema,
   AdminTicketPageSchema,
+  FileTransferPageSchema,
+  ChatThreadSchema,
+  ChatMessageSchema,
   GroupSubscriptionSchema,
   GroupSubscriptionSummarySchema,
   EventDetailSchema,
@@ -51,7 +54,10 @@ import {
   RecapSchema,
   RecapIndexSchema,
   allConfigKeys,
+  comingSoonNote,
   getConfigField,
+  GROUP_CONFIG_FIELDS,
+  type ConfigField,
 } from "@droptracker/api-types";
 import openapi from "@droptracker/api-types/openapi" with { type: "json" };
 import {
@@ -75,6 +81,9 @@ import {
   mockGroupSubscriptionSummary,
   mockLookup,
   mockLootboard,
+  mockChatMessages,
+  mockChatThreads,
+  mockFileTransfers,
   mockMyTickets,
   mockTicket,
   mockMe,
@@ -154,6 +163,12 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => TicketPageSchema.parse(mockMyTickets()));
   assert.doesNotThrow(() => TicketDetailSchema.parse(mockTicket(2)));
   assert.doesNotThrow(() => AdminTicketPageSchema.parse(mockAdminTickets()));
+  assert.doesNotThrow(() => FileTransferPageSchema.parse(mockFileTransfers()));
+  // Chat (web96a): the mock thread and every entry type it renders — system,
+  // both sides, and a tombstoned row — must satisfy the wire schema, since
+  // USE_MOCK_API drives the whole invitation page off them.
+  assert.doesNotThrow(() => ChatThreadSchema.array().parse(mockChatThreads));
+  assert.doesNotThrow(() => ChatMessageSchema.array().parse(mockChatMessages));
   assert.doesNotThrow(() => SupportersSchema.parse(mockSupporters()));
   assert.doesNotThrow(() => PbBossIndexSchema.parse(mockPbBosses()));
   assert.doesNotThrow(() => PbBossIndexSchema.parse(mockPbBosses(101)));
@@ -417,6 +432,34 @@ test("group-config registry resolves all keys", () => {
   assert.equal(getConfigField("seasonal_boards")?.key, "seasonal_boards");
   // An empty patch is always valid (PATCH sends only changed keys).
   assert.doesNotThrow(() => GroupConfigPatchSchema.parse({}));
+});
+
+// `comingSoon` is presentational only: it must never make a field unsaveable,
+// or admins would be told to configure something ahead of release and then be
+// unable to. So a flagged field still validates and still round-trips a patch.
+test("comingSoon fields stay editable", () => {
+  const base: ConfigField = {
+    key: "test_key",
+    label: "Test",
+    category: "integration",
+    type: "boolean",
+    help: "",
+    default: false,
+  };
+  assert.ok(comingSoonNote({ ...base, comingSoon: true }));
+  assert.equal(comingSoonNote({ ...base, comingSoon: "Needs plugin 1.2.3." }), "Needs plugin 1.2.3.");
+  // Unflagged fields are the common case and must stay unannotated.
+  assert.equal(comingSoonNote(base), null);
+
+  // Any field the registry currently flags must still accept a value.
+  for (const field of GROUP_CONFIG_FIELDS.filter((f) => f.comingSoon)) {
+    const sample =
+      field.type === "boolean" ? true : field.type === "int" ? (field.min ?? 0) : String(field.default ?? "");
+    assert.doesNotThrow(
+      () => GroupConfigPatchSchema.parse({ [field.key]: sample }),
+      `coming-soon field ${field.key} rejects a valid value`,
+    );
+  }
 });
 
 // Recap payloads are an ARCHIVE: rows written under an older schema_version are

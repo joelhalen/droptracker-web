@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   CONFIG_CATEGORIES,
   GROUP_CONFIG_FIELDS,
+  comingSoonNote,
   getConfigField,
   type ConfigField,
   type GroupSubscription,
@@ -18,7 +19,7 @@ import {
 import { getErrorMessage, isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
 import { viewerZone } from "@/components/local-time";
-import { Alert, Card, fieldInputClass } from "@/components/ui";
+import { Alert, Badge, Card, fieldInputClass } from "@/components/ui";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { BossListPicker } from "@/components/boss-list-picker";
 import { BoardStylePicker } from "@/components/board-style-picker";
@@ -536,6 +537,7 @@ function ToggleField({
   locked?: boolean;
   groupId: number;
 }) {
+  const pendingNote = comingSoonNote(field);
   return (
     <button
       type="button"
@@ -550,8 +552,10 @@ function ToggleField({
         <span className="block text-sm font-medium">
           {field.label}
           {locked ? <span className="text-osrs-parchment-dark/50 ml-1 text-xs">🔒 Premium</span> : null}
+          {pendingNote ? <ComingSoonBadge /> : null}
         </span>
         <span className="text-osrs-parchment-dark/60 mt-0.5 block text-xs">{field.help}</span>
+        {pendingNote ? <ComingSoonHint note={pendingNote} /> : null}
         {locked ? <LockedFieldHint groupId={groupId} /> : null}
       </span>
       <span
@@ -590,13 +594,16 @@ function InputField({
   groupId: number;
 }) {
   const disabled = locked;
+  const pendingNote = comingSoonNote(field);
   return (
     <label className={`block ${disabled ? "opacity-60" : ""}`}>
       <span className="block text-sm font-medium">
         {field.label}
         {locked ? <span className="text-osrs-parchment-dark/50 ml-1 text-xs">🔒 Premium</span> : null}
+        {pendingNote ? <ComingSoonBadge /> : null}
       </span>
       <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">{field.help}</span>
+      {pendingNote ? <ComingSoonHint note={pendingNote} /> : null}
       {locked ? <LockedFieldHint groupId={groupId} /> : null}
       {field.type === "select" ? (
         <select
@@ -652,6 +659,7 @@ function InputField({
         />
       ) : field.type === "password" ? (
         <PasswordInput
+          name={field.key}
           value={String(value ?? "")}
           onChange={(v) => onChange(v)}
           disabled={disabled}
@@ -672,13 +680,18 @@ function InputField({
 }
 
 /** Masked input for secret config values (e.g. the WOM verification code),
- * with a reveal toggle. Autocomplete is disabled so browsers don't offer to
- * save it as a login password. */
+ * with a reveal toggle. `autoComplete="off"` is not honored by Chrome/Safari
+ * on type="password" inputs (they autofill saved site passwords into any
+ * password field regardless), so we use `autoComplete="new-password"`
+ * instead — the one value browsers actually respect for "don't offer a
+ * saved credential here", since these values aren't login passwords. */
 function PasswordInput({
+  name,
   value,
   onChange,
   disabled,
 }: {
+  name: string;
   value: string;
   onChange: (v: string) => void;
   disabled?: boolean;
@@ -688,7 +701,11 @@ function PasswordInput({
     <div className="relative">
       <input
         type={revealed ? "text" : "password"}
-        autoComplete="off"
+        autoComplete="new-password"
+        // A per-field name (not "password"/"code") keeps autofill heuristics,
+        // which sniff the name as well as the type, from treating this as a
+        // login field. Unique per key, so two secret fields never collide.
+        name={`dt-cfg-${name}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
@@ -761,6 +778,27 @@ function HallOfFameBotCallout() {
       </p>
     </div>
   );
+}
+
+/* --- "Coming soon" fields ----------------------------------------------------
+   Settings routinely ship here before the RuneLite plugin update that actually
+   feeds them clears the Plugin Hub. Left unmarked, that gap reads as a bug —
+   admins turn the setting on, see nothing happen, and open a ticket. So a field
+   flagged `comingSoon` in the registry wears a badge and states what it is
+   waiting on, while staying editable: configure it once now, and it starts
+   working when the release lands. */
+
+function ComingSoonBadge() {
+  return (
+    <Badge tone="sky" className="ml-2 align-middle" title="Not live yet">
+      <span aria-hidden>⏳</span>
+      Coming soon
+    </Badge>
+  );
+}
+
+function ComingSoonHint({ note }: { note: string }) {
+  return <span className="mt-1 block text-xs text-sky-400/90">{note}</span>;
 }
 
 function LockedFieldHint({ groupId }: { groupId: number }) {

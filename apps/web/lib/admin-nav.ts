@@ -32,6 +32,7 @@ export const ADMIN_SECTIONS: AdminNavSection[] = [
       { href: "/admin/users", label: "Users", desc: "Look up a user; manage superadmin access." },
       { href: "/admin/groups", label: "Groups", desc: "Introspect groups; grant or revoke comped subscriptions." },
       { href: "/admin/tickets", label: "Tickets", desc: "Support tickets and archived transcripts.", matchPrefix: true },
+      { href: "/admin/file-transfers", minRole: "developer", label: "File transfers", desc: "Files users sent from /file-transfer; reply with an updated version." },
       { href: "/admin/lookup", minRole: "developer", label: "Lookup", desc: "Cross-content search across players, groups, and drops." },
       { href: "/admin/audit", minRole: "developer", label: "Audit log", desc: "Every admin action taken on the site." },
     ],

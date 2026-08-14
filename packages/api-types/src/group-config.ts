@@ -52,6 +52,35 @@ export interface ConfigField {
   seasonalMirror?: boolean;
   /** Subscription entitlement required to edit this field (Task 15). */
   entitlement?: string;
+  /**
+   * Marks a setting whose supporting release hasn't shipped yet — usually a
+   * RuneLite plugin update still awaiting Plugin Hub approval, occasionally a
+   * backend rollout. The editor renders a "Coming soon" badge and this note.
+   *
+   * The field stays fully editable and saves normally: groups configure it
+   * once, ahead of the release, and it starts working the moment support
+   * lands. Purely presentational — it gates nothing in validation or in the
+   * save path, so the backend registry needs no matching entry.
+   *
+   * Prefer a string stating the actual dependency ("Requires the next RuneLite
+   * plugin update…"). `true` falls back to a generic note, which answers the
+   * "why isn't this doing anything?" question far less well.
+   *
+   * Clear the flag when the release ships — nothing expires it automatically.
+   */
+  comingSoon?: boolean | string;
+}
+
+const COMING_SOON_GENERIC_NOTE =
+  "This setting isn't live yet. You can configure it now — it takes effect once support ships.";
+
+/**
+ * User-facing note for a pending field, or null when the field is live.
+ * Seasonal mirrors resolve to their base field, so they inherit the flag.
+ */
+export function comingSoonNote(field: ConfigField): string | null {
+  if (!field.comingSoon) return null;
+  return typeof field.comingSoon === "string" ? field.comingSoon : COMING_SOON_GENERIC_NOTE;
 }
 
 export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
@@ -210,11 +239,14 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "group_name", label: "Group name", category: "integration", type: "string", help: "Display name of the group. Renaming updates it everywhere — group page, leaderboards, search and Discord messages.", default: "", maxLength: 30 },
   { key: "group_description", label: "Description", category: "integration", type: "text", help: "Short description shown on the public group page.", default: "" },
   { key: "clan_chat_name", label: "Clan chat name", category: "integration", type: "string", help: "Your in-game clan chat channel name, exactly as it appears in game. Required for clan broadcast tracking: relayed broadcasts only bind to this group when the relayer's clan matches this name.", default: "" },
-  { key: "clan_broadcast_tracking", label: "Clan broadcast tracking", category: "integration", type: "boolean", help: "Track drops, pets and collection log slots for members who don't run the plugin, parsed from in-game clan broadcast messages relayed by clanmates who do. Requires the clan chat name to be set. Chat-tracked entries are unverified, carry no screenshots, and never count toward events, points or splits.", default: false },
-  { key: "clan_broadcast_min_value", label: "Clan broadcast minimum value", category: "integration", type: "int", help: "Extra GP floor for chat-relayed drops: broadcasts below this are not recorded for this group at all. 0 records everything the clan's in-game broadcast threshold lets through.", default: 0, min: 0 },
-  { key: "clan_broadcast_notify_without_images", label: "Notify clan broadcasts without screenshots", category: "integration", type: "boolean", help: "Relayed clan broadcasts never carry a screenshot, so leave this on if you use \"Only send messages with images\" — otherwise chat-tracked drops, personal bests, pets and collection log slots are recorded but never announced. Turn it off to keep those announcements out of your channels entirely.", default: true },
-  { key: "clan_chat_bridge_enabled", label: "Clan chat bridge", category: "integration", type: "boolean", help: "Two-way sync between your in-game clan chat and the bridge channel: game chat is mirrored into the channel, and channel messages appear in game for members running the plugin with the bridge enabled. Requires the clan chat name and a bridge channel.", default: false },
-  { key: "channel_id_clan_chat_bridge", label: "Clan chat bridge channel", category: "integration", type: "channel", help: "The Discord channel your in-game clan chat is mirrored to, and whose messages are relayed into the game. Anyone who can type in this channel can speak to the clan — restrict it accordingly.", default: null },
+  // Clan broadcast tracking and the chat bridge both depend on the plugin
+  // relaying in-game chat, which has not reached the Plugin Hub yet — hence
+  // `comingSoon` on all five keys. Clear these once that release is live.
+  { key: "clan_broadcast_tracking", label: "Clan broadcast tracking", category: "integration", type: "boolean", help: "Track drops, pets and collection log slots for members who don't run the plugin, parsed from in-game clan broadcast messages relayed by clanmates who do. Requires the clan chat name to be set. Chat-tracked entries are unverified, carry no screenshots, and never count toward events, points or splits.", default: false, comingSoon: "Waiting on a RuneLite plugin update that isn't published yet — nothing is relayed until your members have it. Set this up now and it starts working the moment that release lands." },
+  { key: "clan_broadcast_min_value", label: "Clan broadcast minimum value", category: "integration", type: "int", help: "Extra GP floor for chat-relayed drops: broadcasts below this are not recorded for this group at all. 0 records everything the clan's in-game broadcast threshold lets through.", default: 0, min: 0, comingSoon: "Applies to clan broadcast tracking, which is waiting on an unpublished RuneLite plugin update." },
+  { key: "clan_broadcast_notify_without_images", label: "Notify clan broadcasts without screenshots", category: "integration", type: "boolean", help: "Relayed clan broadcasts never carry a screenshot, so leave this on if you use \"Only send messages with images\" — otherwise chat-tracked drops, personal bests, pets and collection log slots are recorded but never announced. Turn it off to keep those announcements out of your channels entirely.", default: true, comingSoon: "Applies to clan broadcast tracking, which is waiting on an unpublished RuneLite plugin update." },
+  { key: "clan_chat_bridge_enabled", label: "Clan chat bridge", category: "integration", type: "boolean", help: "Two-way sync between your in-game clan chat and the bridge channel: game chat is mirrored into the channel, and channel messages appear in game for members running the plugin with the bridge enabled. Requires the clan chat name and a bridge channel.", default: false, comingSoon: "Waiting on a RuneLite plugin update that isn't published yet — no chat is mirrored in either direction until your members have it. Set this up now and it starts working the moment that release lands." },
+  { key: "channel_id_clan_chat_bridge", label: "Clan chat bridge channel", category: "integration", type: "channel", help: "The Discord channel your in-game clan chat is mirrored to, and whose messages are relayed into the game. Anyone who can type in this channel can speak to the clan — restrict it accordingly.", default: null, comingSoon: "Applies to the clan chat bridge, which is waiting on an unpublished RuneLite plugin update." },
   { key: "discord_url", label: "Discord invite URL", category: "integration", type: "string", help: "Public Discord invite shown on the group page.", default: "" },
   { key: "auto_provision_members", label: "Auto-add WiseOldMan members", category: "integration", type: "boolean", help: "Creates DropTracker profiles ahead of time for everyone in this group's linked WiseOldMan group, so members join this group automatically the moment they install the plugin — instead of waiting up to an hour for the next member sync.", default: false },
   { key: "export_api_key", label: "Export API key", category: "integration", type: "string", help: "Per-group key used for on-demand WOM sync. Treat as a secret.", default: null },

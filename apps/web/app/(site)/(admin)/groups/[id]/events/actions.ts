@@ -47,7 +47,7 @@ import {
   validateDescription,
   type GenerateResult,
 } from "@/lib/ai-task-gen";
-import { getUser, canAdminGroup, canManageEvents } from "@/lib/auth";
+import { getUser, canManageEvents } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
 
 /** Event scope: a group id, or `null` for global events (superadmin-only —
@@ -470,6 +470,22 @@ export async function bulkInviteEventParticipants(
   return result;
 }
 
+/**
+ * May the caller answer a challenge on behalf of `clanGroupId`?
+ *
+ * Owner/admin or event manager — the same set the backend's
+ * `_assert_admin_of_group` admits. Deliberately NOT the events-entitlement
+ * gate: the invited clan never pays for a battle the host hosts.
+ */
+async function assertCanAnswerForClan(clanGroupId: number) {
+  const user = await getUser();
+  if (!user) throw new Error("Forbidden: sign in required.");
+  if (!canManageEvents(user, clanGroupId) && !user.is_superadmin) {
+    throw new Error("Forbidden: you do not administer that clan.");
+  }
+  return user;
+}
+
 export async function acceptEventInvitation(
   groupId: EventGroupId,
   eventId: number,
@@ -477,11 +493,11 @@ export async function acceptEventInvitation(
   opts?: { createDiscordEvent?: boolean },
 ) {
   // Accepting clan admin — no events entitlement required on their side.
-  const user = await getUser();
-  if (!user) throw new Error("Forbidden: sign in required.");
-  if (!canAdminGroup(user, invitedGroupId) && !user.is_superadmin) {
-    throw new Error("Forbidden: you do not administer that clan.");
-  }
+  // web96a: event managers count too (canManageEvents subsumes canAdminGroup),
+  // matching the backend's _assert_admin_of_group. web64a already trusts them
+  // to run the clan battle; barring them from the answer that starts one was
+  // incoherent.
+  await assertCanAnswerForClan(invitedGroupId);
   await api.acceptEventInvitation(eventId, invitedGroupId, opts);
   revalidatePath(eventsIndexPath(groupId));
   revalidatePath(eventAdminPath(groupId, eventId));
@@ -494,11 +510,7 @@ export async function declineEventInvitation(
   eventId: number,
   invitedGroupId: number,
 ) {
-  const user = await getUser();
-  if (!user) throw new Error("Forbidden: sign in required.");
-  if (!canAdminGroup(user, invitedGroupId) && !user.is_superadmin) {
-    throw new Error("Forbidden: you do not administer that clan.");
-  }
+  await assertCanAnswerForClan(invitedGroupId);
   await api.declineEventInvitation(eventId, invitedGroupId);
   revalidatePath(eventsIndexPath(groupId));
   return { ok: true as const };

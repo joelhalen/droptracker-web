@@ -95,9 +95,25 @@ export function EventInvitationsInbox({
                 >
                   Decline
                 </button>
+                {/* web96a: the full challenge view — event detail, the same
+                    accept/decline, and a live thread with the challenger.
+                    Also where the Discord DM's button lands. */}
+                <Link
+                  href={
+                    `/groups/${groupId}/events/invitations/${inv.event.id}` as Route
+                  }
+                  className="text-osrs-gold-bright hover:underline px-2 py-1 text-xs"
+                >
+                  Review &amp; discuss
+                  {inv.unread > 0 && (
+                    <span className="bg-osrs-gold text-osrs-brown-dark ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
+                      {inv.unread}
+                    </span>
+                  )}
+                </Link>
                 <Link
                   href={`/events/${inv.event.id}` as Route}
-                  className="text-osrs-gold-bright hover:underline px-2 py-1 text-xs"
+                  className="text-osrs-parchment-dark/60 hover:underline px-2 py-1 text-xs"
                 >
                   Preview
                 </Link>

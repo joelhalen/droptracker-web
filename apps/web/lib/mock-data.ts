@@ -5,6 +5,9 @@
  */
 import type {
   AccountSettings,
+  EventParticipant,
+  ChatMessage,
+  ChatThread,
   AdminLookupResponse,
   AnnouncementPage,
   EventChannelConfig,
@@ -71,6 +74,7 @@ import type {
   SuggestionSummary,
   Supporters,
   AdminTicketPage,
+  FileTransferPage,
   TicketDetail,
   TicketPage,
   TicketSummary,
@@ -3145,6 +3149,55 @@ export function mockAdminTickets(page = 1): AdminTicketPage {
   };
 }
 
+/** One transfer with a staff reply already on it, so the versions list has
+ *  something to render in mock mode (the whole point of the feature). */
+export function mockFileTransfers(page = 1): FileTransferPage {
+  return {
+    items: [
+      {
+        id: 41,
+        title: "loot-export.csv",
+        note: "Here's the export you asked for.",
+        owner_user_id: 1337,
+        owner_name: "zezima",
+        latest_version: 2,
+        created_at: MOCK_NOW - 86_400,
+        updated_at: MOCK_NOW - 3_600,
+        expires_at: MOCK_NOW + 29 * 86_400,
+        versions: [
+          {
+            id: 91,
+            version: 1,
+            filename: "loot-export.csv",
+            content_type: "text/plain",
+            size_bytes: 244_129,
+            uploaded_by: 1337,
+            uploaded_by_name: "zezima",
+            uploaded_by_role: "user",
+            can_preview: true,
+            created_at: MOCK_NOW - 86_400,
+          },
+          {
+            id: 92,
+            version: 2,
+            filename: "loot-export-fixed.csv",
+            content_type: "text/plain",
+            size_bytes: 251_004,
+            uploaded_by: 1,
+            uploaded_by_name: "joelhalen",
+            uploaded_by_role: "staff",
+            can_preview: true,
+            created_at: MOCK_NOW - 3_600,
+          },
+        ],
+      },
+    ],
+    meta: { page, limit: 25, total: 1 },
+    max_bytes: 25 * 1024 * 1024,
+    retention_days: 30,
+  };
+}
+
 export function mockManualSubmissions(): ManualSubmissionQueue {
   const now = Math.floor(Date.now() / 1000);
   return {
@@ -3184,4 +3237,149 @@ export function mockManualSubmissions(): ManualSubmissionQueue {
     ],
     pending_count: 1,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Chat (web96a)                                                              */
+/* -------------------------------------------------------------------------- */
+
+/** One clan-vs-clan negotiation thread. The viewer is an admin of Clan B (the
+ *  challenged side), which is the case the invitation page renders. */
+export const mockChatThreads: ChatThread[] = [
+  {
+    id: 1,
+    kind: "event_invite",
+    subject_type: "event_group",
+    subject_id: 55,
+    title: "Iron Wolves vs Clan 1",
+    status: "open",
+    created_at: MOCK_NOW - 7_200,
+    last_message_at: MOCK_NOW - 600,
+    unread: 1,
+    participants: [
+      { party_type: "group", party_id: 10, role: "owner", name: "Iron Wolves" },
+      { party_type: "group", party_id: 101, role: "member", name: "Clan 1" },
+    ],
+    my_parties: [{ party_type: "group", party_id: 101, name: "Clan 1" }],
+    can_post: true,
+    is_moderator: false,
+    last_read_message_id: 2,
+  },
+];
+
+/** A timeline that exercises every renderer: a system entry, a message from
+ *  each side, and a tombstoned row. */
+export const mockChatMessages: ChatMessage[] = [
+  {
+    id: 1,
+    thread_id: 1,
+    kind: "system",
+    author_user_id: 501,
+    author_name: "wolfleader",
+    party_type: "group",
+    party_id: 10,
+    created_at: MOCK_NOW - 7_200,
+    deleted: false,
+    body: null,
+    attachments: [],
+    system_code: "invite_sent",
+    system_data: {
+      event_id: 7,
+      event_name: "Autumn Clash",
+      host_group_name: "Iron Wolves",
+      invited_group_name: "Clan 1",
+    },
+  },
+  {
+    id: 2,
+    thread_id: 1,
+    kind: "message",
+    author_user_id: 501,
+    author_name: "wolfleader",
+    party_type: "group",
+    party_id: 10,
+    created_at: MOCK_NOW - 7_100,
+    deleted: false,
+    body: "Hey! Up for a week-long clash starting the 1st? We're thinking 2 teams a side.",
+    attachments: [],
+    system_code: null,
+    system_data: null,
+  },
+  {
+    id: 3,
+    thread_id: 1,
+    kind: "message",
+    author_user_id: 1337,
+    author_name: "zezima",
+    party_type: "group",
+    party_id: 101,
+    created_at: MOCK_NOW - 3_600,
+    deleted: false,
+    body: "Interested. Can we push the start to the 3rd? Half our roster is away that weekend.",
+    attachments: [],
+    system_code: null,
+    system_data: null,
+  },
+  {
+    id: 4,
+    thread_id: 1,
+    kind: "message",
+    author_user_id: 501,
+    author_name: "wolfleader",
+    party_type: "group",
+    party_id: 10,
+    created_at: MOCK_NOW - 1_200,
+    deleted: true,
+    body: null,
+    attachments: [],
+    system_code: null,
+    system_data: null,
+  },
+  {
+    id: 5,
+    thread_id: 1,
+    kind: "message",
+    author_user_id: 501,
+    author_name: "wolfleader",
+    party_type: "group",
+    party_id: 10,
+    created_at: MOCK_NOW - 600,
+    deleted: false,
+    body: "The 3rd works. Here's the task list we had in mind:",
+    attachments: [
+      {
+        key: "dt_uploads/mock-tasklist.png",
+        url: "https://www.droptracker.io/img/itemdb/20997.png",
+      },
+    ],
+    system_code: null,
+    system_data: null,
+  },
+];
+
+/** The roster behind the mock thread: the challenger and the mock user's own
+ *  clan, so the invitation page renders end to end under USE_MOCK_API. */
+export function mockEventParticipants(): EventParticipant[] {
+  return [
+    {
+      group_id: 10,
+      group_name: "Iron Wolves",
+      role: "host",
+      status: "accepted",
+      invited_at: MOCK_NOW - 7_200,
+      responded_at: MOCK_NOW - 7_200,
+      thread_id: null,
+      unread: 0,
+    },
+    {
+      group_id: 101,
+      group_name: "Clan 1",
+      role: "opponent",
+      status: "invited",
+      invited_at: MOCK_NOW - 7_200,
+      responded_at: null,
+      thread_id: 1,
+      unread: 1,
+    },
+  ];
 }
