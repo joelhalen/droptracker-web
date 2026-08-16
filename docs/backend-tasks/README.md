@@ -75,6 +75,7 @@ keep the two in lockstep.
 | 20 | [Event bingo designer + bonus engine](./20-event-bingo.md) | bingo designer + live board | events-prd §5.2 |
 | 21 | [Event lifecycle + tier limits](./21-event-lifecycle-entitlements.md) | activate/end controls, tier usage | events-prd §8 |
 | 22 | [Legacy events decommission](./22-events-legacy-decommission.md) | — (backend cleanup) | events-prd §9 |
+| 23 | [OSRS account types on players](./23-account-types.md) | game-mode badge on `/players/{id}` | — |
 
 Tasks 01, 08 are foundational. 02 depends on 08 (session/oauth tables, if not
 using stateless JWT). 04 can ship first for a read-only public site (Phase 1).
@@ -89,6 +90,7 @@ deliberately **not** ported.
 2026-07-05) and the legacy decommission (22, completed 2026-07-06 in the
 backend repo). These files remain as the authoritative specs/contracts for
 what was built; consult them when changing the corresponding endpoints.
+Task 23 (added 2026-08-15) is **not yet implemented** backend-side.
 
 ## Definition of done (per task)
 

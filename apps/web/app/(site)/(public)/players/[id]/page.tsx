@@ -5,6 +5,7 @@ import { entityPath } from "@/lib/slug";
 import { orNotFound } from "@/lib/fetch";
 import { resolveRef } from "@/lib/entity-ref";
 import { entityCanonical } from "@/lib/seo";
+import { AccountTypeBadge } from "@/components/account-type-badge";
 import { EntityDisambiguation } from "@/components/entity-disambiguation";
 import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
@@ -95,6 +96,7 @@ export default async function PlayerPage({ params }: { params: Params }) {
               }`}
             >
               {player.name}
+              <AccountTypeBadge type={player.account_type} />
               {player.is_supporter && (
                 <Badge tone="gold" title="This player supports DropTracker">
                   ★ Supporter

@@ -576,7 +576,25 @@ export const ItemDetailSchema = z.object({
 });
 export type ItemDetail = z.infer<typeof ItemDetailSchema>;
 
+/**
+ * OSRS game mode, reported by the RuneLite plugin (varbit 1777) via the
+ * intake API (backend task 23). Payload fields stay `z.string()` so a mode
+ * added backend-side never fails validation; renderers ignore unknown values.
+ */
+export const AccountTypeSchema = z.enum([
+  "normal",
+  "ironman",
+  "hardcore_ironman",
+  "ultimate_ironman",
+  "group_ironman",
+  "hardcore_group_ironman",
+  "unranked_group_ironman",
+]);
+export type AccountType = z.infer<typeof AccountTypeSchema>;
+
 export const PlayerProfileSchema = PlayerSummarySchema.extend({
+  /** Absent until the backend ships account types or the mode was never reported. */
+  account_type: z.string().optional(),
   points: z.number().int().optional(),
   top_npc: z.string().optional(),
   previous_month_loot: MoneySchema.optional(),
