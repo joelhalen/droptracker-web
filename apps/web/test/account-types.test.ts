@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { accountTypeDisplay } from "../lib/account-types";
+import { accountTypeDisplay, accountTypeIconPx } from "../lib/account-types";
+
+test("badge sizes map to icon pixel heights, md by default", () => {
+  assert.equal(accountTypeIconPx("sm"), 16);
+  assert.equal(accountTypeIconPx("md"), 20);
+  assert.equal(accountTypeIconPx("lg"), 26);
+  assert.equal(accountTypeIconPx(undefined), 20);
+});
 
 test("iron modes map to a label and badge icon", () => {
   assert.deepEqual(accountTypeDisplay("ironman"), {

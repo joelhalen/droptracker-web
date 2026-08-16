@@ -98,22 +98,32 @@ const BADGE_TONES: Record<BadgeTone, string> = {
   sky: "bg-sky-400/15 text-sky-400 border-sky-400/40",
 };
 
+export type BadgeSize = "sm" | "md" | "lg";
+
+const BADGE_SIZES: Record<BadgeSize, string> = {
+  sm: "px-1.5 py-0 text-[10px]",
+  md: "px-2 py-0.5 text-[11px]",
+  lg: "px-2.5 py-1 text-sm",
+};
+
 /** Small pill badge. Compose the domain-specific variants (role/tier) on top. */
 export function Badge({
   children,
   tone = "neutral",
+  size = "md",
   className = "",
   title,
 }: {
   children: ReactNode;
   tone?: BadgeTone;
+  size?: BadgeSize;
   className?: string;
   title?: string;
 }) {
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${BADGE_TONES[tone]} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full border font-semibold whitespace-nowrap ${BADGE_SIZES[size]} ${BADGE_TONES[tone]} ${className}`}
     >
       {children}
     </span>
