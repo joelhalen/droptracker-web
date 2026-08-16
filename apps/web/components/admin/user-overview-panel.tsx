@@ -181,7 +181,7 @@ export function UserOverviewPanel({
                   size="sm"
                   subtitle={p.wom_id != null ? `WOM #${p.wom_id}` : undefined}
                 />
-                {p.hidden && <Badge tone="neutral">Hidden</Badge>}
+                {p.hidden && <Badge variant="neutral">Hidden</Badge>}
               </li>
             ))}
           </ul>

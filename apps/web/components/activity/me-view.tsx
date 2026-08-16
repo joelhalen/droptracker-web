@@ -65,7 +65,7 @@ export function MeView() {
             </p>
             {me.is_supporter && (
               <span className="mt-1 inline-block">
-                <Badge tone="ember">Supporter</Badge>
+                <Badge variant="ember">Supporter</Badge>
               </span>
             )}
           </div>
@@ -113,7 +113,7 @@ export function MeView() {
               <div className="flex flex-wrap gap-1.5">
                 {me.groups.map((g) => (
                   <button key={g.id} onClick={() => nav.push({ name: "group", id: g.id })}>
-                    <Badge tone={g.role === "owner" ? "gold" : g.role === "admin" ? "ember" : "bronze"}>
+                    <Badge variant={g.role === "owner" ? "gold" : g.role === "admin" ? "ember" : "bronze"}>
                       {g.name}
                     </Badge>
                   </button>

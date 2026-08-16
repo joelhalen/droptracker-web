@@ -167,7 +167,7 @@ export function NitroBoostsManager({ data }: { data: AdminNitroBoosts }) {
                   <td className="px-3 py-2 tabular-nums">{slots}</td>
                   <td className="px-3 py-2">
                     <Badge
-                      tone={entry.source === "manual" ? "gold" : entry.source === "message" ? "sky" : "neutral"}
+                      variant={entry.source === "manual" ? "gold" : entry.source === "message" ? "sky" : "neutral"}
                       title={SOURCE_LABEL[entry.source].hint}
                     >
                       {SOURCE_LABEL[entry.source].label}

@@ -9,15 +9,15 @@ import { formatDate, formatRelativeTime } from "@/lib/format";
  * open. */
 
 export function TicketStatusBadge({ status }: { status: TicketStatus }) {
-  if (status === "open") return <Badge tone="green">Open</Badge>;
-  if (status === "closing") return <Badge tone="ember">Closing…</Badge>;
-  return <Badge tone="neutral">Closed</Badge>;
+  if (status === "open") return <Badge variant="green">Open</Badge>;
+  if (status === "closing") return <Badge variant="ember">Closing…</Badge>;
+  return <Badge variant="neutral">Closed</Badge>;
 }
 
 export function TicketTypeBadge({ type }: { type: string }) {
   const tone =
     type === "players" ? "sky" : type === "clans" ? "purple" : type === "support" ? "gold" : "bronze";
-  return <Badge tone={tone as never}>{type}</Badge>;
+  return <Badge variant={tone as never}>{type}</Badge>;
 }
 
 function timestamp(unixSeconds: number | null): string {
@@ -90,9 +90,9 @@ function MessageRow({ message, mentions }: { message: TicketMessage; mentions?: 
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="text-osrs-parchment font-semibold">{message.author_name}</span>
           {message.is_bot ? (
-            <Badge tone="bronze">Bot</Badge>
+            <Badge variant="bronze">Bot</Badge>
           ) : message.is_staff ? (
-            <Badge tone="gold">Staff</Badge>
+            <Badge variant="gold">Staff</Badge>
           ) : null}
           <span
             className="text-osrs-parchment-dark/50 text-xs"

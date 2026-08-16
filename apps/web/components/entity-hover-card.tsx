@@ -146,7 +146,7 @@ function PlayerCardBody({ id, name, seed }: { id: number; name: string; seed?: E
           <div className="flex items-center gap-1.5">
             <span className="truncate font-semibold">{name}</span>
             {player?.is_supporter && (
-              <Badge tone="gold" title="This player supports DropTracker" className="shrink-0 px-1.5">
+              <Badge variant="gold" title="This player supports DropTracker" className="shrink-0 px-1.5">
                 ★
               </Badge>
             )}
@@ -189,7 +189,7 @@ function PlayerCardBody({ id, name, seed }: { id: number; name: string; seed?: E
       ) : player && player.badges.length > 0 ? (
         <div className={`${DIVIDER} flex flex-wrap items-center gap-1`}>
           {player.badges.map((b) => (
-            <Badge key={b.key} tone={b.tone} className="px-1.5" title={b.label}>
+            <Badge key={b.key} variant={b.tone} className="px-1.5" title={b.label}>
               {b.icon_url ? (
                 <img src={b.icon_url} alt="" className="size-3.5 shrink-0 object-contain" />
               ) : (
@@ -199,7 +199,7 @@ function PlayerCardBody({ id, name, seed }: { id: number; name: string; seed?: E
             </Badge>
           ))}
           {player.badge_count > player.badges.length && (
-            <Badge tone="neutral" className="px-1.5">
+            <Badge variant="neutral" className="px-1.5">
               +{player.badge_count - player.badges.length}
             </Badge>
           )}

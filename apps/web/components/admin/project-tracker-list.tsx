@@ -112,7 +112,7 @@ export function ProjectTrackerList({ projects }: { projects: DevProjectSummary[]
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-osrs-gold font-semibold">{p.name}</span>
                   {p.status !== "active" && (
-                    <Badge tone={projectStatusTone(p.status)}>
+                    <Badge variant={projectStatusTone(p.status)}>
                       {PROJECT_STATUS_LABELS[p.status]}
                     </Badge>
                   )}

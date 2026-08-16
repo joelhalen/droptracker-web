@@ -37,5 +37,5 @@ export {
   SkeletonRows,
   Badge,
   Alert,
-  type BadgeTone,
+  type BadgeVariant,
 } from "./primitives";

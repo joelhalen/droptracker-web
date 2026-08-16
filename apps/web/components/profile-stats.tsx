@@ -108,7 +108,7 @@ export function RecordsShowcase({ records }: { records: GroupRecord[] }) {
             className={`relative overflow-hidden ${isNew ? "record-glow" : ""}`}
           >
             {isNew && (
-              <Badge tone="gold" className="absolute top-2 right-2">
+              <Badge variant="gold" className="absolute top-2 right-2">
                 New
               </Badge>
             )}

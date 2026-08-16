@@ -89,7 +89,7 @@ export function PlayerBadgeIcons({ badges, max = 4 }: { badges: CompactBadge[]; 
   return (
     <>
       <Badge
-        tone={first.tone}
+        variant={first.tone}
         title={`${totalAwards} badge${totalAwards === 1 ? "" : "s"} — tap for details`}
         className="shrink-0 px-1.5 sm:hidden"
       >
@@ -102,14 +102,14 @@ export function PlayerBadgeIcons({ badges, max = 4 }: { badges: CompactBadge[]; 
           const count = b.count && b.count > 1 ? b.count : null;
           const title = `${b.label}${detail ? ` (${detail})` : ""}${count ? ` ×${count}` : ""}`;
           return (
-            <Badge key={`${b.key}-${i}`} tone={b.tone} title={title} className="px-1.5">
+            <Badge key={`${b.key}-${i}`} variant={b.tone} title={title} className="px-1.5">
               <ChipIcon badge={b} />
               {count && <span>×{count}</span>}
             </Badge>
           );
         })}
         {overflow > 0 && (
-          <Badge tone="neutral" title={`${overflow} more badge${overflow === 1 ? "" : "s"}`} className="px-1.5">
+          <Badge variant="neutral" title={`${overflow} more badge${overflow === 1 ? "" : "s"}`} className="px-1.5">
             +{overflow}
           </Badge>
         )}
@@ -129,7 +129,7 @@ export function CompactBadgeDetails({ badges }: { badges: CompactBadge[] }) {
         const count = b.count && b.count > 1 ? b.count : null;
         return (
           <li key={`${b.key}-${i}`} className="flex items-center gap-2 text-sm">
-            <Badge tone={b.tone} className="shrink-0 px-1.5">
+            <Badge variant={b.tone} className="shrink-0 px-1.5">
               <ChipIcon badge={b} />
             </Badge>
             <span className="min-w-0 truncate">
@@ -189,7 +189,7 @@ export function PlayerBadgeList({ badges }: { badges: PlayerBadge[] }) {
             {b.icon_url ? (
               <img src={b.icon_url} alt="" className="mt-0.5 size-7 shrink-0 object-contain" />
             ) : (
-              <Badge tone={b.tone} className="mt-0.5 shrink-0 px-1.5 text-sm">
+              <Badge variant={b.tone} className="mt-0.5 shrink-0 px-1.5 text-sm">
                 <span aria-hidden>{b.icon_emoji ?? "★"}</span>
               </Badge>
             )}
@@ -202,12 +202,12 @@ export function PlayerBadgeList({ badges }: { badges: PlayerBadge[] }) {
                   )}
                 </span>
                 {b.semantic === "held" && !lost && (
-                  <Badge tone="ember" title="Currently held record">
+                  <Badge variant="ember" title="Currently held record">
                     Held
                   </Badge>
                 )}
                 {lost && (
-                  <Badge tone="neutral" title="A new record holder has taken this badge">
+                  <Badge variant="neutral" title="A new record holder has taken this badge">
                     Held until {formatDate(b.lost_at_ts ?? null)}
                   </Badge>
                 )}

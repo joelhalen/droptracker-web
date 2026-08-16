@@ -101,7 +101,7 @@ export function EventManagersManager({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className="truncate text-sm font-medium">{displayName(m)}</span>
-                  <Badge tone="sky">event manager</Badge>
+                  <Badge variant="sky">event manager</Badge>
                 </div>
                 {m.discord_id && m.username && (
                   <div className="text-osrs-parchment-dark/50 text-xs">{m.discord_id}</div>

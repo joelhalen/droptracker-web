@@ -52,14 +52,14 @@ export function BadgeManager({ badges }: { badges: AdminBadge[] }) {
           {badges.map((b) => (
             <li key={b.key} className="flex flex-wrap items-center justify-between gap-2 py-3">
               <div className="flex items-center gap-2">
-                <Badge tone={b.tone} title={b.description}>
+                <Badge variant={b.tone} title={b.description}>
                   <span aria-hidden>{b.icon_emoji ?? "★"}</span>
                   {b.name}
                 </Badge>
                 <span className="text-osrs-parchment-dark/50 text-xs">{b.key}</span>
-                {b.automatic && <Badge tone="sky">Automatic</Badge>}
-                {b.semantic === "held" && <Badge tone="ember">Held</Badge>}
-                {!b.active && <Badge tone="red">Inactive</Badge>}
+                {b.automatic && <Badge variant="sky">Automatic</Badge>}
+                {b.semantic === "held" && <Badge variant="ember">Held</Badge>}
+                {!b.active && <Badge variant="red">Inactive</Badge>}
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <span className="text-osrs-parchment-dark/60 tabular-nums">
@@ -233,7 +233,7 @@ function BadgeForm({
           Active (visible on the site)
         </label>
         <span className="text-osrs-parchment-dark/60 text-xs">Preview:</span>
-        <Badge tone={form.tone}>
+        <Badge variant={form.tone}>
           <span aria-hidden>{form.icon_emoji ?? "★"}</span>
           {form.name || "Badge"}
         </Badge>
@@ -408,7 +408,7 @@ function AwardPanel({ badges }: { badges: AdminBadge[] }) {
                 {awards.map((a) => (
                   <li key={a.id} className="flex items-center justify-between gap-2 py-2">
                     <span className="flex items-center gap-2">
-                      <Badge tone={a.tone}>
+                      <Badge variant={a.tone}>
                         {a.icon_url ? (
                           <img src={a.icon_url} alt="" className="size-3.5 shrink-0 object-contain" />
                         ) : (

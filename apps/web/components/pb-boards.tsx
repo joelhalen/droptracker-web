@@ -44,7 +44,7 @@ function BoardCard({ board, isGroupScoped }: { board: PbTeamBoard; isGroupScoped
                       {e.player_name}
                     </Link>
                   </EntityHoverCard>
-                  {isNew && <Badge tone="gold">New</Badge>}
+                  {isNew && <Badge variant="gold">New</Badge>}
                 </span>
                 <span className="text-osrs-parchment-dark/50 block truncate text-[11px]">
                   {isGroupScoped && e.global_rank != null && (

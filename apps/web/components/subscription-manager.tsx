@@ -195,7 +195,7 @@ export function SubscriptionManager({
                     <td className="px-3 py-2">
                       {legPayerLabel(leg)}
                       {leg.mine && (
-                        <Badge tone="sky" className="ml-2">
+                        <Badge variant="sky" className="ml-2">
                           You
                         </Badge>
                       )}
@@ -270,11 +270,11 @@ export function SubscriptionManager({
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-osrs-gold-bright text-lg font-semibold">{t.name}</span>
                   {current ? (
-                    <Badge tone="green">Current</Badge>
+                    <Badge variant="green">Current</Badge>
                   ) : covered ? (
-                    <Badge tone="green">Covered</Badge>
+                    <Badge variant="green">Covered</Badge>
                   ) : (
-                    t.recommended && <Badge tone="gold">Popular</Badge>
+                    t.recommended && <Badge variant="gold">Popular</Badge>
                   )}
                 </div>
                 <div className="text-osrs-parchment mt-1 text-2xl font-bold">{formatPrice(t)}</div>

@@ -74,7 +74,7 @@ export function SupportersSection({ supporters }: { supporters: Supporters }) {
                     name={p.name}
                     size="sm"
                     badges={
-                      <Badge tone="gold" title="This player supports DropTracker">
+                      <Badge variant="gold" title="This player supports DropTracker">
                         ★
                       </Badge>
                     }

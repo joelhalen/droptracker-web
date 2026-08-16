@@ -103,7 +103,7 @@ export function MembersManager({
                   </td>
                   <td className="px-3 py-2">
                     {m.group_rank ? (
-                      <Badge tone="bronze">{m.group_rank}</Badge>
+                      <Badge variant="bronze">{m.group_rank}</Badge>
                     ) : (
                       <span className="text-osrs-parchment-dark/50">—</span>
                     )}

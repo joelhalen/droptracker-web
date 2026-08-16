@@ -160,7 +160,7 @@ export function AuthorizedUsersManager({
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="truncate text-sm font-medium">{displayName(u)}</span>
               <RoleBadge role={u.role} />
-              {isSelf && <Badge tone="neutral">you</Badge>}
+              {isSelf && <Badge variant="neutral">you</Badge>}
             </div>
             {u.discord_id && u.username && (
               <div className="text-osrs-parchment-dark/50 text-xs">{u.discord_id}</div>
@@ -360,7 +360,7 @@ export function AuthorizedUsersManager({
           <div className="min-w-0 max-w-2xl">
             <div className="text-sm font-medium">
               Discord &ldquo;Manage Server&rdquo; grants admin access
-              <Badge tone={state.discord_perms_grant_admin ? "green" : "neutral"} className="ml-2">
+              <Badge variant={state.discord_perms_grant_admin ? "green" : "neutral"} className="ml-2">
                 {state.discord_perms_grant_admin ? "On" : "Off"}
               </Badge>
             </div>

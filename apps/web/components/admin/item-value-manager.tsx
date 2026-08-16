@@ -96,7 +96,7 @@ export function ItemValueManager({
                   {o.item_id != null && (
                     <span className="text-osrs-parchment-dark/50 text-xs">#{o.item_id}</span>
                   )}
-                  {!o.active && <Badge tone="red">Inactive</Badge>}
+                  {!o.active && <Badge variant="red">Inactive</Badge>}
                 </div>
                 <div className="text-osrs-parchment-dark/60 text-xs">
                   {o.description || formulaText(o)}
