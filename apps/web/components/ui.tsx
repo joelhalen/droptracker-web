@@ -13,7 +13,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import type { TierFlairStyle } from "@droptracker/api-types";
 import { resolveFlair } from "@/lib/tier-flair";
-import { Badge, type BadgeVariant } from "@droptracker/ui";
+import { Badge, type BadgeSize, type BadgeVariant } from "@droptracker/ui";
 
 export * from "@droptracker/ui";
 
@@ -30,11 +30,19 @@ export const fieldInputClass =
 /* -------------------------------------------------------------------------- */
 
 /** Group role badge — owners gold, admins ember, members muted. */
-export function RoleBadge({ role, className = "" }: { role: string; className?: string }) {
-  const tone: BadgeVariant = role === "owner" ? "gold" : role === "admin" ? "ember" : "neutral";
+export function RoleBadge({
+  role,
+  size,
+  className = "",
+}: {
+  role: string;
+  size?: BadgeSize;
+  className?: string;
+}) {
+  const variant: BadgeVariant = role === "owner" ? "gold" : role === "admin" ? "ember" : "neutral";
   const label = role.charAt(0).toUpperCase() + role.slice(1);
   return (
-    <Badge variant={tone} className={className} title={`Group ${role}`}>
+    <Badge variant={variant} size={size} className={className} title={`Group ${role}`}>
       {role === "owner" && <span aria-hidden>♔</span>}
       {role === "admin" && <span aria-hidden>⚙</span>}
       {label}
@@ -43,18 +51,18 @@ export function RoleBadge({ role, className = "" }: { role: string; className?: 
 }
 
 /** Site-staff badge for user listings. */
-export function SuperadminBadge({ className = "" }: { className?: string }) {
+export function SuperadminBadge({ size, className = "" }: { size?: BadgeSize; className?: string }) {
   return (
-    <Badge variant="red" className={className} title="Site administrator">
+    <Badge variant="red" size={size} className={className} title="Site administrator">
       <span aria-hidden>⚔</span>
       Superadmin
     </Badge>
   );
 }
 
-export function DeveloperBadge({ className = "" }: { className?: string }) {
+export function DeveloperBadge({ size, className = "" }: { size?: BadgeSize; className?: string }) {
   return (
-    <Badge variant="sky" className={className} title="Site developer">
+    <Badge variant="sky" size={size} className={className} title="Site developer">
       <span aria-hidden>🛠</span>
       Developer
     </Badge>
@@ -68,11 +76,13 @@ export function DeveloperBadge({ className = "" }: { className?: string }) {
 export function TierBadge({
   tierKey,
   name,
+  size,
   className = "",
 }: {
   tierKey: string | null;
   /** Display name; falls back to a prettified key. */
   name?: string;
+  size?: BadgeSize;
   className?: string;
 }) {
   const key = (tierKey ?? "free").toLowerCase();
@@ -81,7 +91,7 @@ export function TierBadge({
   const tone: BadgeVariant = isFree ? "neutral" : isTop ? "ember" : "gold";
   const label = name ?? key.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   return (
-    <Badge variant={tone} className={className} title={isFree ? "Free plan" : `${label} subscription`}>
+    <Badge variant={tone} size={size} className={className} title={isFree ? "Free plan" : `${label} subscription`}>
       {!isFree && <span aria-hidden>★</span>}
       {label}
     </Badge>
@@ -91,9 +101,11 @@ export function TierBadge({
 /** Subscription lifecycle status badge (active/trialing/past_due/…). */
 export function SubscriptionStatusBadge({
   status,
+  size,
   className = "",
 }: {
   status: "none" | "active" | "trialing" | "past_due" | "canceled" | "expired";
+  size?: BadgeSize;
   className?: string;
 }) {
   const tone: BadgeVariant =
@@ -105,7 +117,7 @@ export function SubscriptionStatusBadge({
           ? "neutral"
           : "red";
   return (
-    <Badge variant={tone} className={className}>
+    <Badge variant={tone} size={size} className={className}>
       {status.replace("_", " ")}
     </Badge>
   );

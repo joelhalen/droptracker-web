@@ -38,4 +38,5 @@ export {
   Badge,
   Alert,
   type BadgeVariant,
+  type BadgeSize,
 } from "./primitives";
