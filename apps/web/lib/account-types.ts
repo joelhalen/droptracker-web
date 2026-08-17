@@ -27,6 +27,10 @@ const DISPLAY: Record<string, AccountTypeDisplay> = {
 
 export function accountTypeDisplay(type: string | null | undefined): AccountTypeDisplay | null {
   if (!type) return null;
+  // Own-property check, not a bare index: DISPLAY is an object literal, so
+  // `DISPLAY["constructor"]` (or "toString", …) would otherwise return an
+  // Object.prototype member — truthy, and rendered as <img src={undefined}>.
+  if (!Object.prototype.hasOwnProperty.call(DISPLAY, type)) return null;
   return DISPLAY[type] ?? null;
 }
 

@@ -43,3 +43,11 @@ test("normal accounts and unknown/missing modes show nothing", () => {
   // A future backend value this build doesn't know must degrade silently.
   assert.equal(accountTypeDisplay("some_new_mode"), null);
 });
+
+test("prototype keys are not mistaken for modes", () => {
+  // A bare `DISPLAY[type]` would hand back an Object.prototype member here,
+  // which is truthy and renders an <img> with no src.
+  assert.equal(accountTypeDisplay("constructor"), null);
+  assert.equal(accountTypeDisplay("toString"), null);
+  assert.equal(accountTypeDisplay("__proto__"), null);
+});
