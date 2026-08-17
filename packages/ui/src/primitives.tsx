@@ -77,7 +77,7 @@ export function SkeletonRows({ rows = 6, className = "" }: { rows?: number; clas
 /* Badges: consistent status/role/tier chips across the site.                 */
 /* -------------------------------------------------------------------------- */
 
-export type BadgeTone =
+export type BadgeVariant =
   | "gold"
   | "bronze"
   | "green"
@@ -87,7 +87,7 @@ export type BadgeTone =
   | "purple"
   | "sky";
 
-const BADGE_TONES: Record<BadgeTone, string> = {
+const BADGE_VARIANTS: Record<BadgeVariant, string> = {
   gold: "bg-osrs-gold/15 text-osrs-gold border-osrs-gold/40",
   bronze: "bg-osrs-bronze/20 text-osrs-parchment-dark border-osrs-bronze/50",
   green: "bg-osrs-green/15 text-osrs-green border-osrs-green/40",
@@ -101,19 +101,19 @@ const BADGE_TONES: Record<BadgeTone, string> = {
 /** Small pill badge. Compose the domain-specific variants (role/tier) on top. */
 export function Badge({
   children,
-  tone = "neutral",
+  variant = "neutral",
   className = "",
   title,
 }: {
   children: ReactNode;
-  tone?: BadgeTone;
+  variant?: BadgeVariant;
   className?: string;
   title?: string;
 }) {
   return (
     <span
       title={title}
-      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${BADGE_TONES[tone]} ${className}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${BADGE_VARIANTS[variant]} ${className}`}
     >
       {children}
     </span>

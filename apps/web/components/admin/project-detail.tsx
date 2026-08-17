@@ -198,7 +198,7 @@ function ProjectHeader({
         <>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-osrs-gold text-xl font-bold">{project.name}</h2>
-            <Badge tone={project.status === "completed" ? "green" : project.status === "archived" ? "neutral" : "gold"}>
+            <Badge variant={project.status === "completed" ? "green" : project.status === "archived" ? "neutral" : "gold"}>
               {PROJECT_STATUS_LABELS[project.status]}
             </Badge>
             <button
@@ -397,7 +397,7 @@ function TaskCard({
             </option>
           ))}
         </select>
-        <Badge tone={TASK_TONES[task.status]}>{TASK_STATUS_LABELS[task.status]}</Badge>
+        <Badge variant={TASK_TONES[task.status]}>{TASK_STATUS_LABELS[task.status]}</Badge>
 
         {titleDraft !== null ? (
           <Input

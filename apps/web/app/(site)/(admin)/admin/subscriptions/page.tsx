@@ -95,7 +95,7 @@ function SubsTable({ rows }: { rows: AdminSubscriptionRow[] }) {
             >
               <td className="px-3 py-2">{ownerLabel(r)}</td>
               <td className="px-3 py-2">
-                <Badge tone={r.scope === "group" ? "bronze" : "sky"}>
+                <Badge variant={r.scope === "group" ? "bronze" : "sky"}>
                   {r.scope === "group" ? "Group" : "Supporter"}
                 </Badge>
               </td>

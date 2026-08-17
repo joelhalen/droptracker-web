@@ -133,7 +133,7 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-osrs-gold-bright flex items-center gap-2 text-lg font-semibold">
                   {t.name}
-                  {current && <Badge tone="green">Active</Badge>}
+                  {current && <Badge variant="green">Active</Badge>}
                 </span>
                 <span className="text-osrs-parchment text-2xl font-bold">
                   <span className="text-osrs-parchment-dark/60 text-sm font-normal">from </span>

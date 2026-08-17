@@ -49,7 +49,7 @@ export default async function PremiumPage() {
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-osrs-gold-bright text-lg font-semibold">{t.name}</span>
-              {t.recommended && <Badge tone="gold">Popular</Badge>}
+              {t.recommended && <Badge variant="gold">Popular</Badge>}
             </div>
             <div className="text-osrs-parchment mt-1 text-2xl font-bold">{formatPrice(t)}</div>
             {t.description && (

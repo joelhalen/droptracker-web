@@ -96,7 +96,7 @@ export default async function PlayerPage({ params }: { params: Params }) {
             >
               {player.name}
               {player.is_supporter && (
-                <Badge tone="gold" title="This player supports DropTracker">
+                <Badge variant="gold" title="This player supports DropTracker">
                   ★ Supporter
                 </Badge>
               )}
@@ -152,7 +152,7 @@ export default async function PlayerPage({ params }: { params: Params }) {
             <h2 className="heading-rule text-osrs-gold flex-1 pb-1 text-lg font-semibold">
               Personal bests
             </h2>
-            <Badge tone="sky">{player.personal_bests!.length} bosses</Badge>
+            <Badge variant="sky">{player.personal_bests!.length} bosses</Badge>
           </div>
           <PersonalBestsGrid pbs={player.personal_bests!} />
         </section>

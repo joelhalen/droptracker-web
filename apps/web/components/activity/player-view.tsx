@@ -79,13 +79,13 @@ export function PlayerView({ id }: { id: number }) {
               <span className="mt-1.5 flex flex-wrap gap-1">
                 {profile.groups.slice(0, 3).map((g) => (
                   <button key={g.id} onClick={() => nav.push({ name: "group", id: g.id })}>
-                    <Badge tone="bronze">{g.name}</Badge>
+                    <Badge variant="bronze">{g.name}</Badge>
                   </button>
                 ))}
               </span>
             )}
           </div>
-          {profile.is_supporter && <Badge tone="ember">Supporter</Badge>}
+          {profile.is_supporter && <Badge variant="ember">Supporter</Badge>}
         </div>
       </Card>
 

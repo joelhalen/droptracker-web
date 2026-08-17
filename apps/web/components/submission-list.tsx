@@ -3,9 +3,9 @@ import { entityPath } from "@/lib/slug";
 import type { Submission } from "@droptracker/api-types";
 import { formatRelativeTime } from "@/lib/format";
 import { EntityHoverCard } from "@/components/entity-hover-card";
-import { Badge, EmptyState, type BadgeTone } from "@/components/ui";
+import { Badge, EmptyState, type BadgeVariant } from "@/components/ui";
 
-const TYPE_META: Record<string, { label: string; tone: BadgeTone }> = {
+const TYPE_META: Record<string, { label: string; tone: BadgeVariant }> = {
   drop: { label: "Drop", tone: "gold" },
   clog: { label: "Collection log", tone: "purple" },
   pb: { label: "Personal best", tone: "sky" },
@@ -47,7 +47,7 @@ export function SubmissionList({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <Badge tone={TYPE_META[s.type]?.tone ?? "neutral"}>
+              <Badge variant={TYPE_META[s.type]?.tone ?? "neutral"}>
                 {TYPE_META[s.type]?.label ?? s.type}
               </Badge>
               {s.item_id ? (

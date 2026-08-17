@@ -35,14 +35,14 @@ function ThreadRow({ s }: { s: SuggestionSummary }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-osrs-gold-bright truncate font-medium">{s.title}</span>
-            {!s.is_open && <Badge tone="neutral">Closed</Badge>}
+            {!s.is_open && <Badge variant="neutral">Closed</Badge>}
             {s.status === "pending" && (
-              <Badge tone="bronze" title="Queued to appear in Discord">
+              <Badge variant="bronze" title="Queued to appear in Discord">
                 Syncing…
               </Badge>
             )}
             {s.origin === "discord" && (
-              <Badge tone="sky" title="Started in the Discord forum">
+              <Badge variant="sky" title="Started in the Discord forum">
                 From Discord
               </Badge>
             )}

@@ -71,7 +71,7 @@ export function NpcDropTableCard({ table }: { table: NpcDropTable }) {
                     <img src={row.icon_url} alt="" className="size-6 shrink-0 object-contain" />
                     <span className="truncate">{row.name}</span>
                     {row.noted && (
-                      <Badge tone="neutral" title="Dropped as a bank note">
+                      <Badge variant="neutral" title="Dropped as a bank note">
                         noted
                       </Badge>
                     )}

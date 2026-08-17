@@ -130,7 +130,7 @@ function PersonalPanel({ my }: { my: MyProfile }) {
             </p>
             {me.is_supporter && (
               <span className="mt-1 inline-block">
-                <Badge tone="ember">Supporter</Badge>
+                <Badge variant="ember">Supporter</Badge>
               </span>
             )}
           </div>

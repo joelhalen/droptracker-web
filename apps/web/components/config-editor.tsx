@@ -791,7 +791,7 @@ function HallOfFameBotCallout() {
 
 function ComingSoonBadge() {
   return (
-    <Badge tone="sky" className="ml-2 align-middle" title="Not live yet">
+    <Badge variant="sky" className="ml-2 align-middle" title="Not live yet">
       <span aria-hidden>⏳</span>
       Coming soon
     </Badge>
