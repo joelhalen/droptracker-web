@@ -1889,9 +1889,9 @@ export function EventTaskForm({
                 setProgressNotify(e.target.value as typeof progressNotify)
               }
               className={field}
-              title="How often teammates hear about progress on THIS task — in Discord and in-game. Default follows the event's Progress update frequency."
+              title="How often teammates hear about progress on THIS task — in Discord and in-game. Default: milestones in-game; Discord follows the event's Progress update frequency."
             >
-              <option value="">Default — use the event setting</option>
+              <option value="">Default — milestones in-game, event setting for Discord</option>
               <option value="all">Every update</option>
               <option value="milestones">Milestones only (25/50/75%)</option>
               <option value="off">Off — completion only</option>
