@@ -35,6 +35,11 @@ type ItemRow = {
   shop_item_id: number;
   name: string;
   description: string | null;
+  /** Generated from the event's RESOLVED effect behavior — the accurate one. */
+  effect_summary: string | null;
+  targeting: string | null;
+  tile_bound: boolean;
+  type_cooldown_turns: number | null;
   icon_item_id: number | null;
   item_type: string;
   effect: string;
@@ -44,6 +49,26 @@ type ItemRow = {
   price_override: string;
   stock_per_refresh: string;
   per_team_cap: string;
+};
+
+/** How an item is aimed — the same vocabulary the board's use form applies. */
+const TARGETING_LABELS: Record<string, string> = {
+  self: "Your own team",
+  team: "Aimed at a rival",
+  tile: "Placed on a tile",
+  value: "You pick a number",
+};
+
+/** Grouping for the item table. Players think in these categories (and the
+ * cooldown is shared across a whole category), so the config should too. */
+const TYPE_ORDER = ["movement", "offensive", "defensive", "economy", "utility"] as const;
+
+const TYPE_BLURB: Record<string, string> = {
+  movement: "Move further, or control how far you move.",
+  offensive: "Used against a rival team. A shield or ward can absorb these.",
+  defensive: "Protect your team, or undo something done to it.",
+  economy: "Coins — earn more, or take them from rivals.",
+  utility: "Change the task you're working on.",
 };
 
 const numStr = (v: number | null | undefined): string => (v == null ? "" : String(v));
@@ -62,6 +87,10 @@ function rowsFromConfig(config: BoardShopConfig): ItemRow[] {
     shop_item_id: i.shop_item_id,
     name: i.name,
     description: i.description ?? null,
+    effect_summary: i.effect_summary ?? null,
+    targeting: i.targeting ?? null,
+    tile_bound: i.tile_bound ?? false,
+    type_cooldown_turns: i.type_cooldown_turns ?? null,
     icon_item_id: i.icon_item_id ?? null,
     item_type: i.item_type,
     effect: i.effect,
@@ -71,6 +100,20 @@ function rowsFromConfig(config: BoardShopConfig): ItemRow[] {
     stock_per_refresh: numStr(i.stock_per_refresh),
     per_team_cap: numStr(i.per_team_cap),
   }));
+}
+
+/** Order rows by item type so the table reads as the five power-up families
+ * players actually experience, then by name inside each. */
+function groupRows(rows: ItemRow[]): { type: string; rows: ItemRow[] }[] {
+  const byType = new Map<string, ItemRow[]>();
+  for (const r of rows) {
+    const list = byType.get(r.item_type);
+    if (list) list.push(r);
+    else byType.set(r.item_type, [r]);
+  }
+  const known = TYPE_ORDER.filter((t) => byType.has(t));
+  const extra = [...byType.keys()].filter((t) => !TYPE_ORDER.includes(t as never)).sort();
+  return [...known, ...extra].map((type) => ({ type, rows: byType.get(type)! }));
 }
 
 /** Validate a blank-or-non-negative-integer field. Returns an error string or
@@ -267,10 +310,10 @@ export function EventBoardShopConfig({
         <p className="text-osrs-parchment-dark/60 text-sm">No catalog items are available.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[32rem] text-sm">
+          <table className="w-full min-w-[34rem] text-sm">
             <thead>
               <tr className="text-osrs-parchment-dark/60 text-left text-xs">
-                <th className="py-1.5 pr-3 font-normal">Item</th>
+                <th className="py-1.5 pr-3 font-normal">Item &amp; what it does</th>
                 <th className="px-2 py-1.5 text-center font-normal">On</th>
                 <th className="px-2 py-1.5 text-right font-normal">Price</th>
                 {showAdvanced && (
@@ -281,85 +324,129 @@ export function EventBoardShopConfig({
                 )}
               </tr>
             </thead>
-            <tbody className="divide-osrs-bronze/15 divide-y">
-              {rows.map((r) => (
-                <tr key={r.shop_item_id} className={r.enabled ? "" : "opacity-50"}>
-                  <td className="py-1.5 pr-3">
-                    <span className="flex items-center gap-1.5">
-                      <ItemDbIcon itemId={r.icon_item_id} size={18} />
-                      <span className="text-osrs-parchment" title={r.description ?? undefined}>
-                        {r.name}
-                      </span>
-                      <span className="text-osrs-parchment-dark/40 text-[10px] uppercase">
-                        {r.item_type}
-                      </span>
+            {groupRows(rows).map(({ type, rows: group }) => (
+              <tbody key={type} className="divide-osrs-bronze/15 divide-y">
+                {/* Item-type header: the cooldown is shared across a whole
+                    family, so grouping is how "every N turns" makes sense. */}
+                <tr>
+                  <td colSpan={showAdvanced ? 5 : 3} className="pt-3 pb-1">
+                    <span className="text-osrs-gold-bright/80 text-[11px] font-semibold uppercase">
+                      {type}
                     </span>
+                    {TYPE_BLURB[type] && (
+                      <span className="text-osrs-parchment-dark/50 ml-2 text-[11px]">
+                        {TYPE_BLURB[type]}
+                      </span>
+                    )}
+                    {group[0]?.type_cooldown_turns != null && (
+                      <span
+                        className="text-osrs-parchment-dark/40 ml-2 text-[11px]"
+                        title="After using any item of this type, a team must wait this many turns before using another one of the same type"
+                      >
+                        · one every {group[0].type_cooldown_turns} turn
+                        {group[0].type_cooldown_turns === 1 ? "" : "s"}
+                      </span>
+                    )}
                   </td>
-                  <td className="px-2 py-1.5 text-center">
-                    <input
-                      type="checkbox"
-                      checked={r.enabled}
-                      onChange={(e) => updateRow(r.shop_item_id, { enabled: e.target.checked })}
-                      className="size-4"
-                      aria-label={`Enable ${r.name}`}
-                    />
-                  </td>
-                  <td className="px-2 py-1.5 text-right">
-                    <input
-                      type="number"
-                      min={0}
-                      placeholder={String(r.default_cost_coins)}
-                      value={r.price_override}
-                      onChange={(e) =>
-                        updateRow(r.shop_item_id, { price_override: e.target.value })
-                      }
-                      className={`${field} w-24 text-right`}
-                      aria-label={`${r.name} price override`}
-                    />
-                  </td>
-                  {showAdvanced && (
-                    <>
-                      <td className="px-2 py-1.5 text-right">
-                        <input
-                          type="number"
-                          min={0}
-                          placeholder="∞"
-                          value={r.stock_per_refresh}
-                          onChange={(e) =>
-                            updateRow(r.shop_item_id, { stock_per_refresh: e.target.value })
-                          }
-                          className={`${field} w-20 text-right`}
-                          aria-label={`${r.name} stock per refresh`}
-                        />
-                      </td>
-                      <td className="px-2 py-1.5 text-right">
-                        <span className="flex items-center justify-end gap-1">
+                </tr>
+                {group.map((r) => (
+                  <tr key={r.shop_item_id} className={r.enabled ? "" : "opacity-50"}>
+                    <td className="max-w-md py-1.5 pr-3">
+                      <span className="flex items-start gap-1.5">
+                        <ItemDbIcon itemId={r.icon_item_id} size={18} className="mt-0.5" />
+                        <span className="min-w-0">
+                          <span className="text-osrs-parchment">{r.name}</span>
+                          {r.targeting && TARGETING_LABELS[r.targeting] && (
+                            <span className="border-osrs-bronze/40 text-osrs-parchment-dark/60 ml-1.5 rounded border px-1 text-[10px]">
+                              {TARGETING_LABELS[r.targeting]}
+                            </span>
+                          )}
+                          {r.tile_bound && (
+                            <span
+                              className="border-osrs-bronze/40 text-osrs-parchment-dark/60 ml-1 rounded border px-1 text-[10px]"
+                              title="Sits on a board tile and affects any team whose move crosses it — including the team that placed it"
+                            >
+                              trap
+                            </span>
+                          )}
+                          {/* The whole point: what the organiser is switching
+                              on. Prefer the generated summary (it reflects
+                              this event's tuned numbers) and fall back to the
+                              catalog prose. */}
+                          <span className="text-osrs-parchment-dark/65 mt-0.5 block text-[11px] leading-snug">
+                            {r.effect_summary || r.description || (
+                              <span className="italic">No description available.</span>
+                            )}
+                          </span>
+                        </span>
+                      </span>
+                    </td>
+                    <td className="px-2 py-1.5 text-center align-top">
+                      <input
+                        type="checkbox"
+                        checked={r.enabled}
+                        onChange={(e) => updateRow(r.shop_item_id, { enabled: e.target.checked })}
+                        className="mt-0.5 size-4"
+                        aria-label={`Enable ${r.name}`}
+                      />
+                    </td>
+                    <td className="px-2 py-1.5 text-right align-top">
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder={String(r.default_cost_coins)}
+                        value={r.price_override}
+                        onChange={(e) =>
+                          updateRow(r.shop_item_id, { price_override: e.target.value })
+                        }
+                        className={`${field} w-24 text-right`}
+                        aria-label={`${r.name} price override`}
+                      />
+                    </td>
+                    {showAdvanced && (
+                      <>
+                        <td className="px-2 py-1.5 text-right align-top">
                           <input
                             type="number"
                             min={0}
                             placeholder="∞"
-                            value={r.per_team_cap}
+                            value={r.stock_per_refresh}
                             onChange={(e) =>
-                              updateRow(r.shop_item_id, { per_team_cap: e.target.value })
+                              updateRow(r.shop_item_id, { stock_per_refresh: e.target.value })
                             }
-                            className={`${field} w-16 text-right`}
-                            aria-label={`${r.name} per-team cap`}
+                            className={`${field} w-20 text-right`}
+                            aria-label={`${r.name} stock per refresh`}
                           />
-                          <button
-                            type="button"
-                            onClick={() => updateRow(r.shop_item_id, { per_team_cap: "1" })}
-                            title="Limit to one purchase per team for the whole event"
-                            className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-1.5 py-0.5 text-[10px]"
-                          >
-                            1×
-                          </button>
-                        </span>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))}
-            </tbody>
+                        </td>
+                        <td className="px-2 py-1.5 text-right align-top">
+                          <span className="flex items-center justify-end gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              placeholder="∞"
+                              value={r.per_team_cap}
+                              onChange={(e) =>
+                                updateRow(r.shop_item_id, { per_team_cap: e.target.value })
+                              }
+                              className={`${field} w-16 text-right`}
+                              aria-label={`${r.name} per-team cap`}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => updateRow(r.shop_item_id, { per_team_cap: "1" })}
+                              title="Limit to one purchase per team for the whole event"
+                              className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-1.5 py-0.5 text-[10px]"
+                            >
+                              1×
+                            </button>
+                          </span>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            ))}
           </table>
         </div>
       )}

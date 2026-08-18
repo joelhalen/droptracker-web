@@ -19,6 +19,10 @@ import { EventStandingsStrip } from "@/components/event-standings-strip";
 import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import { clearTaskBreakdownCache, type BreakdownFetcher } from "@/components/task-detail";
+import {
+  clearTaskRequirementsCache,
+  type RequirementsFetcher,
+} from "@/components/task-requirements";
 import { EventWindow, ScoringWindowBadge } from "@/components/local-time";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useActivityAuth } from "@/lib/activity/auth-context";
@@ -43,6 +47,7 @@ import {
   setBuyinProof,
   uploadProof,
   taskBreakdown,
+  taskRequirements,
 } from "@/lib/activity/api";
 import { PrizePotPanel, type PrizePotActions } from "@/components/prize-pot-panel";
 import type { EventPrizePot } from "@droptracker/api-types";
@@ -81,6 +86,13 @@ export function EventView({
   // bearer (the site's cookie BFF isn't reachable inside the iframe).
   const fetchBreakdown: BreakdownFetcher = useCallback(
     (taskId, teamId) => taskBreakdown(eventId, taskId, teamId, sessionToken),
+    [eventId, sessionToken],
+  );
+
+  // "What counts for this task" — team-independent, so unlike the breakdown it
+  // is not refetched on a team switch.
+  const fetchRequirements: RequirementsFetcher = useCallback(
+    (taskId) => taskRequirements(eventId, taskId, sessionToken),
     [eventId, sessionToken],
   );
 
@@ -128,8 +140,10 @@ export function EventView({
         if (isRefresh) {
           // This poll exists because SSE may not survive Discord's proxy — so
           // the cached per-team task breakdowns can be stale for the same
-          // reason (no live frame ever moved their rollup signature).
+          // reason (no live frame ever moved their rollup signature). Ditto
+          // the requirement lists, which a mid-event task edit can change.
           clearTaskBreakdownCache();
+          clearTaskRequirementsCache();
           setRefreshKey((k) => k + 1);
         }
       } catch {
@@ -467,6 +481,7 @@ export function EventView({
           progress={event.progress}
           viewerTeamId={event.viewer?.team_id}
           fetchBreakdown={fetchBreakdown}
+          fetchRequirements={fetchRequirements}
         />
       )}
 
@@ -483,6 +498,7 @@ export function EventView({
             live={live}
             viewerTeamId={event.viewer?.team_id}
             fetchBreakdown={fetchBreakdown}
+            fetchRequirements={fetchRequirements}
           />
         </div>
       )}

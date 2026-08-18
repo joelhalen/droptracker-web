@@ -95,8 +95,10 @@ const TEAM_TARGET_EFFECTS = new Set([
 /** Effects whose USE takes a numeric value (choose_roll — pick your move). */
 const VALUE_EFFECTS = new Set(["choose_roll"]);
 
-/** Short, human descriptions per effect key so players understand each item.
- * Falls back to the catalog `description` when the backend sends one. */
+/** Last-resort descriptions per effect key, for a backend that predates
+ * `effect_summary`. The server's summary is preferred everywhere because it is
+ * generated from the event's RESOLVED behavior — these are generic, so a
+ * board that tuned "freeze" to 3 turns would be mis-described by this table. */
 const EFFECT_DESCRIPTIONS: Record<string, string> = {
   extra_dice: "Adds an extra die to your next roll.",
   reroll_move: "Reroll your last dice roll and move again.",
@@ -116,6 +118,24 @@ const EFFECT_DESCRIPTIONS: Record<string, string> = {
   advance: "Teleport forward without completing a task.",
   shield: "Absorbs the next offensive item aimed at you.",
 };
+
+/** What the player picks when using an item (mirrors the backend's TARGETING). */
+const TARGETING_LABELS: Record<string, string> = {
+  self: "your team",
+  team: "aim at a rival",
+  tile: "place on a tile",
+  value: "pick a number",
+};
+
+/** The best available explanation for an item: the server's event-accurate
+ * summary, then the catalog prose, then the static fallback table. */
+function effectText(item: {
+  effect: string;
+  effect_summary?: string | null;
+  description?: string | null;
+}): string | undefined {
+  return item.effect_summary || item.description || EFFECT_DESCRIPTIONS[item.effect];
+}
 import { getErrorMessage } from "@/lib/errors";
 import { teamColorMap } from "@/lib/events";
 import { useEventStream } from "@/lib/use-event-stream";
@@ -674,8 +694,13 @@ export function EventBoardView({
           />
         )}
 
-      {/* Shop + inventory (viewer's team only; web45a) */}
-      {viewerTeamId != null && board.settings.shop.enabled && event.status === "active" && (
+      {/* Shop + inventory (web45a). Rendered for anyone who can see the board,
+          not just members with a team: the shop is a large part of how a dice
+          board is played, and hiding it entirely from spectators, from people
+          deciding whether to join, and from every viewer before the event goes
+          active left the power-ups undocumented anywhere on the site. Without
+          a team it is a read-only catalogue — buy/use need one. */}
+      {board.settings.shop.enabled && (
         <BoardShopPanel
           eventId={event.id}
           teamId={viewerTeamId}
@@ -686,6 +711,7 @@ export function EventBoardView({
           diceMax={diceMax}
           onChanged={refetch}
           leaderGated={leaderGated}
+          tradingOpen={event.status === "active"}
           actions={actions}
         />
       )}
@@ -965,10 +991,12 @@ function BoardShopPanel({
   diceMax,
   onChanged,
   leaderGated = false,
+  tradingOpen = true,
   actions,
 }: {
   eventId: number;
-  teamId: number;
+  /** null = the viewer has no team: a read-only catalogue, no wallet or bag. */
+  teamId: number | null;
   otherTeams: { id: number; name: string }[];
   maxTile: number;
   /** Highest tiles a choose_roll may pick (dice_count × dice_sides). */
@@ -977,6 +1005,9 @@ function BoardShopPanel({
   /** web48a: team leadership is on and the viewer holds no role — buy/use
    * stay visible but disabled. */
   leaderGated?: boolean;
+  /** The event is running, so buying/using is possible at all. Off before
+   * activation and after the end, where the shop is reference material. */
+  tradingOpen?: boolean;
   /** Data transport (site server actions or Activity BFF fetchers). */
   actions: BoardActions;
 }) {
@@ -992,13 +1023,14 @@ function BoardShopPanel({
 
   const load = useCallback(() => {
     actions
-      .fetchShop(eventId, teamId)
+      .fetchShop(eventId, teamId ?? undefined)
       .then(setShop)
       .catch(() => {});
   }, [actions, eventId, teamId]);
   useEffect(load, [load]);
 
   const buy = (shopItemId: number) => {
+    if (teamId == null) return;
     setError(null);
     setNotice(null);
     startBusy(async () => {
@@ -1013,6 +1045,7 @@ function BoardShopPanel({
   };
 
   const use = (inventoryId: number, effect: string) => {
+    if (teamId == null) return;
     setError(null);
     setNotice(null);
     const opts: {
@@ -1066,18 +1099,36 @@ function BoardShopPanel({
 
   if (!shop) return null;
   const owned = (shop.team?.inventory ?? []).filter((i) => i.status === "owned");
+  // Anyone can READ the shop; only a member of a team in a running event can
+  // spend in it. Reasons are stated rather than the panel vanishing, which is
+  // how the power-ups came to be undocumented anywhere on the site.
+  const browsing = teamId == null || !tradingOpen;
 
   return (
     <div className="border-osrs-bronze/25 bg-osrs-brown-dark/30 rounded border p-3">
       <div className="flex items-center justify-between">
         <h3 className="text-osrs-gold text-sm font-semibold">🛒 Power-up shop</h3>
-        {shop.team && (
+        {shop.team ? (
           <span className="text-osrs-parchment-dark/70 text-xs">
             🪙 {shop.team.coins} coins · turn {shop.team.turns_completed}
           </span>
+        ) : (
+          <span className="text-osrs-parchment-dark/50 text-xs">Browsing</span>
         )}
       </div>
-      {leaderGated && (
+      <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">
+        Teams earn coins by completing tasks and spend them here. Each power-up
+        family has its own cooldown, so a team can only use one item of a family
+        every few turns.
+      </p>
+      {browsing && (
+        <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">
+          {teamId == null
+            ? "You're not on a team in this event — this is the catalogue of power-ups teams can buy."
+            : "The event isn't running, so nothing can be bought or used yet."}
+        </p>
+      )}
+      {leaderGated && !browsing && (
         <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">
           Leaders only — your team&apos;s leader buys and uses power-ups.
         </p>
@@ -1096,8 +1147,10 @@ function BoardShopPanel({
           const bought = item.bought_by_team ?? 0;
           const capReached = cap != null && bought >= cap;
           const soldOut = item.stock === 0;
-          const canBuy = affordable && item.usable_now && !capReached && !soldOut;
-          const desc = item.description ?? EFFECT_DESCRIPTIONS[item.effect];
+          const canBuy =
+            !browsing && affordable && item.usable_now && !capReached && !soldOut;
+          const desc = effectText(item);
+          const aim = item.targeting ? TARGETING_LABELS[item.targeting] : undefined;
           return (
             <div key={item.id} className="border-osrs-bronze/20 rounded border p-2">
               <div className="flex items-center gap-1.5">
@@ -1109,8 +1162,19 @@ function BoardShopPanel({
               {desc && (
                 <p className="text-osrs-parchment-dark/60 mt-1 text-[11px]">{desc}</p>
               )}
-              <p className="text-osrs-parchment-dark/50 mt-1 text-[10px] uppercase tracking-wide">
-                {item.item_type} · every {item.type_cooldown_turns} turns
+              <p className="text-osrs-parchment-dark/50 mt-1 text-[10px] tracking-wide uppercase">
+                {item.item_type}
+                {aim ? ` · ${aim}` : ""}
+                {/* The cooldown is per item TYPE, not per item — buying two
+                    offensive items doesn't let you fire both this turn. */}
+                {item.type_cooldown_turns > 0 && (
+                  <span
+                    title={`After using any ${item.item_type} item, your team waits ${item.type_cooldown_turns} turns before using another ${item.item_type} item`}
+                  >
+                    {" "}
+                    · 1 per {item.type_cooldown_turns} turns
+                  </span>
+                )}
               </p>
               {(item.stock != null || cap != null) && (
                 <p className="text-osrs-parchment-dark/50 mt-0.5 text-[10px]">
@@ -1131,7 +1195,9 @@ function BoardShopPanel({
                 onClick={() => buy(item.id)}
                 className="bg-osrs-bronze/80 text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-1.5 w-full rounded px-2 py-1 text-xs font-medium disabled:opacity-40"
                 title={
-                  leaderGated
+                  browsing
+                    ? "Join a team in an active event to buy power-ups"
+                    : leaderGated
                     ? "Leaders only"
                     : soldOut
                       ? "Sold out"
@@ -1142,11 +1208,13 @@ function BoardShopPanel({
                           : undefined
                 }
               >
-                {soldOut
-                  ? "Sold out"
-                  : capReached
-                    ? `Limit reached (${bought}/${cap})`
-                    : `Buy · 🪙 ${item.cost_coins}`}
+                {browsing
+                  ? `🪙 ${item.cost_coins}`
+                  : soldOut
+                    ? "Sold out"
+                    : capReached
+                      ? `Limit reached (${bought}/${cap})`
+                      : `Buy · 🪙 ${item.cost_coins}`}
               </button>
             </div>
           );
@@ -1161,15 +1229,27 @@ function BoardShopPanel({
       {owned.length > 0 && (
         <div className="mt-3">
           <h4 className="text-osrs-parchment text-xs font-semibold">Your bag</h4>
-          <ul className="mt-1.5 flex flex-wrap gap-2">
+          <ul className="mt-1.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {owned.map((i) => (
               <li
                 key={i.inventory_id}
-                className="border-osrs-bronze/25 flex items-center gap-1.5 rounded border px-2 py-1"
-                title={EFFECT_DESCRIPTIONS[i.effect]}
+                className="border-osrs-bronze/25 flex flex-wrap items-center gap-1.5 rounded border px-2 py-1.5"
               >
                 <ItemDbIcon itemId={i.icon_item_id} size={16} />
                 <span className="text-osrs-parchment text-xs">{i.name}</span>
+                {/* Spelled out, not hidden in a title attribute: this is the
+                    moment the item is spent, and a wrong guess is irreversible. */}
+                {effectText(i) && (
+                  <span className="text-osrs-parchment-dark/55 order-last w-full text-[11px] leading-snug">
+                    {effectText(i)}
+                    {!i.cooldown_ready && i.cooldown_ready_turn != null && (
+                      <span className="text-amber-400/80">
+                        {" "}
+                        Ready from turn {i.cooldown_ready_turn}.
+                      </span>
+                    )}
+                  </span>
+                )}
                 {TEAM_TARGET_EFFECTS.has(i.effect) && otherTeams.length > 0 && (
                   <select
                     value={targetTeam[i.inventory_id] ?? otherTeams[0]?.id}
@@ -1227,7 +1307,7 @@ function BoardShopPanel({
                 )}
                 <button
                   type="button"
-                  disabled={busy || leaderGated || !i.cooldown_ready || !i.usable_now}
+                  disabled={busy || browsing || leaderGated || !i.cooldown_ready || !i.usable_now}
                   onClick={() => use(i.inventory_id, i.effect)}
                   className="text-osrs-gold hover:text-osrs-gold-bright ml-1 text-xs font-medium disabled:opacity-40"
                   title={

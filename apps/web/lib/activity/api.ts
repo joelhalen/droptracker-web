@@ -40,6 +40,7 @@ import {
   PlayerProfileSchema,
   SearchResultsSchema,
   TaskBreakdownSchema,
+  TaskRequirementsSchema,
   type BoardDetail,
   type BoardRollResult,
   type BoardShopState,
@@ -52,6 +53,7 @@ import {
   type EventTeamDetail,
   type EventTeamsResponse,
   type TaskBreakdown,
+  type TaskRequirements,
   type EventSummary,
   type GroupProfile,
   type LeaderboardPage,
@@ -176,6 +178,18 @@ export async function taskBreakdown(
   const q = teamId != null ? `?team_id=${teamId}` : "";
   return TaskBreakdownSchema.parse(
     await get(`/api/activity/events/${eventId}/tasks/${taskId}/breakdown${q}`, sessionToken),
+  );
+}
+
+/** What actually counts for a task — every qualifying item/pet/NPC, named and
+ * icon-resolved. Team-independent, so it renders before teams exist. */
+export async function taskRequirements(
+  eventId: number,
+  taskId: number,
+  sessionToken: string | null,
+): Promise<TaskRequirements> {
+  return TaskRequirementsSchema.parse(
+    await get(`/api/activity/events/${eventId}/tasks/${taskId}/requirements`, sessionToken),
   );
 }
 

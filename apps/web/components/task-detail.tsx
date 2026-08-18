@@ -39,6 +39,11 @@ import {
   formatProgressValue,
   type ProgressMap,
 } from "@/components/event-task-progress";
+import {
+  TaskRequirementsContent,
+  TaskRequirementsDisclosure,
+  type RequirementsFetcher,
+} from "@/components/task-requirements";
 
 type TeamRef = { id: number; name: string; color?: string | null };
 
@@ -343,6 +348,7 @@ export function TaskDetailContent({
   progressMap,
   viewerTeamId,
   fetchBreakdown,
+  fetchRequirements,
   showHeader = false,
   showCompare = true,
   initialTeamId,
@@ -357,6 +363,8 @@ export function TaskDetailContent({
   viewerTeamId?: number | null;
   /** Host transport; omit to use the same-origin cookie BFF (website). */
   fetchBreakdown?: BreakdownFetcher;
+  /** Host transport for the (team-independent) requirement list. */
+  fetchRequirements?: RequirementsFetcher;
   /** Render the task label/goal header (sheet); off when the host already shows it. */
   showHeader?: boolean;
   /** Show the collapsible all-teams comparison; off when the host already
@@ -462,9 +470,20 @@ export function TaskDetailContent({
       )}
 
       {teams.length === 0 ? (
-        <p className="text-osrs-parchment-dark/50 text-xs">
-          Progress appears once teams are set up for this event.
-        </p>
+        <>
+          {/* No breakdown to show (it is per-team), but "what counts" is a
+              property of the task — so the one question we CAN answer here
+              gets answered instead of an apology. */}
+          <TaskRequirementsContent
+            eventId={eventId}
+            taskId={task.id}
+            fetchRequirements={fetchRequirements}
+            compact={showHeader}
+          />
+          <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
+            Progress appears once teams are set up for this event.
+          </p>
+        </>
       ) : (
         <>
           {orderedTeams.length > 1 && (
@@ -607,6 +626,20 @@ export function TaskDetailContent({
                   Includes {bd!.wildcard.toLocaleString()} from manual awards.
                 </p>
               )}
+
+              {/* "What counts" — collapsed, because the checklist above
+                  already names the items when there IS one. It carries what
+                  the checklist can't: the rules living in the matcher rather
+                  than the config (duplicate pets don't count, misc pets are
+                  opt-in, which items are source-locked), and the full list on
+                  meter-shaped tasks that have no checklist at all. */}
+              <div className={CARD_SECTION_CLASS}>
+                <TaskRequirementsDisclosure
+                  eventId={eventId}
+                  taskId={task.id}
+                  fetchRequirements={fetchRequirements}
+                />
+              </div>
 
               {/* Contributors */}
               {bd!.contributors.length > 0 && (

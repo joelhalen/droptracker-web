@@ -8,6 +8,11 @@ import {
   EventItemSourcesSchema,
   type EventItemSources,
   EventTaskLibraryItemSchema,
+  EventTaskLibraryPageSchema,
+  type EventTaskLibraryPage,
+  BulkLibraryTasksResultSchema,
+  type BulkLibraryTasksInput,
+  type BulkLibraryTasksResult,
   EventTemplateSummarySchema,
   type EventTemplateSummary,
   EventTemplateDetailSchema,
@@ -34,18 +39,59 @@ export const eventTasksApi = {
 
   /** Curated task presets for the designer picker (any group admin). */
   async eventTaskLibrary(
-    params: { query?: string; type?: string; page?: number } = {},
+    params: { query?: string; type?: string; difficulty?: string; page?: number } = {},
   ): Promise<EventTaskLibraryItem[]> {
     const q = new URLSearchParams();
     if (params.query) q.set("query", params.query);
     if (params.type) q.set("type", params.type);
+    if (params.difficulty) q.set("difficulty", params.difficulty);
     if (params.page) q.set("page", String(params.page));
     return withFallback(
       async () =>
         EventTaskLibraryItemSchema.array().parse(
           await apiGet(`/event-task-library?${q}`, { authed: true }),
         ),
-      () => mockEventTaskLibrary(params.query, params.type),
+      () => mockEventTaskLibrary(params.query, params.type, params.difficulty),
+    );
+  },
+
+  /** Same read, plus the per-tier availability counts the bulk-preload panel
+   * needs ("12 easy / 30 medium / …"). Separate method rather than a flag so
+   * the plain list keeps its bare-array contract. */
+  async eventTaskLibraryPage(
+    params: { query?: string; type?: string; difficulty?: string; page?: number } = {},
+  ): Promise<EventTaskLibraryPage> {
+    const q = new URLSearchParams({ envelope: "1" });
+    if (params.query) q.set("query", params.query);
+    if (params.type) q.set("type", params.type);
+    if (params.difficulty) q.set("difficulty", params.difficulty);
+    if (params.page) q.set("page", String(params.page));
+    return withFallback(
+      async () =>
+        EventTaskLibraryPageSchema.parse(
+          await apiGet(`/event-task-library?${q}`, { authed: true }),
+        ),
+      () => ({
+        items: mockEventTaskLibrary(params.query, params.type, params.difficulty),
+        difficulty_counts: { air: 0, water: 0, earth: 0, fire: 0 },
+        untiered: 0,
+      }),
+    );
+  },
+
+  /** Copy many library presets into an event at once — explicit picks and/or
+   * "N random presets of tier X". The board-game stocking path: filling four
+   * difficulty pools one click at a time is why boards shipped under-stocked. */
+  async addEventTasksFromLibrary(
+    eventId: number,
+    input: BulkLibraryTasksInput,
+  ): Promise<BulkLibraryTasksResult> {
+    return withFallback(
+      async () =>
+        BulkLibraryTasksResultSchema.parse(
+          await apiSend("POST", `/events/${eventId}/tasks/from-library`, input),
+        ),
+      () => ({ created: [], skipped: [] }),
     );
   },
 

@@ -42,6 +42,8 @@ import {
   type EventEffortReport,
   TaskBreakdownSchema,
   type TaskBreakdown,
+  TaskRequirementsSchema,
+  type TaskRequirements,
   EventSummarySchema,
   type BingoBoard,
   type BingoBoardInput,
@@ -324,6 +326,30 @@ export const eventsApi = {
         structure: "meter" as const,
         meter: { progress: 0, target: 1, unit: "", binary: false, label: null, target_value: null },
         contributors: [],
+      }),
+    );
+  },
+
+  /** What actually counts for a task — every qualifying item/pet/NPC named and
+   * icon-resolved, with no team in the picture. Team-independent (so it works
+   * before teams exist, and for an organiser proof-reading a task), and
+   * cacheable: the answer only changes when the task is edited. */
+  async taskRequirements(eventId: number, taskId: number): Promise<TaskRequirements> {
+    return withFallback(
+      async () =>
+        TaskRequirementsSchema.parse(
+          await apiGet(`/events/${eventId}/tasks/${taskId}/requirements`, { authed: true }),
+        ),
+      () => ({
+        task_id: taskId,
+        label: null,
+        type: "custom" as const,
+        kind: null,
+        summary: "",
+        groups: [],
+        paths: [],
+        npcs: [],
+        notes: [],
       }),
     );
   },

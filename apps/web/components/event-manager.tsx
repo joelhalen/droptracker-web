@@ -60,6 +60,7 @@ import { formatProgressValue, taskThreshold } from "@/components/event-task-prog
 import { EventSignupTools } from "@/components/event-signup-tools";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
+import { TaskRequirementsDisclosure } from "@/components/task-requirements";
 import {
   EMPTY_TASK_FILTER,
   TaskSearchBar,
@@ -1324,7 +1325,9 @@ export function EventManager({
             <EventTaskLibraryPicker
               groupId={groupId}
               eventId={event.id}
+              isBoardGame={event.kind === "board_game"}
               onAdded={(t) => setTasks((prev) => [...prev, t])}
+              onBulkAdded={(added) => setTasks((prev) => [...prev, ...added])}
               onClose={() => setLibraryOpen(false)}
             />
           </div>
@@ -1425,6 +1428,13 @@ export function EventManager({
                         Remove
                       </button>
                     </span>
+                  </div>
+                  {/* Proof-read what was actually built: a 39-pet allow list
+                      or a 60-item point pool is invisible in the one-line
+                      goal, so an organiser had no way to check a task short
+                      of reopening the editor. Fetches only when opened. */}
+                  <div className="mt-2">
+                    <TaskRequirementsDisclosure eventId={event.id} taskId={t.id} />
                   </div>
                   {confirmRemoveTask === t.id && (
                     <div className="border-osrs-red/30 bg-osrs-red/5 mt-2 rounded border p-2 text-xs">

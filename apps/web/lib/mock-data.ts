@@ -2656,7 +2656,11 @@ export function mockEventCompletions(eventId: number, status?: string): EventCom
 }
 
 /** Curated task presets for the bingo designer picker (Task 20). */
-export function mockEventTaskLibrary(query?: string, type?: string): EventTaskLibraryItem[] {
+export function mockEventTaskLibrary(
+  query?: string,
+  type?: string,
+  difficulty?: string,
+): EventTaskLibraryItem[] {
   const all: EventTaskLibraryItem[] = [
     {
       id: 1,
@@ -2733,7 +2737,8 @@ export function mockEventTaskLibrary(query?: string, type?: string): EventTaskLi
   return all.filter(
     (i) =>
       (!q || i.name.toLowerCase().includes(q) || (i.description ?? "").toLowerCase().includes(q)) &&
-      (!type || i.type === type),
+      (!type || i.type === type) &&
+      (!difficulty || i.difficulty === difficulty),
   );
 }
 

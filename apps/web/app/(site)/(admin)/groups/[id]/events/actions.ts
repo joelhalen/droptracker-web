@@ -35,6 +35,8 @@ import {
   type EventTemplateInstantiateInput,
   type EventTemplatePatch,
   type EventTemplateSaveInput,
+  type BulkLibraryTasksInput,
+  type BulkLibraryTasksResult,
   type EventParticipant,
   type EventPrizePot,
   type EventBuyinKind,
@@ -670,10 +672,51 @@ export async function rollEventBoard(
 /** Search the curated task-preset library for the designer picker. */
 export async function searchEventTaskLibrary(
   groupId: EventGroupId,
-  params: { query?: string; type?: string; page?: number } = {},
+  params: { query?: string; type?: string; difficulty?: string; page?: number } = {},
 ) {
   await assertCanManageEvent(groupId);
   return api.eventTaskLibrary(params);
+}
+
+/** The same search, plus per-tier availability counts for the bulk-preload
+ * panel ("12 easy / 30 medium / …"). */
+export async function searchEventTaskLibraryPage(
+  groupId: EventGroupId,
+  params: { query?: string; type?: string; difficulty?: string; page?: number } = {},
+) {
+  await assertCanManageEvent(groupId);
+  return api.eventTaskLibraryPage(params);
+}
+
+/**
+ * Copy many library presets into an event at once.
+ *
+ * Two selection modes, either or both: explicit `library_item_ids` from the
+ * multi-select, and `picks` — "take N random presets of this tier", which is
+ * how a board-game event's four difficulty pools get stocked. Presets already
+ * in the event come back in `skipped` rather than being duplicated, so the
+ * button tops the pool up on a second press.
+ */
+export async function addEventTasksFromLibrary(
+  groupId: EventGroupId,
+  eventId: number,
+  input: BulkLibraryTasksInput,
+): Promise<
+  { ok: true; created: BulkLibraryTasksResult["created"]; skipped: string[] }
+  | { ok: false; error: string }
+> {
+  await assertCanManageEvent(groupId);
+  try {
+    const res = await api.addEventTasksFromLibrary(eventId, input);
+    if (res.created.length) {
+      revalidatePath(eventAdminPath(groupId, eventId));
+      revalidatePath(`/events/${eventId}`);
+    }
+    return { ok: true as const, created: res.created, skipped: res.skipped };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false as const, error: err.message };
+    throw err;
+  }
 }
 
 // --- AI task generation (the "try describing a task instead" panel) --------

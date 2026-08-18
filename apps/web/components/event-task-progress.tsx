@@ -17,6 +17,7 @@ import { useEventStream } from "@/lib/use-event-stream";
 import { TASK_TYPE_LABELS, pbRequirement, taskConfig, taskGoal, teamColorMap } from "@/lib/events";
 import { formatGp } from "@/lib/format";
 import { TaskDetailContent, type BreakdownFetcher } from "@/components/task-detail";
+import type { RequirementsFetcher } from "@/components/task-requirements";
 
 type TeamRef = { id: number; name: string; color?: string | null };
 
@@ -244,6 +245,7 @@ export function EventTaskBoard({
   live = false,
   viewerTeamId,
   fetchBreakdown,
+  fetchRequirements,
 }: {
   tasks: EventTask[];
   teams: TeamRef[];
@@ -254,6 +256,8 @@ export function EventTaskBoard({
   viewerTeamId?: number | null;
   /** Host transport for the per-team breakdown; omit for the site cookie BFF. */
   fetchBreakdown?: BreakdownFetcher;
+  /** Host transport for the (team-independent) requirement list. */
+  fetchRequirements?: RequirementsFetcher;
 }) {
   const progressMap = useLiveProgress(eventId, live, progress);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -308,6 +312,7 @@ export function EventTaskBoard({
                   progressMap={progressMap}
                   viewerTeamId={viewerTeamId}
                   fetchBreakdown={fetchBreakdown}
+                  fetchRequirements={fetchRequirements}
                   showCompare={false}
                 />
               </div>

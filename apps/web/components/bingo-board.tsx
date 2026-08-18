@@ -33,6 +33,7 @@ import {
   useCoarsePointer,
   type BreakdownFetcher,
 } from "@/components/task-detail";
+import type { RequirementsFetcher } from "@/components/task-requirements";
 
 // Re-export for existing importers; canonical home is lib/events.ts now.
 export { TEAM_COLORS };
@@ -153,6 +154,7 @@ function CellCard({
   selectedTeam,
   eventId,
   fetchBreakdown,
+  fetchRequirements,
 }: {
   cell: BingoCell;
   task?: EventTask;
@@ -169,6 +171,7 @@ function CellCard({
   selectedTeam?: number | null;
   eventId?: number;
   fetchBreakdown?: BreakdownFetcher;
+  fetchRequirements?: RequirementsFetcher;
 }) {
   return (
     <div className="p-3 text-sm">
@@ -210,6 +213,7 @@ function CellCard({
             viewerTeamId={viewerTeamId}
             initialTeamId={selectedTeam}
             fetchBreakdown={fetchBreakdown}
+            fetchRequirements={fetchRequirements}
           />
         </div>
       )}
@@ -229,6 +233,7 @@ export function BingoBoard({
   viewerTeamId,
   initialSelectedTeam = null,
   fetchBreakdown,
+  fetchRequirements,
 }: {
   board: BingoBoardData;
   teams?: TeamRef[];
@@ -246,6 +251,8 @@ export function BingoBoard({
   initialSelectedTeam?: number | null;
   /** Host transport for the per-team breakdown; omit for the site cookie BFF. */
   fetchBreakdown?: BreakdownFetcher;
+  /** Host transport for the (team-independent) requirement list. */
+  fetchRequirements?: RequirementsFetcher;
 }) {
   const [completions, setCompletions] = useState(() => initialCompletions(board));
   const [pending, setPending] = useState(() => initialPending(board));
@@ -376,6 +383,7 @@ export function BingoBoard({
       selectedTeam={selectedTeam}
       eventId={eventId}
       fetchBreakdown={fetchBreakdown}
+      fetchRequirements={fetchRequirements}
     />
   );
 

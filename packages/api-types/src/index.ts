@@ -2771,12 +2771,33 @@ export const BoardInputSchema = z.object({
 });
 export type BoardInput = z.infer<typeof BoardInputSchema>;
 
+/** What a player picks when USING an item (services/boardgame_effects.TARGETING).
+ * Drives both the buy-time explanation and the use-time input. */
+export const BOARDGAME_TARGETING = ["self", "team", "tile", "value"] as const;
+export type BoardgameTargeting = (typeof BOARDGAME_TARGETING)[number];
+
+/** Explanation fields every shop surface shares (buy list, bag, admin config).
+ *
+ * `description` is the superadmin's static catalog prose; `effect_summary` is
+ * generated from the effect's RESOLVED behavior, so an event that re-tunes a
+ * freeze to 3 turns stops advertising 2. Prefer the summary and treat the
+ * description as flavour. */
+const EffectExplanationFields = {
+  description: z.string().nullable().optional(),
+  effect_summary: z.string().nullable().optional(),
+  targeting: z.enum(BOARDGAME_TARGETING).optional(),
+  /** Sits on a board tile and interacts with movement (roadblock-likes). */
+  tile_bound: z.boolean().optional(),
+  /** The resolved behavior knobs behind the summary (turns, tiles, coins…). */
+  behavior: z.record(z.string(), z.unknown()).optional(),
+};
+
 /** One purchasable power-up as offered by an event's shop (web45a). */
 export const BoardShopItemSchema = z.object({
   id: z.number().int(),
   key: z.string(),
   name: z.string(),
-  description: z.string().nullable().optional(),
+  ...EffectExplanationFields,
   icon_item_id: z.number().int().nullable().optional(),
   item_type: z.enum(["movement", "offensive", "defensive", "economy", "utility"]),
   effect: z.string(),
@@ -2799,6 +2820,7 @@ export const BoardInventoryItemSchema = z.object({
   shop_item_id: z.number().int(),
   key: z.string(),
   name: z.string(),
+  ...EffectExplanationFields,
   icon_item_id: z.number().int().nullable().optional(),
   item_type: z.string(),
   effect: z.string(),
@@ -2840,10 +2862,12 @@ export const BoardShopConfigItemSchema = z.object({
   shop_item_id: z.number().int(),
   key: z.string(),
   name: z.string(),
-  description: z.string().nullable().optional(),
+  ...EffectExplanationFields,
   icon_item_id: z.number().int().nullable().optional(),
   item_type: z.string(),
   effect: z.string(),
+  /** Turns before the team may use ANOTHER item of this item_type. */
+  type_cooldown_turns: z.number().int().optional(),
   /** Catalog default price — shown as the price input's placeholder. */
   default_cost_coins: z.number().int(),
   enabled: z.boolean().default(true),
@@ -3715,6 +3739,65 @@ export const TaskBreakdownSchema = z.object({
 });
 export type TaskBreakdown = z.infer<typeof TaskBreakdownSchema>;
 
+/* -------------------------------------------------------------------------- */
+/* Task requirements — "what actually counts", with no team in the picture.   */
+/* The companion to the breakdown (web_api/task_requirements.py): that answers */
+/* "how far has my team got", this answers the question asked first — WHICH    */
+/* pets/items qualify. Team-independent, so it also serves an event with no    */
+/* teams yet and an organiser proof-reading a task they just built.            */
+/* -------------------------------------------------------------------------- */
+
+/** One qualifying item/pet. `required` > 1 means a counted goal ("6000×"). */
+export const TaskRequirementItemSchema = z.object({
+  name: z.string(),
+  icon: TaskTileIconSchema.nullable().optional(),
+  required: z.number().int().default(1),
+  /** point_collection weight, when the task scores by points. */
+  points: z.number().optional(),
+});
+export type TaskRequirementItem = z.infer<typeof TaskRequirementItemSchema>;
+
+/** One requirement bucket. `label` is the pre-rendered header ("Any 3 of"). */
+export const TaskRequirementGroupSchema = z.object({
+  mode: z.enum(["all_of", "any_of", "points", "count"]),
+  need: z.number().int().default(0),
+  label: z.string().optional(),
+  unit: z.string().optional(),
+  items: z.array(TaskRequirementItemSchema).default([]),
+});
+export type TaskRequirementGroup = z.infer<typeof TaskRequirementGroupSchema>;
+
+export const TaskRequirementPathSchema = z.object({
+  label: z.string(),
+  need: z.number().int().default(0),
+  metric: z.enum(["kc", "loot_value"]).optional(),
+  unit: z.string().optional(),
+  groups: z.array(TaskRequirementGroupSchema).default([]),
+  npcs: z
+    .array(z.object({ name: z.string(), icon: TaskTileIconSchema.nullable().optional() }))
+    .default([]),
+});
+export type TaskRequirementPath = z.infer<typeof TaskRequirementPathSchema>;
+
+export const TaskRequirementsSchema = z.object({
+  task_id: z.number().int(),
+  label: z.string().nullable().optional(),
+  type: z.enum(EVENT_TASK_TYPES),
+  kind: z.string().nullable().optional(),
+  /** One-line plain-English restatement of the goal. */
+  summary: z.string().default(""),
+  groups: z.array(TaskRequirementGroupSchema).default([]),
+  /** Either-or alternatives (`any_path`); complete any ONE of them. */
+  paths: z.array(TaskRequirementPathSchema).default([]),
+  npcs: z
+    .array(z.object({ name: z.string(), icon: TaskTileIconSchema.nullable().optional() }))
+    .default([]),
+  /** Rules that live in the matcher, not the config — e.g. "duplicate pets
+   * don't count". These are the answers to "why didn't this credit?". */
+  notes: z.array(z.string()).default([]),
+});
+export type TaskRequirements = z.infer<typeof TaskRequirementsSchema>;
+
 export const EventInputSchema = z.object({
   /** null ⇒ global event (superadmin only). */
   group_id: z.number().int().nullable(),
@@ -4121,6 +4204,44 @@ export const EventTaskLibraryItemSchema = z.object({
   visibility: z.enum(EVENT_TASK_VISIBILITIES).default("public"),
 });
 export type EventTaskLibraryItem = z.infer<typeof EventTaskLibraryItemSchema>;
+
+/** GET /event-task-library?envelope=1 — the same page, plus how many presets
+ * exist per board-game tier, so the bulk-preload panel can offer "12 easy /
+ * 30 medium / …" without paging the whole library client-side. */
+export const EventTaskLibraryPageSchema = z.object({
+  items: z.array(EventTaskLibraryItemSchema).default([]),
+  difficulty_counts: z.record(z.enum(EVENT_TASK_DIFFICULTIES), z.number().int()),
+  /** Presets with no tier set — still usable, just not in a tier pool. */
+  untiered: z.number().int().default(0),
+});
+export type EventTaskLibraryPage = z.infer<typeof EventTaskLibraryPageSchema>;
+
+/** POST /events/{id}/tasks/from-library — copy many presets in one request.
+ * `library_item_ids` are explicit picks; `picks` takes N random presets of a
+ * tier (`difficulty: null` = the untiered pool). Both may be sent together;
+ * the backend caps the combined total. */
+export const BulkLibraryTasksInputSchema = z.object({
+  library_item_ids: z.array(z.number().int()).optional(),
+  picks: z
+    .array(
+      z.object({
+        difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable(),
+        count: z.number().int().min(0),
+      }),
+    )
+    .optional(),
+  /** Restrict the tier draw to one task type. */
+  type: z.enum(EVENT_TASK_TYPES).optional(),
+});
+export type BulkLibraryTasksInput = z.infer<typeof BulkLibraryTasksInputSchema>;
+
+/** `skipped` names presets that were already in the event (so pressing the
+ * button twice tops the pool up) or no longer validate. */
+export const BulkLibraryTasksResultSchema = z.object({
+  created: z.array(EventTaskSchema).default([]),
+  skipped: z.array(z.string()).default([]),
+});
+export type BulkLibraryTasksResult = z.infer<typeof BulkLibraryTasksResultSchema>;
 
 /** GET /events/meta/items | /events/meta/npcs — task-form autocomplete rows.
  * `id` is the game id (itemdb/npcdb icon key), `name` the exact in-game name.
