@@ -581,6 +581,17 @@ export function EventTaskForm({
   const [visibility, setVisibility] = useState<"public" | "private">(
     initial?.visibility ?? "private",
   );
+  // Per-task progress-notification override (config.progress_notify): replaces
+  // the event/team progress verbosity for this one task, on Discord AND the
+  // in-game plugin — a 15k-collection tile can announce at 25/50/75% while a
+  // gear-set tile announces every piece. "" = inherit the event setting.
+  const [progressNotify, setProgressNotify] = useState<"" | "off" | "milestones" | "all">(
+    initialConfig.progress_notify === "off" ||
+      initialConfig.progress_notify === "milestones" ||
+      initialConfig.progress_notify === "all"
+      ? initialConfig.progress_notify
+      : "",
+  );
 
   // item_collection
   const initialGroups = groupsFromConfig(initialConfig, initialPetNames);
@@ -1138,6 +1149,22 @@ export function EventTaskForm({
     }
   };
 
+  /** Fold the per-task progress-notification override into whatever config
+   * the type branch built (loot_sweep excluded — it has its own sweep
+   * messages and never emits task progress). */
+  const withProgressNotify = (input: EventTaskInput): EventTaskInput => {
+    if (!progressNotify || type === "loot_sweep") return input;
+    let cfg: Record<string, unknown> = {};
+    if (input.config) {
+      try {
+        cfg = JSON.parse(input.config) as Record<string, unknown>;
+      } catch {
+        return input;
+      }
+    }
+    return { ...input, config: JSON.stringify({ ...cfg, progress_notify: progressNotify }) };
+  };
+
   /** web68a: a pending scoring-affecting edit awaiting the editor's
    * retroactivity choice (shown as an inline prompt over the actions row). */
   const [retroPrompt, setRetroPrompt] = useState<EventTaskInput | null>(null);
@@ -1185,7 +1212,7 @@ export function EventTaskForm({
       return;
     }
     setError(null);
-    const input = buildInput();
+    const input = withProgressNotify(buildInput());
     if (onDraftSubmit) {
       onDraftSubmit(input);
       return;
@@ -1849,6 +1876,25 @@ export function EventTaskForm({
                   {TASK_DIFFICULTY_LABELS[d]}
                 </option>
               ))}
+            </select>
+          </label>
+        )}
+        {/* Sweep tiles announce via their own sweep messages, never task progress. */}
+        {type !== "loot_sweep" && (
+          <label className="grid gap-1 text-sm">
+            <span className="text-osrs-parchment-dark/80">Progress notifications</span>
+            <select
+              value={progressNotify}
+              onChange={(e) =>
+                setProgressNotify(e.target.value as typeof progressNotify)
+              }
+              className={field}
+              title="How often teammates hear about progress on THIS task — in Discord and in-game. Default follows the event's Progress update frequency."
+            >
+              <option value="">Default — use the event setting</option>
+              <option value="all">Every update</option>
+              <option value="milestones">Milestones only (25/50/75%)</option>
+              <option value="off">Off — completion only</option>
             </select>
           </label>
         )}

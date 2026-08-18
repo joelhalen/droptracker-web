@@ -31,6 +31,25 @@ type ScoringFields = {
   config?: string | null;
 };
 
+/** Config keys that only affect notifications, never scoring — a change to
+ * them alone must not trigger the retro prompt (the backend strips them from
+ * its own comparison too). */
+const NON_SCORING_CONFIG_KEYS = ["progress_notify"] as const;
+
+function scoringConfig(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let cfg: unknown;
+  try {
+    cfg = JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+  if (typeof cfg !== "object" || cfg === null || Array.isArray(cfg)) return raw;
+  const rest = { ...(cfg as Record<string, unknown>) };
+  for (const key of NON_SCORING_CONFIG_KEYS) delete rest[key];
+  return Object.keys(rest).length ? JSON.stringify(rest) : null;
+}
+
 /** Whether an edit touches the fields that drive scoring (goal/points/config).
  * String-compares `config` JSON — client-rebuilt configs can differ textually
  * from the stored one while meaning the same thing, which at worst shows the
@@ -41,6 +60,6 @@ export function taskScoringDirty(input: ScoringFields, initial: ScoringFields): 
     (input.target ?? null) !== (initial.target ?? null) ||
     (input.target_value ?? null) !== (initial.target_value ?? null) ||
     (input.points ?? 0) !== (initial.points ?? 0) ||
-    (input.config ?? null) !== (initial.config ?? null)
+    scoringConfig(input.config) !== scoringConfig(initial.config)
   );
 }
