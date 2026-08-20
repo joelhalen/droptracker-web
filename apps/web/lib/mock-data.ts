@@ -1414,7 +1414,12 @@ export function mockServices(): ServiceStatus[] {
       n_restarts: 2,
     }),
     svc("droptracker-heartbeat", "Heartbeat bot", "Discord bots", "Uptime heartbeat"),
-    svc("droptracker-hof", "Hall of Fame bot", "Discord bots", "Generates and posts Hall of Fame images"),
+    svc(
+      "droptracker-hof",
+      "Hall of Fame bot (legacy)",
+      "Discord bots",
+      "Being retired — the core bot takes each group over as the old bot is removed",
+    ),
     svc("droptracker-webhook-consumer", "Intake queue consumer", "Processing & workers", "Drains webhook:queue", {
       confirm_stop: true,
     }),
