@@ -2,6 +2,9 @@ import { apiGet, apiSend, withFallback } from "./_client";
 import {
   GroupEmbedSchema,
   GroupEmbedsResponseSchema,
+  GroupNotificationLayoutsResponseSchema,
+  NotificationLayoutMetaSchema,
+  SavedNotificationLayoutSchema,
   EventLayoutMetaSchema,
   EventLayoutsResponseSchema,
   EventMessageLayoutSchema,
@@ -15,12 +18,18 @@ import {
   type GroupEmbed,
   type GroupEmbedInput,
   type GroupEmbedsResponse,
+  type GroupNotificationLayoutsResponse,
+  type NotificationLayoutInput,
+  type NotificationLayoutMeta,
+  type SavedNotificationLayout,
 } from "@droptracker/api-types";
 import {
   mockGroupEmbeds,
   mockEventLayoutMeta,
   mockEventLayouts,
   mockGroupEventLayouts,
+  mockNotificationLayoutMeta,
+  mockGroupNotificationLayouts,
 } from "../mock-data";
 
 export const layoutsApi = {
@@ -163,6 +172,69 @@ export const layoutsApi = {
     return withFallback(
       async () => {
         await apiSend("DELETE", `/events/${eventId}/layouts/${messageType}`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  // --- Notification component layouts (pilot-gated) ----------------------
+  /** Editor metadata: notification types, token docs, Discord limits. */
+  async notificationLayoutMeta(): Promise<NotificationLayoutMeta> {
+    return withFallback(
+      async () =>
+        NotificationLayoutMetaSchema.parse(
+          await apiGet(`/notification-layouts/meta`, { authed: true }),
+        ),
+      () => mockNotificationLayoutMeta(),
+    );
+  },
+
+  /** The group's authored layouts, which are live, and the shipped defaults.
+   * `enabled` reports the pilot gate rather than the call failing for a group
+   * outside it. */
+  async groupNotificationLayouts(groupId: number): Promise<GroupNotificationLayoutsResponse> {
+    return withFallback(
+      async () =>
+        GroupNotificationLayoutsResponseSchema.parse(
+          await apiGet(`/groups/${groupId}/notification-layouts`, { authed: true }),
+        ),
+      () => mockGroupNotificationLayouts(),
+    );
+  },
+
+  /** Save one type's layout. `active` decides whether it is what members get. */
+  async saveGroupNotificationLayout(
+    groupId: number,
+    notificationType: string,
+    input: NotificationLayoutInput,
+  ): Promise<SavedNotificationLayout> {
+    return withFallback(
+      async () =>
+        SavedNotificationLayoutSchema.parse(
+          await apiSend(
+            "PUT",
+            `/groups/${groupId}/notification-layouts/${notificationType}`,
+            input,
+          ),
+        ),
+      () =>
+        SavedNotificationLayoutSchema.parse({
+          notification_type: notificationType,
+          layout: { accent_color: input.accent_color ?? null, blocks: input.blocks },
+          active: Boolean(input.active),
+        }),
+    );
+  },
+
+  /** Delete one type's layout — that type sends its embed again. */
+  async deleteGroupNotificationLayout(
+    groupId: number,
+    notificationType: string,
+  ): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/groups/${groupId}/notification-layouts/${notificationType}`, {});
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,

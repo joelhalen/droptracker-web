@@ -300,6 +300,8 @@ export const GroupRecordSchema = z.object({
 export type GroupRecord = z.infer<typeof GroupRecordSchema>;
 
 export const PersonalBestSummarySchema = z.object({
+  /** Row id, needed to fetch the loadout the time was set with. */
+  pb_id: z.number().int().optional(),
   npc_id: z.number().int(),
   boss: z.string(),
   time_ms: z.number().int(),
@@ -308,6 +310,128 @@ export const PersonalBestSummarySchema = z.object({
   date_ts: z.number().int(),
 });
 export type PersonalBestSummary = z.infer<typeof PersonalBestSummarySchema>;
+
+/** One slot of a collection log page, obtained or not. */
+export const CollectionLogItemSchema = z.object({
+  item_id: z.number().int(),
+  name: z.string(),
+  quantity: z.number().int(),
+  obtained: z.boolean(),
+});
+export type CollectionLogItem = z.infer<typeof CollectionLogItemSchema>;
+
+export const CollectionLogPageSchema = z.object({
+  name: z.string(),
+  obtained: z.number().int(),
+  total: z.number().int(),
+  items: z.array(CollectionLogItemSchema),
+});
+export type CollectionLogPage = z.infer<typeof CollectionLogPageSchema>;
+
+export const CollectionLogTabSchema = z.object({
+  name: z.string(),
+  obtained: z.number().int(),
+  total: z.number().int(),
+  pages: z.array(CollectionLogPageSchema),
+});
+export type CollectionLogTab = z.infer<typeof CollectionLogTabSchema>;
+
+export const PlayerCollectionLogSchema = z.object({
+  player_id: z.number().int(),
+  /** What the game reports; correct even when our structure lags a game update. */
+  slots: z.number().int().nullable(),
+  slots_total: z.number().int().nullable(),
+  /** What we can account for against the structure we know. */
+  obtained: z.number().int(),
+  total: z.number().int(),
+  /** Recorded items the structure does not define — a sign it needs re-syncing. */
+  unknown_recorded: z.number().int(),
+  has_structure: z.boolean(),
+  tabs: z.array(CollectionLogTabSchema),
+  last_synced: z.string().nullable(),
+  has_synced: z.boolean(),
+});
+export type PlayerCollectionLog = z.infer<typeof PlayerCollectionLogSchema>;
+
+export const DiaryTierSchema = z.object({
+  tier: z.number().int(),
+  name: z.string(),
+  completed: z.number().int(),
+});
+
+export const DiaryAreaSchema = z.object({
+  area_id: z.number().int(),
+  name: z.string(),
+  tiers: z.array(DiaryTierSchema),
+});
+export type DiaryArea = z.infer<typeof DiaryAreaSchema>;
+
+export const PlayerAchievementsSchema = z.object({
+  player_id: z.number().int(),
+  has_synced: z.boolean(),
+  last_synced: z.string().nullable(),
+  account_type: z.number().int().nullable(),
+  combat_level: z.number().int().nullable(),
+  combat_achievements: z.object({
+    tasks_completed: z.number().int().nullable(),
+    total: z.number().int().nullable(),
+    /** Progress per tier, in the game's tier order. */
+    tiers: z
+      .array(
+        z.object({
+          tier: z.string(),
+          completed: z.number().int(),
+          total: z.number().int(),
+        }),
+      )
+      .default([]),
+    /** Per-monster progress with the individual named tasks. */
+    monsters: z
+      .array(
+        z.object({
+          monster: z.string(),
+          completed: z.number().int(),
+          total: z.number().int(),
+          tasks: z.array(
+            z.object({
+              name: z.string(),
+              description: z.string(),
+              tier: z.string(),
+              type: z.string(),
+              completed: z.boolean(),
+            }),
+          ),
+        }),
+      )
+      .default([]),
+  }),
+  quests: z.object({
+    not_started: z.number().int(),
+    in_progress: z.number().int(),
+    finished: z.number().int(),
+  }),
+  diaries: z.array(DiaryAreaSchema),
+});
+export type PlayerAchievements = z.infer<typeof PlayerAchievementsSchema>;
+
+/** One occupied slot of a gear/inventory snapshot taken at a personal best. */
+export const LoadoutEntrySchema = z.object({
+  slot: z.number().int(),
+  item_id: z.number().int(),
+  quantity: z.number().int(),
+  name: z.string(),
+  icon: z.string(),
+});
+export type LoadoutEntry = z.infer<typeof LoadoutEntrySchema>;
+
+export const PersonalBestLoadoutSchema = z.object({
+  pb_id: z.number().int(),
+  has_loadout: z.boolean(),
+  boss: z.string().nullable().optional(),
+  equipment: z.array(LoadoutEntrySchema),
+  inventory: z.array(LoadoutEntrySchema),
+});
+export type PersonalBestLoadout = z.infer<typeof PersonalBestLoadoutSchema>;
 
 /** One stacked item inside a loot-tracker NPC box. */
 export const LootTrackerItemSchema = z.object({
@@ -607,6 +731,10 @@ export const PlayerProfileSchema = PlayerSummarySchema.extend({
   badges: z.array(PlayerBadgeSchema).optional(),
   /** Owner has an active supporter subscription (display flair). */
   is_supporter: z.boolean().optional(),
+  /** Outfit fingerprint of the uploaded character model; absent when none. */
+  model_fingerprint: z.string().optional(),
+  /** Whether a pet model was uploaded alongside the character. */
+  model_has_pet: z.boolean().optional(),
   /** Pretty-URL slug to declare canonical (null when the RSN collides with another visible player). */
   canonical_slug: z.string().nullish(),
 });
@@ -5209,6 +5337,129 @@ export const EventLayoutMetaSchema = z.object({
   schema_version: z.number().int(),
 });
 export type EventLayoutMeta = z.infer<typeof EventLayoutMetaSchema>;
+
+/* ---------------------------------------------------------------------------
+ * Notification Components-V2 layouts (backend services/component_layout.py).
+ *
+ * The same block DSL as the event layouts above, with `media` added for the
+ * screenshot gallery a notification wants and an event does not, and without
+ * `standings`. A group either sends a notification type as an embed or as
+ * these components — Discord refuses a message carrying both — so each type
+ * carries an `active` flag rather than applying the moment it is saved.
+ */
+
+export const NOTIFICATION_LAYOUT_BLOCK_TYPES = [
+  "text",
+  "section",
+  "separator",
+  "media",
+  "buttons",
+] as const;
+export type NotificationLayoutBlockType = (typeof NOTIFICATION_LAYOUT_BLOCK_TYPES)[number];
+
+/** Link buttons only: an interactive style would need a handler the bot has
+ * no way to provide for a user-authored template. */
+export const NotificationLayoutButtonSchema = z.object({
+  label: z.string().min(1).max(80),
+  url: z.string().max(500),
+});
+export type NotificationLayoutButton = z.infer<typeof NotificationLayoutButtonSchema>;
+
+export const NotificationLayoutBlockSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), content: z.string().min(1).max(3500) }),
+  z.object({
+    type: z.literal("section"),
+    content: z.string().min(1).max(3500),
+    thumbnail: z.string().max(500).nullish(),
+  }),
+  z.object({
+    type: z.literal("separator"),
+    divider: z.boolean().nullish(),
+    spacing: z.enum(["small", "large"]).nullish(),
+  }),
+  z.object({ type: z.literal("media"), urls: z.array(z.string().max(500)).min(1).max(10) }),
+  z.object({
+    type: z.literal("buttons"),
+    buttons: z.array(NotificationLayoutButtonSchema).min(1).max(5),
+  }),
+]);
+export type NotificationLayoutBlock = z.infer<typeof NotificationLayoutBlockSchema>;
+
+export const NotificationLayoutSchema = z.object({
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable(),
+  blocks: z.array(NotificationLayoutBlockSchema),
+});
+export type NotificationLayout = z.infer<typeof NotificationLayoutSchema>;
+
+/** PUT body. `active` is what changes production behaviour, so it travels with
+ * the layout rather than living on a second endpoint that could disagree. */
+export const NotificationLayoutInputSchema = z.object({
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Accent must be a hex color like #c8aa6e")
+    .nullable()
+    .optional(),
+  blocks: z.array(NotificationLayoutBlockSchema).min(1).max(30),
+  active: z.boolean().optional(),
+});
+export type NotificationLayoutInput = z.infer<typeof NotificationLayoutInputSchema>;
+
+export const NotificationLayoutEntrySchema = z.object({
+  notification_type: z.string(),
+  /** The group's authored layout, or null when it has never saved one. */
+  custom: NotificationLayoutSchema.nullable(),
+  /** Whether this type actually sends as components right now. */
+  active: z.boolean(),
+  /** The shipped starting point the editor seeds from. */
+  default: NotificationLayoutSchema,
+  updated_at: z.string().nullable(),
+});
+export type NotificationLayoutEntry = z.infer<typeof NotificationLayoutEntrySchema>;
+
+export const GroupNotificationLayoutsResponseSchema = z.object({
+  /** False for a group outside the components pilot: the editor is read-only
+   * there because the send path would ignore anything saved. */
+  enabled: z.boolean(),
+  layouts: z.array(NotificationLayoutEntrySchema),
+});
+export type GroupNotificationLayoutsResponse = z.infer<
+  typeof GroupNotificationLayoutsResponseSchema
+>;
+
+export const NotificationLayoutTokenDocSchema = z.object({
+  token: z.string(),
+  help: z.string(),
+  sample: z.string(),
+  /** Frequently absent in production (no screenshot, no render, no points).
+   * The preview blanks these to show the sparse message. */
+  optional: z.boolean(),
+});
+export type NotificationLayoutTokenDoc = z.infer<typeof NotificationLayoutTokenDocSchema>;
+
+export const NotificationLayoutTypeMetaSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  group: z.string(),
+  description: z.string(),
+  tokens: z.array(NotificationLayoutTokenDocSchema),
+});
+export type NotificationLayoutTypeMeta = z.infer<typeof NotificationLayoutTypeMetaSchema>;
+
+export const NotificationLayoutMetaSchema = z.object({
+  types: z.array(NotificationLayoutTypeMetaSchema),
+  limits: z.record(z.string(), z.number()),
+});
+export type NotificationLayoutMeta = z.infer<typeof NotificationLayoutMetaSchema>;
+
+export const SavedNotificationLayoutSchema = z.object({
+  notification_type: z.string(),
+  layout: NotificationLayoutSchema,
+  active: z.boolean(),
+});
+export type SavedNotificationLayout = z.infer<typeof SavedNotificationLayoutSchema>;
 
 /* ---------------------------------------------------------------------------
  * Recaps ("Wrapped") — monthly and annual cards.
