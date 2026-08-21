@@ -36,7 +36,8 @@ export function ProfileShowcase({
   achievements,
   loot,
   submissions,
-  sidebar,
+  stats,
+  badges,
 }: {
   playerId: number;
   modelFingerprint?: string | null;
@@ -45,9 +46,15 @@ export function ProfileShowcase({
   achievements: PlayerAchievements | null;
   loot: PlayerLootTracker | null;
   submissions: Submission[];
-  /** Stats and badges, rendered under the character. Server-rendered by the page. */
-  sidebar?: React.ReactNode;
+  /** Stat tiles, rendered under the character. Server-rendered by the page. */
+  stats?: React.ReactNode;
+  /** Badge icons, rendered with the character rather than in their own card. */
+  badges?: React.ReactNode;
 }) {
+  // Collapsing gives the tab content the whole width. Off by default: the
+  // character is the first thing most people come to a profile to see.
+  const [panelOpen, setPanelOpen] = useState(true);
+
   const combat = achievements?.combat_achievements;
   const hasCombat = !!combat?.monsters.length;
   const hasLog = !!collectionLog?.tabs.length;
@@ -107,29 +114,79 @@ export function ProfileShowcase({
 
   return (
     <section className="rise-in">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,17rem)_1fr]">
-        <div className="space-y-4">
-          {modelFingerprint ? (
-            <CharacterViewer
-              playerId={playerId}
-              fingerprint={modelFingerprint}
-              hasPet={modelHasPet ?? false}
-            />
-          ) : (
-            <OsrsWindow title="Character">
-              <div className="p-4">
-                <EmptyState
-                  title="No character model"
-                  hint="Enable “Upload character model” in the DropTracker plugin to show your character here."
+      {/* One window for the whole account. The character used to sit in its own
+          card beside this one, which read as two unrelated things and left the
+          tabs boxed into a narrow column. */}
+      <OsrsWindow title="Account">
+        <div className="lg:grid lg:grid-cols-[auto_minmax(0,1fr)]">
+          <aside
+            className={`border-osrs-bronze/40 shrink-0 border-b transition-[width] duration-200 lg:border-r lg:border-b-0 ${
+              panelOpen ? "lg:w-56" : "lg:w-10"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setPanelOpen((v) => !v)}
+              aria-expanded={panelOpen}
+              aria-controls="profile-character-panel"
+              title={panelOpen ? "Hide character panel" : "Show character panel"}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright flex w-full items-center gap-1.5 px-2.5 py-2 text-xs tracking-wide uppercase transition-colors"
+            >
+              <svg
+                viewBox="0 0 16 16"
+                aria-hidden
+                className={`size-3.5 shrink-0 transition-transform duration-200 ${
+                  panelOpen ? "" : "rotate-180"
+                }`}
+              >
+                <path
+                  d="M10 3L5 8l5 5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
-              </div>
-            </OsrsWindow>
-          )}
-          {sidebar}
-        </div>
+              </svg>
+              {/* Collapsed, the label would not fit the rail on desktop — but on
+                  mobile the rail does not exist and the word is the only clue
+                  as to what this expands. */}
+              <span className={panelOpen ? "" : "lg:sr-only"}>Character</span>
+            </button>
 
-        <OsrsWindow title="Account">
-          <div className="border-osrs-bronze/40 flex flex-wrap gap-1 border-b px-2 pt-2">
+            <div
+              id="profile-character-panel"
+              className={panelOpen ? "px-3 pb-3" : "hidden"}
+            >
+              {/* Below lg the rail is a full-width band rather than a column,
+                  so the character sits BESIDE its stats there. Stacking it
+                  meant a phone scrolled past a screen-height of model before
+                  reaching the tabs, which is what the profile is actually for. */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start lg:flex-col">
+                <div className="w-full sm:w-44 sm:shrink-0 lg:w-full">
+                  {modelFingerprint ? (
+                    <CharacterViewer
+                      playerId={playerId}
+                      fingerprint={modelFingerprint}
+                      hasPet={modelHasPet ?? false}
+                    />
+                  ) : (
+                    <EmptyState
+                      title="No character model"
+                      hint="Enable “Upload character model” in the DropTracker plugin to show your character here."
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 space-y-3 lg:w-full lg:flex-none">
+                  {badges}
+                  {stats}
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <div className="min-w-0">
+            <div className="border-osrs-bronze/40 flex flex-wrap gap-1 border-b px-2 pt-2">
             {tabs.map((t) => (
               <button
                 key={t.key}
@@ -223,8 +280,9 @@ export function ProfileShowcase({
             ) : (
               <Empty what="achievement diaries" />
             ))}
-        </OsrsWindow>
-      </div>
+          </div>
+        </div>
+      </OsrsWindow>
     </section>
   );
 }

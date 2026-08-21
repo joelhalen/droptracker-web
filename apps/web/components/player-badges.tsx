@@ -2,6 +2,7 @@ import type { CompactBadge, PlayerBadge } from "@droptracker/api-types";
 
 import { formatDate, formatGp } from "@/lib/format";
 import { Badge } from "@/components/ui";
+import { HoverCard } from "@/components/hover-card";
 
 /* -------------------------------------------------------------------------- */
 /* Player badges: labelled pill chips beside names (leaderboards) and the     */
@@ -218,6 +219,80 @@ export function PlayerBadgeList({ badges }: { badges: PlayerBadge[] }) {
                 Earned {formatDate(b.awarded_at_ts)}
               </p>
             </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Icon-only badges for the character panel, each opening the full detail on
+ * hover (desktop) or tap (touch) via the shared HoverCard.
+ *
+ * The profile used to spend a whole card on `PlayerBadgeList`, which is a lot
+ * of vertical space for something most visitors glance at. Icons keep every
+ * badge visible at once and put the wording one interaction away, which is the
+ * same trade the leaderboard rows already make.
+ *
+ * Lost badges stay in the row, dimmed: "held until ..." is history worth
+ * showing, and hiding them would make a player look like they never held the
+ * record at all.
+ */
+export function ProfileBadgeIcons({ badges }: { badges: PlayerBadge[] }) {
+  if (!badges.length) return null;
+  return (
+    <ul className="flex flex-wrap items-center gap-1.5">
+      {badges.map((b) => {
+        const lost = b.status === "lost";
+        const line = contextLine(b);
+        const detail = badgeDetail(b.key, b.context as Record<string, unknown> | null);
+        return (
+          <li key={b.id}>
+            <HoverCard
+              width={260}
+              content={
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-osrs-parchment text-sm font-semibold">{b.name}</span>
+                    {b.semantic === "held" && !lost && (
+                      <Badge variant="ember" size="sm">
+                        Held
+                      </Badge>
+                    )}
+                    {lost && (
+                      <Badge variant="neutral" size="sm">
+                        Held until {formatDate(b.lost_at_ts ?? null)}
+                      </Badge>
+                    )}
+                  </div>
+                  {detail && (
+                    <p className="text-osrs-gold-bright/90 text-xs">{detail}</p>
+                  )}
+                  <p className="text-osrs-parchment-dark/80 text-xs">{b.description}</p>
+                  <p className="text-osrs-parchment-dark/50 text-xs">
+                    {line ? `${line} · ` : ""}
+                    Earned {formatDate(b.awarded_at_ts)}
+                  </p>
+                </div>
+              }
+            >
+              {/* The title is the no-JS / screen-reader fallback for the card. */}
+              <span
+                className={`border-osrs-bronze/40 bg-osrs-surface-2 hover:border-osrs-gold flex size-8 cursor-help items-center justify-center rounded border transition-colors ${
+                  lost ? "opacity-50" : ""
+                }`}
+                title={`${b.name}${detail ? ` (${detail})` : ""}`}
+              >
+                {b.icon_url ? (
+                  <img src={b.icon_url} alt="" className="size-5 object-contain" />
+                ) : (
+                  <span aria-hidden className="text-sm">
+                    {b.icon_emoji ?? "\u2605"}
+                  </span>
+                )}
+                <span className="sr-only">{b.name}</span>
+              </span>
+            </HoverCard>
           </li>
         );
       })}

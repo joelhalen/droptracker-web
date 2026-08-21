@@ -20,6 +20,14 @@ export type CharacterModelProps = {
   petSrc?: string | null;
   width?: number;
   height?: number;
+  /**
+   * Fill the container's width instead of drawing at a fixed size, keeping
+   * `aspect`. Opt-in, because the Discord still depends on exact pixel
+   * dimensions — only the on-page viewer wants this.
+   */
+  responsive?: boolean;
+  /** width / height, used only in responsive mode. Portrait by default. */
+  aspect?: number;
   /** Slowly rotate. Off for the still, so the same outfit always renders identically. */
   spin?: boolean;
   /**
@@ -35,11 +43,51 @@ export function CharacterModel({
   petSrc,
   width = 400,
   height = 600,
+  responsive = false,
+  aspect = 260 / 390,
   spin = false,
   signalReady = false,
 }: CharacterModelProps) {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [failed, setFailed] = useState(false);
+
+  // Live drawing size. A ref, not state: a resize must not tear down the scene
+  // and re-download the model, which is what re-running the effect would do.
+  const sizeRef = useRef({ w: width, h: height });
+  const rendererRef = useRef<{ setSize: (w: number, h: number) => void } | null>(null);
+  const cameraRef = useRef<{ aspect: number; updateProjectionMatrix: () => void } | null>(null);
+  /** Draws one frame. Needed because the loop stops itself when `spin` is off. */
+  const redrawRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!responsive) {
+      sizeRef.current = { w: width, h: height };
+      return;
+    }
+    const el = mountRef.current;
+    if (!el) return;
+
+    const apply = () => {
+      const w = Math.max(1, Math.round(el.clientWidth));
+      if (!w) return;
+      const h = Math.max(1, Math.round(w / aspect));
+      if (w === sizeRef.current.w && h === sizeRef.current.h) return;
+      sizeRef.current = { w, h };
+      rendererRef.current?.setSize(w, h);
+      if (cameraRef.current) {
+        cameraRef.current.aspect = w / h;
+        cameraRef.current.updateProjectionMatrix();
+      }
+      // The still and the idle viewer both stop rendering once framed, so a
+      // resize has to ask for the one frame that shows the new size.
+      redrawRef.current?.();
+    };
+
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [responsive, width, height, aspect]);
 
   useEffect(() => {
     let disposed = false;
@@ -58,8 +106,12 @@ export function CharacterModel({
       // and the viewer onto a card, neither of which wants a grey box.
       const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      renderer.setSize(width, height);
+      // Whatever the observer last measured — in responsive mode the container
+      // has usually been sized before three.js finishes loading.
+      const { w: w0, h: h0 } = sizeRef.current;
+      renderer.setSize(w0, h0);
       renderer.setClearColor(0x000000, 0);
+      rendererRef.current = renderer;
       mount.appendChild(renderer.domElement);
 
       // Flat, even lighting. Game models carry their own baked vertex colours,
@@ -69,7 +121,8 @@ export function CharacterModel({
       key.position.set(1, 2, 3);
       scene.add(key);
 
-      const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 5000);
+      const camera = new THREE.PerspectiveCamera(35, w0 / h0, 0.1, 5000);
+      cameraRef.current = camera;
       const root = new THREE.Group();
       scene.add(root);
 
@@ -139,9 +192,15 @@ export function CharacterModel({
         }
         if (spin || frame <= 3) requestAnimationFrame(render);
       };
+      redrawRef.current = () => {
+        if (!disposed) renderer.render(scene, camera);
+      };
       render();
 
       cleanup = () => {
+        redrawRef.current = null;
+        rendererRef.current = null;
+        cameraRef.current = null;
         renderer.dispose();
         if (renderer.domElement.parentNode === mount) {
           mount.removeChild(renderer.domElement);
@@ -162,12 +221,21 @@ export function CharacterModel({
       disposed = true;
       cleanup?.();
     };
-  }, [src, petSrc, width, height, spin, signalReady]);
+    // Deliberately not keyed on width/height: in responsive mode those change
+    // on every container resize, and rebuilding here would re-download the
+    // model. The observer above resizes the live renderer instead.
+  }, [src, petSrc, spin, signalReady]);
+
+  // In responsive mode the box is width-driven; aspect-ratio reserves the
+  // height so the card does not jump when the canvas appears.
+  const boxStyle: React.CSSProperties = responsive
+    ? { width: "100%", aspectRatio: String(aspect) }
+    : { width, height };
 
   if (failed) {
     return (
       <div
-        style={{ width, height }}
+        style={boxStyle}
         className="text-osrs-parchment-dark/50 flex items-center justify-center text-xs"
       >
         Model unavailable
@@ -175,5 +243,7 @@ export function CharacterModel({
     );
   }
 
-  return <div ref={mountRef} style={{ width, height }} />;
+  // grid + justify-items-center keeps the canvas centred if the measured size
+  // and the box ever disagree (a resize between measure and paint).
+  return <div ref={mountRef} style={boxStyle} className="grid justify-items-center" />;
 }

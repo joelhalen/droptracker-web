@@ -9,7 +9,7 @@ import { AccountTypeBadge } from "@/components/account-type-badge";
 import { EntityDisambiguation } from "@/components/entity-disambiguation";
 import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
-import { PlayerBadgeList } from "@/components/player-badges";
+import { ProfileBadgeIcons } from "@/components/player-badges";
 import { ProfileShowcase } from "@/components/profile-showcase";
 import { PersonalBestsGrid } from "@/components/personal-bests-grid";
 import { BossActivityList } from "@/components/profile-stats";
@@ -146,9 +146,13 @@ export default async function PlayerPage({ params }: { params: Params }) {
         achievements={achievements}
         loot={loot}
         submissions={player.recent_submissions}
-        sidebar={
-          <>
-          <Card padding="p-4">
+        badges={
+          player.badges && player.badges.length > 0 ? (
+            <ProfileBadgeIcons badges={player.badges} />
+          ) : null
+        }
+        stats={
+          <Card padding="p-3">
             <div className="grid grid-cols-2 gap-3">
             <StatTile
               label="Monthly loot"
@@ -173,15 +177,6 @@ export default async function PlayerPage({ params }: { params: Params }) {
             <StatTile label="Top NPC" value={player.top_npc ?? "—"} />
             </div>
           </Card>
-          {player.badges && player.badges.length > 0 && (
-            <Card padding="p-4">
-              <h3 className="text-osrs-parchment-dark/60 mb-2 text-xs tracking-wide uppercase">
-                Badges
-              </h3>
-              <PlayerBadgeList badges={player.badges} />
-            </Card>
-          )}
-          </>
         }
       />
 
