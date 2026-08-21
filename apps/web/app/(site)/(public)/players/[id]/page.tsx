@@ -152,8 +152,11 @@ export default async function PlayerPage({ params }: { params: Params }) {
           ) : null
         }
         stats={
-          <Card padding="p-3">
-            <div className="grid grid-cols-2 gap-3">
+          /* One tile per row. StatTile already draws its own surface, so the
+             wrapping card was a box inside a box — and two columns inside the
+             character rail left each value about 100px, enough to wrap a boss
+             name like "Chamber of Xeric Challenge Mode" over five lines. */
+          <div className="space-y-2">
             <StatTile
               label="Monthly loot"
               value={
@@ -174,9 +177,15 @@ export default async function PlayerPage({ params }: { params: Params }) {
               label="Points"
               value={<CountUp value={player.points ?? 0} formatted={(player.points ?? 0).toLocaleString()} />}
             />
-            <StatTile label="Top NPC" value={player.top_npc ?? "—"} />
-            </div>
-          </Card>
+            {/* A boss name is prose, not a figure: the tile's number-sized type
+                is why this one alone kept wrapping. */}
+            <StatTile
+              label="Top NPC"
+              value={
+                <span className="text-lg leading-snug font-semibold">{player.top_npc ?? "—"}</span>
+              }
+            />
+          </div>
         }
       />
 
