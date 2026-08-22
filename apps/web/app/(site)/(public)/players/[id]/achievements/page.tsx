@@ -1,6 +1,10 @@
 /**
  * Combat achievements, quests and diaries for one player.
  *
+ * Nothing can populate this yet: the sync that writes it ships with plugin v6,
+ * which is not released. `lib/plugin-features.ts` carries that flag and the
+ * copy the empty states show until then.
+ *
  * The profile page now shows all of this inline, so this route exists as a
  * deep link and a full-width view for people who want only this — it reuses the
  * same browser component rather than presenting the data a second way.
@@ -15,6 +19,7 @@ import { resolveRef } from "@/lib/entity-ref";
 import { EmptyState } from "@/components/ui";
 import { OsrsWindow, completionTone } from "@/components/osrs-panel";
 import { CombatAchievementsBrowser } from "@/components/combat-achievements-browser";
+import { stateSyncEmpty } from "@/lib/plugin-features";
 
 export const revalidate = 60;
 
@@ -39,11 +44,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function AchievementsPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function AchievementsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ref = await resolveRef("player", id);
   if (!("id" in ref) || ref.id == null) notFound();
@@ -57,8 +58,10 @@ export default async function AchievementsPage({
       <div className="space-y-6">
         <Header name={player.name} playerId={playerId} />
         <EmptyState
-          title="No progress synced yet"
-          hint={`${player.name} has not enabled "Sync account progress" in the DropTracker plugin, so there is nothing to show here yet.`}
+          {...stateSyncEmpty(
+            "Account progress sync",
+            `${player.name} has not enabled "Sync account progress" in the DropTracker plugin, so there is nothing to show here yet.`,
+          )}
         />
       </div>
     );
@@ -114,7 +117,10 @@ export default async function AchievementsPage({
                   {data.diaries.map((area) => {
                     const byTier = new Map(area.tiers.map((t) => [t.tier, t.completed]));
                     return (
-                      <tr key={area.area_id} className="border-osrs-bronze/15 border-b last:border-0">
+                      <tr
+                        key={area.area_id}
+                        className="border-osrs-bronze/15 border-b last:border-0"
+                      >
                         <td className="text-osrs-parchment/90 px-2 py-1">{area.name}</td>
                         {[0, 1, 2, 3].map((tier) => {
                           const done = byTier.get(tier) ?? 0;

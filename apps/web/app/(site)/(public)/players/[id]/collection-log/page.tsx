@@ -5,6 +5,10 @@
  * comes from the OSRS Wiki via scripts/sync_collection_log.py, so this can show
  * unobtained slots too — which is most of what a collection log is.
  *
+ * Nothing can populate this yet: the sync that writes it ships with plugin v6,
+ * which is not released. `lib/plugin-features.ts` carries that flag and the
+ * copy the empty state shows until then.
+ *
  * Two counts are deliberately kept apart. `slots` is what the game itself
  * reports the player has filled; `obtained` is what we can account for against
  * the structure. They differ until the player opens their log in game (which
@@ -21,6 +25,7 @@ import { resolveRef } from "@/lib/entity-ref";
 import { EmptyState } from "@/components/ui";
 import { OsrsWindow, completionTone } from "@/components/osrs-panel";
 import { CollectionLogBrowser } from "@/components/collection-log-browser";
+import { stateSyncEmpty } from "@/lib/plugin-features";
 
 export const revalidate = 60;
 
@@ -43,11 +48,7 @@ export async function generateMetadata({
   }
 }
 
-export default async function CollectionLogPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function CollectionLogPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ref = await resolveRef("player", id);
   if (!("id" in ref) || ref.id == null) notFound();
@@ -61,8 +62,10 @@ export default async function CollectionLogPage({
       <div className="space-y-6">
         <Header name={player.name} playerId={playerId} />
         <EmptyState
-          title="No collection log yet"
-          hint={`${player.name} has not synced their account progress. Enabling "Sync account progress" in the DropTracker plugin, then opening the collection log in game, records it here.`}
+          {...stateSyncEmpty(
+            "Collection log sync",
+            `${player.name} has not synced their account progress. Enabling "Sync account progress" in the DropTracker plugin, then opening the collection log in game, records it here.`,
+          )}
         />
       </div>
     );
@@ -91,8 +94,8 @@ export default async function CollectionLogPage({
         {partial && (
           <p className="border-osrs-bronze/20 text-osrs-parchment-dark/80 border-b px-3 py-2 text-xs">
             The game reports {filled.toLocaleString()} slots filled, but only{" "}
-            {log.obtained.toLocaleString()} have been recorded here. Opening the collection
-            log in game captures the rest.
+            {log.obtained.toLocaleString()} have been recorded here. Opening the collection log in
+            game captures the rest.
           </p>
         )}
 
@@ -111,8 +114,8 @@ export default async function CollectionLogPage({
       {log.unknown_recorded > 0 && (
         <p className="text-osrs-parchment-dark/50 text-xs">
           {log.unknown_recorded.toLocaleString()} recorded item
-          {log.unknown_recorded === 1 ? " is" : "s are"} not part of any known collection log
-          page — usually a sign the page structure needs re-syncing after a game update.
+          {log.unknown_recorded === 1 ? " is" : "s are"} not part of any known collection log page —
+          usually a sign the page structure needs re-syncing after a game update.
         </p>
       )}
     </div>

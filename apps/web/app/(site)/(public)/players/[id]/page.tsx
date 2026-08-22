@@ -14,6 +14,7 @@ import { ProfileShowcase } from "@/components/profile-showcase";
 import { PersonalBestsGrid } from "@/components/personal-bests-grid";
 import { BossActivityList } from "@/components/profile-stats";
 import { Badge, Card, EntityChip, NameTile, StatTile } from "@/components/ui";
+import { SOON_BADGE, SOON_TITLE, STATE_SYNC_RELEASED } from "@/lib/plugin-features";
 
 export const revalidate = 30;
 
@@ -58,7 +59,11 @@ export default async function PlayerPage({ params }: { params: Params }) {
   const ref = await resolveRef("player", id);
   if (ref.ambiguous) {
     return (
-      <EntityDisambiguation kind="players" slug={decodeURIComponent(id)} candidates={ref.candidates} />
+      <EntityDisambiguation
+        kind="players"
+        slug={decodeURIComponent(id)}
+        candidates={ref.candidates}
+      />
     );
   }
   const playerId = ref.id;
@@ -84,10 +89,18 @@ export default async function PlayerPage({ params }: { params: Params }) {
   const delta = momDelta(player.total_loot?.value, player.previous_month_loot?.value);
   const hasBosses = (player.top_bosses?.length ?? 0) > 0;
   const hasPbs = (player.personal_bests?.length ?? 0) > 0;
+  // The deep links are marked "Soon" only where the page behind them really is
+  // empty. A profile synced from a dev build has a log to show, and pinning the
+  // pill to the release alone would have labelled that page unreleased.
+  const logSoon = !STATE_SYNC_RELEASED && !collectionLog?.has_synced;
+  const achievementsSoon = !STATE_SYNC_RELEASED && !achievements?.has_synced;
 
   return (
     <div className="space-y-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       <header className="rise-in space-y-5">
         <div className="flex items-center gap-4">
@@ -115,15 +128,25 @@ export default async function PlayerPage({ params }: { params: Params }) {
           <div className="ml-auto flex shrink-0 flex-wrap gap-2">
             <Link
               href={`/players/${player.id}/collection-log` as Route}
-              className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright rounded-lg border px-3 py-1.5 text-sm transition-colors"
+              className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors"
             >
               Collection log
+              {logSoon && (
+                <Badge variant="neutral" size="sm" title={SOON_TITLE}>
+                  {SOON_BADGE}
+                </Badge>
+              )}
             </Link>
             <Link
               href={`/players/${player.id}/achievements` as Route}
-              className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright rounded-lg border px-3 py-1.5 text-sm transition-colors"
+              className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors"
             >
               Achievements
+              {achievementsSoon && (
+                <Badge variant="neutral" size="sm" title={SOON_TITLE}>
+                  {SOON_BADGE}
+                </Badge>
+              )}
             </Link>
             <Link
               href={`/players/${player.id}/recap` as Route}
@@ -161,7 +184,10 @@ export default async function PlayerPage({ params }: { params: Params }) {
               label="Monthly loot"
               value={
                 player.total_loot ? (
-                  <CountUp value={player.total_loot.value} formatted={player.total_loot.value_formatted} />
+                  <CountUp
+                    value={player.total_loot.value}
+                    formatted={player.total_loot.value_formatted}
+                  />
                 ) : (
                   "—"
                 )
@@ -175,7 +201,12 @@ export default async function PlayerPage({ params }: { params: Params }) {
             />
             <StatTile
               label="Points"
-              value={<CountUp value={player.points ?? 0} formatted={(player.points ?? 0).toLocaleString()} />}
+              value={
+                <CountUp
+                  value={player.points ?? 0}
+                  formatted={(player.points ?? 0).toLocaleString()}
+                />
+              }
             />
             {/* A boss name is prose, not a figure: the tile's number-sized type
                 is why this one alone kept wrapping. */}
