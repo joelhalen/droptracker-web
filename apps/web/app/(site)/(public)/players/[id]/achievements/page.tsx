@@ -59,7 +59,7 @@ export default async function AchievementsPage({ params }: { params: Promise<{ i
         <Header name={player.name} playerId={playerId} />
         <EmptyState
           {...stateSyncEmpty(
-            "Account progress sync",
+            "Achievements",
             `${player.name} has not enabled "Sync account progress" in the DropTracker plugin, so there is nothing to show here yet.`,
           )}
         />

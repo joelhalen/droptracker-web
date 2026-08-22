@@ -255,7 +255,7 @@ export function ProfileShowcase({
                 <CollectionLogBrowser tabs={collectionLog!.tabs} />
               ) : (
                 <Empty
-                  label="Collection log sync"
+                  label="Collection log"
                   hint="Enable “Sync account progress” in the DropTracker plugin, then open the collection log in game."
                 />
               ))}

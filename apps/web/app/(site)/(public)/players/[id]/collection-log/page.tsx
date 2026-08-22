@@ -63,7 +63,7 @@ export default async function CollectionLogPage({ params }: { params: Promise<{ 
         <Header name={player.name} playerId={playerId} />
         <EmptyState
           {...stateSyncEmpty(
-            "Collection log sync",
+            "Collection log",
             `${player.name} has not synced their account progress. Enabling "Sync account progress" in the DropTracker plugin, then opening the collection log in game, records it here.`,
           )}
         />
