@@ -43,6 +43,39 @@ const MAX_QUEUED = Number(process.env.CLAUDE_CLI_MAX_QUEUED ?? 12);
 export class ClaudeCliError extends Error {}
 /** Thrown when the machine is saturated — the caller should retry shortly. */
 export class ClaudeCliBusyError extends ClaudeCliError {}
+/**
+ * Thrown when the CLI has no usable credentials. Distinct from the other
+ * failures because retrying is pointless: the box is signed out and only the
+ * owner running `claude auth login` fixes it.
+ */
+export class ClaudeCliAuthError extends ClaudeCliError {}
+
+/**
+ * The CLI reports authentication loss inside its normal JSON result envelope
+ * (`is_error: true`, `terminal_reason: "api_error"`), not as a distinct exit
+ * code, so it can only be recognised by the message text.
+ */
+const AUTH_FAILURE_PATTERNS = [
+  /failed to authenticate/i,
+  /oauth session expired/i,
+  /not (?:logged in|authenticated)/i,
+  /authentication_error/i,
+  /invalid (?:api key|bearer token)/i,
+  /run\s+`?claude (?:auth )?login/i,
+];
+
+export function isAuthFailureText(text: string): boolean {
+  return AUTH_FAILURE_PATTERNS.some((re) => re.test(text));
+}
+
+/** Build the right error subclass for a failure message. */
+function failureError(message: string): ClaudeCliError {
+  return isAuthFailureText(message)
+    ? new ClaudeCliAuthError(
+        `Claude CLI is not authenticated (${message}). The host needs \`claude auth login\`.`,
+      )
+    : new ClaudeCliError(message);
+}
 
 let active = 0;
 const waiters: (() => void)[] = [];
@@ -149,23 +182,37 @@ function spawnOnce<T>(opts: {
       clearTimeout(timer);
       if (settled) return;
       const stderrTail = Buffer.concat(err).toString("utf-8").slice(-400);
-      if (code !== 0) {
-        return fail(new ClaudeCliError(`claude exited ${code}: ${stderrTail || "no output"}`));
-      }
+      const stdoutText = Buffer.concat(out).toString("utf-8");
+
+      // Parse stdout BEFORE branching on the exit code. The CLI writes its
+      // diagnostic into the JSON envelope on stdout and leaves stderr empty —
+      // so the old `code !== 0` early return reported `claude exited 1: no
+      // output` and threw the actual reason away. That is how the 2026-08-20
+      // OAuth expiry stayed invisible for three days.
       let data: {
         result?: unknown;
         is_error?: boolean;
         usage?: Record<string, number>;
         total_cost_usd?: number;
-      };
+      } | null = null;
       try {
-        data = JSON.parse(Buffer.concat(out).toString("utf-8"));
+        data = JSON.parse(stdoutText);
       } catch {
+        data = null;
+      }
+      const envelopeMessage =
+        data && (data.is_error || code !== 0) ? String(data.result ?? "").trim() : "";
+
+      if (code !== 0) {
+        const detail = envelopeMessage || stderrTail.trim() || "no output";
+        return fail(failureError(`claude exited ${code}: ${detail.slice(0, 300)}`));
+      }
+      if (!data) {
         return fail(new ClaudeCliError("claude returned non-JSON output"));
       }
       if (data.is_error) {
         return fail(
-          new ClaudeCliError(`claude reported an error: ${String(data.result ?? "").slice(0, 300)}`),
+          failureError(`claude reported an error: ${(envelopeMessage || "unknown").slice(0, 300)}`),
         );
       }
       // With --json-schema the result is the JSON document itself (the CLI may
