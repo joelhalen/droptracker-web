@@ -5,9 +5,9 @@
  * comes from the OSRS Wiki via scripts/sync_collection_log.py, so this can show
  * unobtained slots too — which is most of what a collection log is.
  *
- * Nothing can populate this yet: the sync that writes it ships with plugin v6,
- * which is not released. `lib/plugin-features.ts` carries that flag and the
- * copy the empty state shows until then.
+ * The sync that writes this ships with plugin v6, published 2026-08-24, so it
+ * populates for anyone who has updated. `lib/plugin-features.ts` still carries
+ * the release flag and the copy an unreachable panel would show.
  *
  * Two counts are deliberately kept apart. `slots` is what the game itself
  * reports the player has filled; `obtained` is what we can account for against
@@ -64,7 +64,7 @@ export default async function CollectionLogPage({ params }: { params: Promise<{ 
         <EmptyState
           {...stateSyncEmpty(
             "Collection log",
-            `${player.name} has not synced their account progress. Enabling "Sync account progress" in the DropTracker plugin, then opening the collection log in game, records it here.`,
+            `${player.name} has not synced their account progress. It records here once they are on DropTracker plugin v6 and open the collection log in game — "Sync account progress" is on by default, under Advanced.`,
           )}
         />
       </div>

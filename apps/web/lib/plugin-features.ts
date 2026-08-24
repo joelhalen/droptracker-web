@@ -2,26 +2,28 @@
  * Plugin features the website renders before the plugin can feed them.
  *
  * Account progress sync — the collection log, combat achievements, diaries,
- * quests and the character model — is built and live here, but nothing can
- * populate it yet: it is written by the plugin's state sync, which ships in
- * v6 and is not published on the Plugin Hub. Until it is, every empty state
- * that says "enable this in the plugin" names a setting that does not exist
- * in the build people are running, so it reads as a bug in their client
- * rather than a release that has not landed.
+ * quests and the character model — is written by the plugin's state sync,
+ * which ships in v6. v6.0 was published on the Plugin Hub on 2026-08-24, so
+ * the switch below is on and every panel shows its own real instruction.
  *
- * Nothing here hides data. The handful of accounts already synced from dev
- * builds still render normally; this only changes what the *empty* case says
- * and marks the tabs and links that lead to it.
+ * Keep the mechanism: while a feature is built here but unreachable in the
+ * published build, an empty state that says "enable this in the plugin" names
+ * a setting that does not exist for the reader, so it reads as a bug in their
+ * client rather than a release that has not landed. Flip the flag back off
+ * (or add another) if that situation recurs.
  *
- * When v6 is published, flip STATE_SYNC_RELEASED to true — that is the whole
- * change. Check the Plugin Hub's pinned commit rather than the plugin repo's
- * master, which runs ahead of what the hub actually builds and serves:
+ * Nothing here hides data — it only changes what the *empty* case says and
+ * marks the tabs and links that lead to it.
+ *
+ * Judge a release by what the Plugin Hub actually serves, not by the plugin
+ * repo's master, which runs ahead of it — and not by the hub's pinned commit
+ * either, which ran three days ahead of the published 6.0 build:
  *
  *   curl -s https://raw.githubusercontent.com/runelite/plugin-hub/master/plugins/droptracker
  */
 
 /** Is the plugin release that feeds account progress sync actually out? */
-export const STATE_SYNC_RELEASED = false;
+export const STATE_SYNC_RELEASED = true;
 
 /** The plugin release that turns account progress sync on. */
 export const STATE_SYNC_PLUGIN_VERSION = "v6";

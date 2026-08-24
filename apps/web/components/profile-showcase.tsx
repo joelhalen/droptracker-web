@@ -187,7 +187,7 @@ export function ProfileShowcase({
                     <EmptyState
                       {...stateSyncEmpty(
                         "Character model",
-                        "Enable “Upload character model” in the DropTracker plugin to show your character here.",
+                        "Enable “Send character model & gear” under Advanced in the DropTracker plugin to show your character here.",
                       )}
                     />
                   )}
@@ -256,7 +256,7 @@ export function ProfileShowcase({
               ) : (
                 <Empty
                   label="Collection log"
-                  hint="Enable “Sync account progress” in the DropTracker plugin, then open the collection log in game."
+                  hint="Update to DropTracker plugin v6, then open the collection log in game. “Sync account progress” is on by default, under Advanced."
                 />
               ))}
 
@@ -266,7 +266,7 @@ export function ProfileShowcase({
               ) : (
                 <Empty
                   label="Combat achievements"
-                  hint="Enable “Sync account progress” in the DropTracker plugin to show this."
+                  hint="Update to DropTracker plugin v6 to show this. “Sync account progress” is on by default, under Advanced."
                 />
               ))}
 
@@ -317,7 +317,7 @@ export function ProfileShowcase({
               ) : (
                 <Empty
                   label="Achievement diaries"
-                  hint="Enable “Sync account progress” in the DropTracker plugin to show this."
+                  hint="Update to DropTracker plugin v6 to show this. “Sync account progress” is on by default, under Advanced."
                 />
               ))}
           </div>

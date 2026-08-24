@@ -1,9 +1,9 @@
 /**
  * Combat achievements, quests and diaries for one player.
  *
- * Nothing can populate this yet: the sync that writes it ships with plugin v6,
- * which is not released. `lib/plugin-features.ts` carries that flag and the
- * copy the empty states show until then.
+ * The sync that writes this ships with plugin v6, published 2026-08-24, so it
+ * populates for anyone who has updated. `lib/plugin-features.ts` still carries
+ * the release flag and the copy an unreachable panel would show.
  *
  * The profile page now shows all of this inline, so this route exists as a
  * deep link and a full-width view for people who want only this — it reuses the
@@ -60,7 +60,7 @@ export default async function AchievementsPage({ params }: { params: Promise<{ i
         <EmptyState
           {...stateSyncEmpty(
             "Achievements",
-            `${player.name} has not enabled "Sync account progress" in the DropTracker plugin, so there is nothing to show here yet.`,
+            `${player.name} has not synced their account progress, so there is nothing to show here yet. It fills in once they are on DropTracker plugin v6 — "Sync account progress" is on by default, under Advanced.`,
           )}
         />
       </div>
