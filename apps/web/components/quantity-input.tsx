@@ -1,13 +1,21 @@
 "use client";
 
 /**
- * Numeric field for the task builders. Two deliberate behaviors:
+ * The app's numeric entry field. Every `<input type="number">` bound to
+ * numeric state should be one of these — see `lib/quantity.ts` for the bug
+ * that motivates it.
  *
- * - The spinner always steps by whole numbers (the picker's point-weight
- *   field used to tick by 0.1).
- * - The user can clear and retype freely — nothing snaps a 0/1 back into the
- *   box mid-edit. Invalid input (empty, non-numeric, out of range) reverts to
- *   the last good value on blur, with a brief red flash to say it didn't take.
+ * Three deliberate behaviors:
+ *
+ * - The user can clear and retype freely — the box holds text while focused,
+ *   so nothing snaps a 0/1 back into it mid-edit. Invalid input (empty,
+ *   non-numeric, out of range) reverts to the last good value on blur, with a
+ *   brief red flash to say it didn't take.
+ * - The spinner steps by whole numbers by default (the picker's point-weight
+ *   field used to tick by 0.1). Pass `step` for coarser fields.
+ * - `min`/`max` accept `null` for "unbounded", which is how fields that take a
+ *   negative value (a ± points adjustment, a subtractive recipe component) opt
+ *   out of the default `min={1}`.
  *
  * `onChange` only ever fires with valid values, so callers can keep plain
  * numeric state.
@@ -18,12 +26,14 @@
  * record, with no guaranteed ordering between the in-flight requests.
  */
 import { useEffect, useRef, useState } from "react";
+import { parseQuantity } from "@/lib/quantity";
 
 export function QuantityInput({
   value,
   onChange,
   min = 1,
   max,
+  step = 1,
   integer = true,
   emptyAs,
   commitOn = "change",
@@ -32,8 +42,12 @@ export function QuantityInput({
 }: {
   value: number;
   onChange: (next: number) => void;
-  min?: number;
-  max?: number;
+  /** Inclusive lower bound; `null` allows negatives. */
+  min?: number | null;
+  /** Inclusive upper bound; `null`/omitted is unbounded. */
+  max?: number | null;
+  /** Spinner increment. Whole numbers by default. */
+  step?: number;
   /** false = decimals allowed (e.g. point-collection item weights). */
   integer?: boolean;
   /** "Not set yet" sentinel (usually 0 on a min-1 goal field): renders as an
@@ -54,8 +68,15 @@ export function QuantityInput({
   const [reverted, setReverted] = useState(false);
   const revertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Follow outside changes while not editing.
+  // Follow outside changes (a server echo, an SSE update) while not editing.
+  // Keyed on `value` actually changing, NOT on the focus→blur transition: a
+  // `commitOn="blur"` field commits to an async server write, so re-syncing on
+  // blur would repaint the old number over the one just typed for as long as
+  // the request is in flight. `onBlur` already sets the text itself.
+  const seen = useRef(value);
   useEffect(() => {
+    if (value === seen.current) return;
+    seen.current = value;
     if (!focused) setText(display(value));
   }, [value, focused, emptyAs]);
   useEffect(
@@ -65,23 +86,15 @@ export function QuantityInput({
     [],
   );
 
-  const parse = (raw: string): number | null => {
-    const t = raw.trim();
-    if (!t) return null;
-    const n = Number(t);
-    if (!Number.isFinite(n)) return null;
-    if (integer && !Number.isInteger(n)) return null;
-    if (n < min || (max != null && n > max)) return null;
-    return n;
-  };
+  const parse = (raw: string) => parseQuantity(raw, { min, max, integer });
 
   return (
     <input
       {...rest}
       type="number"
-      step={1}
-      min={min}
-      max={max}
+      step={step}
+      min={min ?? undefined}
+      max={max ?? undefined}
       value={text}
       aria-invalid={reverted || undefined}
       className={`${className} ${reverted ? "border-osrs-red ring-1 ring-osrs-red" : ""}`}
