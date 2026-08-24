@@ -5,6 +5,7 @@ import type { AdminShopItem } from "@droptracker/api-types";
 import { patchShopItem } from "@/app/(site)/(admin)/admin/boardgame-shop/actions";
 import { Alert, Card } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
+import { QuantityInput } from "@/components/quantity-input";
 
 /** Effects with live handlers (P2); the rest ship dark until P3. */
 const LIVE_EFFECTS = new Set(["skip_task", "reroll_task", "boost_coins"]);
@@ -75,30 +76,22 @@ export function ShopCatalogManager({ initial }: { initial: AdminShopItem[] }) {
                   )}
                 </td>
                 <td className="px-2 py-2">
-                  <input
-                    type="number"
+                  <QuantityInput
                     min={0}
-                    defaultValue={r.cost_coins}
-                    onBlur={(e) => {
-                      const v = Number(e.target.value);
-                      if (Number.isInteger(v) && v >= 0 && v !== r.cost_coins)
-                        patch(r.id, { cost_coins: v });
-                    }}
+                    value={r.cost_coins}
+                    commitOn="blur"
+                    onChange={(cost_coins) => patch(r.id, { cost_coins })}
                     className={`${field} w-20`}
                     disabled={pending}
                   />
                 </td>
                 <td className="px-2 py-2">
-                  <input
-                    type="number"
+                  <QuantityInput
                     min={0}
                     max={100}
-                    defaultValue={r.type_cooldown_turns}
-                    onBlur={(e) => {
-                      const v = Number(e.target.value);
-                      if (Number.isInteger(v) && v >= 0 && v !== r.type_cooldown_turns)
-                        patch(r.id, { type_cooldown_turns: v });
-                    }}
+                    value={r.type_cooldown_turns}
+                    commitOn="blur"
+                    onChange={(turns) => patch(r.id, { type_cooldown_turns: turns })}
                     className={`${field} w-16`}
                     disabled={pending}
                   />

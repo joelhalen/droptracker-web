@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import type { GroupSubscription, SubscriptionTier } from "@droptracker/api-types";
 import type { AdminGroupOverview } from "@/lib/api";
 import { Button, buttonVariants } from "@/components/ui";
+import { QuantityInput } from "@/components/quantity-input";
 import { formatDate } from "@/lib/format";
 import { grantComp, revokeComp } from "@/app/(site)/(admin)/admin/groups/actions";
 
@@ -179,12 +180,11 @@ export function GroupCompPanel({
           </label>
           <label className="block">
             <span className="mb-1 block text-xs font-medium">Days</span>
-            <input
-              type="number"
+            <QuantityInput
               min={1}
               max={3650}
               value={days}
-              onChange={(e) => setDays(Math.max(1, Number(e.target.value)))}
+              onChange={setDays}
               className={`${field} w-24`}
             />
           </label>

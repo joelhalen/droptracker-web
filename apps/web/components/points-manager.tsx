@@ -29,6 +29,7 @@ import type {
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Card, EmptyState } from "@/components/ui";
 import { NameSearch } from "@/components/event-task-form";
+import { QuantityInput } from "@/components/quantity-input";
 import {
   addPointBoost,
   addPointListEntry,
@@ -340,23 +341,21 @@ function RulesSection({
                   )}
                 </td>
                 <td className="px-4 py-2">
-                  <input
-                    type="number"
+                  <QuantityInput
                     min={0}
                     value={r.award}
                     disabled={disabled}
-                    onChange={(e) => setRule(r.reason, { award: Number(e.target.value) })}
+                    onChange={(award) => setRule(r.reason, { award })}
                     className={`${field} w-28`}
                   />
                 </td>
                 <td className="px-4 py-2">
                   {r.uses_divisor ? (
-                    <input
-                      type="number"
+                    <QuantityInput
                       min={1}
                       value={r.divisor}
                       disabled={disabled}
-                      onChange={(e) => setRule(r.reason, { divisor: Number(e.target.value) })}
+                      onChange={(divisor) => setRule(r.reason, { divisor })}
                       className={`${field} w-36`}
                     />
                   ) : (
@@ -471,23 +470,25 @@ function BehaviorSection({
         <div className="flex flex-wrap gap-6">
           <label className="flex items-center gap-3">
             <span className="text-osrs-parchment-dark/80">Minimum points per submission</span>
-            <input
-              type="number"
+            <QuantityInput
               min={0}
               value={behavior.min_submission_pts}
+              emptyAs={0}
+              placeholder="0"
               disabled={disabled}
-              onChange={(e) => set("min_submission_pts", Number(e.target.value))}
+              onChange={(v) => set("min_submission_pts", v)}
               className={`${field} w-28`}
             />
           </label>
           <label className="flex items-center gap-3">
             <span className="text-osrs-parchment-dark/80">Maximum points per submission</span>
-            <input
-              type="number"
+            <QuantityInput
               min={0}
               value={behavior.max_submission_pts}
+              emptyAs={0}
+              placeholder="0"
               disabled={disabled}
-              onChange={(e) => set("max_submission_pts", Number(e.target.value))}
+              onChange={(v) => set("max_submission_pts", v)}
               className={`${field} w-28`}
             />
           </label>
@@ -694,28 +695,22 @@ function ModsSection({
                       {EVENT_TYPE_OPTIONS.find((o) => o.value === m.event_type)?.label ?? m.event_type}
                     </td>
                     <td className="px-4 py-2">
-                      <input
-                        type="number"
+                      <QuantityInput
                         min={0}
-                        defaultValue={m.award}
+                        value={m.award}
                         disabled={disabled}
-                        onBlur={(e) => {
-                          const v = Number(e.target.value);
-                          if (Number.isFinite(v) && v !== m.award) saveAward(m, { award: v });
-                        }}
+                        commitOn="blur"
+                        onChange={(award) => saveAward(m, { award })}
                         className={`${field} w-24`}
                       />
                     </td>
                     <td className="px-4 py-2">
-                      <input
-                        type="number"
+                      <QuantityInput
                         min={1}
-                        defaultValue={m.divisor}
+                        value={m.divisor}
                         disabled={disabled}
-                        onBlur={(e) => {
-                          const v = Number(e.target.value);
-                          if (Number.isFinite(v) && v !== m.divisor) saveAward(m, { divisor: v });
-                        }}
+                        commitOn="blur"
+                        onChange={(divisor) => saveAward(m, { divisor })}
                         className={`${field} w-28`}
                       />
                     </td>
@@ -763,23 +758,21 @@ function ModsSection({
           </select>
           <label className="flex items-center gap-2">
             <span className="text-osrs-parchment-dark/70">Award</span>
-            <input
-              type="number"
+            <QuantityInput
               min={0}
               value={award}
               disabled={disabled}
-              onChange={(e) => setAward(Number(e.target.value))}
+              onChange={setAward}
               className={`${field} w-24`}
             />
           </label>
           <label className="flex items-center gap-2">
             <span className="text-osrs-parchment-dark/70">Divisor</span>
-            <input
-              type="number"
+            <QuantityInput
               min={1}
               value={divisor}
               disabled={disabled}
-              onChange={(e) => setDivisor(Number(e.target.value))}
+              onChange={setDivisor}
               className={`${field} w-28`}
             />
           </label>
@@ -1306,12 +1299,11 @@ function BoostsSection({
             <option value="set">Set award to</option>
             <option value="add_per_member">Add per clanmate present</option>
           </select>
-          <input
-            type="number"
+          <QuantityInput
             min={0}
             value={operationValue}
             disabled={disabled}
-            onChange={(e) => setOperationValue(Number(e.target.value))}
+            onChange={setOperationValue}
             className={`${field} w-24`}
           />
           <input
@@ -1545,11 +1537,13 @@ function AdjustSection({ groupId, disabled }: { groupId: number; disabled: boole
         </div>
         <label className="flex items-center gap-2">
           <span className="text-osrs-parchment-dark/70">Amount (±)</span>
-          <input
-            type="number"
+          <QuantityInput
+            min={null}
             value={amount}
+            emptyAs={0}
+            placeholder="±0"
             disabled={disabled}
-            onChange={(e) => setAmount(Number(e.target.value))}
+            onChange={setAmount}
             className={`${field} w-32`}
           />
         </label>

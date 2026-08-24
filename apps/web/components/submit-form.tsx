@@ -11,6 +11,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
 import { Alert, Button, FileInput } from "@/components/ui";
+import { QuantityInput } from "@/components/quantity-input";
 
 const MAX_PROOF_BYTES = 10 * 1024 * 1024; // 10 MB — client-side sanity cap, not enforced server-side.
 
@@ -408,13 +409,7 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
           </label>
           <label className="block">
             <span className={label}>Quantity</span>
-            <input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-              className={field}
-            />
+            <QuantityInput min={1} value={quantity} onChange={setQuantity} className={field} />
           </label>
         </div>
       )}

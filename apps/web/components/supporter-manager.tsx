@@ -6,6 +6,7 @@ import { formatDate, formatPrice } from "@/lib/format";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Badge, Button, SubscriptionStatusBadge } from "@/components/ui";
 import { InlineMarkdown } from "@/components/markdown";
+import { QuantityInput } from "@/components/quantity-input";
 import {
   cancelSupporter,
   getSupporterStatus,
@@ -218,17 +219,10 @@ export function SupporterManager({ tiers }: { tiers: SubscriptionTier[] }) {
                       ))}
                       <label className="flex items-center gap-1 text-sm">
                         <span className="text-osrs-parchment-dark/60">$</span>
-                        <input
-                          type="number"
+                        <QuantityInput
                           min={minDollars}
-                          step={1}
-                          value={Number.isFinite(chosenDollars) ? chosenDollars : ""}
-                          onChange={(e) =>
-                            setAmounts((a) => ({
-                              ...a,
-                              [t.key]: Math.floor(Number(e.target.value)),
-                            }))
-                          }
+                          value={chosenDollars}
+                          onChange={(dollars) => setAmounts((a) => ({ ...a, [t.key]: dollars }))}
                           className="border-osrs-bronze/40 bg-osrs-surface-2 w-20 rounded border px-2 py-1 text-sm"
                           aria-label="Monthly amount in dollars"
                         />

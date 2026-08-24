@@ -88,6 +88,7 @@ import {
 import { HelpTip } from "@/components/help-tip";
 import { LocalTime, TimezoneNote } from "@/components/local-time";
 import { PlayerAddInput } from "@/components/player-add-input";
+import { QuantityInput } from "@/components/quantity-input";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
@@ -1040,11 +1041,11 @@ export function EventSetupWizard({
                   <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
                     Default buy-in (GP) — 0 for no fixed stake
                   </span>
-                  <input
-                    type="number"
+                  <QuantityInput
                     min={0}
-                    value={potDefaultBuyin || ""}
-                    onChange={(e) => setPotDefaultBuyin(Math.max(0, Number(e.target.value) || 0))}
+                    value={potDefaultBuyin}
+                    emptyAs={0}
+                    onChange={setPotDefaultBuyin}
                     placeholder="0"
                     className={`${field} max-w-[12rem]`}
                   />

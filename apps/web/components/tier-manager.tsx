@@ -11,6 +11,7 @@ import { formatPrice } from "@/lib/format";
 import { resolveFlair } from "@/lib/tier-flair";
 import { InlineMarkdown } from "@/components/markdown";
 import { Button } from "@/components/ui";
+import { QuantityInput } from "@/components/quantity-input";
 import { deleteTier, saveTier } from "@/app/(site)/(admin)/admin/tiers/actions";
 
 const blankTier = (): SubscriptionTier => ({
@@ -184,11 +185,12 @@ function TierForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Price (cents)</span>
-          <input
-            type="number"
+          <QuantityInput
             min={0}
             value={form.price_cents}
-            onChange={(e) => set("price_cents", Math.max(0, Number(e.target.value)))}
+            emptyAs={0}
+            placeholder="0"
+            onChange={(cents) => set("price_cents", cents)}
             className={field}
           />
         </label>
@@ -271,11 +273,12 @@ function TierForm({
         {entitlementFields.map((ent) =>
           ent.kind === "int" ? (
             <label key={ent.key} className="flex items-start gap-3">
-              <input
-                type="number"
+              <QuantityInput
                 min={0}
                 value={Number(form.entitlements?.[ent.key] ?? ent.default)}
-                onChange={(e) => setEntitlement(ent.key, Math.max(0, Number(e.target.value)))}
+                emptyAs={0}
+                placeholder="0"
+                onChange={(v) => setEntitlement(ent.key, v)}
                 className={`${field} mt-0.5 w-24 shrink-0`}
               />
               <span>

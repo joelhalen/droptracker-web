@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Alert, Button, Card, EmptyState } from "@/components/ui";
+import { QuantityInput } from "@/components/quantity-input";
 import {
   ISSUE_SEVERITIES,
   ISSUE_STATUSES,
@@ -536,10 +537,12 @@ function CategoryForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Order (lower first)</span>
-          <input
-            type="number"
+          <QuantityInput
+            min={0}
             value={draft.order}
-            onChange={(e) => setDraft((d) => ({ ...d, order: Number(e.target.value) || 0 }))}
+            emptyAs={0}
+            placeholder="0"
+            onChange={(order) => setDraft((d) => ({ ...d, order }))}
             className={field}
           />
         </label>
@@ -670,10 +673,12 @@ function IssueForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Order (lower first)</span>
-          <input
-            type="number"
+          <QuantityInput
+            min={0}
             value={draft.order}
-            onChange={(e) => set("order", Number(e.target.value) || 0)}
+            emptyAs={0}
+            placeholder="0"
+            onChange={(order) => set("order", order)}
             className={field}
           />
         </label>

@@ -33,6 +33,7 @@ import {
 } from "@droptracker/api-types";
 import { TASK_DIFFICULTY_LABELS, TASK_TYPE_LABELS } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
+import { QuantityInput } from "@/components/quantity-input";
 import {
   addEventTask,
   addEventTasksFromLibrary,
@@ -85,13 +86,14 @@ function StockByDifficulty({
                 {TASK_DIFFICULTY_LABELS[d]}
                 <span className="text-osrs-parchment-dark/40"> · {have} available</span>
               </span>
-              <input
-                type="number"
+              <QuantityInput
                 min={0}
                 max={Math.min(have, MAX_BULK)}
                 value={counts[d] ?? 0}
+                emptyAs={0}
                 disabled={have === 0}
-                onChange={(e) => onChange(d, Math.max(0, Number(e.target.value) || 0))}
+                onChange={(n) => onChange(d, n)}
+                placeholder="0"
                 aria-label={`${TASK_DIFFICULTY_LABELS[d]} tasks to add`}
                 className={`${field} w-20 text-right disabled:opacity-40`}
               />

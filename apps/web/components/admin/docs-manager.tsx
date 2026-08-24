@@ -5,6 +5,7 @@ import type { DocInput, DocSummary } from "@droptracker/api-types";
 import { groupDocsByCategory } from "@/lib/docs";
 import { Markdown } from "@/components/markdown";
 import { Button, EmptyState, Alert } from "@/components/ui";
+import { QuantityInput } from "@/components/quantity-input";
 import { createDoc, deleteDoc, getDocForEdit, updateDoc } from "@/app/(site)/(admin)/admin/docs/actions";
 
 const field =
@@ -242,10 +243,12 @@ function DocForm({
             </label>
             <label className="block">
               <span className="mb-1 block text-sm font-medium">Order (within category)</span>
-              <input
-                type="number"
+              <QuantityInput
+                min={0}
                 value={draft.order}
-                onChange={(e) => set("order", Number(e.target.value) || 0)}
+                emptyAs={0}
+                placeholder="0"
+                onChange={(order) => set("order", order)}
                 className={field}
               />
             </label>

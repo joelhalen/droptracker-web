@@ -9,6 +9,7 @@ import type {
 } from "@droptracker/api-types";
 import { Badge, Button } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
+import { QuantityInput } from "@/components/quantity-input";
 import { deleteItemValue, saveItemValue, searchItems } from "@/app/(site)/(admin)/admin/item-values/actions";
 
 const field =
@@ -282,10 +283,10 @@ function ItemValueForm({
             </label>
             <label className="block max-w-[10rem]">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Quantity</span>
-              <input
-                type="number"
+              <QuantityInput
+                min={null}
                 value={c.quantity}
-                onChange={(e) => setComponent(i, { quantity: parseInt(e.target.value, 10) || 0 })}
+                onChange={(quantity) => setComponent(i, { quantity })}
                 className={field}
               />
               <span className={help}>
@@ -310,11 +311,10 @@ function ItemValueForm({
       <div className="grid gap-4 sm:grid-cols-3">
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Divisor</span>
-          <input
-            type="number"
+          <QuantityInput
             min={1}
             value={form.divisor}
-            onChange={(e) => set("divisor", Math.max(1, parseInt(e.target.value, 10) || 1))}
+            onChange={(divisor) => set("divisor", divisor)}
             className={field}
           />
           <span className={help}>
@@ -324,10 +324,12 @@ function ItemValueForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Flat bonus (gp)</span>
-          <input
-            type="number"
+          <QuantityInput
+            min={null}
             value={form.flat_bonus}
-            onChange={(e) => set("flat_bonus", parseInt(e.target.value, 10) || 0)}
+            emptyAs={0}
+            placeholder="0"
+            onChange={(bonus) => set("flat_bonus", bonus)}
             className={field}
           />
           <span className={help}>
@@ -336,11 +338,12 @@ function ItemValueForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Fallback value (gp)</span>
-          <input
-            type="number"
+          <QuantityInput
             min={0}
             value={form.fallback_value}
-            onChange={(e) => set("fallback_value", Math.max(0, parseInt(e.target.value, 10) || 0))}
+            emptyAs={0}
+            placeholder="0"
+            onChange={(v) => set("fallback_value", v)}
             className={field}
           />
           <span className={help}>

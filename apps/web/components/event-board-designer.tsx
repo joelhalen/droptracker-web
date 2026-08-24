@@ -40,6 +40,7 @@ import { TASK_DIFFICULTY_LABELS } from "@/lib/events";
 import { Alert } from "@/components/ui";
 import { BoundTaskPanel, EventTaskCombobox } from "@/components/event-task-search";
 import { ItemDbIcon } from "@/components/item-db-icon";
+import { QuantityInput } from "@/components/quantity-input";
 
 /** Elemental rune item ids — the tile icons in "rune" render mode. */
 export const RUNE_ITEM_IDS: Record<EventTaskDifficulty, number> = {
@@ -664,27 +665,21 @@ export function EventBoardDesigner({
             </label>
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Tiles (10–400)</span>
-              <input
-                type="number"
+              <QuantityInput
                 min={10}
                 max={400}
                 value={gen.tiles}
-                onChange={(e) =>
-                  setGen((g) => ({ ...g, tiles: Math.max(10, Math.min(400, Number(e.target.value) || 10)) }))
-                }
+                onChange={(tiles) => setGen((g) => ({ ...g, tiles }))}
                 className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
               />
             </label>
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Regions (2–11)</span>
-              <input
-                type="number"
+              <QuantityInput
                 min={2}
                 max={11}
                 value={gen.regions}
-                onChange={(e) =>
-                  setGen((g) => ({ ...g, regions: Math.max(2, Math.min(11, Number(e.target.value) || 2)) }))
-                }
+                onChange={(regions) => setGen((g) => ({ ...g, regions }))}
                 className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
               />
             </label>
@@ -1134,29 +1129,21 @@ function BoardSettingsSection({
           <label className="block text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Dice</span>
             <span className="flex items-center gap-1.5">
-              <input
-                type="number"
+              <QuantityInput
                 min={1}
                 max={8}
-                defaultValue={m.dice_count}
-                onBlur={(e) => {
-                  const v = Number(e.target.value);
-                  if (v >= 1 && v <= 8 && v !== m.dice_count)
-                    patch({ movement: { dice_count: v } });
-                }}
+                value={m.dice_count}
+                commitOn="blur"
+                onChange={(dice_count) => patch({ movement: { dice_count } })}
                 className={`${field} w-16`}
               />
               <span className="text-osrs-parchment-dark/60 text-xs">d</span>
-              <input
-                type="number"
+              <QuantityInput
                 min={2}
                 max={100}
-                defaultValue={m.dice_sides}
-                onBlur={(e) => {
-                  const v = Number(e.target.value);
-                  if (v >= 2 && v <= 100 && v !== m.dice_sides)
-                    patch({ movement: { dice_sides: v } });
-                }}
+                value={m.dice_sides}
+                commitOn="blur"
+                onChange={(dice_sides) => patch({ movement: { dice_sides } })}
                 className={`${field} w-16`}
               />
             </span>
@@ -1164,15 +1151,12 @@ function BoardSettingsSection({
         ) : (
           <label className="block text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Tiles per turn</span>
-            <input
-              type="number"
+            <QuantityInput
               min={1}
               max={20}
-              defaultValue={m.fixed_step}
-              onBlur={(e) => {
-                const v = Number(e.target.value);
-                if (v >= 1 && v <= 20 && v !== m.fixed_step) patch({ movement: { fixed_step: v } });
-              }}
+              value={m.fixed_step}
+              commitOn="blur"
+              onChange={(fixed_step) => patch({ movement: { fixed_step } })}
               className={`${field} w-20`}
             />
           </label>
@@ -1218,16 +1202,12 @@ function BoardSettingsSection({
           <label className="block text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Outline</span>
             <span className="flex items-center gap-1.5">
-              <input
-                type="number"
+              <QuantityInput
                 min={1}
                 max={12}
-                defaultValue={r.outline_width}
-                onBlur={(e) => {
-                  const v = Number(e.target.value);
-                  if (v >= 1 && v <= 12 && v !== r.outline_width)
-                    patch({ tile_render: { outline_width: v } });
-                }}
+                value={r.outline_width}
+                commitOn="blur"
+                onChange={(outline_width) => patch({ tile_render: { outline_width } })}
                 className={`${field} w-16`}
               />
               <input
@@ -1266,16 +1246,12 @@ function BoardSettingsSection({
                 }}
                 className="flex-1"
               />
-              <input
-                type="number"
+              <QuantityInput
                 min={8}
                 max={64}
-                defaultValue={r.icon_size ?? 20}
-                key={`n-${r.icon_size ?? 20}`}
-                onBlur={(e) => {
-                  const v = Math.max(8, Math.min(64, Number(e.target.value) || 20));
-                  if (v !== (r.icon_size ?? 20)) patch({ tile_render: { ...r, icon_size: v } });
-                }}
+                value={r.icon_size ?? 20}
+                commitOn="blur"
+                onChange={(icon_size) => patch({ tile_render: { ...r, icon_size } })}
                 className={`${field} w-16`}
               />
             </span>
@@ -1301,15 +1277,11 @@ function BoardSettingsSection({
               {EVENT_TASK_DIFFICULTIES.map((d) => (
                 <span key={d} className="flex items-center gap-1">
                   <ItemDbIcon itemId={RUNE_ITEM_IDS[d]} size={14} />
-                  <input
-                    type="number"
+                  <QuantityInput
                     min={0}
-                    defaultValue={c.per_difficulty[d] ?? c.default}
-                    onBlur={(e) => {
-                      const v = Number(e.target.value);
-                      if (v >= 0 && v !== (c.per_difficulty[d] ?? c.default))
-                        patch({ coins: { per_difficulty: { [d]: v } } });
-                    }}
+                    value={c.per_difficulty[d] ?? c.default}
+                    commitOn="blur"
+                    onChange={(v) => patch({ coins: { per_difficulty: { [d]: v } } })}
                     className={`${field} w-20`}
                   />
                 </span>
@@ -1330,16 +1302,12 @@ function BoardSettingsSection({
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
               Hours before mercy
             </span>
-            <input
-              type="number"
+            <QuantityInput
               min={1}
               max={336}
-              defaultValue={settings.mercy.base_hours}
-              onBlur={(e) => {
-                const v = Number(e.target.value);
-                if (v >= 1 && v <= 336 && v !== settings.mercy.base_hours)
-                  patch({ mercy: { base_hours: v } });
-              }}
+              value={settings.mercy.base_hours}
+              commitOn="blur"
+              onChange={(base_hours) => patch({ mercy: { base_hours } })}
               className={`${field} w-20`}
             />
           </label>
@@ -1381,17 +1349,14 @@ function BoardSettingsSection({
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
                 Turns the blocked team loses
               </span>
-              <input
-                type="number"
+              <QuantityInput
                 min={0}
                 max={3}
-                defaultValue={roadblock.stall_turns ?? 1}
-                key={`stall-${roadblock.stall_turns ?? 1}`}
-                onBlur={(e) => {
-                  const v = Math.max(0, Math.min(3, Number(e.target.value) || 0));
-                  if (v !== (roadblock.stall_turns ?? 1))
-                    patch({ items: { behaviors: { roadblock: { stall_turns: v } } } });
-                }}
+                value={roadblock.stall_turns ?? 1}
+                commitOn="blur"
+                onChange={(stall_turns) =>
+                  patch({ items: { behaviors: { roadblock: { stall_turns } } } })
+                }
                 className={`${field} w-20`}
               />
             </label>

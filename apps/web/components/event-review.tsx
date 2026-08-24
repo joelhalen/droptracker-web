@@ -12,6 +12,7 @@ import {
 } from "@/lib/events";
 import { Alert, EmptyState } from "@/components/ui";
 import { LocalTime } from "@/components/local-time";
+import { QuantityInput } from "@/components/quantity-input";
 import {
   awardEventCompletion,
   confirmEventCompletion,
@@ -477,11 +478,10 @@ export function EventReview({
           <option value="complete">Mark complete</option>
           <option value="progress">Add progress</option>
         </select>
-        <input
-          type="number"
+        <QuantityInput
           min={1}
           value={award.quantity}
-          onChange={(e) => setAward((a) => ({ ...a, quantity: Math.max(1, Number(e.target.value)) }))}
+          onChange={(quantity) => setAward((a) => ({ ...a, quantity }))}
           title="Quantity added toward the goal"
           disabled={award.mode === "complete"}
           className={`${field} disabled:opacity-40`}

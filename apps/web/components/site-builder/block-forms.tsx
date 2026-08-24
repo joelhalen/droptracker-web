@@ -5,11 +5,17 @@
  * Extracted from site-builder.tsx when the drag-and-drop editor landed so the
  * canvas, palette panel and settings inspector can share one source of truth.
  */
-import { Input, Select, Textarea } from "@/components/ui";
+import { fieldInputClass, Input, Select, Textarea } from "@/components/ui";
+import { QuantityInput } from "@/components/quantity-input";
 import { SITE_TOKENS } from "@/lib/site-tokens";
 import { PbBossSelect } from "./pb-boss-select";
 
 export type Block = Record<string, unknown>;
+
+/** The `<Input>` look for the numeric fields, which go through
+ * `<QuantityInput>` (a raw input) so an emptied box stays empty while it is
+ * being retyped instead of snapping back to a number. */
+const numField = `${fieldInputClass} w-24`;
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -164,13 +170,12 @@ export function BlockForm({
     case "wom_achievements":
       return (
         <Field label="How many entries">
-          <Input
-            type="number"
-            className="w-24"
+          <QuantityInput
+            className={numField}
             min={3}
             max={25}
             value={(block.limit as number) ?? 10}
-            onChange={(e) => set("limit", Number(e.target.value))}
+            onChange={(limit) => set("limit", limit)}
           />
         </Field>
       );
@@ -287,13 +292,12 @@ export function BlockForm({
         <div className="space-y-2">
           <div className="flex flex-wrap items-end gap-3">
             <Field label="Members shown">
-              <Input
-                type="number"
-                className="w-24"
+              <QuantityInput
+                className={numField}
                 min={5}
                 max={100}
                 value={(block.limit as number) ?? 25}
-                onChange={(e) => set("limit", Number(e.target.value))}
+                onChange={(limit) => set("limit", limit)}
               />
             </Field>
             <Field label="Default sort">
@@ -371,13 +375,12 @@ export function BlockForm({
             </Select>
           </Field>
           <Field label="Entries">
-            <Input
-              type="number"
-              className="w-24"
+            <QuantityInput
+              className={numField}
               min={3}
               max={25}
               value={(block.limit as number) ?? 10}
-              onChange={(e) => set("limit", Number(e.target.value))}
+              onChange={(limit) => set("limit", limit)}
             />
           </Field>
         </div>

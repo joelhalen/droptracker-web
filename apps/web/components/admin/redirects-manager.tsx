@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { Button, EmptyState, Alert } from "@/components/ui";
+import { QuantityInput } from "@/components/quantity-input";
 import { isExternalDestination, type Redirect, type RedirectInput } from "@/lib/redirects";
 import { isValidSource } from "@/lib/redirect-resolver";
 import { createRedirect, deleteRedirect, updateRedirect } from "@/app/(site)/(admin)/admin/redirects/actions";
@@ -231,10 +232,12 @@ function RedirectForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Order (lower matches first)</span>
-          <input
-            type="number"
+          <QuantityInput
+            min={0}
             value={draft.order}
-            onChange={(e) => set("order", Number(e.target.value) || 0)}
+            emptyAs={0}
+            placeholder="0"
+            onChange={(order) => set("order", order)}
             className={field}
           />
         </label>
