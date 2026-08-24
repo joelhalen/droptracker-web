@@ -14,6 +14,7 @@ import { z } from "zod";
 export type ConfigCategory =
   | "channels"
   | "drops"
+  | "deaths"
   | "levels"
   | "pbs"
   | "cas"
@@ -32,7 +33,8 @@ export type ConfigFieldType =
   | "csv" // comma-separated list
   | "bosslist" // comma-separated boss names, picked from GET /groups/{id}/pb-bosses
   | "boardstyle" // lootboards-table row id, picked from GET /lootboard-styles
-  | "select";
+  | "select"
+  | "messagelist"; // JSON array of message templates ("" = unset), edited via a list widget
 
 export interface ConfigField {
   key: string;
@@ -86,6 +88,7 @@ export function comingSoonNote(field: ConfigField): string | null {
 export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "channels", label: "Channels" },
   { id: "drops", label: "Drop notifications" },
+  { id: "deaths", label: "Deaths" },
   { id: "levels", label: "Level notifications" },
   { id: "pbs", label: "Personal best" },
   { id: "cas", label: "Combat achievements" },
@@ -109,7 +112,6 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "channel_id_to_post_pets", label: "Pets channel", category: "channels", type: "channel", help: "Channel for pet notifications. Falls back to the drops channel when unset.", default: null },
   { key: "channel_id_to_post_quests", label: "Quests channel", category: "channels", type: "channel", help: "Channel for quest-completion notifications. Falls back to the drops channel when unset.", default: null },
   { key: "channel_id_to_post_clog", label: "Collection log channel", category: "channels", type: "channel", help: "Channel for collection-log notifications. Falls back to the drops channel when unset.", default: null },
-  { key: "channel_id_to_post_deaths", label: "Deaths channel", category: "channels", type: "channel", help: "Channel for player-death notifications. Falls back to the drops channel when unset.", default: null },
   { key: "channel_id_to_post_diaries", label: "Diaries channel", category: "channels", type: "channel", help: "Channel for achievement-diary notifications. Falls back to the drops channel when unset.", default: null },
   { key: "announcements_channel_id", label: "Announcements channel", category: "channels", type: "channel", help: "Channel where published announcements are syndicated (FRONTEND_PLAN.md §10).", default: null },
   { key: "activity_launch_channel", label: "Activity launcher channel", category: "channels", type: "channel", help: "Post an “Open DropTracker” card in this channel with a button that opens the in-Discord app. The bot keeps one card here and moves or removes it when you change this.", default: null },
@@ -127,8 +129,17 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "notify_pets", label: "Notify pets", category: "drops", type: "boolean", help: "Post a notification on pet drops.", default: true, seasonalMirror: true },
   { key: "notify_quests", label: "Notify quests", category: "drops", type: "boolean", help: "Post a notification on quest completions.", default: false, seasonalMirror: true },
   { key: "notify_special_quests", label: "Notify special quests", category: "drops", type: "boolean", help: "Notify on milestone/special quests even when general quest notifications are off.", default: true, seasonalMirror: true },
-  { key: "notify_deaths", label: "Notify deaths", category: "drops", type: "boolean", help: "Post a notification when a member dies.", default: false, seasonalMirror: true },
   { key: "notify_diaries", label: "Notify achievement diaries", category: "drops", type: "boolean", help: "Post a notification on achievement-diary completions.", default: false, seasonalMirror: true },
+
+  // --- Deaths ---------------------------------------------------------------
+  // Death notifications get their own section: toggle, channel and the custom
+  // message variants (suggestion: randomized clan-broadcast-style death lines).
+  // death_message_variants is a JSON string array; it lives in LONG_VALUE_KEYS
+  // on the backend so lists past 255 chars spill into long_value.
+  { key: "notify_deaths", label: "Notify deaths", category: "deaths", type: "boolean", help: "Post a notification when a member dies.", default: false, seasonalMirror: true },
+  { key: "channel_id_to_post_deaths", label: "Deaths channel", category: "deaths", type: "channel", help: "Channel for player-death notifications. Falls back to the drops channel when unset.", default: null },
+  { key: "death_message_variants", label: "Death messages", category: "deaths", type: "messagelist", help: "Custom death messages, one picked at random per death — like the in-game clan broadcasts. Placeholders like {player_name} and {source} are filled in. Leave empty for the default message. Groups using a Components layout for deaths keep their layout; these messages don't apply there.", default: "" },
+  { key: "death_message_as_embed_description", label: "Show message inside the embed", category: "deaths", type: "boolean", help: "On: the picked message replaces the embed description (including a custom embed's). Off: it's sent as the plain message text above the embed.", default: false },
 
   // --- Level notifications ------------------------------------------------
   { key: "notify_levels", label: "Notify levels", category: "levels", type: "boolean", help: "Master toggle for level-up, total-level milestone, and post-99 XP milestone notifications.", default: false, seasonalMirror: true },
@@ -287,6 +298,48 @@ export function getConfigField(key: string): ConfigField | undefined {
   return undefined;
 }
 
+// Limits for `messagelist` fields, shared by the editor widget and the Zod
+// schema below; the backend registry's coerce_to_storage enforces the same.
+export const MESSAGE_LIST_MAX_ENTRIES = 30;
+export const MESSAGE_LIST_MAX_ENTRY_LENGTH = 200;
+export const MESSAGE_LIST_MAX_RAW_LENGTH = 8000;
+// Message content pings for real (embed text doesn't), so mention syntax is
+// rejected outright rather than relying on the placement checkbox's state.
+export const MESSAGE_LIST_MENTION_RE = /@everyone|@here|<@[&!]?\d+>/;
+
+/**
+ * Validation errors for a `messagelist` raw value, or null when valid.
+ * "" (unset) is valid; otherwise the value must be a JSON array of
+ * non-blank strings within the entry count/length limits, with no
+ * Discord mention syntax.
+ */
+export function messageListIssue(raw: string): string | null {
+  if (raw === "") return null;
+  if (raw.length > MESSAGE_LIST_MAX_RAW_LENGTH) return "Message list is too large.";
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return "Message list must be a JSON array of strings.";
+  }
+  if (!Array.isArray(parsed) || parsed.some((e) => typeof e !== "string")) {
+    return "Message list must be a JSON array of strings.";
+  }
+  if (parsed.length > MESSAGE_LIST_MAX_ENTRIES) {
+    return `At most ${MESSAGE_LIST_MAX_ENTRIES} messages.`;
+  }
+  for (const entry of parsed as string[]) {
+    if (entry.trim().length === 0) return "Messages can't be blank.";
+    if (entry.length > MESSAGE_LIST_MAX_ENTRY_LENGTH) {
+      return `Each message must be at most ${MESSAGE_LIST_MAX_ENTRY_LENGTH} characters.`;
+    }
+    if (MESSAGE_LIST_MENTION_RE.test(entry)) {
+      return "Messages can't contain @everyone, @here or Discord mentions.";
+    }
+  }
+  return null;
+}
+
 /** Per-field Zod validator derived from the registry. */
 function fieldSchema(f: ConfigField): z.ZodTypeAny {
   switch (f.type) {
@@ -311,6 +364,11 @@ function fieldSchema(f: ConfigField): z.ZodTypeAny {
       if (f.maxLength != null) return z.string().trim().max(f.maxLength);
       return z.string();
     }
+    case "messagelist":
+      return z.string().max(MESSAGE_LIST_MAX_RAW_LENGTH).superRefine((raw, ctx) => {
+        const issue = messageListIssue(raw);
+        if (issue) ctx.addIssue({ code: z.ZodIssueCode.custom, message: issue });
+      });
     default:
       return z.string();
   }

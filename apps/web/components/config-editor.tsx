@@ -23,6 +23,7 @@ import { Alert, Badge, Button, Card, Input, Select, Textarea } from "@/component
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { BossListPicker } from "@/components/boss-list-picker";
 import { BoardStylePicker } from "@/components/board-style-picker";
+import { DeathMessageListEditor } from "@/components/death-message-list-editor";
 import type { DiscordChannel, LootboardStyle } from "@/lib/api";
 
 type ConfigValue = string | number | boolean | null;
@@ -348,7 +349,7 @@ export function ConfigEditor({
           if (cat.id === "seasonal") {
             const toggles = SEASONAL_FIELDS.filter((f) => f.type === "boolean");
             const compact = SEASONAL_FIELDS.filter(
-              (f) => !["boolean", "text", "csv", "bosslist"].includes(f.type),
+              (f) => !["boolean", "text", "csv", "bosslist", "messagelist"].includes(f.type),
             );
             return (
               <Card key={cat.id} id={sectionId(cat.id)} padding="p-6" className="scroll-mt-24">
@@ -406,8 +407,10 @@ export function ConfigEditor({
 
           const fields = GROUP_CONFIG_FIELDS.filter((f) => f.category === cat.id);
           const toggles = fields.filter((f) => f.type === "boolean");
-          const compact = fields.filter((f) => !["boolean", "text", "csv", "bosslist"].includes(f.type));
-          const wide = fields.filter((f) => ["text", "csv", "bosslist"].includes(f.type));
+          const compact = fields.filter(
+            (f) => !["boolean", "text", "csv", "bosslist", "messagelist"].includes(f.type),
+          );
+          const wide = fields.filter((f) => ["text", "csv", "bosslist", "messagelist"].includes(f.type));
 
           return (
             <Card key={cat.id} id={sectionId(cat.id)} padding="p-6" className="scroll-mt-24">
@@ -448,6 +451,9 @@ export function ConfigEditor({
                       boardStyles={boardStyles}
                       locked={isFieldLocked(f)}
                       groupId={groupId}
+                      // Unsaved checkbox state, so the death-message preview
+                      // flips placement instantly with the toggle below it.
+                      deathAsEmbed={Boolean(values["death_message_as_embed_description"] ?? false)}
                     />
                   ))}
                 </div>
@@ -584,6 +590,7 @@ function InputField({
   boardStyles = [],
   locked = false,
   groupId,
+  deathAsEmbed = false,
 }: {
   field: ConfigField;
   value: ConfigValue;
@@ -593,6 +600,7 @@ function InputField({
   boardStyles?: LootboardStyle[];
   locked?: boolean;
   groupId: number;
+  deathAsEmbed?: boolean;
 }) {
   const disabled = locked;
   const pendingNote = comingSoonNote(field);
@@ -649,6 +657,13 @@ function InputField({
           bosses={bosses}
           value={String(value ?? "")}
           onChange={(v) => onChange(v)}
+          disabled={disabled}
+        />
+      ) : field.type === "messagelist" ? (
+        <DeathMessageListEditor
+          value={String(value ?? "")}
+          onChange={(v) => onChange(v)}
+          asEmbedDescription={deathAsEmbed}
           disabled={disabled}
         />
       ) : field.type === "boardstyle" ? (

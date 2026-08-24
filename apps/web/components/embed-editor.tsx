@@ -22,6 +22,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/embeds/actions";
 import { flattenTitleMarkdown } from "@/lib/embeds";
 import { getErrorMessage } from "@/lib/errors";
+import { DEATH_PLACEHOLDERS } from "@/lib/death-placeholders";
 import { Alert, Button, Card, Checkbox, Input, Textarea } from "@/components/ui";
 
 /* ------------------------------------------------------------------ */
@@ -150,17 +151,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
-  death: [
-    { token: "{player_name}", help: "Player who died (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
-    { token: "{player_name_plain}", help: "Player who died, with no profile link", sample: "RuneLite Ron" },
-    { token: "{source}", help: "What killed the player", sample: "Abyssal demon" },
-    { token: "{killer}", help: "Alias for {source}", sample: "Abyssal demon" },
-    { token: "{location}", help: "Where the death occurred", sample: "Catacombs of Kourend" },
-    { token: "{region_id}", help: "OSRS region id", sample: "6551" },
-    { token: "{timestamp}", help: "When the death occurred", sample: "today" },
-    PLUGIN_VERSION,
-    ...COMMON_MEDIA,
-  ],
+  // Shared with the Deaths config section's message-list editor.
+  death: DEATH_PLACEHOLDERS,
   diary: [
     { token: "{player_name}", help: "Player who completed the diary (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who completed the diary, with no profile link", sample: "RuneLite Ron" },
