@@ -15,6 +15,7 @@ import { useState } from "react";
 import type { EventPrizePot } from "@droptracker/api-types";
 import { ProofAttach, type ProofUpload, type ProofUploader } from "@/components/proof-attach";
 import { GpAmount } from "@/components/gp-amount";
+import { GpInput } from "@/components/gp-input";
 import { Checkbox } from "@/components/ui";
 
 export interface PrizePotActions {
@@ -221,10 +222,9 @@ function DonationAdd({
   uploader?: ProofUploader;
 }) {
   const [rsn, setRsn] = useState("");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(0);
   const [proof, setProof] = useState<ProofUpload | null>(null);
-  const amt = Number(amount);
-  const canSubmit = rsn.trim().length > 0 && Number.isFinite(amt) && amt > 0 && !busy;
+  const canSubmit = rsn.trim().length > 0 && amount > 0 && !busy;
   return (
     <div className="border-osrs-bronze/15 mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
       <input
@@ -235,11 +235,11 @@ function DonationAdd({
         placeholder="Donor"
         className="border-osrs-bronze/30 bg-osrs-surface-2/50 focus:border-osrs-gold/60 w-28 rounded border px-2 py-1 text-xs outline-none"
       />
-      <input
-        type="number"
+      <GpInput
         min={0}
+        emptyAs={0}
         value={amount}
-        onChange={(e) => setAmount(e.target.value)}
+        onChange={setAmount}
         placeholder="Amount"
         className="border-osrs-bronze/30 bg-osrs-surface-2/50 focus:border-osrs-gold/60 w-24 rounded border px-2 py-1 text-xs outline-none"
       />
@@ -257,9 +257,9 @@ function DonationAdd({
         type="button"
         disabled={!canSubmit}
         onClick={() => {
-          onAdd(rsn.trim(), amt, proof?.key ?? null);
+          onAdd(rsn.trim(), amount, proof?.key ?? null);
           setRsn("");
-          setAmount("");
+          setAmount(0);
           setProof(null);
         }}
         className="border-osrs-gold/50 text-osrs-gold-bright hover:bg-osrs-gold/10 rounded border px-2 py-1 text-xs disabled:opacity-50"

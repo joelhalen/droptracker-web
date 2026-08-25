@@ -9,6 +9,7 @@ import type {
 } from "@droptracker/api-types";
 import { Badge, Button } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
+import { GpInput } from "@/components/gp-input";
 import { QuantityInput } from "@/components/quantity-input";
 import { deleteItemValue, saveItemValue, searchItems } from "@/app/(site)/(admin)/admin/item-values/actions";
 
@@ -324,7 +325,7 @@ function ItemValueForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Flat bonus (gp)</span>
-          <QuantityInput
+          <GpInput
             min={null}
             value={form.flat_bonus}
             emptyAs={0}
@@ -338,7 +339,7 @@ function ItemValueForm({
         </label>
         <label className="block">
           <span className="mb-1 block text-sm font-medium">Fallback value (gp)</span>
-          <QuantityInput
+          <GpInput
             min={0}
             value={form.fallback_value}
             emptyAs={0}

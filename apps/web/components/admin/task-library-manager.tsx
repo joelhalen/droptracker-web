@@ -32,6 +32,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Button, EmptyState } from "@/components/ui";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
+import { GpInput } from "@/components/gp-input";
 import { QuantityInput } from "@/components/quantity-input";
 import {
   createTaskPreset,
@@ -636,18 +637,39 @@ function PresetForm({
     });
   };
 
-  const goalField = (labelText: string, placeholder: string, min = 1, max?: number) => (
+  // `unit` marks the goals measured in millions — gp and xp — which take
+  // shorthand ("25m") and show the resolved number back.
+  const goalField = (
+    labelText: string,
+    placeholder: string,
+    min = 1,
+    max?: number,
+    unit?: "gp" | "xp",
+  ) => (
     <label className="grid gap-1 text-sm">
       <span className="text-osrs-parchment-dark/80">{labelText}</span>
-      <QuantityInput
-        min={min}
-        max={max}
-        emptyAs={0}
-        value={numericGoal}
-        onChange={setNumericGoal}
-        placeholder={placeholder}
-        className={field}
-      />
+      {unit ? (
+        <GpInput
+          min={min}
+          max={max}
+          emptyAs={0}
+          unit={unit}
+          value={numericGoal}
+          onChange={setNumericGoal}
+          placeholder={placeholder}
+          className={field}
+        />
+      ) : (
+        <QuantityInput
+          min={min}
+          max={max}
+          emptyAs={0}
+          value={numericGoal}
+          onChange={setNumericGoal}
+          placeholder={placeholder}
+          className={field}
+        />
+      )}
     </label>
   );
 
@@ -803,14 +825,14 @@ function PresetForm({
             </select>
           </label>
           {type === "xp_target"
-            ? goalField("XP to gain", "e.g. 1000000")
+            ? goalField("XP to gain", "e.g. 1m", 1, undefined, "xp")
             : goalField("Target level", "e.g. 99", 2, 99)}
         </div>
       )}
 
       {type === "loot_value" && (
         <div className="grid gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">{goalField("GP to earn", "e.g. 25000000")}</div>
+          <div className="grid gap-3 sm:grid-cols-2">{goalField("GP to earn", "e.g. 25m", 1, undefined, "gp")}</div>
           <div className="grid gap-1 text-sm">
             <span className="text-osrs-parchment-dark/80">Only count drops from (optional)</span>
             <ItemNpcPicker

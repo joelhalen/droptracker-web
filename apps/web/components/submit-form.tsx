@@ -11,6 +11,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
 import { Alert, Button, FileInput } from "@/components/ui";
+import { GpInput } from "@/components/gp-input";
 import { QuantityInput } from "@/components/quantity-input";
 
 const MAX_PROOF_BYTES = 10 * 1024 * 1024; // 10 MB — client-side sanity cap, not enforced server-side.
@@ -137,7 +138,8 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
   const [playerId, setPlayerId] = useState<number>(players[0]?.id ?? 0);
   const [item, setItem] = useState<PickerEntry[]>([]);
   const [npc, setNpc] = useState<PickerEntry[]>([]);
-  const [value, setValue] = useState<string>("");
+  // 0 means "not stated" — the backend looks the GE price up instead.
+  const [value, setValue] = useState<number>(0);
   const [quantity, setQuantity] = useState<number>(1);
   const [killTime, setKillTime] = useState<string>("");
   const [teamSize, setTeamSize] = useState<string>("");
@@ -244,11 +246,8 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
   const splitError = wasSplit ? splitValidationError(resolvedSplitSize, splitNames) : null;
   const splitPreview = (() => {
     if (!wasSplit || splitError || resolvedSplitSize == null) return null;
-    const gp = Number(value);
     const perShare =
-      value.trim() && Number.isFinite(gp) && gp > 0
-        ? Math.floor((gp * Math.max(1, quantity)) / resolvedSplitSize)
-        : null;
+      value > 0 ? Math.floor((value * Math.max(1, quantity)) / resolvedSplitSize) : null;
     return describeSplit(resolvedSplitSize, splitNames.length, perShare);
   })();
 
@@ -267,8 +266,7 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
       if (item[0]?.id != null) payload.item_id = item[0].id;
       payload.npc_name = npc[0]?.name;
       payload.quantity = Math.max(1, quantity);
-      const gp = Number(value);
-      if (value.trim() && Number.isFinite(gp) && gp >= 0) payload.value = Math.floor(gp);
+      if (value > 0) payload.value = value;
       if (wasSplit && resolvedSplitSize != null) {
         if (splitNames.length) payload.split_players = splitNames;
         payload.split_size = resolvedSplitSize;
@@ -398,13 +396,14 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block">
             <span className={label}>Value (GP, optional)</span>
-            <input
-              type="number"
+            <GpInput
               min={0}
+              emptyAs={0}
               value={value}
-              onChange={(e) => setValue(e.target.value)}
+              onChange={setValue}
               className={field}
               placeholder="Leave blank to use the GE price"
+              hint="Uses the GE price"
             />
           </label>
           <label className="block">

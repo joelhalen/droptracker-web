@@ -30,6 +30,7 @@ type PrizeConfigPatch = {
   allow_leader_mark?: boolean;
 };
 import { Card, EmptyState, Badge, Checkbox } from "@/components/ui";
+import { GpInput } from "@/components/gp-input";
 import { QuantityInput } from "@/components/quantity-input";
 import { ProofAttach, type ProofUpload } from "@/components/proof-attach";
 import { GpAmount } from "@/components/gp-amount";
@@ -136,7 +137,7 @@ function BuyinLine({
     <li className="flex items-center justify-between gap-3 py-2">
       <span className="min-w-0 truncate text-sm">{name}</span>
       <div className="flex items-center gap-3">
-        <QuantityInput
+        <GpInput
           value={amount}
           min={0}
           emptyAs={0}
@@ -503,11 +504,12 @@ export function PrizePotManager({
                 <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
                   Default buy-in (GP)
                 </span>
-                <QuantityInput
+                <GpInput
                   value={config.default_buyin.value}
                   min={0}
                   emptyAs={0}
                   commitOn="blur"
+                  hint="No fixed stake"
                   onChange={(v) => saveConfig({ default_buyin: v })}
                   className="w-40"
                 />
@@ -847,7 +849,7 @@ function DonationAdd({
       </label>
       <label className="block">
         <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Amount (GP)</span>
-        <QuantityInput value={amount} min={0} emptyAs={0} onChange={setAmount} className="w-32" />
+        <GpInput value={amount} min={0} emptyAs={0} onChange={setAmount} className="w-32" />
       </label>
       <label className="block">
         <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Proof</span>

@@ -19,7 +19,8 @@ import {
 import { getErrorMessage, isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
 import { viewerZone } from "@/components/local-time";
-import { Alert, Badge, Button, Card, Input, Select, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, Card, controlClass, Input, Select, Textarea } from "@/components/ui";
+import { GpInput } from "@/components/gp-input";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { BossListPicker } from "@/components/boss-list-picker";
 import { BoardStylePicker } from "@/components/board-style-picker";
@@ -634,6 +635,21 @@ function InputField({
           disabled={disabled}
           className="w-full disabled:cursor-not-allowed"
           rows={2}
+        />
+      ) : field.type === "int" && field.unit ? (
+        // Amounts with six-plus zeros in them: typed as shorthand, shown back
+        // resolved. `emptyAs` is the field's own floor, so clearing the box
+        // means "no threshold" rather than sending a null the backend rejects.
+        <GpInput
+          min={field.min}
+          max={field.max}
+          value={Number(value ?? field.default ?? 0)}
+          emptyAs={field.min ?? 0}
+          unit={field.unit}
+          hint={`Empty saves as ${field.min ?? 0}`}
+          onChange={onChange}
+          disabled={disabled}
+          className={controlClass("md", "default", "w-full disabled:cursor-not-allowed")}
         />
       ) : field.type === "int" ? (
         <Input

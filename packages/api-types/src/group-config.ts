@@ -48,6 +48,13 @@ export interface ConfigField {
   /** For `int` fields. */
   min?: number;
   max?: number;
+  /**
+   * Presentational, for `int` fields holding a large game amount: the editor
+   * renders a shorthand-accepting field ("1.5m") that spells the resolved
+   * number back, instead of asking an admin to count zeros. The stored type is
+   * still a plain int — this changes the input, not the contract.
+   */
+  unit?: "gp" | "xp";
   /** For text-ish fields: character cap, enforced on the input and in Zod. */
   maxLength?: number;
   /** Whether a `seasonal_`-prefixed mirror of this key exists (§11.1). */
@@ -120,7 +127,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // Defaults must match the backend processors' runtime fallbacks
   // (data/submissions/drop.py) so the editor never shows one behavior while
   // the bot does another.
-  { key: "minimum_value_to_notify", label: "Minimum value to notify", category: "drops", type: "int", help: "Suppress drop notifications below this GP value.", default: 2500000, min: 0 },
+  { key: "minimum_value_to_notify", label: "Minimum value to notify", category: "drops", type: "int", help: "Suppress drop notifications below this GP value.", default: 2500000, min: 0, unit: "gp" },
   { key: "only_include_items_over_minimum", label: "Only items over minimum", category: "drops", type: "boolean", help: "On stacked/multi-item drops, only include items above the minimum value.", default: false, seasonalMirror: true },
   { key: "only_send_messages_with_images", label: "Only send with images", category: "drops", type: "boolean", help: "Require a screenshot before posting a drop.", default: false, seasonalMirror: true },
   { key: "send_stacks_of_items", label: "Announce item stacks", category: "drops", type: "boolean", help: "Announce drops of stackable items (e.g. rune/coin stacks) when their total value passes the minimum.", default: false, seasonalMirror: true },
@@ -148,7 +155,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "notify_virtual_levels", label: "Virtual levels (100+)", category: "levels", type: "boolean", help: "Also notify for virtual level-ups above 99 (levels 100–126). Off = level 99 is the final level-up notification for a skill.", default: false },
   { key: "notify_combat_levels", label: "Combat level-ups", category: "levels", type: "boolean", help: "Notify when a member's combat level increases. Combat levels ignore the minimum/increment filters above.", default: false },
   { key: "level_milestones", label: "Total level milestones", category: "levels", type: "csv", help: "Comma-separated TOTAL levels that always notify (e.g. 1500,2000,2277).", default: "" },
-  { key: "post99_xp_interval", label: "Post-99 XP interval", category: "levels", type: "int", help: "After a skill reaches 99, notify every N XP (e.g. 25000000 = every 25M). Multiples of 1M; 0 disables.", default: 25000000, min: 0 },
+  { key: "post99_xp_interval", label: "Post-99 XP interval", category: "levels", type: "int", help: "After a skill reaches 99, notify every N XP (e.g. 25m = every 25M). Multiples of 1M; 0 disables.", default: 25000000, min: 0, unit: "xp" },
 
   // --- Personal best ------------------------------------------------------
   // notify_pbs (PB notifications) is available to every group. The Hall of
@@ -255,7 +262,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // Hub 2026-08-24, so the `comingSoon` flags these five keys carried are gone.
   // Members still need to be on v6.0 and to switch the relay on themselves.
   { key: "clan_broadcast_tracking", label: "Clan broadcast tracking", category: "integration", type: "boolean", help: "Track drops, pets and collection log slots for members who don't run the plugin, parsed from in-game clan broadcast messages relayed by clanmates who do. Requires the clan chat name to be set. Chat-tracked entries are unverified, carry no screenshots, and never count toward events, points or splits.", default: false },
-  { key: "clan_broadcast_min_value", label: "Clan broadcast minimum value", category: "integration", type: "int", help: "Extra GP floor for chat-relayed drops: broadcasts below this are not recorded for this group at all. 0 records everything the clan's in-game broadcast threshold lets through.", default: 0, min: 0 },
+  { key: "clan_broadcast_min_value", label: "Clan broadcast minimum value", category: "integration", type: "int", help: "Extra GP floor for chat-relayed drops: broadcasts below this are not recorded for this group at all. 0 records everything the clan's in-game broadcast threshold lets through.", default: 0, min: 0, unit: "gp" },
   { key: "clan_broadcast_notify_without_images", label: "Notify clan broadcasts without screenshots", category: "integration", type: "boolean", help: "Relayed clan broadcasts never carry a screenshot, so leave this on if you use \"Only send messages with images\" — otherwise chat-tracked drops, personal bests, pets and collection log slots are recorded but never announced. Turn it off to keep those announcements out of your channels entirely.", default: true },
   { key: "clan_chat_bridge_enabled", label: "Clan chat bridge", category: "integration", type: "boolean", help: "Two-way sync between your in-game clan chat and the bridge channel: game chat is mirrored into the channel, and channel messages appear in game for members running the plugin with the bridge enabled. Requires the clan chat name and a bridge channel.", default: false },
   { key: "channel_id_clan_chat_bridge", label: "Clan chat bridge channel", category: "integration", type: "channel", help: "The Discord channel your in-game clan chat is mirrored to, and whose messages are relayed into the game. Anyone who can type in this channel can speak to the clan — restrict it accordingly.", default: null },

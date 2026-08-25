@@ -33,7 +33,12 @@ const STATE: Record<FieldState, string> = {
   error: "border-osrs-red/60 focus:border-osrs-red focus:ring-osrs-red/20",
 };
 
-function controlClass(size: FieldSize, state: FieldState, className?: string): string {
+/**
+ * The composed control style, for the few fields that render their own
+ * `<input>` rather than this module's — `<GpInput>` wraps one in a container to
+ * show the resolved amount underneath, and still has to look like the rest.
+ */
+export function controlClass(size: FieldSize, state: FieldState, className?: string): string {
   return cn(inputBaseClass, SIZE[size], STATE[state], className);
 }
 

@@ -60,6 +60,7 @@ import {
   lootSweepFromConfig,
   lootSweepToConfig,
 } from "@/components/loot-sweep-editor";
+import { GpInput } from "@/components/gp-input";
 import { QuantityInput } from "@/components/quantity-input";
 import { isForwardOnlyTask, taskScoringDirty } from "@/lib/event-live-edit";
 import {
@@ -1266,18 +1267,39 @@ export function EventTaskForm({
     });
   };
 
-  const goalField = (labelText: string, placeholder: string, min = 1, max?: number) => (
+  // `unit` marks the goals measured in millions — gp and xp — which take
+  // shorthand ("25m") and show the resolved number back.
+  const goalField = (
+    labelText: string,
+    placeholder: string,
+    min = 1,
+    max?: number,
+    unit?: "gp" | "xp",
+  ) => (
     <label className="grid gap-1 text-sm">
       <span className="text-osrs-parchment-dark/80">{labelText}</span>
-      <QuantityInput
-        min={min}
-        max={max}
-        emptyAs={0}
-        value={numericGoal}
-        onChange={setNumericGoal}
-        placeholder={placeholder}
-        className={field}
-      />
+      {unit ? (
+        <GpInput
+          min={min}
+          max={max}
+          emptyAs={0}
+          unit={unit}
+          value={numericGoal}
+          onChange={setNumericGoal}
+          placeholder={placeholder}
+          className={field}
+        />
+      ) : (
+        <QuantityInput
+          min={min}
+          max={max}
+          emptyAs={0}
+          value={numericGoal}
+          onChange={setNumericGoal}
+          placeholder={placeholder}
+          className={field}
+        />
+      )}
     </label>
   );
 
@@ -1485,16 +1507,22 @@ export function EventTaskForm({
                           <span className="text-osrs-parchment-dark/80">
                             {p.kind === "kc" ? "Kill count" : "GP goal"}
                           </span>
-                          <QuantityInput
-                            value={p.need}
-                            onChange={(need) => patchPath(pi, { need })}
-                            className={field}
-                            title={
-                              p.kind === "kc"
-                                ? "Kills of the listed NPC(s) that complete this path."
-                                : "Total GP of qualifying drops that completes this path."
-                            }
-                          />
+                          {p.kind === "kc" ? (
+                            <QuantityInput
+                              value={p.need}
+                              onChange={(need) => patchPath(pi, { need })}
+                              className={field}
+                              title="Kills of the listed NPC(s) that complete this path."
+                            />
+                          ) : (
+                            <GpInput
+                              min={1}
+                              value={p.need}
+                              onChange={(need) => patchPath(pi, { need })}
+                              className={field}
+                              title="Total GP of qualifying drops that completes this path."
+                            />
+                          )}
                         </label>
                         <ItemNpcPicker
                           kind="npc"
@@ -1622,7 +1650,7 @@ export function EventTaskForm({
             </select>
           </label>
           {type === "xp_target"
-            ? goalField("XP to gain", "e.g. 1000000")
+            ? goalField("XP to gain", "e.g. 1m", 1, undefined, "xp")
             : goalField("Target level", "e.g. 99", 2, 99)}
         </div>
       )}
@@ -1630,15 +1658,15 @@ export function EventTaskForm({
       {type === "loot_value" && (
         <div className="grid gap-3">
           <div className="grid gap-3 sm:grid-cols-2">
-            {goalField("GP to earn", "e.g. 25000000")}
+            {goalField("GP to earn", "e.g. 25m", 1, undefined, "gp")}
             <label className="grid gap-1 text-sm">
               <span className="text-osrs-parchment-dark/80">Minimum drop value (optional)</span>
-              <QuantityInput
+              <GpInput
                 min={1}
                 emptyAs={0}
                 value={minDropValue}
                 onChange={setMinDropValue}
-                placeholder="e.g. 100000"
+                placeholder="e.g. 100k"
                 className={field}
               />
               <span className="text-osrs-parchment-dark/50 text-xs">

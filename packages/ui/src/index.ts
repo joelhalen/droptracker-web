@@ -21,6 +21,7 @@ export {
   Checkbox,
   FileInput,
   inputBaseClass,
+  controlClass,
   type FieldSize,
   type FieldState,
   type InputProps,

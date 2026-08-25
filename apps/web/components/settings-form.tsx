@@ -6,7 +6,7 @@ import { saveSettings, setPlayerHidden } from "@/app/(site)/(dashboard)/settings
 import { getErrorMessage } from "@/lib/errors";
 import { viewerZone } from "@/components/local-time";
 import { Alert, Button } from "@/components/ui";
-import { QuantityInput } from "@/components/quantity-input";
+import { GpInput } from "@/components/gp-input";
 
 type ToggleKey = Exclude<
   keyof AccountSettings,
@@ -230,18 +230,18 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
             className={`flex flex-wrap items-center gap-2 ${canDm ? "" : "cursor-not-allowed opacity-50"}`}
           >
             <span className="text-sm font-medium">Minimum drop value</span>
-            <QuantityInput
+            <GpInput
               min={0}
-              step={1000}
               disabled={!canDm}
               value={settings.dm_min_value}
               emptyAs={0}
               placeholder="0"
+              hint="Every drop is DMed"
               onChange={(dm_min_value) => setSettings((s) => ({ ...s, dm_min_value }))}
               className="border-osrs-bronze/40 bg-osrs-surface-1 w-36 rounded border px-2 py-1 text-sm"
             />
             <span className="text-osrs-parchment-dark/60 text-xs">
-              gp — drops below this value are not DMed (0 = everything).
+              drops below this value are not DMed (0 = everything).
             </span>
           </label>
         </fieldset>
