@@ -24,6 +24,34 @@ export const NOTIFICATION_TOKEN_RE = /\{[a-z0-9_]+\}/i;
  * `substitute` off is the "raw tokens" view: the template as written, with
  * nothing resolved and nothing dropped.
  */
+/**
+ * True when every token on this line resolves to nothing.
+ *
+ * Mirrors `_line_values_are_all_blank` in services/component_layout.py: a line
+ * exists to carry a value, so "**Location** {location}" with no location
+ * disappears rather than rendering a label with nothing after it. Lines using
+ * a token this type never defines are left to the unresolved-token rule.
+ */
+function lineValuesAreAllBlank(
+  line: string,
+  samples: Map<string, string>,
+  tokenRe: RegExp,
+): boolean {
+  const global = new RegExp(
+    tokenRe.source,
+    tokenRe.flags.includes("g") ? tokenRe.flags : `${tokenRe.flags}g`,
+  );
+  const found = line.match(global);
+  if (!found) return false;
+  let sawKnown = false;
+  for (const token of found) {
+    if (!samples.has(token)) continue;
+    sawKnown = true;
+    if ((samples.get(token) ?? "").trim()) return false;
+  }
+  return sawKnown;
+}
+
 export function resolveLines(
   text: string,
   samples: Map<string, string>,
@@ -34,8 +62,10 @@ export function resolveLines(
   for (const rawLine of text.split("\n")) {
     let line = rawLine;
     if (substitute) {
+      if (lineValuesAreAllBlank(rawLine, samples, tokenRe)) continue;
       for (const [token, sample] of samples) line = line.split(token).join(sample);
       if (tokenRe.test(line)) continue;
+      if (!line.trim() && rawLine.trim()) continue;
     }
     out.push(line);
   }

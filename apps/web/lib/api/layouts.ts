@@ -178,7 +178,7 @@ export const layoutsApi = {
     );
   },
 
-  // --- Notification component layouts (pilot-gated) ----------------------
+  // --- Notification component layouts (custom_embeds entitlement) --------
   /** Editor metadata: notification types, token docs, Discord limits. */
   async notificationLayoutMeta(): Promise<NotificationLayoutMeta> {
     return withFallback(
@@ -191,7 +191,7 @@ export const layoutsApi = {
   },
 
   /** The group's authored layouts, which are live, and the shipped defaults.
-   * `enabled` reports the pilot gate rather than the call failing for a group
+   * `enabled` reports the entitlement gate rather than the call failing for a group
    * outside it. */
   async groupNotificationLayouts(groupId: number): Promise<GroupNotificationLayoutsResponse> {
     return withFallback(

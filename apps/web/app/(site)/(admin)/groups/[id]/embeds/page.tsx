@@ -7,6 +7,7 @@ import { FeatureGate } from "@/components/feature-gate";
 import { EmbedEditor } from "@/components/embed-editor";
 import { EventLayoutEditor } from "@/components/event-layout-editor";
 import { NotificationLayoutEditor } from "@/components/notification-layout-editor";
+import { MessageStyleExplainer } from "@/components/message-style";
 
 export const metadata: Metadata = { title: "Discord embeds" };
 
@@ -36,7 +37,7 @@ export default async function GroupEmbedsPage({
     getUser(),
   ]);
   // The components layouts are fetched on every tab: the response reports the
-  // pilot gate, which is what decides whether the tab is offered at all.
+  // entitlement gate, which is what decides whether the tab is offered at all.
   const [embeds, eventLayouts, layoutMeta, notificationLayouts, notificationMeta] =
     await Promise.all([
       eventsTab || componentsTab ? null : api.groupEmbeds(groupId).catch(() => null),
@@ -59,7 +60,7 @@ export default async function GroupEmbedsPage({
     <div>
       <div className="border-osrs-bronze/30 mb-4 inline-flex gap-1 rounded-lg border p-1">
         <Link href={`/groups/${groupId}/embeds`} className={tabClass(!eventsTab && !componentsTab)}>
-          Notifications
+          Embed templates
         </Link>
         <Link href={`/groups/${groupId}/embeds?tab=events`} className={tabClass(eventsTab)}>
           Event messages
@@ -69,7 +70,7 @@ export default async function GroupEmbedsPage({
             href={`/groups/${groupId}/embeds?tab=components`}
             className={tabClass(componentsTab)}
           >
-            Components
+            Message style
           </Link>
         )}
       </div>
@@ -77,12 +78,11 @@ export default async function GroupEmbedsPage({
       <p className="text-osrs-parchment-dark/70 mb-6 text-sm">
         {componentsTab ? (
           <>
-            Build your notifications out of Discord components instead of an embed — an image
-            beside the text rather than under it, stacked screenshots, link buttons. Each type is
-            either an embed or components, never both, and switching one over changes what every
-            member of your group receives. Tokens like{" "}
-            <code className="text-osrs-gold-bright">{"{player_name}"}</code> work exactly as they do
-            on the embed templates.
+            Choose how each notification is sent: as the classic embed, or built out of Discord
+            components you arrange yourself. Every layout here starts as a copy of your embed, so
+            switching a type over changes how it&apos;s laid out, not what it says — and the same
+            placeholders like{" "}
+            <code className="text-osrs-gold-bright">{"{player_name}"}</code> work in both.
           </>
         ) : eventsTab ? (
           <>
@@ -111,11 +111,14 @@ export default async function GroupEmbedsPage({
       >
         {componentsTab ? (
           notificationLayouts && notificationMeta && componentsEnabled ? (
-            <NotificationLayoutEditor
-              groupId={groupId}
-              entries={notificationLayouts.layouts}
-              meta={notificationMeta}
-            />
+            <div className="space-y-4">
+              <MessageStyleExplainer />
+              <NotificationLayoutEditor
+                groupId={groupId}
+                entries={notificationLayouts.layouts}
+                meta={notificationMeta}
+              />
+            </div>
           ) : (
             <p className="text-osrs-parchment-dark/70 text-sm">
               Component layouts are unavailable right now — try again shortly.

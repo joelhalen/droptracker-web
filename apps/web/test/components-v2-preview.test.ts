@@ -67,6 +67,33 @@ test("only the line holding an unresolved token is dropped", () => {
   assert.deepEqual(lines, ["**Time** 1:52.20"]);
 });
 
+test("a line whose only value is blank is dropped, label and all", () => {
+  // Mirrors _line_values_are_all_blank: "**Location** {location}" with no
+  // location must vanish rather than render a heading with nothing under it,
+  // which is what an embed does with a field whose value resolves empty.
+  const samples = new Map(SAMPLES);
+  samples.set("{gear_image_url}", "");
+  const lines = resolveLines(
+    "**Time** {personal_best}\n**Character** {gear_image_url}",
+    samples,
+    true,
+    NOTIFICATION_TOKEN_RE,
+  );
+  assert.deepEqual(lines, ["**Time** 1:52.20"]);
+});
+
+test("a line keeps its label while any one of its values resolves", () => {
+  const samples = new Map(SAMPLES);
+  samples.set("{gear_image_url}", "");
+  const lines = resolveLines(
+    "**Time** {personal_best} — {gear_image_url}",
+    samples,
+    true,
+    NOTIFICATION_TOKEN_RE,
+  );
+  assert.deepEqual(lines, ["**Time** 1:52.20 — "]);
+});
+
 test("raw mode substitutes and drops nothing", () => {
   const lines = resolveLines("hi {player_name}\n{missing}", SAMPLES, false, NOTIFICATION_TOKEN_RE);
   assert.deepEqual(lines, ["hi {player_name}", "{missing}"]);

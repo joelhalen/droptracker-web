@@ -35,6 +35,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { DiscordMessageFrame, HiddenOnError, PreviewLines } from "@/components/components-v2-preview";
 import { renderNotificationPreview, sampleMap } from "@/lib/components-v2";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
+import { MessageStyleChooser } from "@/components/message-style";
 
 /* ------------------------------------------------------------------ */
 /* Draft model                                                          */
@@ -556,12 +557,13 @@ export function NotificationLayoutEditor({
   const goLive = () => {
     if (
       !window.confirm(
-        `Send every ${typeMeta?.label.toLowerCase() ?? selected} notification with this layout ` +
-          "instead of the embed? Every member of the group will see it.",
+        `Send every ${typeMeta?.label.toLowerCase() ?? selected} notification as components ` +
+          "from now on? Every member of your group will see the blocks below instead of the " +
+          "embed. You can switch back at any time.",
       )
     )
       return;
-    persist(true, "Live — this type now sends as components.");
+    persist(true, "Switched over — this type now sends as components.");
   };
 
   const goDraft = () => persist(false, "Switched back to the embed. Your layout is kept.");
@@ -624,7 +626,10 @@ export function NotificationLayoutEditor({
                       ●
                     </span>
                   ) : e?.custom ? (
-                    <span className="text-osrs-gold-bright ml-1" title="Draft saved">
+                    <span
+                      className="text-osrs-gold-bright ml-1"
+                      title="Sending the embed — an unused layout is saved here"
+                    >
                       ○
                     </span>
                   ) : null}
@@ -638,10 +643,14 @@ export function NotificationLayoutEditor({
       <p className="text-osrs-parchment-dark/60 text-xs">
         {typeMeta?.description}{" "}
         {isLive
-          ? "This type is sending as components right now."
+          ? "Currently sent as components."
           : hasSaved
-            ? "You have a draft here; this type still sends its embed."
-            : "This type sends its embed. The blocks below are a starting point."}
+            ? "Currently sent as an embed; the layout saved here is not in use."
+            : "Currently sent as an embed. The blocks below start as a copy of that embed, so you can switch over and adjust from there."}
+      </p>
+      <p className="text-osrs-parchment-dark/50 text-xs">
+        A green ● marks a type sent as components; a gold ○ marks one with a saved layout that
+        is not in use.
       </p>
 
       {message && <Alert variant={message.tone}>{message.text}</Alert>}
@@ -716,6 +725,14 @@ export function NotificationLayoutEditor({
             </div>
           </div>
 
+          <MessageStyleChooser
+            typeLabel={typeMeta?.label ?? selected}
+            isComponents={isLive}
+            disabled={pending}
+            canUseComponents={draft.blocks.length > 0}
+            onChoose={(components) => (components ? goLive() : goDraft())}
+          />
+
           <div className="border-osrs-bronze/25 space-y-3 border-t pt-4">
             <div className="flex flex-wrap items-center gap-3">
               <button
@@ -726,25 +743,6 @@ export function NotificationLayoutEditor({
               >
                 {pending ? "Saving…" : "Save"}
               </button>
-              {isLive ? (
-                <button
-                  type="button"
-                  onClick={goDraft}
-                  disabled={pending}
-                  className="border-osrs-bronze/40 hover:bg-osrs-bronze/30 rounded border px-4 py-2 text-sm disabled:opacity-50"
-                >
-                  Go back to the embed
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={goLive}
-                  disabled={pending || !draft.blocks.length}
-                  className="border-osrs-green/50 text-osrs-green hover:bg-osrs-green/15 rounded border px-4 py-2 text-sm disabled:opacity-50"
-                >
-                  Send this type as components
-                </button>
-              )}
               {hasSaved && (
                 <button
                   type="button"
@@ -757,10 +755,6 @@ export function NotificationLayoutEditor({
               )}
               {dirty && <span className="text-osrs-parchment-dark/60 text-xs">Unsaved changes</span>}
             </div>
-            <p className="text-osrs-parchment-dark/50 text-xs">
-              Saving never changes what your members receive — only switching the type over does.
-              You can switch back at any time.
-            </p>
           </div>
         </Card>
 

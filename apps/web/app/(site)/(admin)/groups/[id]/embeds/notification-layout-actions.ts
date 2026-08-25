@@ -9,6 +9,7 @@ import {
 } from "@droptracker/api-types";
 import { api, ApiError } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
+import { hasEntitlement } from "@/lib/entitlements";
 
 /**
  * Server Actions for the notification components builder.
@@ -18,10 +19,11 @@ import { getUser, canAdminGroup } from "@/lib/auth";
  * the backend's real validation detail — "Block 3 needs some text" is the whole
  * point of validating there.
  *
- * The pilot allowlist is not re-checked here, deliberately: it lives in
- * services/component_layout.py next to the send path that honours it, and the
- * Web API refuses writes for a group outside it. Duplicating the group ids in
- * the frontend would create a second list to forget to update.
+ * Component layouts are gated by the same `custom_embeds` entitlement as the
+ * embed templates — the group is choosing between two ways to spend one
+ * feature — so this re-checks it exactly as the embed action does. The Web API
+ * enforces it again next to the send path that honours it; this check is here
+ * so an unentitled admin gets a plain answer rather than a 403.
  */
 export type NotificationLayoutActionResult<T> =
   | { ok: true; data: T }
@@ -47,6 +49,15 @@ export async function saveGroupNotificationLayoutAction(
     const user = await getUser();
     if (!user || !canAdminGroup(user, groupId)) {
       return { ok: false, error: "Forbidden: you do not administer this group." };
+    }
+    if (!user.is_superadmin) {
+      const sub = await api.groupSubscription(groupId);
+      if (!hasEntitlement(sub, "custom_embeds")) {
+        return {
+          ok: false,
+          error: "Choosing how notifications are sent requires a higher subscription tier.",
+        };
+      }
     }
     const parsed = NotificationLayoutInputSchema.parse(input);
     const saved = await api.saveGroupNotificationLayout(groupId, notificationType, parsed);
