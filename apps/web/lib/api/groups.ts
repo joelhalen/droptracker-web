@@ -26,6 +26,9 @@ import {
   AuthorizedUsersResponseSchema,
   type EventManagersResponse,
   EventManagersResponseSchema,
+  type BlacklistEntryType,
+  type NotificationBlacklist,
+  NotificationBlacklistSchema,
   type WomGroupPreview,
   type WomSyncResult,
 } from "@droptracker/api-types";
@@ -37,6 +40,7 @@ import {
   mockGuildStatus,
   mockAuthorizedUsers,
   mockEventManagers,
+  mockNotificationBlacklist,
   mockBotInvite,
   mockManageableGuilds,
   mockWomLookup,
@@ -306,6 +310,59 @@ export const groupsApi = {
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,
+    );
+  },
+
+
+  /**
+   * Items / NPCs this group never wants announced in its Discord channels.
+   * Muting is announcement-only — the submission is still recorded, scored and
+   * counted everywhere else.
+   */
+  async groupNotificationBlacklist(groupId: number): Promise<NotificationBlacklist> {
+    return withFallback(
+      async () =>
+        NotificationBlacklistSchema.parse(
+          await apiGet(`/groups/${groupId}/notification-blacklist`, { authed: true }),
+        ),
+      () => mockNotificationBlacklist(),
+    );
+  },
+
+
+  /** Add one entry. `gameId` is the item/npc id behind the picker's icon; pass
+   * null for a hand-typed name the catalog may not carry. The backend is
+   * idempotent, so re-adding what is already muted returns the same list. */
+  async addGroupNotificationBlacklistEntry(
+    groupId: number,
+    entryType: BlacklistEntryType,
+    name: string,
+    gameId: number | null = null,
+  ): Promise<NotificationBlacklist> {
+    return withFallback(
+      async () =>
+        NotificationBlacklistSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/notification-blacklist`, {
+            entry_type: entryType,
+            name,
+            game_id: gameId,
+          }),
+        ),
+      () => mockNotificationBlacklist(),
+    );
+  },
+
+
+  async removeGroupNotificationBlacklistEntry(
+    groupId: number,
+    entryId: number,
+  ): Promise<NotificationBlacklist> {
+    return withFallback(
+      async () =>
+        NotificationBlacklistSchema.parse(
+          await apiSend("DELETE", `/groups/${groupId}/notification-blacklist/${entryId}`, {}),
+        ),
+      () => mockNotificationBlacklist(),
     );
   },
 

@@ -39,6 +39,7 @@ import type {
   GroupProfile,
   AuthorizedUsersResponse,
   EventManagersResponse,
+  NotificationBlacklist,
   GroupSubscription,
   GroupSubscriptionSummary,
   AdminSubscriptionsOverview,
@@ -1014,6 +1015,32 @@ export function mockEventManagers(): EventManagersResponse {
     managers: [
       { user_id: 3, discord_id: "339175417668501504", username: "mockeventmgr" },
     ],
+  };
+}
+
+/** A group's notification blacklist: one item entry and one NPC entry, so the
+ * editor's two lists and the icon path are both visible in mock mode. */
+export function mockNotificationBlacklist(): NotificationBlacklist {
+  return {
+    entries: [
+      {
+        id: 1,
+        entry_type: "item",
+        name: "Bones",
+        match_key: "bones",
+        game_id: 526,
+        added_at: "2026-08-01T12:00:00",
+      },
+      {
+        id: 2,
+        entry_type: "npc",
+        name: "Barrows",
+        match_key: "barrows",
+        game_id: null,
+        added_at: "2026-08-02T12:00:00",
+      },
+    ],
+    limit: 250,
   };
 }
 

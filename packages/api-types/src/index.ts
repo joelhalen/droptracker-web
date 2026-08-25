@@ -1196,6 +1196,36 @@ export const AuthorizedUsersResponseSchema = z.object({
 });
 export type AuthorizedUsersResponse = z.infer<typeof AuthorizedUsersResponseSchema>;
 
+/**
+ * Notification blacklist — items and NPCs a group never wants announced in its
+ * Discord channels. The submission is still recorded, scored and counted on the
+ * lootboard and the leaderboards; only the announcement is withheld.
+ *
+ * `match_key` is the normalized form the backend pipeline matches submissions
+ * by ("Twisted Bow" → `twisted-bow`). It is surfaced so the UI can explain what
+ * an entry actually catches rather than implying an exact-string match.
+ */
+export const BlacklistEntryTypeSchema = z.enum(["item", "npc"]);
+export type BlacklistEntryType = z.infer<typeof BlacklistEntryTypeSchema>;
+
+export const NotificationBlacklistEntrySchema = z.object({
+  id: z.number().int(),
+  entry_type: BlacklistEntryTypeSchema,
+  name: z.string(),
+  match_key: z.string(),
+  /** item_id / npc_id for the icon; null when the name was typed by hand. */
+  game_id: z.number().int().nullable().default(null),
+  added_at: z.string().nullable().default(null),
+});
+export type NotificationBlacklistEntry = z.infer<typeof NotificationBlacklistEntrySchema>;
+
+export const NotificationBlacklistSchema = z.object({
+  entries: z.array(NotificationBlacklistEntrySchema),
+  /** Server-enforced cap; the editor stops offering "add" at this many. */
+  limit: z.number().int(),
+});
+export type NotificationBlacklist = z.infer<typeof NotificationBlacklistSchema>;
+
 /** web64a: a group event manager — full event control, no group-admin access.
  * Web-only (keyed on a DropTracker user id; no Discord bot grant). */
 export const EventManagerSchema = z.object({
@@ -5420,7 +5450,7 @@ export const NotificationLayoutEntrySchema = z.object({
 export type NotificationLayoutEntry = z.infer<typeof NotificationLayoutEntrySchema>;
 
 export const GroupNotificationLayoutsResponseSchema = z.object({
-  /** False for a group outside the components pilot: the editor is read-only
+  /** False for a group without the `custom_embeds` entitlement: the editor is read-only
    * there because the send path would ignore anything saved. */
   enabled: z.boolean(),
   layouts: z.array(NotificationLayoutEntrySchema),

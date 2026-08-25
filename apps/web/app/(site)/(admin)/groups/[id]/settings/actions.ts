@@ -1,7 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { GroupConfigPatchSchema, HALL_OF_FAME_CONFIG_KEYS, type GroupConfigPatch } from "@droptracker/api-types";
+import {
+  GroupConfigPatchSchema,
+  HALL_OF_FAME_CONFIG_KEYS,
+  type BlacklistEntryType,
+  type EventMetaEntry,
+  type GroupConfigPatch,
+  type NotificationBlacklist,
+} from "@droptracker/api-types";
 import { api, ApiError, type DiscordChannelList, type LootboardStyleList, type PbBossList } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
 import { hasEntitlement } from "@/lib/entitlements";
@@ -122,4 +129,68 @@ export async function fetchLootboardStyles(groupId: number): Promise<LootboardSt
     throw new Error("Forbidden: you do not administer this group.");
   }
   return api.lootboardStyles();
+}
+
+
+/** Server Action: item/NPC autocomplete for the notification-blacklist picker.
+ *
+ * Reuses the event task builder's `/events/meta/*` search rather than the
+ * public one: it is restricted to names that have actually been seen in the
+ * drop history, which is exactly the set a blacklist entry could ever match.
+ */
+export async function searchBlacklistCandidates(
+  groupId: number,
+  kind: BlacklistEntryType,
+  query: string,
+): Promise<EventMetaEntry[]> {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  if (query.trim().length < 2) return [];
+  return kind === "npc" ? api.searchEventNpcs(query) : api.searchEventItems(query);
+}
+
+/** Server Action: mute an item or NPC in this group's Discord notifications.
+ * Returns the whole list so the client never has to guess the server's
+ * normalization (`match_key`) or ordering. */
+export async function addBlacklistEntry(
+  groupId: number,
+  kind: BlacklistEntryType,
+  name: string,
+  gameId: number | null,
+): Promise<NotificationBlacklist> {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  try {
+    const result = await api.addGroupNotificationBlacklistEntry(groupId, kind, name, gameId);
+    revalidatePath(`/groups/${groupId}/settings`);
+    return result;
+  } catch (err) {
+    // The backend refuses names it could never match ("Unknown", punctuation
+    // only) with a message worth showing verbatim.
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
+}
+
+/** Server Action: un-mute one blacklist entry. */
+export async function removeBlacklistEntry(
+  groupId: number,
+  entryId: number,
+): Promise<NotificationBlacklist> {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  try {
+    const result = await api.removeGroupNotificationBlacklistEntry(groupId, entryId);
+    revalidatePath(`/groups/${groupId}/settings`);
+    return result;
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
 }
