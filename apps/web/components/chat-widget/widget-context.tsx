@@ -7,7 +7,7 @@
  */
 import { createContext, useContext } from "react";
 import type { Inbox, Me } from "@droptracker/api-types";
-import type { InboxSurface, UnreadHint, WidgetView } from "@/lib/chat-widget";
+import type { InboxSurface, InboxTab, UnreadHint, WidgetView } from "@/lib/chat-widget";
 
 /** The latest realtime unread hint. `seq` is monotonic so a view can tell a
  * fresh hint from the one it already reacted to. */
@@ -23,6 +23,14 @@ export interface ChatWidgetContextValue {
   refreshInbox: () => void;
   /** Zero one item's unread locally (the viewer just opened it). */
   clearUnread: (surface: InboxSurface, refId: number) => void;
+  /** Zero every item's unread locally — the optimistic half of "mark all as
+   * read", so the launcher badge clears on the click, not on the refetch. */
+  clearAllUnread: () => void;
+  /** The root view's selected tab. Lives here rather than in `InboxList` so it
+   * survives opening a thread and coming back, but the panel resets it to
+   * `Inbox` on every fresh open. */
+  tab: InboxTab;
+  setTab: (tab: InboxTab) => void;
   stack: WidgetView[];
   /** Top of the stack — what the panel renders. */
   view: WidgetView;

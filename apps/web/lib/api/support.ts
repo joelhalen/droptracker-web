@@ -63,12 +63,14 @@ export const supportApi = {
   },
 
   /** POST /tickets/{id}/messages — a web reply, relayed into the ticket's
-   * Discord channel by the bot. Only valid while the ticket is `open`. */
+   * Discord channel by the bot (screenshots included). Only valid while the
+   * ticket is `open`. `attachments` are upload keys, max 4; content may be
+   * empty when at least one rides along. */
   async ticketReply(ticketId: number, input: TicketReplyCreate): Promise<TicketMessage> {
     return withFallback(
       async () =>
         TicketMessageSchema.parse(await apiSend("POST", `/tickets/${ticketId}/messages`, input)),
-      () => mockTicketReply(input.content),
+      () => mockTicketReply(input),
     );
   },
 

@@ -11,7 +11,12 @@ import {
   FileTransferPageSchema,
   ChatThreadSchema,
   ChatMessageSchema,
+  GroupNoticePageSchema,
   InboxSchema,
+  InboxReadAllSchema,
+  StaffChatsPageSchema,
+  StaffUserSearchSchema,
+  STAFF_CHAT_KINDS,
   TicketMessageSchema,
   GroupSubscriptionSchema,
   GroupSubscriptionSummarySchema,
@@ -87,7 +92,11 @@ import {
   mockChatMessages,
   mockChatThreads,
   mockCreatedTicket,
+  mockGroupNotices,
   mockInbox,
+  mockInboxReadAll,
+  mockStaffChats,
+  mockStaffUserHits,
   mockTicketReply,
   mockFileTransfers,
   mockMyTickets,
@@ -189,7 +198,24 @@ test("mock payloads validate against shared schemas", () => {
       mockCreatedTicket({ type: "support", body: "My drops stopped tracking yesterday." }),
     ),
   );
-  assert.doesNotThrow(() => TicketMessageSchema.parse(mockTicketReply("Thanks, that fixed it!")));
+  assert.doesNotThrow(() =>
+    TicketMessageSchema.parse(mockTicketReply({ content: "Thanks, that fixed it!" })),
+  );
+  // A reply with images: the posted KEYS must come back as resolved ticket
+  // attachments (filename/url/type/size), which is what the transcript renders.
+  assert.doesNotThrow(() =>
+    TicketMessageSchema.parse(
+      mockTicketReply({ content: "", attachments: [{ key: "dt_uploads/mock-shot.png" }] }),
+    ),
+  );
+  assert.doesNotThrow(() => InboxReadAllSchema.parse(mockInboxReadAll()));
+  // Staff thread index, per browsable kind — `event_invite` is the clan-chats
+  // console, and its rows must satisfy the same thread schema.
+  for (const kind of STAFF_CHAT_KINDS) {
+    assert.doesNotThrow(() => StaffChatsPageSchema.parse(mockStaffChats(kind)));
+  }
+  assert.doesNotThrow(() => StaffUserSearchSchema.parse(mockStaffUserHits("zez")));
+  assert.doesNotThrow(() => GroupNoticePageSchema.parse(mockGroupNotices()));
   assert.doesNotThrow(() => SupportersSchema.parse(mockSupporters()));
   assert.doesNotThrow(() => PbBossIndexSchema.parse(mockPbBosses()));
   assert.doesNotThrow(() => PbBossIndexSchema.parse(mockPbBosses(101)));

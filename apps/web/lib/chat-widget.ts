@@ -23,7 +23,8 @@ export type WidgetView =
   | { kind: "new-ticket" }
   | { kind: "new-suggestion" }
   | { kind: "staff-new-chat" }
-  | { kind: "staff-notices" };
+  | { kind: "staff-notices" }
+  | { kind: "staff-clan-chats" };
 
 /** A fresh stack: the inbox is always the root. */
 export function initialStack(): WidgetView[] {
@@ -67,6 +68,8 @@ export function viewTitle(view: WidgetView): string {
       return "Message a user";
     case "staff-notices":
       return "Group notices";
+    case "staff-clan-chats":
+      return "Clan chats";
   }
 }
 
@@ -129,6 +132,75 @@ export function sortInboxItems(items: InboxItem[]): InboxItem[] {
 /** Client-recomputed badge total — the source of truth after local patches. */
 export function inboxTotalUnread(items: InboxItem[]): number {
   return items.reduce((sum, item) => sum + inboxItemUnread(item), 0);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Root-view tabs                                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The root view's two modes.
+ *
+ * They are different activities, which is why one merged list read badly: the
+ * inbox is "things waiting on me" — conversations somebody expects an answer
+ * to, plus the door to open a ticket — while suggestions and bug reports are a
+ * backlog you browse. Filed together, a busy suggestion thread buries the
+ * staff DM that actually needed a reply.
+ */
+export type InboxTab = "inbox" | "suggestions";
+
+/** Tab order, and the one the panel always opens on. Inbox is first by
+ * contract, not by luck — `inboxTabs()[0]` is what a fresh open selects. */
+export const INBOX_TAB_ORDER: readonly InboxTab[] = ["inbox", "suggestions"];
+export const DEFAULT_INBOX_TAB: InboxTab = "inbox";
+
+export const INBOX_TAB_LABELS: Record<InboxTab, string> = {
+  inbox: "Inbox",
+  suggestions: "Suggestions",
+};
+
+/** Which tab an item files under. Chats (staff DMs, group notices, clan-vs-clan
+ * invites) and tickets are inbox; suggestions and bug reports are their own
+ * tab. Deliberately exhaustive over `kind` so a future item kind is a type
+ * error here rather than a row that silently vanishes from both tabs. */
+export function inboxItemTab(item: InboxItem): InboxTab {
+  switch (item.kind) {
+    case "suggestion":
+      return "suggestions";
+    case "chat":
+    case "ticket":
+      return "inbox";
+  }
+}
+
+/** One tab's items, newest activity first. */
+export function inboxItemsForTab(items: InboxItem[], tab: InboxTab): InboxItem[] {
+  return sortInboxItems(items.filter((item) => inboxItemTab(item) === tab));
+}
+
+/** Unread within ONE tab — what its little count pill shows. Deliberately not
+ * the global total: a tab badge that counts rows on another tab sends people
+ * hunting for a message that isn't there. */
+export function inboxTabUnread(items: InboxItem[], tab: InboxTab): number {
+  return inboxTotalUnread(items.filter((item) => inboxItemTab(item) === tab));
+}
+
+export interface InboxTabMeta {
+  id: InboxTab;
+  label: string;
+  /** This tab's rows, already sorted — the strip and the list share one pass. */
+  items: InboxItem[];
+  unread: number;
+}
+
+/** Everything the tab strip and the active list need, in one partition pass. */
+export function inboxTabs(items: InboxItem[]): InboxTabMeta[] {
+  const buckets = new Map<InboxTab, InboxItem[]>(INBOX_TAB_ORDER.map((tab) => [tab, []]));
+  for (const item of items) buckets.get(inboxItemTab(item))!.push(item);
+  return INBOX_TAB_ORDER.map((id) => {
+    const own = sortInboxItems(buckets.get(id)!);
+    return { id, label: INBOX_TAB_LABELS[id], items: own, unread: inboxTotalUnread(own) };
+  });
 }
 
 /* -------------------------------------------------------------------------- */
@@ -381,6 +453,24 @@ export function clearInboxUnread(inbox: Inbox, surface: InboxSurface, refId: num
       ? { ...item, thread: { ...item.thread, unread: 0 } }
       : { ...item, unread: 0 };
   return { ...inbox, items, total_unread: inboxTotalUnread(items) };
+}
+
+/**
+ * Zero every item's unread — the local half of "mark all as read". The server
+ * moves the real read pointers; this makes the launcher badge drop the instant
+ * the button is pressed instead of after the refetch lands.
+ *
+ * Returns the same inbox when there was nothing to clear, so setState callers
+ * no-op rather than re-rendering the whole panel.
+ */
+export function zeroAllUnread(inbox: Inbox): Inbox {
+  if (inboxTotalUnread(inbox.items) === 0 && inbox.total_unread === 0) return inbox;
+  const items = inbox.items.map((item) =>
+    item.kind === "chat"
+      ? { ...item, thread: { ...item.thread, unread: 0 } }
+      : { ...item, unread: 0 },
+  );
+  return { ...inbox, items, total_unread: 0 };
 }
 
 /* -------------------------------------------------------------------------- */

@@ -17,11 +17,14 @@ import {
   StaffChatCreateSchema,
   TicketCreateSchema,
   TicketReplyCreateSchema,
+  type AttachmentKey,
   type ChatThread,
   type GroupNotice,
   type GroupNoticePage,
   type Inbox,
+  type InboxReadAll,
   type StaffChatCreate,
+  type StaffChatKind,
   type StaffChatsPage,
   type StaffUserHit,
   type SuggestionDetail,
@@ -50,6 +53,18 @@ export async function loadInbox(): Promise<Inbox> {
   return api.myInbox();
 }
 
+/**
+ * Mark the whole inbox read in one go — every chat thread, ticket and
+ * suggestion. This is the "reset the counter" escape hatch: somebody who is
+ * never going to read a three-month-old notice thread should be able to make
+ * the badge stop shouting without opening each row. Read pointers move
+ * server-side, so it sticks across devices.
+ */
+export async function markAllRead(): Promise<InboxReadAll> {
+  await assertSignedIn();
+  return api.markAllInboxRead();
+}
+
 export async function loadTicket(ticketId: number): Promise<TicketDetail> {
   await assertSignedIn();
   return api.ticket(ticketId);
@@ -64,9 +79,23 @@ export async function createTicket(input: TicketCreate): Promise<TicketDetail> {
   return api.createTicket(parsed);
 }
 
-/** Reply on an open ticket; the bot relays it into the Discord channel. */
-export async function replyToTicket(ticketId: number, content: string): Promise<TicketMessage> {
-  const parsed = TicketReplyCreateSchema.parse({ content });
+/**
+ * Reply on an open ticket; the bot relays it into the Discord channel.
+ *
+ * `attachments` are upload KEYS from `POST /api/uploads/proof` (max 4) — the
+ * same two-step contract chat uses, so the backend re-derives every URL and a
+ * client can never attach an arbitrary remote image. A reply may be images
+ * only; the schema rejects a wholly empty one.
+ */
+export async function replyToTicket(
+  ticketId: number,
+  content: string,
+  attachments: AttachmentKey[] = [],
+): Promise<TicketMessage> {
+  const parsed = TicketReplyCreateSchema.parse({
+    content,
+    ...(attachments.length ? { attachments } : {}),
+  });
   await assertSignedIn();
   return api.ticketReply(ticketId, parsed);
 }
@@ -110,9 +139,13 @@ export async function startStaffChat(input: StaffChatCreate): Promise<ChatThread
   return api.createStaffChat(parsed);
 }
 
-export async function loadStaffChats(): Promise<StaffChatsPage> {
+/** Staff thread index. `kind` defaults to `staff_dm` (the "Message a user"
+ * view); `event_invite` powers the clan-chats console. */
+export async function loadStaffChats(
+  params: { kind?: StaffChatKind; page?: number; limit?: number } = {},
+): Promise<StaffChatsPage> {
   await assertSignedIn();
-  return api.staffChats();
+  return api.staffChats(params);
 }
 
 export async function loadGroupNotices(

@@ -29,7 +29,10 @@ import {
   replaceView,
   unreadHintFromFrame,
   viewMatchesHint,
+  zeroAllUnread,
+  DEFAULT_INBOX_TAB,
   type InboxSurface,
+  type InboxTab,
   type WidgetView,
 } from "@/lib/chat-widget";
 import { getErrorMessage } from "@/lib/errors";
@@ -55,6 +58,7 @@ export function ChatWidget() {
 function ChatWidgetInner({ me }: { me: Me }) {
   const [open, setOpen] = useState(false);
   const [stack, setStack] = useState<WidgetView[]>(initialStack);
+  const [tab, setTab] = useState<InboxTab>(DEFAULT_INBOX_TAB);
   const [inbox, setInbox] = useState<Inbox | null>(null);
   const [inboxError, setInboxError] = useState<string | null>(null);
   const [hint, setHint] = useState<WidgetHint | null>(null);
@@ -128,6 +132,21 @@ function ChatWidgetInner({ me }: { me: Me }) {
     setInbox((prev) => (prev ? clearInboxUnread(prev, surface, refId) : prev));
   }, []);
 
+  const clearAllUnread = useCallback(() => {
+    setInbox((prev) => (prev ? zeroAllUnread(prev) : prev));
+  }, []);
+
+  // Opening always lands on the Inbox tab: the panel is a "what needs me?"
+  // surface, and reopening into last week's Suggestions tab hides the thing
+  // the badge was pointing at. The choice still persists WITHIN a session so
+  // reading a suggestion and pressing back returns where you were.
+  const toggleOpen = useCallback(() => {
+    // Read `open` rather than resetting inside the updater — setState updaters
+    // have to stay pure (StrictMode calls them twice).
+    if (!open) setTab(DEFAULT_INBOX_TAB);
+    setOpen((wasOpen) => !wasOpen);
+  }, [open]);
+
   const push = useCallback((view: WidgetView) => setStack((prev) => pushView(prev, view)), []);
   const pop = useCallback(() => setStack((prev) => popView(prev)), []);
   const replace = useCallback(
@@ -159,6 +178,9 @@ function ChatWidgetInner({ me }: { me: Me }) {
       inboxError,
       refreshInbox,
       clearUnread,
+      clearAllUnread,
+      tab,
+      setTab,
       stack,
       view: stack[stack.length - 1]!,
       push,
@@ -167,7 +189,21 @@ function ChatWidgetInner({ me }: { me: Me }) {
       close,
       hint,
     }),
-    [me, inbox, inboxError, refreshInbox, clearUnread, stack, push, pop, replace, close, hint],
+    [
+      me,
+      inbox,
+      inboxError,
+      refreshInbox,
+      clearUnread,
+      clearAllUnread,
+      tab,
+      stack,
+      push,
+      pop,
+      replace,
+      close,
+      hint,
+    ],
   );
 
   return (
@@ -175,7 +211,7 @@ function ChatWidgetInner({ me }: { me: Me }) {
       <button
         ref={launcherRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         aria-label={
           open
             ? "Close messages and support"

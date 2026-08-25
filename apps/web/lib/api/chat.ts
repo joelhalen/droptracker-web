@@ -3,14 +3,16 @@ import {
   ChatThreadSchema,
   ChatMessageSchema,
   ChatMessagePageSchema,
+  InboxReadAllSchema,
   InboxSchema,
   type ChatThread,
   type ChatMessage,
   type ChatMessagePage,
   type ChatPartyRef,
   type Inbox,
+  type InboxReadAll,
 } from "@droptracker/api-types";
-import { mockChatMessages, mockChatThreads, mockInbox } from "../mock-data";
+import { mockChatMessages, mockChatThreads, mockInbox, mockInboxReadAll } from "../mock-data";
 
 export const chatApi = {
   // --- Chat (web96a) -------------------------------------------------------
@@ -40,6 +42,17 @@ export const chatApi = {
     return withFallback(
       async () => InboxSchema.parse(await apiGet(`/me/inbox`, { authed: true })),
       () => mockInbox(),
+    );
+  },
+
+  /** POST /me/inbox/read-all — one call that marks every chat thread, ticket
+   * and suggestion in the caller's inbox read. The "mute the counter" button:
+   * the read pointers move server-side, so the badge stays down across
+   * devices rather than until the next refetch. */
+  async markAllInboxRead(): Promise<InboxReadAll> {
+    return withFallback(
+      async () => InboxReadAllSchema.parse(await apiSend("POST", `/me/inbox/read-all`, {})),
+      () => mockInboxReadAll(),
     );
   },
 

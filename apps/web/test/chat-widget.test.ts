@@ -24,9 +24,13 @@ import {
   applyUnreadHint,
   clearInboxUnread,
   inboxItemKey,
+  inboxItemTab,
   inboxItemTime,
   inboxItemView,
+  inboxItemsForTab,
   inboxRowMeta,
+  inboxTabUnread,
+  inboxTabs,
   noticeSeverityTone,
   inboxTotalUnread,
   initialStack,
@@ -34,12 +38,18 @@ import {
   pushView,
   replaceView,
   sortInboxItems,
+  zeroAllUnread,
+  DEFAULT_INBOX_TAB,
+  INBOX_TAB_ORDER,
   TICKET_TYPES,
   unreadHintFromFrame,
   viewMatchesHint,
   viewTitle,
+  type InboxTabMeta,
   type WidgetView,
 } from "../lib/chat-widget";
+import { counterpartyLabel } from "../lib/chat";
+import { mockInbox, mockStaffChats } from "../lib/mock-data";
 
 const NOW = 1_760_000_000;
 
@@ -170,6 +180,7 @@ test("viewTitle covers every view kind", () => {
     { kind: "new-suggestion" },
     { kind: "staff-new-chat" },
     { kind: "staff-notices" },
+    { kind: "staff-clan-chats" },
   ];
   for (const view of views) {
     assert.equal(typeof viewTitle(view), "string");
@@ -231,6 +242,124 @@ test("sortInboxItems is stable for equal timestamps and does not mutate", () => 
 test("inboxTotalUnread sums chat thread unread and item unread alike", () => {
   assert.equal(inboxTotalUnread([]), 0);
   assert.equal(inboxTotalUnread([chatItem(), ticketItem(), suggestionItem()]), 3); // 1 + 2 + 0
+});
+
+/* ----------------------------------- tabs ---------------------------------- */
+
+test("the inbox tab is always first, and is what a fresh open selects", () => {
+  assert.deepEqual(INBOX_TAB_ORDER, ["inbox", "suggestions"]);
+  assert.equal(DEFAULT_INBOX_TAB, "inbox");
+  assert.equal(inboxTabs([])[0]!.id, DEFAULT_INBOX_TAB);
+});
+
+test("inboxItemTab files chats and tickets under Inbox, suggestions under their own", () => {
+  assert.equal(inboxItemTab(chatItem()), "inbox");
+  assert.equal(inboxItemTab(ticketItem()), "inbox");
+  assert.equal(inboxItemTab(suggestionItem()), "suggestions");
+  // Every chat kind belongs to the inbox — including the clan-vs-clan invites
+  // a group leader sees and the group notices the bot raises.
+  for (const kind of ["staff_dm", "group_notice", "event_invite"]) {
+    assert.equal(inboxItemTab(chatItem({ thread: chatThread({ kind }) })), "inbox");
+  }
+});
+
+test("inboxItemsForTab partitions and sorts, losing nothing", () => {
+  const items = [suggestionItem(), chatItem(), ticketItem()];
+  const inboxTab = inboxItemsForTab(items, "inbox");
+  const suggestionsTab = inboxItemsForTab(items, "suggestions");
+  assert.deepEqual(inboxTab.map(inboxItemKey), ["chat:1", "ticket:31"]); // newest first
+  assert.deepEqual(suggestionsTab.map(inboxItemKey), ["suggestion:9"]);
+  // The partition is total: every item lands in exactly one tab.
+  assert.equal(inboxTab.length + suggestionsTab.length, items.length);
+});
+
+test("tab unread counts only that tab's items, never the global total", () => {
+  const items = [chatItem(), ticketItem(), suggestionItem({ unread: 5 })];
+  assert.equal(inboxTotalUnread(items), 8); // 1 + 2 + 5
+  assert.equal(inboxTabUnread(items, "inbox"), 3);
+  assert.equal(inboxTabUnread(items, "suggestions"), 5);
+});
+
+test("inboxTabs returns both tabs with sorted items and their own unread", () => {
+  const tabs = inboxTabs([suggestionItem({ unread: 5 }), ticketItem(), chatItem()]);
+  assert.deepEqual(
+    tabs.map((t) => [t.id, t.label, t.unread, t.items.length]),
+    [
+      ["inbox", "Inbox", 3, 2],
+      ["suggestions", "Suggestions", 5, 1],
+    ],
+  );
+  assert.deepEqual(tabs[0]!.items.map(inboxItemKey), ["chat:1", "ticket:31"]);
+});
+
+test("inboxTabs renders both tabs even when the inbox is empty", () => {
+  const tabs = inboxTabs([]);
+  assert.equal(tabs.length, 2);
+  assert.ok(tabs.every((t) => t.items.length === 0 && t.unread === 0));
+});
+
+test("mock mode: the widget's two tabs both have something in them", () => {
+  // USE_MOCK_API is how this UI gets driven without a backend, so the mock
+  // inbox has to exercise both tabs — including the clan-vs-clan thread a
+  // group leader sees, which belongs in the Inbox and not off in its own view.
+  const tabs = inboxTabs(mockInbox().items);
+  const [inboxTab, suggestionsTab] = tabs as [InboxTabMeta, InboxTabMeta];
+  assert.ok(inboxTab.items.length >= 3, "inbox tab should carry chats + tickets");
+  assert.equal(suggestionsTab.items.length, 1);
+  const kinds = inboxTab.items.map((item) =>
+    item.kind === "chat" ? item.thread.kind : item.kind,
+  );
+  for (const expected of ["staff_dm", "group_notice", "event_invite", "ticket"]) {
+    assert.ok(kinds.includes(expected), `inbox tab is missing a ${expected} row`);
+  }
+  assert.ok(!kinds.includes("suggestion"));
+});
+
+test("mock mode: the staff clan-chats view lists CvC threads labelled by both clans", () => {
+  const page = mockStaffChats("event_invite");
+  assert.ok(page.items.length >= 2, "need more than the viewer's own clan chat");
+  for (const thread of page.items) {
+    assert.equal(thread.kind, "event_invite");
+    // The list endpoint doesn't seat the viewer, so with no `my_parties` the
+    // counterparty helper names EVERY participant — the two clans.
+    const label = counterpartyLabel(thread);
+    for (const party of thread.participants) {
+      assert.ok(label.includes(party.name!), `${label} should name ${party.name}`);
+    }
+  }
+  // Staff DMs stay on their own kind — the clan view must not mix them in.
+  assert.ok(mockStaffChats("staff_dm").items.every((t) => t.kind === "staff_dm"));
+});
+
+/* ------------------------------ mark all read ------------------------------ */
+
+test("zeroAllUnread clears every item and the total", () => {
+  const box = inbox([chatItem(), ticketItem(), suggestionItem({ unread: 4 })]);
+  assert.equal(box.total_unread, 7);
+  const next = zeroAllUnread(box);
+  assert.equal(next.total_unread, 0);
+  assert.equal(inboxTotalUnread(next.items), 0);
+  assert.equal((next.items[0] as InboxChatItem).thread.unread, 0);
+  assert.equal((next.items[1] as InboxTicketItem).unread, 0);
+  assert.equal((next.items[2] as InboxSuggestionItem).unread, 0);
+  // Per-tab pills go quiet too — that's what "reset the counter" has to mean.
+  assert.equal(inboxTabUnread(next.items, "inbox"), 0);
+  assert.equal(inboxTabUnread(next.items, "suggestions"), 0);
+  // The original is untouched, and nothing else about the inbox changed.
+  assert.equal(box.total_unread, 7);
+  assert.equal(next.items.length, box.items.length);
+  assert.equal(next.open_ticket_id, box.open_ticket_id);
+});
+
+test("zeroAllUnread no-ops on an already-read or empty inbox", () => {
+  const read = inbox([suggestionItem()]); // the only item is already at 0
+  assert.equal(zeroAllUnread(read), read); // same reference — setState no-ops
+  const empty = inbox([]);
+  assert.equal(zeroAllUnread(empty), empty);
+  // A stale server total with no unread items still gets cleared, so a bad
+  // snapshot can't keep the badge lit forever.
+  const stale = inbox([suggestionItem()], { total_unread: 3 });
+  assert.equal(zeroAllUnread(stale).total_unread, 0);
 });
 
 /* ----------------------------- realtime hints ------------------------------ */

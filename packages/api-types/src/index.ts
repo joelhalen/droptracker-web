@@ -4746,6 +4746,14 @@ export const ChatAttachmentSchema = z.object({
 });
 export type ChatAttachment = z.infer<typeof ChatAttachmentSchema>;
 
+/** What a client POSTS when attaching an image: only the storage KEY that
+ * `POST /uploads/proof` returned. The backend re-derives the URL from it
+ * (services/chat.py `normalize_attachments`), so a client can never point a
+ * stored row at an arbitrary remote address. Shared by chat messages and
+ * ticket replies — one contract, one cap. */
+export const AttachmentKeySchema = z.object({ key: z.string().min(1) });
+export type AttachmentKey = z.infer<typeof AttachmentKeySchema>;
+
 export const ChatPartyRefSchema = z.object({
   party_type: z.string(),
   party_id: z.number().int(),
@@ -5152,11 +5160,23 @@ export const TicketCreateSchema = z.object({
 });
 export type TicketCreate = z.infer<typeof TicketCreateSchema>;
 
+/** Ticket replies accept images through the same key-only upload contract as
+ * chat, and the backend enforces the same cap (both go through
+ * services/chat.py `normalize_attachments`). */
+export const TICKET_MAX_ATTACHMENTS = CHAT_MAX_ATTACHMENTS;
+
 /** POST /tickets/{id}/messages body (participant or staff; ticket must be
- * `open`). */
-export const TicketReplyCreateSchema = z.object({
-  content: z.string().trim().min(1).max(TICKET_BODY_MAX_CHARS),
-});
+ * `open`). Content may be empty when at least one attachment rides along —
+ * "here's the screenshot" is a complete reply — but a wholly empty body is
+ * rejected here rather than after a round-trip. */
+export const TicketReplyCreateSchema = z
+  .object({
+    content: z.string().trim().max(TICKET_BODY_MAX_CHARS).default(""),
+    attachments: AttachmentKeySchema.array().max(TICKET_MAX_ATTACHMENTS).optional(),
+  })
+  .refine((v) => v.content.length > 0 || (v.attachments?.length ?? 0) > 0, {
+    message: "Write a reply or attach an image.",
+  });
 export type TicketReplyCreate = z.infer<typeof TicketReplyCreateSchema>;
 
 /** The group-notice context embedded on a `group_notice` chat item, from the
@@ -5213,6 +5233,16 @@ export const InboxSchema = z.object({
 });
 export type Inbox = z.infer<typeof InboxSchema>;
 
+/** POST /me/inbox/read-all — marks every surface in the caller's inbox read
+ * (chat threads, tickets, suggestions) and reports how many rows moved.
+ * `total_unread` is always 0 on success; the client zeroes locally anyway so
+ * the launcher badge clears without waiting for the refetch. */
+export const InboxReadAllSchema = z.object({
+  marked: z.number().int().default(0),
+  total_unread: z.number().int().default(0),
+});
+export type InboxReadAll = z.infer<typeof InboxReadAllSchema>;
+
 // --- Staff surfaces (web102a phases 3–4) ------------------------------------
 
 /** One row from GET /staff/users/search (developer/superadmin only). */
@@ -5237,7 +5267,22 @@ export const StaffChatCreateSchema = z.object({
 });
 export type StaffChatCreate = z.infer<typeof StaffChatCreateSchema>;
 
-/** GET /staff/chats — every staff_dm thread, newest activity first. */
+/** Thread kinds GET /staff/chats will browse (the backend's
+ * `_BROWSABLE_KINDS`); anything else is a 400. `event_invite` is the
+ * clan-vs-clan view — every CvC negotiation on the site, not just the ones the
+ * viewer's own clan is in. */
+export const STAFF_CHAT_KINDS = ["staff_dm", "event_invite", "group_notice"] as const;
+export type StaffChatKind = (typeof STAFF_CHAT_KINDS)[number];
+
+/**
+ * GET /staff/chats?kind= — every thread of one kind, newest activity first.
+ *
+ * Gotcha worth knowing before wiring a composer to these rows: the LIST does
+ * not resolve the viewer's membership, so each item reports `my_parties: []`,
+ * `can_post: false`, `is_moderator: false` even for a superadmin who may in
+ * fact post. Fetching the same thread by id (`GET /chat/threads/{id}`) seats
+ * staff properly. Treat these rows as an index, never as permissions.
+ */
 export const StaffChatsPageSchema = z.object({
   items: ChatThreadSchema.array(),
   meta: PageMetaSchema,

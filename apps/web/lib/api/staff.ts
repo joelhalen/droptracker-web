@@ -9,6 +9,7 @@ import {
   type GroupNotice,
   type GroupNoticePage,
   type StaffChatCreate,
+  type StaffChatKind,
   type StaffChatsPage,
   type StaffUserSearch,
 } from "@droptracker/api-types";
@@ -47,16 +48,21 @@ export const staffApi = {
     );
   },
 
-  /** Every staff_dm thread, newest activity first (staff only). */
-  async staffChats(params: { page?: number; limit?: number } = {}): Promise<StaffChatsPage> {
+  /** Every thread of one kind, newest activity first (staff only). Defaults to
+   * `staff_dm`; `event_invite` is the clan-vs-clan console. The rows are an
+   * index only — see `StaffChatsPageSchema` on why their `can_post` lies. */
+  async staffChats(
+    params: { kind?: StaffChatKind; page?: number; limit?: number } = {},
+  ): Promise<StaffChatsPage> {
     const qs = new URLSearchParams();
+    if (params.kind) qs.set("kind", params.kind);
     if (params.page) qs.set("page", String(params.page));
     if (params.limit) qs.set("limit", String(params.limit));
     const suffix = qs.toString() ? `?${qs}` : "";
     return withFallback(
       async () =>
         StaffChatsPageSchema.parse(await apiGet(`/staff/chats${suffix}`, { authed: true })),
-      () => mockStaffChats(),
+      () => mockStaffChats(params.kind ?? "staff_dm"),
     );
   },
 

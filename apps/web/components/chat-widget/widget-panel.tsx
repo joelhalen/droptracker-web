@@ -22,6 +22,7 @@ import { NewTicketForm } from "./new-ticket-form";
 import { NewSuggestionForm } from "./new-suggestion-form";
 import { StaffNewChat } from "./staff-new-chat";
 import { StaffNoticesView } from "./staff-notices-view";
+import { StaffClanChats } from "./staff-clan-chats";
 
 function ViewBody({ view }: { view: WidgetView }) {
   switch (view.kind) {
@@ -43,6 +44,8 @@ function ViewBody({ view }: { view: WidgetView }) {
       return <StaffNewChat />;
     case "staff-notices":
       return <StaffNoticesView />;
+    case "staff-clan-chats":
+      return <StaffClanChats />;
   }
 }
 

@@ -82,11 +82,14 @@ import type {
   GroupNotice,
   GroupNoticePage,
   Inbox,
+  InboxReadAll,
+  StaffChatKind,
   StaffChatsPage,
   StaffUserSearch,
   TicketCreate,
   TicketDetail,
   TicketMessage,
+  TicketReplyCreate,
   TicketPage,
   TicketSummary,
   WomGroupPreview,
@@ -3508,6 +3511,30 @@ export const mockChatThreads: ChatThread[] = [
     is_moderator: false,
     last_read_message_id: 21,
   },
+  /* Thread 4: a clan-vs-clan negotiation between two OTHER clans — the shape
+   * the staff clan-chats console lists. Membership fields are deliberately
+   * empty/false because `GET /staff/chats` doesn't resolve the viewer's
+   * membership; fetching the thread by id seats a staffer properly, which is
+   * exactly what a row click does. Mocking the honest list shape keeps the
+   * "don't gate the composer off list rows" trap visible in mock mode. */
+  {
+    id: 4,
+    kind: "event_invite",
+    subject_type: "event_group",
+    subject_id: 56,
+    title: "Iron Wolves vs Sunset Syndicate",
+    status: "open",
+    created_at: MOCK_NOW - 21_600,
+    last_message_at: MOCK_NOW - 5_400,
+    unread: 0,
+    participants: [
+      { party_type: "group", party_id: 10, role: "owner", name: "Iron Wolves" },
+      { party_type: "group", party_id: 202, role: "member", name: "Sunset Syndicate" },
+    ],
+    my_parties: [],
+    can_post: false,
+    is_moderator: false,
+  },
 ];
 
 /** A timeline that exercises every renderer: a system entry, a message from
@@ -3629,6 +3656,24 @@ export const mockChatMessages: ChatMessage[] = [
     system_code: null,
     system_data: null,
   },
+  {
+    // The bot couldn't DM them, so the site is the only channel left. Authorless
+    // by design (the backend posts it with no actor and no system_data), which
+    // is also why it counts as unread for everyone on the thread.
+    id: 12,
+    thread_id: 2,
+    kind: "system",
+    author_user_id: null,
+    author_name: null,
+    party_type: null,
+    party_id: null,
+    created_at: MOCK_NOW - 1_790,
+    deleted: false,
+    body: null,
+    attachments: [],
+    system_code: "dm_bounced",
+    system_data: null,
+  },
   // Thread 3 (group_notice): the raised notice + a group admin's reply.
   {
     id: 20,
@@ -3738,8 +3783,10 @@ export function mockCreatedTicket(input: TicketCreate): TicketDetail {
 }
 
 /** POST /tickets/{id}/messages fallback. Wall-clock id so repeated mock
- *  replies don't collide in an id-keyed list. */
-export function mockTicketReply(content: string): TicketMessage {
+ *  replies don't collide in an id-keyed list. Posted attachment KEYS come back
+ *  resolved — filename, URL, type, size — exactly as the backend re-derives
+ *  them, so the transcript renders the same in mock mode as in production. */
+export function mockTicketReply(input: TicketReplyCreate): TicketMessage {
   const now = Math.floor(Date.now() / 1000);
   return {
     id: now,
@@ -3748,8 +3795,13 @@ export function mockTicketReply(content: string): TicketMessage {
     is_staff: false,
     is_bot: false,
     kind: "message",
-    content,
-    attachments: [],
+    content: input.content,
+    attachments: (input.attachments ?? []).map((att) => ({
+      filename: att.key.split("/").pop() || att.key,
+      url: `https://www.droptracker.io/img/${att.key}`,
+      content_type: "image/png",
+      size: 51_200,
+    })),
     date_sent: now,
     date_edited: null,
   };
@@ -3768,12 +3820,22 @@ export function mockStaffUserHits(q: string): StaffUserSearch {
   };
 }
 
-/** GET /staff/chats fallback: the one mock staff_dm thread. */
-export function mockStaffChats(): StaffChatsPage {
-  return {
-    items: [mockChatThreads[1]!],
-    meta: { page: 1, limit: 25, total: 1 },
-  };
+/**
+ * GET /staff/chats?kind= fallback: every mock thread of that kind, in the
+ * shape the real list endpoint returns — membership fields blanked, because
+ * it doesn't resolve the viewer's seat. `event_invite` is the clan-chats
+ * console (two threads, one of which the mock user isn't a party to).
+ */
+export function mockStaffChats(kind: StaffChatKind = "staff_dm"): StaffChatsPage {
+  const items: ChatThread[] = mockChatThreads
+    .filter((thread) => thread.kind === kind)
+    .map((thread) => ({ ...thread, my_parties: [], can_post: false, is_moderator: false }));
+  return { items, meta: { page: 1, limit: 25, total: items.length } };
+}
+
+/** POST /me/inbox/read-all fallback: everything the mock inbox knows about. */
+export function mockInboxReadAll(): InboxReadAll {
+  return { marked: mockInbox().items.length, total_unread: 0 };
 }
 
 /** GET /admin/group-notices fallback: one open notice (backed by mock chat

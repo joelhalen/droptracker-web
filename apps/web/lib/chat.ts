@@ -76,9 +76,18 @@ export function systemText(message: ChatMessage): string {
       return `${event} has ended.`;
     // web102a: staff DMs + group notices.
     case "staff_dm_opened":
-      return "DropTracker staff opened this conversation.";
+      return "DropTracker staff opened this conversation. Replies here reach the staff team.";
+    /**
+     * Discord refused to deliver the DM (recipient has DMs closed, or blocked
+     * the bot). Both sides of a staff_dm see this exact line, so it has to
+     * read for both: the person themselves needs to know to watch the site
+     * instead of Discord, and staff need to know the site is now the ONLY way
+     * to reach them — no amount of re-sending will get a DM through. The
+     * backend sends no `system_data` with this code, so the wording carries
+     * all of the meaning.
+     */
     case "dm_bounced":
-      return "A Discord DM couldn't be delivered — the conversation continues here.";
+      return "Discord wouldn't deliver a DM for this conversation — DMs are closed to the DropTracker bot. This page is the only channel now: messages posted here still arrive, but nothing more will show up in Discord.";
     case "notice_raised": {
       const title = str(data.title);
       const body = str(data.body);

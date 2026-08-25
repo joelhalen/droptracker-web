@@ -190,6 +190,31 @@ test("system wording survives null data and blank strings", () => {
   assert.equal(text, "the invited clan accepted the challenge.");
 });
 
+test("a bounced DM tells BOTH readers the site is now the only channel", () => {
+  // The backend posts this with no system_data, and both the staff member and
+  // the person whose DMs are shut see the same line — so it has to carry the
+  // whole story on its own: Discord is dead for this conversation, the site is
+  // not. Assert on meaning, not on an exact sentence, so the copy can be
+  // tuned without a red test.
+  const text = systemText(
+    message({ kind: "system", system_code: "dm_bounced", system_data: null }),
+  );
+  const lower = text.toLowerCase();
+  assert.match(lower, /discord/);
+  assert.match(lower, /dms are closed|couldn't|wouldn't|can't/);
+  // Says where the conversation continues instead.
+  assert.match(lower, /here|this page|this conversation|the site/);
+  assert.ok(!lower.includes("undefined"));
+});
+
+test("staff_dm_opened explains who opened it and where replies go", () => {
+  const text = systemText(
+    message({ kind: "system", system_code: "staff_dm_opened", system_data: null }),
+  );
+  assert.match(text, /staff/i);
+  assert.match(text.toLowerCase(), /repl/); // "replies here reach the staff team"
+});
+
 test("an unknown code still says something", () => {
   const text = systemText(
     message({ kind: "system", system_code: "from_a_future_release", system_data: null }),
