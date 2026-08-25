@@ -14,7 +14,12 @@
  * two places is exactly how the two answers drift apart, so this file does not
  * try.
  */
-import type { ChatMessage, ChatMessagePage, ChatPartyRef } from "@droptracker/api-types";
+import type {
+  ChatMessage,
+  ChatMessagePage,
+  ChatPartyRef,
+  ChatThread,
+} from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 
@@ -28,6 +33,13 @@ async function assertSignedIn() {
   const user = await getUser();
   if (!user) throw new Error("Sign in to use chat.");
   return user;
+}
+
+/** One thread with the viewer's membership context (`my_parties`, `can_post`,
+ * unread) — what the support widget's chat view mounts `ChatThreadPanel` with. */
+export async function loadChatThread(threadId: number): Promise<ChatThread> {
+  await assertSignedIn();
+  return api.chatThread(threadId);
 }
 
 /** One page of a thread, oldest-first. `before` pages backwards through it. */

@@ -34,6 +34,7 @@ import { badgesApi } from "./badges";
 import { adminDashboardApi } from "./admin-dashboard";
 import { supportApi } from "./support";
 import { chatApi } from "./chat";
+import { staffApi } from "./staff";
 import { fileTransfersApi } from "./file-transfers";
 
 export const api = {
@@ -65,6 +66,7 @@ export const api = {
   ...adminDashboardApi,
   ...supportApi,
   ...chatApi,
+  ...staffApi,
   ...fileTransfersApi,
 };
 

@@ -3,15 +3,16 @@ import {
   ChatThreadSchema,
   ChatMessageSchema,
   ChatMessagePageSchema,
+  InboxSchema,
   type ChatThread,
   type ChatMessage,
   type ChatMessagePage,
   type ChatPartyRef,
+  type Inbox,
 } from "@droptracker/api-types";
-import { mockChatMessages, mockChatThreads } from "../mock-data";
+import { mockChatMessages, mockChatThreads, mockInbox } from "../mock-data";
 
 export const chatApi = {
-
   // --- Chat (web96a) -------------------------------------------------------
   // A generic threaded-messaging surface. The clan-vs-clan challenge is the
   // only caller today; nothing here is event-specific, so the next surface
@@ -20,8 +21,7 @@ export const chatApi = {
   /** Threads the caller can speak in, newest activity first. */
   async chatThreads(): Promise<ChatThread[]> {
     return withFallback(
-      async () =>
-        ChatThreadSchema.array().parse(await apiGet(`/chat/threads`, { authed: true })),
+      async () => ChatThreadSchema.array().parse(await apiGet(`/chat/threads`, { authed: true })),
       () => mockChatThreads,
     );
   },
@@ -30,7 +30,16 @@ export const chatApi = {
     return withFallback(
       async () =>
         ChatThreadSchema.parse(await apiGet(`/chat/threads/${threadId}`, { authed: true })),
-      () => mockChatThreads[0]!,
+      () => mockChatThreads.find((t) => t.id === threadId) ?? mockChatThreads[0]!,
+    );
+  },
+
+  /** The support widget's unified inbox (web102a): chat threads + tickets +
+   * suggestions, each with unread, sorted by last activity. */
+  async myInbox(): Promise<Inbox> {
+    return withFallback(
+      async () => InboxSchema.parse(await apiGet(`/me/inbox`, { authed: true })),
+      () => mockInbox(),
     );
   },
 
@@ -50,7 +59,10 @@ export const chatApi = {
             authed: true,
           }),
         ),
-      () => ({ messages: mockChatMessages, has_more: false }),
+      () => ({
+        messages: mockChatMessages.filter((m) => m.thread_id === threadId),
+        has_more: false,
+      }),
     );
   },
 

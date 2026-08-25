@@ -5,6 +5,7 @@ import {
   SuggestionMessageSchema,
   SuggestionPageSchema,
   TicketDetailSchema,
+  TicketMessageSchema,
   TicketPageSchema,
   TicketSummarySchema,
   type AdminTicketPage,
@@ -13,20 +14,24 @@ import {
   type SuggestionMessage,
   type SuggestionPage,
   type SuggestionReplyCreate,
+  type TicketCreate,
   type TicketDetail,
+  type TicketMessage,
   type TicketPage,
+  type TicketReplyCreate,
   type TicketSummary,
 } from "@droptracker/api-types";
 import {
   mockAdminTickets,
+  mockCreatedTicket,
   mockMyTickets,
   mockSuggestionDetail,
   mockSuggestions,
   mockTicket,
+  mockTicketReply,
 } from "../mock-data";
 
 export const supportApi = {
-
   // --- Support tickets (web21a) -------------------------------------------
   async myTickets(params: { page?: number; limit?: number } = {}): Promise<TicketPage> {
     const qs = new URLSearchParams();
@@ -39,7 +44,6 @@ export const supportApi = {
     );
   },
 
-
   async ticket(ticketId: number): Promise<TicketDetail> {
     return withFallback(
       async () => TicketDetailSchema.parse(await apiGet(`/tickets/${ticketId}`, { authed: true })),
@@ -47,6 +51,55 @@ export const supportApi = {
     );
   },
 
+  // --- Support widget (web102a): web ticket creation + replies -------------
+
+  /** POST /me/tickets — opens a `pending` ticket; the bot provisions its
+   * Discord channel and flips it to `open`. 409 when one is already open. */
+  async createTicket(input: TicketCreate): Promise<TicketDetail> {
+    return withFallback(
+      async () => TicketDetailSchema.parse(await apiSend("POST", `/me/tickets`, input)),
+      () => mockCreatedTicket(input),
+    );
+  },
+
+  /** POST /tickets/{id}/messages — a web reply, relayed into the ticket's
+   * Discord channel by the bot. Only valid while the ticket is `open`. */
+  async ticketReply(ticketId: number, input: TicketReplyCreate): Promise<TicketMessage> {
+    return withFallback(
+      async () =>
+        TicketMessageSchema.parse(await apiSend("POST", `/tickets/${ticketId}/messages`, input)),
+      () => mockTicketReply(input.content),
+    );
+  },
+
+  /** Advance-only read pointer for the ticket surface (widget unread). */
+  async markTicketRead(
+    ticketId: number,
+    messageId: number,
+  ): Promise<{ last_read_message_id: number; unread: number }> {
+    return withFallback(
+      async () =>
+        (await apiSend("POST", `/tickets/${ticketId}/read`, { message_id: messageId })) as {
+          last_read_message_id: number;
+          unread: number;
+        },
+      () => ({ last_read_message_id: messageId, unread: 0 }),
+    );
+  },
+
+  /** Advance-only read pointer for the suggestion surface (widget unread). */
+  async markSuggestionRead(
+    suggestionId: number,
+    messageId: number,
+  ): Promise<{ last_read_message_id: number; unread: number }> {
+    return withFallback(
+      async () =>
+        (await apiSend("POST", `/suggestions/${suggestionId}/read`, {
+          message_id: messageId,
+        })) as { last_read_message_id: number; unread: number },
+      () => ({ last_read_message_id: messageId, unread: 0 }),
+    );
+  },
 
   async adminTickets(
     params: { status?: string; type?: string; q?: string; page?: number; limit?: number } = {},
@@ -65,7 +118,6 @@ export const supportApi = {
     );
   },
 
-
   async adminTicketAction(
     ticketId: number,
     action: "claim" | "unclaim" | "close",
@@ -76,7 +128,6 @@ export const supportApi = {
       () => mockMyTickets(1).items[0]!,
     );
   },
-
 
   // --- Suggestion forum (web /suggestions, mirrored with Discord) ---------
   async suggestions(
@@ -96,7 +147,6 @@ export const supportApi = {
     );
   },
 
-
   async suggestion(id: number): Promise<SuggestionDetail> {
     return withFallback(
       async () =>
@@ -105,14 +155,12 @@ export const supportApi = {
     );
   },
 
-
   async createSuggestion(input: SuggestionCreate): Promise<SuggestionDetail> {
     return withFallback(
       async () => SuggestionDetailSchema.parse(await apiSend("POST", `/suggestions`, input)),
       () => ({ ...mockSuggestionDetail(99), ...input, status: "pending" as const }),
     );
   },
-
 
   async createSuggestionReply(
     suggestionId: number,

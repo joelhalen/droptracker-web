@@ -79,7 +79,14 @@ import type {
   Supporters,
   AdminTicketPage,
   FileTransferPage,
+  GroupNotice,
+  GroupNoticePage,
+  Inbox,
+  StaffChatsPage,
+  StaffUserSearch,
+  TicketCreate,
   TicketDetail,
+  TicketMessage,
   TicketPage,
   TicketSummary,
   WomGroupPreview,
@@ -685,9 +692,7 @@ export function mockClaimResult(rsn: string): ClaimResult {
     player: preview.player,
     group: status === "claimed" ? preview.group : null,
     players:
-      status === "claimed" || status === "already_yours"
-        ? [{ id: 4242, name: rsn.trim() }]
-        : [],
+      status === "claimed" || status === "already_yours" ? [{ id: 4242, name: rsn.trim() }] : [],
   };
 }
 
@@ -1012,9 +1017,7 @@ export function mockAuthorizedUsers(): AuthorizedUsersResponse {
 
 export function mockEventManagers(): EventManagersResponse {
   return {
-    managers: [
-      { user_id: 3, discord_id: "339175417668501504", username: "mockeventmgr" },
-    ],
+    managers: [{ user_id: 3, discord_id: "339175417668501504", username: "mockeventmgr" }],
   };
 }
 
@@ -1053,15 +1056,15 @@ export function mockEventSignups(): EventSignup[] {
   const ehbs: (number | null)[] = [1842.5, 934.2, 2610, null, 512.8, 88.4, 1420, 305.1, null, 61.7];
   const levels = [2277, 2201, 2154, 1983, 2050, 1621, 2277, 1875, 1402, 1290];
   const loot = [
-    412_000_000, 88_500_000, 1_240_000_000, 0, 26_400_000, 4_100_000, 305_000_000,
-    12_900_000, 0, 780_000,
+    412_000_000, 88_500_000, 1_240_000_000, 0, 26_400_000, 4_100_000, 305_000_000, 12_900_000, 0,
+    780_000,
   ];
   return NAMES.map((name, i) => ({
     player_id: 1000 + i,
     player_name: name,
     group_id: i % 3 === 0 ? 2 : 1,
     group_name: i % 3 === 0 ? "Rivals" : "Mock Clan",
-    team_id: i % 2 === 0 ? null : (i % 4 === 1 ? 101 : 102),
+    team_id: i % 2 === 0 ? null : i % 4 === 1 ? 101 : 102,
     source: i % 4 === 0 ? ("discord" as const) : ("web" as const),
     signed_up_at: now - i * 3600,
     ehb: ehbs[i] ?? null,
@@ -1346,7 +1349,11 @@ export function mockEventLayoutMeta(): EventLayoutMeta {
       supports_standings: key === "event_ended",
       tokens: [
         { token: "event_name", help: "The event's name", sample: "Summer Loot Sweep" },
-        { token: "event_url", help: "Event page URL", sample: "https://www.droptracker.io/events/42" },
+        {
+          token: "event_url",
+          help: "Event page URL",
+          sample: "https://www.droptracker.io/events/42",
+        },
         { token: "description", help: "Event description", sample: "Six weeks of loot." },
       ],
     })),
@@ -1472,35 +1479,70 @@ export function mockServices(): ServiceStatus[] {
       port: 31323,
       confirm_stop: true,
     }),
-    svc("droptracker-webapi", "Web API (this backend)", "Web & APIs", "Serves /api/v1 for the website", {
-      port: 31325,
-      confirm_stop: true,
-    }),
-    svc("droptracker-node", "Website deploy (blue-green)", "Web & APIs", "Restart = zero-downtime deploy (~2 min)", {
-      kind: "deploy",
-      sub_state: "exited",
-      memory_mb: null,
-      actions: ["restart"],
-    }),
-    svc("droptracker-node-blue", "Website front-end — blue", "Web & APIs", "Next.js instance; one colour serves live traffic", {
-      kind: "web",
-      port: 31380,
-      actions: ["restart"],
-      confirm_stop: true,
-      confirm_restart: true,
-    }),
-    svc("droptracker-node-green", "Website front-end — green", "Web & APIs", "Next.js instance; one colour serves live traffic", {
-      kind: "web",
-      port: 31381,
-      actions: ["restart"],
-      confirm_stop: true,
-      confirm_restart: true,
-    }),
-    svc("droptracker-core", "Discord bot (core)", "Discord bots", "Slash commands, notifications, lootboard posting"),
-    svc("droptracker-webhooks", "Webhook reader bot", "Discord bots", "Reads webhook-channel messages", {
-      since: now - 3600,
-      n_restarts: 2,
-    }),
+    svc(
+      "droptracker-webapi",
+      "Web API (this backend)",
+      "Web & APIs",
+      "Serves /api/v1 for the website",
+      {
+        port: 31325,
+        confirm_stop: true,
+      },
+    ),
+    svc(
+      "droptracker-node",
+      "Website deploy (blue-green)",
+      "Web & APIs",
+      "Restart = zero-downtime deploy (~2 min)",
+      {
+        kind: "deploy",
+        sub_state: "exited",
+        memory_mb: null,
+        actions: ["restart"],
+      },
+    ),
+    svc(
+      "droptracker-node-blue",
+      "Website front-end — blue",
+      "Web & APIs",
+      "Next.js instance; one colour serves live traffic",
+      {
+        kind: "web",
+        port: 31380,
+        actions: ["restart"],
+        confirm_stop: true,
+        confirm_restart: true,
+      },
+    ),
+    svc(
+      "droptracker-node-green",
+      "Website front-end — green",
+      "Web & APIs",
+      "Next.js instance; one colour serves live traffic",
+      {
+        kind: "web",
+        port: 31381,
+        actions: ["restart"],
+        confirm_stop: true,
+        confirm_restart: true,
+      },
+    ),
+    svc(
+      "droptracker-core",
+      "Discord bot (core)",
+      "Discord bots",
+      "Slash commands, notifications, lootboard posting",
+    ),
+    svc(
+      "droptracker-webhooks",
+      "Webhook reader bot",
+      "Discord bots",
+      "Reads webhook-channel messages",
+      {
+        since: now - 3600,
+        n_restarts: 2,
+      },
+    ),
     svc("droptracker-heartbeat", "Heartbeat bot", "Discord bots", "Uptime heartbeat"),
     svc(
       "droptracker-hof",
@@ -1508,19 +1550,46 @@ export function mockServices(): ServiceStatus[] {
       "Discord bots",
       "Being retired — the core bot takes each group over as the old bot is removed",
     ),
-    svc("droptracker-webhook-consumer", "Intake queue consumer", "Processing & workers", "Drains webhook:queue", {
-      confirm_stop: true,
-    }),
-    svc("droptracker-events", "Events consumer", "Processing & workers", "Applies submissions to active events"),
-    svc("droptracker-lootboards", "Lootboard generator", "Processing & workers", "Regenerates lootboard images", {
-      status: "failed",
-      active: false,
-      sub_state: "failed",
-      memory_mb: null,
-      last_result: "exit-code",
-    }),
-    svc("droptracker-player-updates", "Player updater", "Processing & workers", "WOM sync + leaderboards"),
-    svc("droptracker-video-worker", "Video worker", "Processing & workers", "MJPEG→MP4 conversion + B2 upload"),
+    svc(
+      "droptracker-webhook-consumer",
+      "Intake queue consumer",
+      "Processing & workers",
+      "Drains webhook:queue",
+      {
+        confirm_stop: true,
+      },
+    ),
+    svc(
+      "droptracker-events",
+      "Events consumer",
+      "Processing & workers",
+      "Applies submissions to active events",
+    ),
+    svc(
+      "droptracker-lootboards",
+      "Lootboard generator",
+      "Processing & workers",
+      "Regenerates lootboard images",
+      {
+        status: "failed",
+        active: false,
+        sub_state: "failed",
+        memory_mb: null,
+        last_result: "exit-code",
+      },
+    ),
+    svc(
+      "droptracker-player-updates",
+      "Player updater",
+      "Processing & workers",
+      "WOM sync + leaderboards",
+    ),
+    svc(
+      "droptracker-video-worker",
+      "Video worker",
+      "Processing & workers",
+      "MJPEG→MP4 conversion + B2 upload",
+    ),
     svc("nginx", "nginx", "Infrastructure", "Reverse proxy fronting every HTTP service", {
       kind: "infra",
       port: 80,
@@ -1608,9 +1677,21 @@ export function mockB2Usage(): B2Usage {
       { prefix: "dt_videos", objects: 205, total_bytes: 253_904_991 },
     ],
     largest: [
-      { key: "dt_backups/mysql/2026-07-13/data-2026-07-13.sql.gz", size: 3_154_800_806, modified: now - 3600 },
-      { key: "dt_backups/mysql/2026-07-12/data-2026-07-12.sql.gz", size: 3_145_368_292, modified: now - 90000 },
-      { key: "dt_backups/mysql/2026-07-13/redis-2026-07-13.rdb.gz", size: 409_077_275, modified: now - 3500 },
+      {
+        key: "dt_backups/mysql/2026-07-13/data-2026-07-13.sql.gz",
+        size: 3_154_800_806,
+        modified: now - 3600,
+      },
+      {
+        key: "dt_backups/mysql/2026-07-12/data-2026-07-12.sql.gz",
+        size: 3_145_368_292,
+        modified: now - 90000,
+      },
+      {
+        key: "dt_backups/mysql/2026-07-13/redis-2026-07-13.rdb.gz",
+        size: 409_077_275,
+        modified: now - 3500,
+      },
     ],
     estimate: {
       storage_rate_usd_per_gb_month: 0.006,
@@ -1984,9 +2065,9 @@ export function mockEvent(id: number): EventDetail {
         color: "#e05c4c",
         member_count: 3,
         members: [
-          { player_id: 1337, player_name: "Zezima", joined_at: now - 3 * DAY , effort_ehb: 3.2 },
-          { player_id: 2001, player_name: "Woox", joined_at: now - 2 * DAY , effort_ehb: 3.2 },
-          { player_id: 2002, player_name: "B0aty", joined_at: now - 2 * DAY , effort_ehb: 12.4 },
+          { player_id: 1337, player_name: "Zezima", joined_at: now - 3 * DAY, effort_ehb: 3.2 },
+          { player_id: 2001, player_name: "Woox", joined_at: now - 2 * DAY, effort_ehb: 3.2 },
+          { player_id: 2002, player_name: "B0aty", joined_at: now - 2 * DAY, effort_ehb: 12.4 },
         ],
       },
       {
@@ -1997,8 +2078,8 @@ export function mockEvent(id: number): EventDetail {
         color: "#38bdf8", // custom (not in the default palette)
         member_count: 2,
         members: [
-          { player_id: 2003, player_name: "Framed", joined_at: now - 3 * DAY , effort_ehb: 0.0 },
-          { player_id: 2004, player_name: "Settled", joined_at: now - DAY , effort_ehb: 0 },
+          { player_id: 2003, player_name: "Framed", joined_at: now - 3 * DAY, effort_ehb: 0.0 },
+          { player_id: 2004, player_name: "Settled", joined_at: now - DAY, effort_ehb: 0 },
         ],
       },
       { id: 23, name: "Team Green", score: 60, coins: 0, member_count: 0, members: [] },
@@ -2468,13 +2549,34 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
         ehb_estimated_hours: 4.5,
         kills: 650,
         bosses: [
-          { npc_id: 12821, name: "Chambers of Xeric", metric: "chambers_of_xeric",
-            kills: 320, ehb_hours: 9.14, estimated: false, frozen: false },
-          { npc_id: 8061, name: "Vorkath", metric: "vorkath", kills: 200,
-            ehb_hours: 5.88, estimated: false, frozen: true },
+          {
+            npc_id: 12821,
+            name: "Chambers of Xeric",
+            metric: "chambers_of_xeric",
+            kills: 320,
+            ehb_hours: 9.14,
+            estimated: false,
+            frozen: false,
+          },
+          {
+            npc_id: 8061,
+            name: "Vorkath",
+            metric: "vorkath",
+            kills: 200,
+            ehb_hours: 5.88,
+            estimated: false,
+            frozen: true,
+          },
           // WOM publishes no rate — priced with our derived rate, tilde'd.
-          { npc_id: 15742, name: "The Maggot King", metric: "maggot_king",
-            kills: 130, ehb_hours: 4.5, estimated: true, frozen: false },
+          {
+            npc_id: 15742,
+            name: "The Maggot King",
+            metric: "maggot_king",
+            kills: 130,
+            ehb_hours: 4.5,
+            estimated: true,
+            frozen: false,
+          },
         ],
         boss_count: 3,
         frozen: 1,
@@ -2501,8 +2603,15 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
         ehb_estimated_hours: 0,
         kills: 110,
         bosses: [
-          { npc_id: 8061, name: "Vorkath", metric: "vorkath", kills: 110,
-            ehb_hours: 3.24, estimated: false, frozen: false },
+          {
+            npc_id: 8061,
+            name: "Vorkath",
+            metric: "vorkath",
+            kills: 110,
+            ehb_hours: 3.24,
+            estimated: false,
+            frozen: false,
+          },
         ],
         boss_count: 1,
         frozen: 0,
@@ -3343,8 +3452,10 @@ export function mockManualSubmissions(): ManualSubmissionQueue {
 /* Chat (web96a)                                                              */
 /* -------------------------------------------------------------------------- */
 
-/** One clan-vs-clan negotiation thread. The viewer is an admin of Clan B (the
- *  challenged side), which is the case the invitation page renders. */
+/** Thread 1: a clan-vs-clan negotiation — the viewer is an admin of Clan 1
+ *  (the challenged side), which is the case the invitation page renders.
+ *  Threads 2 and 3 are the web102a kinds (staff DM, group notice) so the
+ *  support widget renders every inbox row shape under USE_MOCK_API. */
 export const mockChatThreads: ChatThread[] = [
   {
     id: 1,
@@ -3364,6 +3475,38 @@ export const mockChatThreads: ChatThread[] = [
     can_post: true,
     is_moderator: false,
     last_read_message_id: 2,
+  },
+  {
+    id: 2,
+    kind: "staff_dm",
+    subject_type: "user",
+    subject_id: 1337,
+    title: null,
+    status: "open",
+    created_at: MOCK_NOW - 86_400,
+    last_message_at: MOCK_NOW - 1_800,
+    unread: 2,
+    participants: [{ party_type: "user", party_id: 1337, role: "member", name: "zezima" }],
+    my_parties: [{ party_type: "user", party_id: 1337, name: "zezima" }],
+    can_post: true,
+    is_moderator: false,
+    last_read_message_id: 10,
+  },
+  {
+    id: 3,
+    kind: "group_notice",
+    subject_type: "group_notice",
+    subject_id: 1,
+    title: "Notification channel unreachable",
+    status: "open",
+    created_at: MOCK_NOW - 43_200,
+    last_message_at: MOCK_NOW - 7_000,
+    unread: 0,
+    participants: [{ party_type: "group", party_id: 101, role: "member", name: "Clan 1" }],
+    my_parties: [{ party_type: "group", party_id: 101, name: "Clan 1" }],
+    can_post: true,
+    is_moderator: false,
+    last_read_message_id: 21,
   },
 ];
 
@@ -3455,7 +3598,236 @@ export const mockChatMessages: ChatMessage[] = [
     system_code: null,
     system_data: null,
   },
+  // Thread 2 (staff_dm): opener system entry + a staff message.
+  {
+    id: 10,
+    thread_id: 2,
+    kind: "system",
+    author_user_id: 1,
+    author_name: "joelhalen",
+    party_type: null,
+    party_id: null,
+    created_at: MOCK_NOW - 86_400,
+    deleted: false,
+    body: null,
+    attachments: [],
+    system_code: "staff_dm_opened",
+    system_data: null,
+  },
+  {
+    id: 11,
+    thread_id: 2,
+    kind: "message",
+    author_user_id: 1,
+    author_name: "joelhalen",
+    party_type: "user",
+    party_id: 1,
+    created_at: MOCK_NOW - 1_800,
+    deleted: false,
+    body: "Hey! Quick question about your account — got a minute?",
+    attachments: [],
+    system_code: null,
+    system_data: null,
+  },
+  // Thread 3 (group_notice): the raised notice + a group admin's reply.
+  {
+    id: 20,
+    thread_id: 3,
+    kind: "system",
+    author_user_id: null,
+    author_name: null,
+    party_type: null,
+    party_id: null,
+    created_at: MOCK_NOW - 43_200,
+    deleted: false,
+    body: null,
+    attachments: [],
+    system_code: "notice_raised",
+    system_data: {
+      title: "Notification channel unreachable",
+      body: "The bot can no longer post in your configured notification channel.",
+      code: "notify_channel_forbidden",
+      severity: "major",
+    },
+  },
+  {
+    id: 21,
+    thread_id: 3,
+    kind: "message",
+    author_user_id: 1337,
+    author_name: "zezima",
+    party_type: "group",
+    party_id: 101,
+    created_at: MOCK_NOW - 7_000,
+    deleted: false,
+    body: "Thanks for the heads up — checking the channel permissions now.",
+    attachments: [],
+    system_code: null,
+    system_data: null,
+  },
 ];
+
+/* -------------------------------------------------------------------------- */
+/* Support widget (web102a)                                                   */
+/* -------------------------------------------------------------------------- */
+
+/** One inbox item of every shape — an event-invite thread, a staff DM, a
+ *  group-notice thread, a ticket and a suggestion — with a mix of unread
+ *  counts so the badge math and row pills are all exercised in mock mode. */
+export function mockInbox(): Inbox {
+  return {
+    items: [
+      {
+        kind: "chat",
+        thread: mockChatThreads[1]!,
+        preview: "Hey! Quick question about your account — got a minute?",
+      },
+      {
+        kind: "ticket",
+        ticket: mockTicketSummary(3, "open"),
+        unread: 1,
+        preview: "On it — your accounts are linked again. Give it a minute!",
+      },
+      {
+        kind: "chat",
+        thread: mockChatThreads[2]!,
+        preview: "Thanks for the heads up — checking the channel permissions now.",
+        notice: { code: "notify_channel_forbidden", severity: "major", status: "open" },
+      },
+      {
+        kind: "chat",
+        thread: mockChatThreads[0]!,
+        preview: "The 3rd works. Here's the task list we had in mind:",
+      },
+      { kind: "suggestion", suggestion: mockSuggestionSummary(3, "pending"), unread: 0 },
+    ],
+    total_unread: 4, // staff DM 2 + ticket 1 + event invite 1
+    open_ticket_id: 3,
+  };
+}
+
+/** POST /me/tickets fallback: the just-created ticket, `pending` until the bot
+ *  provisions its Discord channel — exactly the contract shape. */
+export function mockCreatedTicket(input: TicketCreate): TicketDetail {
+  return {
+    ...mockTicketSummary(901, "open"),
+    type: input.type,
+    status: "pending",
+    subject: input.body.slice(0, 255),
+    claimed_by: null,
+    claimed_by_name: null,
+    message_count: 1,
+    date_added: MOCK_NOW,
+    date_updated: MOCK_NOW,
+    messages: [
+      {
+        id: 1,
+        author_name: "zezima",
+        author_user_id: 42,
+        is_staff: false,
+        is_bot: false,
+        kind: "message",
+        content: input.body,
+        attachments: [],
+        date_sent: MOCK_NOW,
+        date_edited: null,
+      },
+    ],
+    mentions: {},
+  };
+}
+
+/** POST /tickets/{id}/messages fallback. Wall-clock id so repeated mock
+ *  replies don't collide in an id-keyed list. */
+export function mockTicketReply(content: string): TicketMessage {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    id: now,
+    author_name: "zezima",
+    author_user_id: 42,
+    is_staff: false,
+    is_bot: false,
+    kind: "message",
+    content,
+    attachments: [],
+    date_sent: now,
+    date_edited: null,
+  };
+}
+
+/** GET /staff/users/search fallback — the backend returns empty below two
+ *  characters, and so does the mock so the UI's hint states are exercised. */
+export function mockStaffUserHits(q: string): StaffUserSearch {
+  if (q.trim().length < 2) return { items: [] };
+  return {
+    items: [
+      { user_id: 42, discord_id: "100000000000000002", display_name: "zezima", avatar_url: null },
+      { user_id: 7, discord_id: "100000000000000003", display_name: "Woox", avatar_url: null },
+      { user_id: 9, discord_id: "100000000000000004", display_name: null, avatar_url: null },
+    ],
+  };
+}
+
+/** GET /staff/chats fallback: the one mock staff_dm thread. */
+export function mockStaffChats(): StaffChatsPage {
+  return {
+    items: [mockChatThreads[1]!],
+    meta: { page: 1, limit: 25, total: 1 },
+  };
+}
+
+/** GET /admin/group-notices fallback: one open notice (backed by mock chat
+ *  thread 3) and one resolved, so both filter tabs render. */
+export function mockGroupNotices(): GroupNoticePage {
+  return {
+    items: [
+      {
+        id: 1,
+        group_id: 101,
+        group_name: "Clan 1",
+        code: "notify_channel_forbidden",
+        severity: "major",
+        title: "Notification channel unreachable",
+        notice_status: "open",
+        thread_id: 3,
+        first_raised_at: MOCK_NOW - 43_200,
+        last_raised_at: MOCK_NOW - 10_800,
+        raise_count: 3,
+        resolved_at: null,
+        data: { channel_id: "111111111111111111" },
+        unread: 1,
+        latest_reply: "Thanks for the heads up — checking the channel permissions now.",
+        last_message_at: MOCK_NOW - 7_000,
+      },
+      {
+        id: 2,
+        group_id: 10,
+        group_name: "Iron Wolves",
+        code: "event_alert_no_channel",
+        severity: "info",
+        title: "Event alerts had nowhere to go",
+        notice_status: "resolved",
+        thread_id: null,
+        first_raised_at: MOCK_NOW - 172_800,
+        last_raised_at: MOCK_NOW - 172_800,
+        raise_count: 1,
+        resolved_at: MOCK_NOW - 86_400,
+        data: null,
+        unread: 0,
+        latest_reply: null,
+        last_message_at: null,
+      },
+    ],
+    meta: { page: 1, limit: 25, total: 2 },
+    stats: { open: 1 },
+  };
+}
+
+/** PATCH /admin/group-notices/{id} fallback: the open mock notice, resolved. */
+export function mockResolvedGroupNotice(id: number): GroupNotice {
+  const open = mockGroupNotices().items[0]!;
+  return { ...open, id, notice_status: "resolved", resolved_at: MOCK_NOW };
+}
 
 /** The roster behind the mock thread: the challenger and the mock user's own
  *  clan, so the invitation page renders end to end under USE_MOCK_API. */

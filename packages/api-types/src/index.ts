@@ -836,6 +836,13 @@ export const RealtimeEventSchema = z.object({
     // (thread id only) on the viewer's own `user:{id}` scope.
     "chat_message",
     "chat_unread",
+    // Support widget (web102a). `inbox_unread` is a bodyless badge hint
+    // (`{surface, ref_id}`) on the viewer's own `user:{id}` scope — the
+    // successor to `chat_unread`, covering tickets and suggestions too.
+    // `ticket_message` carries a full transcript row on the participant-gated
+    // `ticket:{id}` scope.
+    "inbox_unread",
+    "ticket_message",
   ]),
   scope: z.string(),
   ts: z.number().int(),
@@ -3139,12 +3146,7 @@ export const EventScheduleRuleSchema = z.discriminatedUnion("type", [
       .min(1)
       .max(EVENT_SCHEDULE_LIMITS.weeklyWindows),
     /** 1 (the default) = every week, 2 = every other week. */
-    interval_weeks: z
-      .number()
-      .int()
-      .min(1)
-      .max(EVENT_SCHEDULE_LIMITS.intervalWeeks)
-      .optional(),
+    interval_weeks: z.number().int().min(1).max(EVENT_SCHEDULE_LIMITS.intervalWeeks).optional(),
     /** Only the Nth occurrence of each month; the API rejects it alongside an
      * `interval_weeks` above 1. */
     month_ordinal: z
@@ -3751,19 +3753,21 @@ export const EventPlayerDetailSchema = z.object({
   }),
   items: z.array(EventPlayerItemSchema).default([]),
   tasks: z.array(EventPlayerTaskSchema).default([]),
-  activity: z.array(
-    z.object({
-      id: z.number().int(),
-      task_id: z.number().int(),
-      task_label: z.string().nullable().optional(),
-      quantity: z.number().int().default(1),
-      source_type: z.string().nullable().optional(),
-      matched_target: z.string().nullable().optional(),
-      /** Organizer's reason on a manual award. */
-      note: z.string().nullable().optional(),
-      created_at: z.number().int().nullable(),
-    }),
-  ).default([]),
+  activity: z
+    .array(
+      z.object({
+        id: z.number().int(),
+        task_id: z.number().int(),
+        task_label: z.string().nullable().optional(),
+        quantity: z.number().int().default(1),
+        source_type: z.string().nullable().optional(),
+        matched_target: z.string().nullable().optional(),
+        /** Organizer's reason on a manual award. */
+        note: z.string().nullable().optional(),
+        created_at: z.number().int().nullable(),
+      }),
+    )
+    .default([]),
 });
 export type EventPlayerDetail = z.infer<typeof EventPlayerDetailSchema>;
 
@@ -4256,10 +4260,7 @@ export const TeamDiscordTeamStateSchema = z.object({
   channel_id: z.string().nullable().optional(),
   voice_channel_id: z.string().nullable().optional(),
   channel_kind: z.enum(["text", "thread"]).nullable().optional(),
-  sync_status: z
-    .enum(["pending", "synced", "delete_pending", "failed"])
-    .nullable()
-    .optional(),
+  sync_status: z.enum(["pending", "synced", "delete_pending", "failed"]).nullable().optional(),
   last_error: z.string().nullable().optional(),
 });
 export type TeamDiscordTeamState = z.infer<typeof TeamDiscordTeamStateSchema>;
@@ -4680,10 +4681,9 @@ export const EventTeamPatchSchema = z
     /** Board-game piece: an OSRS item id (null clears it). */
     piece_item_id: z.number().int().positive().nullable().optional(),
   })
-  .refine(
-    (p) => p.name !== undefined || p.color !== undefined || p.piece_item_id !== undefined,
-    { message: "Provide a name, color, and/or piece" },
-  );
+  .refine((p) => p.name !== undefined || p.color !== undefined || p.piece_item_id !== undefined, {
+    message: "Provide a name, color, and/or piece",
+  });
 export type EventTeamPatch = z.infer<typeof EventTeamPatchSchema>;
 
 /** Per-name outcomes of the bulk "paste a list of names" roster add. Skipped
@@ -4707,6 +4707,14 @@ export type EventTeamBulkAddResult = z.infer<typeof EventTeamBulkAddResultSchema
 export const CHAT_PARTY_TYPES = ["group", "user"] as const;
 export type ChatPartyType = (typeof CHAT_PARTY_TYPES)[number];
 
+/** Thread kinds in the wild. `ChatThreadSchema.kind` deliberately stays a
+ * plain string so an older client tolerates a kind it doesn't know; this list
+ * is for surfaces that branch on kind (the support widget's inbox rows).
+ * web102a adds `staff_dm` (staff↔user DM, bridged with Discord) and
+ * `group_notice` (bot-raised per-group config problems). */
+export const CHAT_THREAD_KINDS = ["event_invite", "staff_dm", "group_notice"] as const;
+export type ChatThreadKind = (typeof CHAT_THREAD_KINDS)[number];
+
 export const CHAT_THREAD_STATUSES = ["open", "locked", "archived"] as const;
 
 /** Typed timeline entries. The wording lives in the client, so rephrasing one
@@ -4718,6 +4726,12 @@ export const CHAT_SYSTEM_CODES = [
   "invite_withdrawn",
   "event_activated",
   "event_ended",
+  // web102a: staff DMs + group notices.
+  "staff_dm_opened",
+  "dm_bounced",
+  "notice_raised",
+  "notice_recurred",
+  "notice_resolved",
 ] as const;
 export type ChatSystemCode = (typeof CHAT_SYSTEM_CODES)[number];
 
@@ -4777,7 +4791,9 @@ export const ChatThreadSchema = z.object({
   unread: z.number().int().default(0),
   participants: ChatPartyRefSchema.extend({
     role: z.string(),
-  }).array().default([]),
+  })
+    .array()
+    .default([]),
   /** Every party the viewer may speak as — usually one, but somebody who
    * administers BOTH clans in a battle gets both rather than having one
    * silently picked for them. */
@@ -4907,8 +4923,10 @@ export type EventMemberInput = z.infer<typeof EventMemberInputSchema>;
 // channel itself is deleted at close time, so this is the permanent record.
 // --------------------------------------------------------------------------
 
-/** "closing" = close requested from the web, bot archive pass pending. */
-export const TicketStatusSchema = z.enum(["open", "closing", "closed"]);
+/** "closing" = close requested from the web, bot archive pass pending.
+ * "pending" (web102a) = created on the web, Discord channel not provisioned
+ * yet — replies stay disabled until the bot flips it to "open". */
+export const TicketStatusSchema = z.enum(["pending", "open", "closing", "closed"]);
 export type TicketStatus = z.infer<typeof TicketStatusSchema>;
 
 export const TicketTypeSchema = z.enum(["players", "clans", "support", "other"]);
@@ -5115,6 +5133,151 @@ export const SuggestionReplyCreateSchema = z.object({
   content: z.string().trim().min(2).max(1800),
 });
 export type SuggestionReplyCreate = z.infer<typeof SuggestionReplyCreateSchema>;
+
+/* -------------------------------------------------------------------------- */
+/* Support widget (web102a) — one bottom-right popup federating chat threads   */
+/* (event_invite | staff_dm | group_notice), tickets and suggestions behind a  */
+/* single inbox (GET /me/inbox), each item carrying its own unread count.      */
+/* -------------------------------------------------------------------------- */
+
+/** Ticket bodies are relayed into a Discord channel, so they inherit Discord's
+ * practical message budget (2000 minus the relay attribution prefix). */
+export const TICKET_BODY_MAX_CHARS = 1800;
+
+/** POST /me/tickets body. One open/pending ticket per user — the backend 409s
+ * a second, and the widget disables the CTA when `open_ticket_id` is set. */
+export const TicketCreateSchema = z.object({
+  type: TicketTypeSchema,
+  body: z.string().trim().min(10).max(TICKET_BODY_MAX_CHARS),
+});
+export type TicketCreate = z.infer<typeof TicketCreateSchema>;
+
+/** POST /tickets/{id}/messages body (participant or staff; ticket must be
+ * `open`). */
+export const TicketReplyCreateSchema = z.object({
+  content: z.string().trim().min(1).max(TICKET_BODY_MAX_CHARS),
+});
+export type TicketReplyCreate = z.infer<typeof TicketReplyCreateSchema>;
+
+/** The group-notice context embedded on a `group_notice` chat item, from the
+ * notice mapping row. `code` and `severity` are open string sets on purpose —
+ * emitters grow without a contract change. */
+export const InboxNoticeSchema = z.object({
+  code: z.string(),
+  severity: z.string(),
+  status: z.enum(["open", "resolved"]),
+});
+export type InboxNotice = z.infer<typeof InboxNoticeSchema>;
+
+/** A chat thread the viewer participates in (unread rides on the thread). */
+export const InboxChatItemSchema = z.object({
+  kind: z.literal("chat"),
+  thread: ChatThreadSchema,
+  /** Latest non-system message body, truncated server-side. */
+  preview: z.string().nullable().optional(),
+  /** Present exactly when `thread.kind === "group_notice"`. */
+  notice: InboxNoticeSchema.nullable().optional(),
+});
+export type InboxChatItem = z.infer<typeof InboxChatItemSchema>;
+
+export const InboxTicketItemSchema = z.object({
+  kind: z.literal("ticket"),
+  ticket: TicketSummarySchema,
+  unread: z.number().int().default(0),
+  preview: z.string().nullable().optional(),
+});
+export type InboxTicketItem = z.infer<typeof InboxTicketItemSchema>;
+
+export const InboxSuggestionItemSchema = z.object({
+  kind: z.literal("suggestion"),
+  suggestion: SuggestionSummarySchema,
+  unread: z.number().int().default(0),
+});
+export type InboxSuggestionItem = z.infer<typeof InboxSuggestionItemSchema>;
+
+export const InboxItemSchema = z.discriminatedUnion("kind", [
+  InboxChatItemSchema,
+  InboxTicketItemSchema,
+  InboxSuggestionItemSchema,
+]);
+export type InboxItem = z.infer<typeof InboxItemSchema>;
+
+/** GET /me/inbox — sorted by last activity desc, capped server-side. The
+ * client still recomputes the badge total from `items` after local patches;
+ * `total_unread` is the server's snapshot at fetch time. `open_ticket_id`
+ * drives the one-open-ticket CTA state (null when the user may open one). */
+export const InboxSchema = z.object({
+  items: InboxItemSchema.array(),
+  total_unread: z.number().int().default(0),
+  open_ticket_id: z.number().int().nullable().optional(),
+});
+export type Inbox = z.infer<typeof InboxSchema>;
+
+// --- Staff surfaces (web102a phases 3–4) ------------------------------------
+
+/** One row from GET /staff/users/search (developer/superadmin only). */
+export const StaffUserHitSchema = z.object({
+  user_id: z.number().int(),
+  discord_id: z.string(),
+  display_name: z.string().nullable(),
+  avatar_url: z.string().nullable(),
+});
+export type StaffUserHit = z.infer<typeof StaffUserHitSchema>;
+
+export const StaffUserSearchSchema = z.object({
+  items: StaffUserHitSchema.array(),
+});
+export type StaffUserSearch = z.infer<typeof StaffUserSearchSchema>;
+
+/** POST /staff/chats body — opens (or reopens) the target's single staff_dm
+ * thread and posts the opening message; returns the ChatThread payload. */
+export const StaffChatCreateSchema = z.object({
+  user_id: z.number().int(),
+  body: z.string().trim().min(1).max(CHAT_BODY_MAX_CHARS),
+});
+export type StaffChatCreate = z.infer<typeof StaffChatCreateSchema>;
+
+/** GET /staff/chats — every staff_dm thread, newest activity first. */
+export const StaffChatsPageSchema = z.object({
+  items: ChatThreadSchema.array(),
+  meta: PageMetaSchema,
+});
+export type StaffChatsPage = z.infer<typeof StaffChatsPageSchema>;
+
+export const GROUP_NOTICE_SEVERITIES = ["info", "minor", "major", "critical"] as const;
+export type GroupNoticeSeverity = (typeof GROUP_NOTICE_SEVERITIES)[number];
+
+/** One bot-raised per-group problem (GET /admin/group-notices, superadmin).
+ * `notice_status` (not `status`) to keep the field distinct from the embedded
+ * chat thread's own status; one row per (group, code), reused across
+ * incidents (`raise_count`). Timestamps are unix seconds. */
+export const GroupNoticeSchema = z.object({
+  id: z.number().int(),
+  group_id: z.number().int(),
+  group_name: z.string().nullable(),
+  code: z.string(),
+  severity: z.enum(GROUP_NOTICE_SEVERITIES),
+  title: z.string(),
+  notice_status: z.enum(["open", "resolved"]),
+  thread_id: z.number().int().nullable(),
+  first_raised_at: z.number().int().nullable(),
+  last_raised_at: z.number().int().nullable(),
+  raise_count: z.number().int(),
+  resolved_at: z.number().int().nullable(),
+  /** Emitter-specific context (channel ids, event ids, …). */
+  data: z.unknown().nullable(),
+  unread: z.number().int().default(0),
+  latest_reply: z.string().nullable(),
+  last_message_at: z.number().int().nullable(),
+});
+export type GroupNotice = z.infer<typeof GroupNoticeSchema>;
+
+export const GroupNoticePageSchema = z.object({
+  items: GroupNoticeSchema.array(),
+  meta: PageMetaSchema,
+  stats: z.object({ open: z.number().int() }),
+});
+export type GroupNoticePage = z.infer<typeof GroupNoticePageSchema>;
 
 /* -------------------------------------------------------------------------- */
 /* Custom group points system (/groups/{id}/points/*)                          */
@@ -5641,9 +5804,7 @@ export const RecapSchema = z.object({
   superlatives: z.record(z.string(), RecapSuperlativeSchema.nullable()).optional(),
 
   /** Annual only. */
-  by_month: z
-    .array(z.object({ period: z.string(), loot: z.number() }))
-    .optional(),
+  by_month: z.array(z.object({ period: z.string(), loot: z.number() })).optional(),
   peak_month: z.object({ period: z.string(), loot: z.number() }).nullable().optional(),
   months_covered: z.array(z.string()).optional(),
 });

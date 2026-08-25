@@ -1,5 +1,6 @@
 import type { Route } from "next";
 import Link from "next/link";
+import { ChatWidget } from "@/components/chat-widget/chat-widget";
 import { LiveDropTicker } from "@/components/live-drop-ticker";
 import { SiteHeader } from "@/components/site-header";
 import type { NavTab } from "@/components/tab-nav";
@@ -103,6 +104,10 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </footer>
+      {/* Support widget (web102a): a client island that renders nothing while
+          signed out. Chromeless surfaces never render SiteChrome, so the
+          widget is automatically absent from /activity and /board-image. */}
+      <ChatWidget />
     </>
   );
 }

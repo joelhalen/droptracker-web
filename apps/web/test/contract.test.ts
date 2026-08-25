@@ -11,6 +11,8 @@ import {
   FileTransferPageSchema,
   ChatThreadSchema,
   ChatMessageSchema,
+  InboxSchema,
+  TicketMessageSchema,
   GroupSubscriptionSchema,
   GroupSubscriptionSummarySchema,
   EventDetailSchema,
@@ -84,6 +86,9 @@ import {
   mockLootboard,
   mockChatMessages,
   mockChatThreads,
+  mockCreatedTicket,
+  mockInbox,
+  mockTicketReply,
   mockFileTransfers,
   mockMyTickets,
   mockTicket,
@@ -161,8 +166,12 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => EventTeamDetailSchema.parse(mockEventTeam(1, 21)));
   assert.doesNotThrow(() => EventTeamsResponseSchema.parse(mockEventTeams(1)));
   assert.doesNotThrow(() => GroupSubscriptionSchema.parse(mockGroupSubscription(101)));
-  assert.doesNotThrow(() => GroupSubscriptionSummarySchema.parse(mockGroupSubscriptionSummary(101)));
-  assert.doesNotThrow(() => AdminSubscriptionsOverviewSchema.parse(mockAdminSubscriptionsOverview()));
+  assert.doesNotThrow(() =>
+    GroupSubscriptionSummarySchema.parse(mockGroupSubscriptionSummary(101)),
+  );
+  assert.doesNotThrow(() =>
+    AdminSubscriptionsOverviewSchema.parse(mockAdminSubscriptionsOverview()),
+  );
   assert.doesNotThrow(() => TicketPageSchema.parse(mockMyTickets()));
   assert.doesNotThrow(() => TicketDetailSchema.parse(mockTicket(2)));
   assert.doesNotThrow(() => AdminTicketPageSchema.parse(mockAdminTickets()));
@@ -172,6 +181,15 @@ test("mock payloads validate against shared schemas", () => {
   // USE_MOCK_API drives the whole invitation page off them.
   assert.doesNotThrow(() => ChatThreadSchema.array().parse(mockChatThreads));
   assert.doesNotThrow(() => ChatMessageSchema.array().parse(mockChatMessages));
+  // Support widget (web102a): the federated inbox (one item of every kind)
+  // plus the web ticket-creation/reply fallbacks.
+  assert.doesNotThrow(() => InboxSchema.parse(mockInbox()));
+  assert.doesNotThrow(() =>
+    TicketDetailSchema.parse(
+      mockCreatedTicket({ type: "support", body: "My drops stopped tracking yesterday." }),
+    ),
+  );
+  assert.doesNotThrow(() => TicketMessageSchema.parse(mockTicketReply("Thanks, that fixed it!")));
   assert.doesNotThrow(() => SupportersSchema.parse(mockSupporters()));
   assert.doesNotThrow(() => PbBossIndexSchema.parse(mockPbBosses()));
   assert.doesNotThrow(() => PbBossIndexSchema.parse(mockPbBosses(101)));
@@ -450,14 +468,21 @@ test("comingSoon fields stay editable", () => {
     default: false,
   };
   assert.ok(comingSoonNote({ ...base, comingSoon: true }));
-  assert.equal(comingSoonNote({ ...base, comingSoon: "Needs plugin 1.2.3." }), "Needs plugin 1.2.3.");
+  assert.equal(
+    comingSoonNote({ ...base, comingSoon: "Needs plugin 1.2.3." }),
+    "Needs plugin 1.2.3.",
+  );
   // Unflagged fields are the common case and must stay unannotated.
   assert.equal(comingSoonNote(base), null);
 
   // Any field the registry currently flags must still accept a value.
   for (const field of GROUP_CONFIG_FIELDS.filter((f) => f.comingSoon)) {
     const sample =
-      field.type === "boolean" ? true : field.type === "int" ? (field.min ?? 0) : String(field.default ?? "");
+      field.type === "boolean"
+        ? true
+        : field.type === "int"
+          ? (field.min ?? 0)
+          : String(field.default ?? "");
     assert.doesNotThrow(
       () => GroupConfigPatchSchema.parse({ [field.key]: sample }),
       `coming-soon field ${field.key} rejects a valid value`,
@@ -491,24 +516,54 @@ test("recap schema parses a full card", () => {
       rank: { position: 34, of: 223, previous_loot: 2324776322, board_loot: 1433473180 },
       top_items: [
         // Sole receiver: the only case where "X got this" is a true statement.
-        { item_id: 26378, name: "Torva platebody (damaged)", loot: 168594500, drops: 1, quantity: 1,
-          receiver: { player_id: 795, name: "Chapsz" }, receivers: 1 },
+        {
+          item_id: 26378,
+          name: "Torva platebody (damaged)",
+          loot: 168594500,
+          drops: 1,
+          quantity: 1,
+          receiver: { player_id: 795, name: "Chapsz" },
+          receivers: 1,
+        },
         // Shared: a name IS carried, but receivers > 1 means they didn't get it
         // all, so the renderer must qualify it rather than imply sole ownership.
-        { item_id: 22446, name: "Vial of blood", loot: 39031316, drops: 60, quantity: 240,
-          receiver: { player_id: 795, name: "Chapsz" }, receivers: 11 },
+        {
+          item_id: 22446,
+          name: "Vial of blood",
+          loot: 39031316,
+          drops: 60,
+          quantity: 240,
+          receiver: { player_id: 795, name: "Chapsz" },
+          receivers: 11,
+        },
         // Unattributable: shared with nobody nameable (an annual fold whose
         // months disagreed, or a pre-attribution row).
-        { item_id: 20997, name: "Twisted bow", loot: 1514724889, drops: 1, quantity: 1, receivers: 2 },
+        {
+          item_id: 20997,
+          name: "Twisted bow",
+          loot: 1514724889,
+          drops: 1,
+          quantity: 1,
+          receivers: 2,
+        },
       ],
       top_npcs: [],
       npc_data_available: false,
       activity: { by_hour: new Array(24).fill(0), by_weekday: new Array(7).fill(0) },
       biggest_drop: {
-        drop_id: 1, player_id: 2, player_name: "Redquaker",
-        item_id: 3, item_name: "3rd age bow", npc_id: 4, npc_name: "Clue Scroll (Elite)",
-        value: 2089744999, quantity: 1, total_value: 2089744999,
-        date: "2026-06-01T00:00:00", image_url: null, kill_count: null,
+        drop_id: 1,
+        player_id: 2,
+        player_name: "Redquaker",
+        item_id: 3,
+        item_name: "3rd age bow",
+        npc_id: 4,
+        npc_name: "Clue Scroll (Elite)",
+        value: 2089744999,
+        quantity: 1,
+        total_value: 2089744999,
+        date: "2026-06-01T00:00:00",
+        image_url: null,
+        kill_count: null,
       },
       achievements: { pbs: 63, clog_slots: 141 },
       top_members: [{ player_id: 2, name: "Redquaker", loot: 5, previous_loot: 1 }],

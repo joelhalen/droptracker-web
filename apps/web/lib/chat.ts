@@ -74,6 +74,21 @@ export function systemText(message: ChatMessage): string {
       return `${event} is now live.`;
     case "event_ended":
       return `${event} has ended.`;
+    // web102a: staff DMs + group notices.
+    case "staff_dm_opened":
+      return "DropTracker staff opened this conversation.";
+    case "dm_bounced":
+      return "A Discord DM couldn't be delivered — the conversation continues here.";
+    case "notice_raised": {
+      const title = str(data.title);
+      const body = str(data.body);
+      if (title && body) return `${title} — ${body}`;
+      return title ?? body ?? "The bot flagged an issue with this group's setup.";
+    }
+    case "notice_recurred":
+      return "This issue happened again.";
+    case "notice_resolved":
+      return "This looks fixed now.";
     default:
       return "Something changed on this event.";
   }
@@ -107,10 +122,7 @@ export function mergeMessage(messages: ChatMessage[], incoming: ChatMessage): Ch
 }
 
 /** Prepend an older page, dropping anything already present. */
-export function mergeOlderPage(
-  messages: ChatMessage[],
-  older: ChatMessage[],
-): ChatMessage[] {
+export function mergeOlderPage(messages: ChatMessage[], older: ChatMessage[]): ChatMessage[] {
   const have = new Set(messages.map((m) => m.id));
   const fresh = older.filter((m) => !have.has(m.id));
   return [...fresh, ...messages].sort((a, b) => a.id - b.id);

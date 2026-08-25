@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { AccessDenied } from "@/components/access-denied";
+import { TicketReplyComposer } from "@/components/chat-widget/ticket-reply-composer";
 import { TicketMetaHeader, TicketTranscript } from "@/components/ticket-transcript";
 
 export const metadata: Metadata = { title: "Ticket" };
@@ -44,13 +45,20 @@ export default async function TicketDetailPage({ params }: { params: Params }) {
         ← My tickets
       </Link>
       <TicketMetaHeader ticket={ticket} />
-      {ticket.status !== "closed" && (
+      {ticket.status === "open" && (
         <p className="text-osrs-parchment-dark/70 text-sm">
-          This ticket is still open — reply in its Discord channel. The transcript below updates as
-          the conversation continues.
+          This ticket is open — reply below or in its Discord channel; both sides see the same
+          conversation.
+        </p>
+      )}
+      {ticket.status === "pending" && (
+        <p className="text-osrs-parchment-dark/70 text-sm">
+          We&apos;re setting up this ticket&apos;s Discord channel — replies open in a moment.
         </p>
       )}
       <TicketTranscript ticket={ticket} />
+      {/* web102a: web replies, status-gated like the widget's composer. */}
+      {ticket.status === "open" && <TicketReplyComposer ticketId={ticket.ticket_id} />}
     </div>
   );
 }

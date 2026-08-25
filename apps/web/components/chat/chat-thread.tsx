@@ -37,12 +37,34 @@ import { LocalTime } from "@/components/local-time";
 
 type PendingAttachment = { key: string; url: string; name: string };
 
+/** The header's live/connecting indicator, exported so a surface that hides
+ * the built-in header (the support widget) can draw its own — sharing the same
+ * `chat:{id}` stream via the refcounted `useEventStream` registry. */
+export function ChatLiveDot({ state }: { state: "connecting" | "open" | "closed" }) {
+  return (
+    <span
+      className={`shrink-0 text-xs ${
+        state === "open" ? "text-osrs-green" : "text-osrs-parchment-dark/50"
+      }`}
+      title={
+        state === "open"
+          ? "Live — new messages appear instantly"
+          : "Reconnecting; reload if this persists"
+      }
+    >
+      {state === "open" ? "● Live" : "○ Connecting"}
+    </span>
+  );
+}
+
 export function ChatThreadPanel({
   thread,
   initialMessages,
   initialHasMore = false,
   heading,
   className = "",
+  hideHeader = false,
+  scrollerClassName = "max-h-[28rem] min-h-[16rem]",
 }: {
   thread: ChatThread;
   initialMessages: ChatMessage[];
@@ -50,6 +72,11 @@ export function ChatThreadPanel({
   /** Overrides the derived "conversation with X" title. */
   heading?: string;
   className?: string;
+  /** The support widget draws its own header (title + ChatLiveDot). */
+  hideHeader?: boolean;
+  /** Sizing for the message scroller — the default caps the standalone panel;
+   * a flex host passes e.g. `min-h-0 flex-1` to fill itself instead. */
+  scrollerClassName?: string;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [hasMore, setHasMore] = useState(initialHasMore);
@@ -187,25 +214,14 @@ export function ChatThreadPanel({
     <section
       className={`border-osrs-bronze/25 bg-osrs-brown-dark/20 flex flex-col rounded border ${className}`}
     >
-      <header className="border-osrs-bronze/25 flex items-center justify-between gap-3 border-b px-4 py-2">
-        <h2 className="text-osrs-gold min-w-0 truncate text-sm font-semibold">{title}</h2>
-        <span
-          className={`shrink-0 text-xs ${
-            streamState === "open"
-              ? "text-osrs-green"
-              : "text-osrs-parchment-dark/50"
-          }`}
-          title={
-            streamState === "open"
-              ? "Live — new messages appear instantly"
-              : "Reconnecting; reload if this persists"
-          }
-        >
-          {streamState === "open" ? "● Live" : "○ Connecting"}
-        </span>
-      </header>
+      {!hideHeader && (
+        <header className="border-osrs-bronze/25 flex items-center justify-between gap-3 border-b px-4 py-2">
+          <h2 className="text-osrs-gold min-w-0 truncate text-sm font-semibold">{title}</h2>
+          <ChatLiveDot state={streamState} />
+        </header>
+      )}
 
-      <div className="max-h-[28rem] min-h-[16rem] overflow-y-auto px-4 py-2">
+      <div className={`overflow-y-auto px-4 py-2 ${scrollerClassName}`}>
         {hasMore && (
           <div className="flex justify-center py-2">
             <button
@@ -221,8 +237,7 @@ export function ChatThreadPanel({
 
         {messages.length === 0 ? (
           <p className="text-osrs-parchment-dark/60 py-8 text-center text-sm">
-            No messages yet. Say hello — the other clan&apos;s leaders will see it
-            straight away.
+            No messages yet. Say hello — the other clan&apos;s leaders will see it straight away.
           </p>
         ) : (
           <ul>

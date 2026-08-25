@@ -3,12 +3,15 @@ import { Badge, Card, EmptyState } from "@/components/ui";
 import { InlineMarkdown } from "@/components/markdown";
 import { formatDate, formatRelativeTime } from "@/lib/format";
 
-/** Shared transcript renderer for the player view and the admin dashboard.
- * Messages are mirrored from the ticket's (deleted) Discord channel, so this
- * is intentionally read-only — replies happen in Discord while a ticket is
- * open. */
+/** Shared transcript renderer for the player view, the admin dashboard and the
+ * support widget's ticket view. Messages are mirrored two-way with the
+ * ticket's Discord channel: while a ticket is open, replies can come from
+ * Discord or the web composer (web102a) — the transcript itself stays a pure
+ * renderer either way, and is the permanent record once the channel is
+ * deleted at close time. */
 
 export function TicketStatusBadge({ status }: { status: TicketStatus }) {
+  if (status === "pending") return <Badge variant="sky">Setting up…</Badge>;
   if (status === "open") return <Badge variant="green">Open</Badge>;
   if (status === "closing") return <Badge variant="ember">Closing…</Badge>;
   return <Badge variant="neutral">Closed</Badge>;
@@ -16,7 +19,13 @@ export function TicketStatusBadge({ status }: { status: TicketStatus }) {
 
 export function TicketTypeBadge({ type }: { type: string }) {
   const tone =
-    type === "players" ? "sky" : type === "clans" ? "purple" : type === "support" ? "gold" : "bronze";
+    type === "players"
+      ? "sky"
+      : type === "clans"
+        ? "purple"
+        : type === "support"
+          ? "gold"
+          : "bronze";
   return <Badge variant={tone as never}>{type}</Badge>;
 }
 
@@ -30,7 +39,8 @@ function isImage(contentType?: string | null, filename?: string) {
   return /\.(png|jpe?g|gif|webp)$/i.test(filename ?? "");
 }
 
-function AttachmentList({ message }: { message: TicketMessage }) {
+/** Exported for the support widget's compact ticket view. */
+export function AttachmentList({ message }: { message: TicketMessage }) {
   if (!message.attachments.length) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-2">
@@ -50,7 +60,9 @@ function AttachmentList({ message }: { message: TicketMessage }) {
             target="_blank"
             rel="noreferrer"
             className={`border-osrs-bronze/30 bg-osrs-surface-2/70 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${
-              att.url ? "text-osrs-gold-bright hover:border-osrs-gold" : "text-osrs-parchment-dark/50"
+              att.url
+                ? "text-osrs-gold-bright hover:border-osrs-gold"
+                : "text-osrs-parchment-dark/50"
             }`}
           >
             📎 {att.filename}
@@ -62,7 +74,14 @@ function AttachmentList({ message }: { message: TicketMessage }) {
   );
 }
 
-function MessageRow({ message, mentions }: { message: TicketMessage; mentions?: MentionMap }) {
+/** Exported for the support widget's compact ticket view. */
+export function MessageRow({
+  message,
+  mentions,
+}: {
+  message: TicketMessage;
+  mentions?: MentionMap;
+}) {
   if (message.kind === "system") {
     return (
       <div className="text-osrs-parchment-dark/60 flex items-center gap-3 py-1 text-xs">
@@ -148,7 +167,8 @@ export function TicketMetaHeader({ ticket }: { ticket: TicketDetail }) {
         <TicketStatusBadge status={ticket.status} />
         <TicketTypeBadge type={ticket.type} />
         <span>
-          Opened by <span className="text-osrs-parchment">{ticket.created_by_name ?? "unknown"}</span>{" "}
+          Opened by{" "}
+          <span className="text-osrs-parchment">{ticket.created_by_name ?? "unknown"}</span>{" "}
           {formatRelativeTime(ticket.date_added)}
         </span>
         {ticket.claimed_by_name && (
