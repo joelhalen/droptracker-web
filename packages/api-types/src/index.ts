@@ -4462,6 +4462,11 @@ export const EventItemSourceNpcSchema = z.object({
    * names its drops are recorded under. Restrictions must store these —
    * the engine matches drops by the recorded source name. */
   members: z.string().array().optional(),
+  /** The same merged rows as `members`, by id — for callers that store an npc
+   * id rather than a name (the points include/exclude lists). The entry's own
+   * `npc_id` is only the alias's icon representative and may name an NPC no
+   * drop is recorded under, so id-keyed callers must store these instead. */
+  member_ids: z.number().int().array().optional(),
 });
 export type EventItemSourceNpc = z.infer<typeof EventItemSourceNpcSchema>;
 
@@ -5394,6 +5399,18 @@ export const PointListEntrySchema = z.object({
   npc_name: z.string().nullable(),
 });
 export type PointListEntry = z.infer<typeof PointListEntrySchema>;
+
+/** GET /groups/{id}/points/item-sources — the NPCs an item is known to drop
+ * from, for the list editor's "only from these sources" picker. Same resolver
+ * and row shape the event task form uses; one entry per row becomes one list
+ * row, because the matcher ANDs a row's item and NPC. */
+export const PointItemSourcesSchema = z.object({
+  item_id: z.number().int(),
+  item_name: z.string(),
+  total: z.number().int(),
+  npcs: EventItemSourceNpcSchema.array(),
+});
+export type PointItemSources = z.infer<typeof PointItemSourcesSchema>;
 
 export const PointBoostSchema = z.object({
   id: z.number().int(),

@@ -3,6 +3,8 @@ import { apiGet, apiSend } from "./_client";
 import {
   type PointBoost,
   PointBoostSchema,
+  type PointItemSources,
+  PointItemSourcesSchema,
   type PointListEntry,
   PointListEntrySchema,
   type PointMod,
@@ -88,6 +90,13 @@ export const groupPointsApi = {
       .object({ entries: z.array(PointListEntrySchema) })
       .parse(await apiSend("POST", `/groups/${groupId}/points/lists`, body));
     return data.entries;
+  },
+
+
+  async groupPointItemSources(groupId: number, itemId: number): Promise<PointItemSources> {
+    return PointItemSourcesSchema.parse(
+      await apiGet(`/groups/${groupId}/points/item-sources?item_id=${itemId}`, { authed: true }),
+    );
   },
 
 

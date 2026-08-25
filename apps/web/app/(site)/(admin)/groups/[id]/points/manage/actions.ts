@@ -60,6 +60,13 @@ export async function addPointListEntry(groupId: number, body: unknown) {
   return entries;
 }
 
+/** The NPCs an item is known to drop from, for the "only from these sources"
+ * picker. Read-only, so no revalidate. */
+export async function fetchPointItemSources(groupId: number, itemId: number) {
+  await assertAdmin(groupId);
+  return api.groupPointItemSources(groupId, itemId);
+}
+
 export async function removePointListEntry(groupId: number, entryId: number) {
   await assertAdmin(groupId);
   const entries = await api.deleteGroupPointListEntry(groupId, entryId);

@@ -16,6 +16,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import type {
+  EventItemSourceNpc,
   PointBoost,
   PointListEntry,
   PointListType,
@@ -27,6 +28,7 @@ import type {
   PointRule,
 } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
+import { groupEntries, listEntryPayload } from "@/lib/point-lists";
 import { Alert, Card, EmptyState } from "@/components/ui";
 import { NameSearch } from "@/components/event-task-form";
 import { QuantityInput } from "@/components/quantity-input";
@@ -38,6 +40,7 @@ import {
   adjustPoints,
   editPointBoost,
   editPointMod,
+  fetchPointItemSources,
   loadPointsHistory,
   removePointBoost,
   removePointListEntry,
@@ -520,52 +523,78 @@ function TargetPicker({
   target,
   setTarget,
   disabled,
+  exclusive = false,
 }: {
   groupId: number;
   target: PickedTarget;
   setTarget: (t: PickedTarget) => void;
   disabled?: boolean;
+  /** Item and NPC are alternatives rather than an AND — picking one clears
+   * the other, and only the chosen half is shown. The include/exclude lists
+   * use this: "this item from that boss" is expressed by the source picker
+   * below (which offers the sources the item is actually recorded from),
+   * so an unguided NPC box beside the item could only produce a pairing that
+   * never matches. */
+  exclusive?: boolean;
 }) {
+  const showItem = !exclusive || !target.npc;
+  const showNpc = !exclusive || !target.item;
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      <div>
-        {target.item ? (
-          <button
-            type="button"
-            onClick={() => setTarget({ ...target, item: undefined })}
-            className="border-osrs-bronze/40 text-osrs-parchment hover:border-osrs-gold/60 w-full rounded border px-3 py-2 text-left text-sm"
-          >
-            {target.item.name} <span className="text-osrs-parchment-dark/50">✕</span>
-          </button>
-        ) : (
-          <NameSearch
-            placeholder="Item (optional)…"
-            iconBase="itemdb"
-            disabled={disabled}
-            search={(q) => searchPointItems(groupId, q)}
-            onPick={(e) => setTarget({ ...target, item: { id: e.id, name: e.name } })}
-          />
-        )}
-      </div>
-      <div>
-        {target.npc ? (
-          <button
-            type="button"
-            onClick={() => setTarget({ ...target, npc: undefined })}
-            className="border-osrs-bronze/40 text-osrs-parchment hover:border-osrs-gold/60 w-full rounded border px-3 py-2 text-left text-sm"
-          >
-            {target.npc.name} <span className="text-osrs-parchment-dark/50">✕</span>
-          </button>
-        ) : (
-          <NameSearch
-            placeholder="NPC / boss (optional)…"
-            iconBase="npcdb"
-            disabled={disabled}
-            search={(q) => searchPointNpcs(groupId, q)}
-            onPick={(e) => setTarget({ ...target, npc: { id: e.id, name: e.name } })}
-          />
-        )}
-      </div>
+    <div className={`grid gap-2 ${showItem && showNpc ? "sm:grid-cols-2" : ""}`}>
+      {showItem && (
+        <div>
+          {target.item ? (
+            <button
+              type="button"
+              onClick={() => setTarget({ ...target, item: undefined })}
+              className="border-osrs-bronze/40 text-osrs-parchment hover:border-osrs-gold/60 w-full rounded border px-3 py-2 text-left text-sm"
+            >
+              {target.item.name} <span className="text-osrs-parchment-dark/50">✕</span>
+            </button>
+          ) : (
+            <NameSearch
+              placeholder={exclusive ? "Item…" : "Item (optional)…"}
+              iconBase="itemdb"
+              disabled={disabled}
+              search={(q) => searchPointItems(groupId, q)}
+              onPick={(e) =>
+                setTarget({
+                  ...target,
+                  item: { id: e.id, name: e.name },
+                  ...(exclusive ? { npc: undefined } : {}),
+                })
+              }
+            />
+          )}
+        </div>
+      )}
+      {showNpc && (
+        <div>
+          {target.npc ? (
+            <button
+              type="button"
+              onClick={() => setTarget({ ...target, npc: undefined })}
+              className="border-osrs-bronze/40 text-osrs-parchment hover:border-osrs-gold/60 w-full rounded border px-3 py-2 text-left text-sm"
+            >
+              {target.npc.name} <span className="text-osrs-parchment-dark/50">✕</span>
+            </button>
+          ) : (
+            <NameSearch
+              placeholder={exclusive ? "…or an NPC / boss" : "NPC / boss (optional)…"}
+              iconBase="npcdb"
+              disabled={disabled}
+              search={(q) => searchPointNpcs(groupId, q)}
+              onPick={(e) =>
+                setTarget({
+                  ...target,
+                  npc: { id: e.id, name: e.name },
+                  ...(exclusive ? { item: undefined } : {}),
+                })
+              }
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -800,6 +829,127 @@ function ModsSection({
 
 /* --- Include / exclude lists --------------------------------------------------- */
 
+const IMG_BASE = "https://www.droptracker.io/img";
+
+/** Which drop sources a listed item applies to.
+ *
+ * The trap this exists to close: a list row matches only when BOTH its item and
+ * its NPC match the submission, and loot from a reward container is recorded
+ * against the container, not the boss that dropped it — so "Contract of shard
+ * acquisition from Yama", typed into a free NPC box, never matched anything and
+ * the item kept awarding points. Here the sources are the ones the item is
+ * actually recorded from, they all start selected, and leaving them that way
+ * stores no NPC at all (matching any source, including ones we have not seen
+ * yet) rather than an enumeration of today's.
+ */
+function SourceRestriction({
+  itemName,
+  sources,
+  state,
+  excluded,
+  setExcluded,
+  disabled,
+}: {
+  itemName: string;
+  sources: EventItemSourceNpc[] | null;
+  state: "loading" | "error" | "ready";
+  /** npc_id of each deselected chip; empty = all sources (unrestricted). */
+  excluded: number[];
+  setExcluded: (ids: number[]) => void;
+  disabled: boolean;
+}) {
+  const note = "text-osrs-parchment-dark/60 text-xs";
+  if (state === "loading")
+    return <p className={note}>Loading drop sources for {itemName}…</p>;
+  if (state === "error")
+    return (
+      <p className={note}>
+        Couldn&apos;t load drop sources — this entry will apply to {itemName} from any
+        source.
+      </p>
+    );
+  if (!sources || sources.length === 0)
+    return (
+      <p className={note}>
+        No recorded drop sources for {itemName} — this entry applies to it from any
+        source.
+      </p>
+    );
+  if (sources.length === 1)
+    return (
+      <p className={note}>
+        {itemName} is only recorded from{" "}
+        <span className="text-osrs-parchment">{sources[0]?.name}</span>, so this entry
+        applies to every one of its drops.
+      </p>
+    );
+
+  const isOn = (src: EventItemSourceNpc) => !excluded.includes(src.npc_id);
+  const on = sources.filter(isOn);
+  const toggle = (src: EventItemSourceNpc) =>
+    setExcluded(
+      isOn(src) ? [...excluded, src.npc_id] : excluded.filter((id) => id !== src.npc_id),
+    );
+
+  return (
+    <div className="border-osrs-bronze/20 bg-osrs-brown-dark/30 rounded border p-2">
+      <div className="flex items-center gap-2 text-xs">
+        <span className="text-osrs-parchment-dark/80">Drop sources for {itemName}</span>
+        <span className="text-osrs-gold-bright ml-auto shrink-0 tabular-nums">
+          {on.length}/{sources.length}
+        </span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {sources.map((src) => (
+          <button
+            type="button"
+            key={src.npc_id}
+            onClick={() => toggle(src)}
+            aria-pressed={isOn(src)}
+            disabled={disabled}
+            title={`${src.name}${src.tracked ? "" : " · never seen in tracked drops"}`}
+            className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${
+              isOn(src)
+                ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold-bright"
+                : "border-osrs-bronze/40 text-osrs-parchment-dark/60 hover:border-osrs-gold line-through"
+            }`}
+          >
+            <img
+              src={`${IMG_BASE}/npcdb/${src.npc_id}.png`}
+              alt=""
+              width={16}
+              height={16}
+              className="inline-block shrink-0 object-contain"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.visibility = "hidden";
+              }}
+            />
+            <span>{src.name}</span>
+            {!src.tracked && (
+              <span className="text-amber-500" title="Never seen in tracked drops">
+                ⚠
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <p
+        className={`mt-1.5 text-[11px] ${
+          on.length === 0 ? "text-amber-500" : "text-osrs-parchment-dark/50"
+        }`}
+      >
+        {on.length === 0
+          ? "Keep at least one source selected."
+          : excluded.length === 0
+            ? "All selected — this entry applies to every drop of the item, including from sources we haven't recorded yet."
+            : `This entry only applies to drops from the ${on.length} selected source${
+                on.length === 1 ? "" : "s"
+              }.`}
+      </p>
+    </div>
+  );
+}
+
 /** One include/exclude column (blacklist/whitelist/no-split) with its own
  * search-aware pagination — a shared query from the parent narrows all three. */
 function ListCard({
@@ -813,13 +963,14 @@ function ListCard({
   type: PointListType;
   entries: PointListEntry[];
   query: string;
-  onRemove: (id: number) => void;
+  onRemove: (ids: number[]) => void;
   disabled: boolean;
   pending: boolean;
 }) {
-  const items = entries.filter((e) => e.list_type === type);
+  const items = groupEntries(entries.filter((e) => e.list_type === type));
   const q = query.trim().toLowerCase();
-  const filtered = q ? items.filter((e) => targetMatches(q, e)) : items;
+  // Match on any row so a search never shows part of a multi-source entry.
+  const filtered = q ? items.filter((g) => g.rows.some((e) => targetMatches(q, e))) : items;
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(filtered.length / LIST_PAGE_SIZE));
   const current = Math.min(page, totalPages);
@@ -846,19 +997,27 @@ function ListCard({
       ) : (
         <>
           <ul className="space-y-1 text-sm">
-            {shown.map((e) => (
-              <li key={e.id} className="flex items-center justify-between gap-2">
-                <TargetChip
-                  itemName={e.item_name}
-                  itemId={e.item_id}
-                  npcName={e.npc_name}
-                  npcId={e.npc_id}
-                />
+            {shown.map((g) => (
+              <li key={g.key} className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <TargetChip
+                    itemName={g.itemName}
+                    itemId={g.itemId}
+                    npcName={g.npcName}
+                    npcId={g.npcId}
+                  />
+                  {g.sources.length > 0 && (
+                    <div className="text-osrs-parchment-dark/60 text-xs">
+                      only from{" "}
+                      {g.sources.map((s) => s.name ?? `NPC #${s.id}`).join(", ")}
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
-                  onClick={() => onRemove(e.id)}
+                  onClick={() => onRemove(g.rows.map((e) => e.id))}
                   disabled={disabled || pending}
-                  className="text-osrs-red/80 text-xs hover:underline disabled:opacity-50"
+                  className="text-osrs-red/80 shrink-0 text-xs hover:underline disabled:opacity-50"
                 >
                   Remove
                 </button>
@@ -906,19 +1065,54 @@ function ListsSection({
   const [entries, setEntries] = useState(initial);
   const [listType, setListType] = useState<PointListType>("blacklist");
   const [target, setTarget] = useState<PickedTarget>({});
+  const [sources, setSources] = useState<EventItemSourceNpc[] | null>(null);
+  const [sourceState, setSourceState] = useState<"loading" | "error" | "ready">("ready");
+  const [excluded, setExcluded] = useState<number[]>([]);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const itemId = target.item?.id ?? null;
+  useEffect(() => {
+    setSources(null);
+    setExcluded([]);
+    if (itemId == null) {
+      setSourceState("ready");
+      return;
+    }
+    let cancelled = false;
+    setSourceState("loading");
+    fetchPointItemSources(groupId, itemId)
+      .then((res) => {
+        if (cancelled) return;
+        setSources(res.npcs);
+        setSourceState("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setSourceState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId, itemId]);
+
+  const noSourceSelected =
+    (sources?.length ?? 0) > 1 && sources!.every((s) => excluded.includes(s.npc_id));
 
   const add = () =>
     startTransition(async () => {
       setError(null);
       try {
-        const next = await addPointListEntry(groupId, {
-          list_type: listType,
-          item_id: target.item?.id ?? null,
-          npc_id: target.npc?.id ?? null,
-        });
+        const next = await addPointListEntry(
+          groupId,
+          listEntryPayload({
+            listType,
+            item: target.item ?? null,
+            npc: target.npc ?? null,
+            sources,
+            excluded,
+          }),
+        );
         setEntries(next);
         setTarget({});
       } catch (err) {
@@ -926,11 +1120,13 @@ function ListsSection({
       }
     });
 
-  const remove = (entryId: number) =>
+  const remove = (entryIds: number[]) =>
     startTransition(async () => {
       setError(null);
       try {
-        setEntries(await removePointListEntry(groupId, entryId));
+        let next = entries;
+        for (const id of entryIds) next = await removePointListEntry(groupId, id);
+        setEntries(next);
       } catch (err) {
         setError(getErrorMessage(err));
       }
@@ -979,17 +1175,39 @@ function ListsSection({
             <option value="no_split">No split</option>
           </select>
           <div className="min-w-64 flex-1">
-            <TargetPicker groupId={groupId} target={target} setTarget={setTarget} disabled={disabled} />
+            <TargetPicker
+              groupId={groupId}
+              target={target}
+              setTarget={setTarget}
+              disabled={disabled}
+              exclusive
+            />
           </div>
           <button
             type="button"
             onClick={add}
-            disabled={disabled || pending || (!target.item && !target.npc)}
+            disabled={
+              disabled ||
+              pending ||
+              (!target.item && !target.npc) ||
+              sourceState === "loading" ||
+              noSourceSelected
+            }
             className="bg-osrs-gold/90 text-osrs-brown-dark rounded px-4 py-2 font-semibold hover:bg-osrs-gold disabled:opacity-50"
           >
             Add entry
           </button>
         </div>
+        {target.item && (
+          <SourceRestriction
+            itemName={target.item.name}
+            sources={sources}
+            state={sourceState}
+            excluded={excluded}
+            setExcluded={setExcluded}
+            disabled={disabled || pending}
+          />
+        )}
       </Card>
       {error && <Alert variant="error">{error}</Alert>}
     </section>
