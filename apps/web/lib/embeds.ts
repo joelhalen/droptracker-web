@@ -37,3 +37,35 @@ export function flattenTitleMarkdown(text: string): string {
   for (const re of TITLE_MD_MARKERS) out = out.replace(re, "$1");
   return out;
 }
+
+/**
+ * Collapse the whitespace an empty placeholder leaves behind.
+ *
+ * `{item_emoji} {item_name}` resolves to " Abyssal whip" for an item with no
+ * emoji, and Discord renders that leading space. The backend trims it at send
+ * time (`tidy_title` in `utils/format.py`), so the preview has to as well —
+ * otherwise the editor shows an indent the posted message will not have.
+ */
+export function tidyTitle(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Tokens whose value is a Discord custom emoji, and the icon the preview draws
+ * in their place.
+ *
+ * These cannot be previewed with a string sample the way every other token is.
+ * The message carries `<:item_twisted_bow:1541…>`, which Discord turns into a
+ * picture and every other reader — including this preview — sees as raw text.
+ * So the token is left unsubstituted and rendered as an image instead.
+ *
+ * The sample is Twisted bow, matching the backend's own token sample.
+ */
+export const TOKEN_SAMPLE_ICONS: Readonly<Record<string, string>> = {
+  "{item_emoji}": "https://www.droptracker.io/img/itemdb/20997.png",
+};
+
+/** The sample icon for a placeholder token, or undefined if it has none. */
+export function sampleIconFor(token: string): string | undefined {
+  return TOKEN_SAMPLE_ICONS[token];
+}

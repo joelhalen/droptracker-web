@@ -20,7 +20,7 @@ import {
   resetGroupEmbedAction,
   saveGroupEmbedAction,
 } from "@/app/(site)/(admin)/groups/[id]/embeds/actions";
-import { flattenTitleMarkdown } from "@/lib/embeds";
+import { flattenTitleMarkdown, sampleIconFor, tidyTitle } from "@/lib/embeds";
 import { getErrorMessage } from "@/lib/errors";
 import { DEATH_PLACEHOLDERS } from "@/lib/death-placeholders";
 import { Alert, Button, Card, Checkbox, Input, Textarea } from "@/components/ui";
@@ -48,6 +48,13 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{player_name}", help: "Player who received the drop (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who received the drop, with no profile link", sample: "RuneLite Ron" },
     { token: "{item_name}", help: "Item name (linked to the wiki)", sample: "Abyssal whip" },
+    // Sample is empty on purpose: the value is a Discord custom emoji, which
+    // only Discord can draw. The preview renders TOKEN_SAMPLE_ICONS instead.
+    {
+      token: "{item_emoji}",
+      help: "The item's own icon. Around 1,000 of the most-received items have one; the rest show nothing",
+      sample: "",
+    },
     { token: "{item_id}", help: "OSRS item id (icon URLs)", sample: "4151" },
     { token: "{item_value}", help: "GE value of a single item", sample: "1,624,461" },
     { token: "{quantity}", help: "Quantity received", sample: "1" },
@@ -248,8 +255,29 @@ function substitute(text: string, docs: PlaceholderDoc[], useSamples: boolean): 
   return out;
 }
 
+/**
+ * A placeholder token drawn as the icon Discord will draw, not as its name.
+ *
+ * `{item_emoji}` is the only one so far. Sized in `em` so it tracks whatever
+ * text it sits in — the title is 15px and a field value is 14px — and nudged
+ * onto the text baseline the way Discord sets an inline emoji.
+ */
+function TokenIcon({ src }: { src: string }) {
+  return (
+    <img
+      src={src}
+      alt=""
+      className="inline-block h-[1.25em] w-[1.25em] object-contain align-[-0.25em]"
+    />
+  );
+}
+
 /** Minimal Discord-flavoured inline markdown for the preview. */
-function formatInline(text: string, keyPrefix: string): React.ReactNode[] {
+function formatInline(
+  text: string,
+  keyPrefix: string,
+  useSamples: boolean,
+): React.ReactNode[] {
   const pattern =
     /(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|_[^_]+_|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\)|\{[a-z_]+\})/g;
   const parts = text.split(pattern);
@@ -276,12 +304,15 @@ function formatInline(text: string, keyPrefix: string): React.ReactNode[] {
           {link[1]}
         </span>
       );
-    if (/^\{[a-z_]+\}$/.test(part))
+    if (/^\{[a-z_]+\}$/.test(part)) {
+      const icon = useSamples ? sampleIconFor(part) : undefined;
+      if (icon) return <TokenIcon key={key} src={icon} />;
       return (
         <span key={key} className="rounded bg-[#5865f2]/30 px-0.5 text-[#c9cdfb]">
           {part}
         </span>
       );
+    }
     return <span key={key}>{part}</span>;
   });
 }
@@ -291,33 +322,50 @@ function formatInline(text: string, keyPrefix: string): React.ReactNode[] {
  * tokens are still chipped — that shows what gets substituted, it does not
  * claim markdown support. `url` (not markdown) is what colours it as a link.
  */
-function PreviewTitle({ text, url }: { text: string; url: string }) {
-  const parts = flattenTitleMarkdown(text)
+function PreviewTitle({
+  text,
+  url,
+  useSamples,
+}: {
+  text: string;
+  url: string;
+  useSamples: boolean;
+}) {
+  const parts = tidyTitle(flattenTitleMarkdown(text))
     .split(/(\{[a-z_]+\})/g)
     .filter(Boolean);
   return (
     <span className={url.trim() ? "text-[#00a8fc] hover:underline" : ""}>
-      {parts.map((part, i) =>
-        /^\{[a-z_]+\}$/.test(part) ? (
+      {parts.map((part, i) => {
+        if (!/^\{[a-z_]+\}$/.test(part)) return <span key={i}>{part}</span>;
+        const icon = useSamples ? sampleIconFor(part) : undefined;
+        if (icon) return <TokenIcon key={i} src={icon} />;
+        return (
           <span key={i} className="rounded bg-[#5865f2]/30 px-0.5 text-[#c9cdfb]">
             {part}
           </span>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
+        );
+      })}
     </span>
   );
 }
 
-function PreviewText({ text, className = "" }: { text: string; className?: string }) {
+function PreviewText({
+  text,
+  className = "",
+  useSamples,
+}: {
+  text: string;
+  className?: string;
+  useSamples: boolean;
+}) {
   const lines = text.split("\n");
   return (
     <span className={className}>
       {lines.map((line, i) => (
         <span key={i}>
           {i > 0 && <br />}
-          {formatInline(line, `l${i}`)}
+          {formatInline(line, `l${i}`, useSamples)}
         </span>
       ))}
     </span>
@@ -371,12 +419,12 @@ function DiscordPreview({
               <div className="min-w-0 grow">
                 {draft.title.trim() && (
                   <div className="text-[15px] font-semibold text-white">
-                    <PreviewTitle text={sub(draft.title)} url={draft.url} />
+                    <PreviewTitle text={sub(draft.title)} url={draft.url} useSamples={useSamples} />
                   </div>
                 )}
                 {draft.description.trim() && (
                   <div className="mt-1 text-sm leading-snug text-[#dbdee1]">
-                    <PreviewText text={sub(draft.description)} />
+                    <PreviewText text={sub(draft.description)} useSamples={useSamples} />
                   </div>
                 )}
                 {visibleFields.length > 0 && (
@@ -384,10 +432,10 @@ function DiscordPreview({
                     {visibleFields.map((f, i) => (
                       <div key={i} className={f.inline ? "col-span-1" : "col-span-3"}>
                         <div className="text-xs font-semibold text-[#f2f3f5]">
-                          <PreviewText text={sub(f.name)} />
+                          <PreviewText text={sub(f.name)} useSamples={useSamples} />
                         </div>
                         <div className="text-sm text-[#dbdee1]">
-                          <PreviewText text={sub(f.value)} />
+                          <PreviewText text={sub(f.value)} useSamples={useSamples} />
                         </div>
                       </div>
                     ))}
