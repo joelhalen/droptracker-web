@@ -788,7 +788,13 @@ export const MeSchema = z.object({
   avatar_url: z.string().nullable().optional(),
   /** Site staff: unlocks the superadmin surfaces (FRONTEND_PLAN.md §9). */
   is_superadmin: z.boolean().default(false),
-  /** Trusted developer: unlocks the developer surface of /admin (superadmin implies it). */
+  /** Trusted developer: unlocks the developer surface of /admin.
+   *
+   * The EFFECTIVE right, already computed server-side — a superadmin arrives
+   * here `true` even when their developer column is not set, so gating staff
+   * UI on this flag alone is sufficient and correct. To tell the two tiers
+   * apart (a badge, a superadmin-only action), read `is_superadmin`, which is
+   * still the raw flag. */
   is_developer: z.boolean().default(false),
   /** Active supporter subscription (user-level premium flair/perks). */
   is_supporter: z.boolean().default(false),
