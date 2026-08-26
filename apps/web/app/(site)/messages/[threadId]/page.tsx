@@ -4,6 +4,7 @@ import { api, ApiError } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { AccessDenied } from "@/components/access-denied";
 import { ChatThreadPanel } from "@/components/chat/chat-thread";
+import { ThreadDelivery } from "@/components/chat/thread-delivery";
 import { counterpartyLabel } from "@/lib/chat";
 import { Badge } from "@/components/ui";
 
@@ -62,6 +63,13 @@ export default async function MessageThreadPage({ params }: { params: Params }) 
 
   const badge = KIND_BADGE[thread.kind];
   const heading = thread.title ?? counterpartyLabel(thread);
+  // A notice's title is the problem, identical for every clan that hits it, so
+  // the clan it is about has to be said out loud. A challenge's title already
+  // names both clans, and repeating one of them here would just be noise.
+  const subject =
+    thread.kind === "group_notice"
+      ? (thread.participants.find((p) => p.party_type === "group")?.name ?? null)
+      : null;
 
   return (
     <div className="space-y-4">
@@ -71,9 +79,17 @@ export default async function MessageThreadPage({ params }: { params: Params }) 
       >
         ← Dashboard
       </Link>
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="font-cinzel text-osrs-gold-bright text-2xl">{heading}</h1>
-        {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
+      <div className="space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="font-cinzel text-osrs-gold-bright text-2xl">{heading}</h1>
+          {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
+        </div>
+        {subject && (
+          <p className="text-osrs-parchment-dark/70 text-sm">
+            About <span className="text-osrs-parchment font-medium">{subject}</span>
+          </p>
+        )}
+        <ThreadDelivery thread={thread} className="pt-0.5" />
       </div>
       <ChatThreadPanel
         thread={thread}

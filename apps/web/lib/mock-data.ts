@@ -6,6 +6,7 @@
 import type {
   AccountSettings,
   EventParticipant,
+  ChatDelivery,
   ChatMessage,
   ChatThread,
   AdminLookupResponse,
@@ -3712,6 +3713,157 @@ export const mockChatMessages: ChatMessage[] = [
   },
 ];
 
+/** Thread delivery (web103a).
+ *
+ *  Deliberately shows every state the panel has to render: a delivered DM, a
+ *  bounced one, somebody reached on the site who was never DM-able
+ *  (MANAGE_GUILD-only), and — on the clan-vs-clan thread — a redacted party
+ *  the viewer may see counts for but not names. */
+export function mockChatDelivery(threadId: number): ChatDelivery {
+  if (threadId === 1 || threadId === 4) {
+    return {
+      thread_id: threadId,
+      kind: "event_invite",
+      dm_expected: true,
+      parties: [
+        {
+          party_type: "group",
+          party_id: 10,
+          name: "Iron Wolves",
+          role: "owner",
+          visible: false,
+          dm_target: false,
+          counts: { reached: 3, sent: 0, failed: 0, pending: 0, missed: 0 },
+          recipients: [],
+          hidden: 0,
+        },
+        {
+          party_type: "group",
+          party_id: 101,
+          name: "Clan 1",
+          role: "member",
+          visible: true,
+          dm_target: true,
+          counts: { reached: 3, sent: 1, failed: 1, pending: 0, missed: 1 },
+          recipients: [
+            {
+              user_id: 1337,
+              name: "zezima",
+              discord_id: "100000000000000001",
+              role: "owner",
+              delivery: "sent",
+              at: MOCK_NOW - 7_100,
+              error: null,
+              attempts: 1,
+            },
+            {
+              user_id: 1338,
+              name: "durial321",
+              discord_id: "100000000000000002",
+              role: "admin",
+              delivery: "failed",
+              at: MOCK_NOW - 7_100,
+              error: "Cannot send messages to this user",
+              attempts: 2,
+            },
+            {
+              user_id: 1339,
+              name: "cursed you",
+              discord_id: null,
+              role: "event_manager",
+              delivery: "none",
+              at: null,
+              error: null,
+              attempts: 0,
+            },
+          ],
+          hidden: 0,
+        },
+      ],
+      others: [],
+      others_count: 0,
+      counts: { reached: 6, sent: 1, failed: 1, pending: 0, missed: 1 },
+    };
+  }
+  if (threadId === 3) {
+    return {
+      thread_id: 3,
+      kind: "group_notice",
+      dm_expected: true,
+      parties: [
+        {
+          party_type: "group",
+          party_id: 101,
+          name: "Clan 1",
+          role: "member",
+          visible: true,
+          dm_target: true,
+          counts: { reached: 2, sent: 2, failed: 0, pending: 0, missed: 0 },
+          recipients: [
+            {
+              user_id: 1337,
+              name: "zezima",
+              discord_id: "100000000000000001",
+              role: "owner",
+              delivery: "sent",
+              at: MOCK_NOW - 43_100,
+              error: null,
+              attempts: 1,
+            },
+            {
+              user_id: 1338,
+              name: "durial321",
+              discord_id: "100000000000000002",
+              role: "admin",
+              delivery: "sent",
+              at: MOCK_NOW - 43_100,
+              error: null,
+              attempts: 1,
+            },
+          ],
+          hidden: 0,
+        },
+      ],
+      others: [],
+      others_count: 0,
+      counts: { reached: 2, sent: 2, failed: 0, pending: 0, missed: 0 },
+    };
+  }
+  // staff_dm and anything else: no fan-out contract at all.
+  return {
+    thread_id: threadId,
+    kind: "staff_dm",
+    dm_expected: false,
+    parties: [
+      {
+        party_type: "user",
+        party_id: 1337,
+        name: "zezima",
+        role: "member",
+        visible: true,
+        dm_target: true,
+        counts: { reached: 1, sent: 1, failed: 0, pending: 0, missed: 0 },
+        recipients: [
+          {
+            user_id: 1337,
+            name: "zezima",
+            discord_id: "100000000000000001",
+            role: "member",
+            delivery: "sent",
+            at: MOCK_NOW - 1_800,
+            error: null,
+            attempts: 1,
+          },
+        ],
+        hidden: 0,
+      },
+    ],
+    others: [],
+    others_count: 0,
+    counts: { reached: 1, sent: 1, failed: 0, pending: 0, missed: 0 },
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Support widget (web102a)                                                   */
 /* -------------------------------------------------------------------------- */
@@ -3737,7 +3889,13 @@ export function mockInbox(): Inbox {
         kind: "chat",
         thread: mockChatThreads[2]!,
         preview: "Thanks for the heads up — checking the channel permissions now.",
-        notice: { code: "notify_channel_forbidden", severity: "major", status: "open" },
+        notice: {
+          code: "notify_channel_forbidden",
+          severity: "major",
+          status: "open",
+          group_id: 101,
+          group_name: "Clan 1",
+        },
       },
       {
         kind: "chat",

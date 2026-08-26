@@ -4826,6 +4826,82 @@ export const ChatThreadSchema = z.object({
 });
 export type ChatThread = z.infer<typeof ChatThreadSchema>;
 
+// --- Thread delivery (web103a) ----------------------------------------------
+
+/** One person a thread reaches, and what became of their notification DM.
+ *
+ * `delivery: "none"` is not a failure — it means no DM was ever queued for
+ * them. That is the normal state for somebody whose rights come from Discord
+ * MANAGE_GUILD (the backend cannot enumerate those users to DM them) and for
+ * every member of a party nobody was notifying in the first place. */
+export const ChatRecipientSchema = z.object({
+  user_id: z.number().int().nullable(),
+  name: z.string().nullable(),
+  discord_id: z.string().nullable(),
+  /** "owner" | "admin" | "event_manager", or null for somebody who was DM'd
+   * but holds no current grant (a demoted admin, or a legacy bot-side
+   * `authed_users` entry). */
+  role: z.string().nullable(),
+  delivery: z.enum(["sent", "failed", "pending", "none"]),
+  /** When the send was processed, if it was. */
+  at: z.number().int().nullable().optional(),
+  error: z.string().nullable().optional(),
+  attempts: z.number().int().default(0),
+});
+export type ChatRecipient = z.infer<typeof ChatRecipientSchema>;
+
+/** `reached` counts everyone who can read the thread; the rest describe the
+ * DM fan-out only. `missed` therefore stays 0 for a party nobody was
+ * notifying, rather than reading as a delivery failure. */
+export const ChatDeliveryCountsSchema = z.object({
+  reached: z.number().int().default(0),
+  sent: z.number().int().default(0),
+  failed: z.number().int().default(0),
+  pending: z.number().int().default(0),
+  missed: z.number().int().default(0),
+});
+export type ChatDeliveryCounts = z.infer<typeof ChatDeliveryCountsSchema>;
+
+/** One party on the thread with its recipients.
+ *
+ * `visible` is the redaction switch: names come back for parties the viewer
+ * belongs to, and for everything to support staff. Everyone else gets
+ * `counts` with an empty `recipients` — a clan-vs-clan host learns the
+ * challenged clan was notified without receiving its leadership roster. */
+export const ChatDeliveryPartySchema = z.object({
+  party_type: z.string(),
+  party_id: z.number().int(),
+  name: z.string().nullable(),
+  role: z.string().nullable(),
+  visible: z.boolean().default(false),
+  /** Whether the fan-out was aimed at this party at all. False for the host of
+   * a clan challenge, who is never DM'd about a message they wrote. */
+  dm_target: z.boolean().default(false),
+  counts: ChatDeliveryCountsSchema,
+  recipients: ChatRecipientSchema.array().default([]),
+  /** Names withheld by the per-party cap, not by redaction. */
+  hidden: z.number().int().default(0),
+});
+export type ChatDeliveryParty = z.infer<typeof ChatDeliveryPartySchema>;
+
+/** GET /chat/threads/{id}/delivery — who this conversation reached and what
+ * happened to each DM. Same 404-for-non-members gate as the thread itself. */
+export const ChatDeliverySchema = z.object({
+  thread_id: z.number().int(),
+  kind: z.string().nullable().optional(),
+  /** False for kinds with no fan-out (a staff DM relays per message), so the
+   * UI can say "no notifications are sent for this" instead of implying every
+   * recipient was missed. */
+  dm_expected: z.boolean().default(false),
+  parties: ChatDeliveryPartySchema.array().default([]),
+  /** Recipients who resolve to no party on the thread. Staff-only; everyone
+   * else sees `others_count` alone. */
+  others: ChatRecipientSchema.array().default([]),
+  others_count: z.number().int().default(0),
+  counts: ChatDeliveryCountsSchema,
+});
+export type ChatDelivery = z.infer<typeof ChatDeliverySchema>;
+
 // --- Clan-vs-clan participants (Implementation Plan B) -----------------------
 
 /** One clan on a clan-vs-clan event's roster (GET /events/{id}/participants). */
@@ -5197,6 +5273,11 @@ export const InboxNoticeSchema = z.object({
   code: z.string(),
   severity: z.string(),
   status: z.enum(["open", "resolved"]),
+  /** Which clan the notice is about. Every notice of a given code shares one
+   * title, so without this a staff member reading a list of "DropTracker
+   * can't post in your notification channel" rows cannot tell them apart. */
+  group_id: z.number().int().nullable().optional(),
+  group_name: z.string().nullable().optional(),
 });
 export type InboxNotice = z.infer<typeof InboxNoticeSchema>;
 

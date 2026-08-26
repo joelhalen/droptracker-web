@@ -13,6 +13,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChatMessagePage, ChatThread } from "@droptracker/api-types";
 import { loadChatMessages, loadChatThread } from "@/app/(site)/chat-actions";
 import { ChatLiveDot, ChatThreadPanel } from "@/components/chat/chat-thread";
+import { ThreadDelivery, threadHasDelivery } from "@/components/chat/thread-delivery";
 import { Alert, SkeletonRows } from "@/components/ui";
 import { counterpartyLabel } from "@/lib/chat";
 import { getErrorMessage } from "@/lib/errors";
@@ -75,11 +76,19 @@ export function ChatView({ threadId }: { threadId: number }) {
     );
   }
 
+  // Every notice of a given code carries the same title, so the strip has to
+  // name the clan or three of them read identically.
+  const subject =
+    thread.kind === "group_notice"
+      ? (thread.participants.find((p) => p.party_type === "group")?.name ?? null)
+      : null;
+
   return (
     <div className="flex h-full flex-col">
       <div className="border-osrs-bronze/25 flex shrink-0 items-center gap-2 border-b px-4 py-1.5">
         <span className="text-osrs-parchment-dark/70 min-w-0 flex-1 truncate text-xs">
           {thread.title ?? counterpartyLabel(thread)}
+          {subject && <span className="text-osrs-parchment-dark/50"> · {subject}</span>}
         </span>
         <Link
           href={`/messages/${threadId}` as Route}
@@ -89,6 +98,11 @@ export function ChatView({ threadId }: { threadId: number }) {
         </Link>
         <ChatLiveDot state={streamState} />
       </div>
+      {threadHasDelivery(thread) && (
+        <div className="border-osrs-bronze/15 shrink-0 border-b px-4 py-1.5">
+          <ThreadDelivery thread={thread} bodyClassName="max-h-44 overflow-y-auto" />
+        </div>
+      )}
       <ChatThreadPanel
         thread={thread}
         initialMessages={page.messages}

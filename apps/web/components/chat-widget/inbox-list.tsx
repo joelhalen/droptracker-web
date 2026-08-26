@@ -208,6 +208,11 @@ export function InboxList() {
                             {meta.badge.label}
                           </Badge>
                         )}
+                        {meta.context && (
+                          <span className="text-osrs-parchment-dark/75 shrink-0 text-xs font-medium">
+                            {meta.context}
+                          </span>
+                        )}
                         {meta.preview && (
                           <span className="text-osrs-parchment-dark/60 min-w-0 flex-1 truncate text-xs">
                             {meta.preview}
@@ -243,15 +248,19 @@ export function InboxList() {
               Message a user
             </button>
           )}
-          {me.is_superadmin && (
-            <button
-              type="button"
-              onClick={() => push({ kind: "staff-notices" })}
-              className="text-osrs-gold-bright hover:underline"
-            >
-              Group notices
-            </button>
-          )}
+          {/* One entry, two destinations: a superadmin gets the console that
+              can resolve a notice, a developer gets the thread browse they are
+              actually allowed to use. Showing both would offer one of them a
+              button that 403s. */}
+          <button
+            type="button"
+            onClick={() =>
+              push({ kind: me.is_superadmin ? "staff-notices" : "staff-notice-threads" })
+            }
+            className="text-osrs-gold-bright hover:underline"
+          >
+            Group notices
+          </button>
           <button
             type="button"
             onClick={() => push({ kind: "staff-clan-chats" })}

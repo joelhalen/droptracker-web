@@ -24,7 +24,11 @@ export type WidgetView =
   | { kind: "new-suggestion" }
   | { kind: "staff-new-chat" }
   | { kind: "staff-notices" }
-  | { kind: "staff-clan-chats" };
+  | { kind: "staff-clan-chats" }
+  /** The thread-level notice browse. Separate from `staff-notices` (the
+   * superadmin console with resolve actions) because a developer can read and
+   * answer a notice thread without being able to close the notice. */
+  | { kind: "staff-notice-threads" };
 
 /** A fresh stack: the inbox is always the root. */
 export function initialStack(): WidgetView[] {
@@ -67,6 +71,7 @@ export function viewTitle(view: WidgetView): string {
     case "staff-new-chat":
       return "Message a user";
     case "staff-notices":
+    case "staff-notice-threads":
       return "Group notices";
     case "staff-clan-chats":
       return "Clan chats";
@@ -227,6 +232,11 @@ export interface InboxRowMeta {
   timestamp: number | null;
   unread: number;
   badge: { label: string; tone: InboxBadgeTone } | null;
+  /** Who the row is *about*, when the title alone doesn't say. Every notice of
+   * a given code shares one title, so a staff member looking at three
+   * "DropTracker can't post in your notification channel" rows needs the clan
+   * name to tell them apart. Null wherever the title is already specific. */
+  context: string | null;
 }
 
 function ticketBadge(status: string): { label: string; tone: InboxBadgeTone } {
@@ -270,12 +280,22 @@ function noticeBadge(notice: { severity: string; status: string } | null | undef
   return { label: notice.severity, tone: noticeSeverityTone(notice.severity) };
 }
 
+/** The clan a thread is about, from the notice row if the backend sent one and
+ * otherwise from the thread's own group party — which is the same clan, just
+ * reached the long way round for a payload predating the notice field. */
+function threadGroupName(item: Extract<InboxItem, { kind: "chat" }>): string | null {
+  const fromNotice = item.notice?.group_name;
+  if (fromNotice) return fromNotice;
+  return item.thread.participants.find((p) => p.party_type === "group")?.name ?? null;
+}
+
 /** Everything an inbox row renders, per kind. */
 export function inboxRowMeta(item: InboxItem): InboxRowMeta {
   const base = {
     key: inboxItemKey(item),
     timestamp: inboxItemTime(item) || null,
     unread: inboxItemUnread(item),
+    context: null as string | null,
   };
   switch (item.kind) {
     case "ticket": {
@@ -316,6 +336,7 @@ export function inboxRowMeta(item: InboxItem): InboxRowMeta {
             title: item.thread.title ?? "Group notice",
             preview,
             badge: noticeBadge(item.notice),
+            context: threadGroupName(item),
           };
         default:
           // event_invite and any future kind: a plain conversation row.

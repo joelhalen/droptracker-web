@@ -1,20 +1,26 @@
 "use client";
 
 /**
- * Staff clan-chats console (web102a follow-up): every clan-vs-clan negotiation
- * on the site, not just the ones the viewer's own clan is in.
+ * Staff thread browser (web102a follow-up): every thread of one kind on the
+ * site, not just the ones the viewer's own clan is in.
  *
- * Group leaders already see their own challenges in their inbox — those arrive
- * because their clan is a party on the thread. This view is the staff-side
+ * Group leaders already see their own threads in their inbox — those arrive
+ * because their clan is a party on them. This view is the staff-side
  * counterpart: when two clans are arguing about a start date and one of them
  * opens a ticket about it, staff need to be able to read the thread and answer
  * in it. The backend seats a staff viewer with a synthetic party when the
  * thread is fetched BY ID, which is what a row click does — so the composer
- * comes up enabled even though the rows below all report `can_post: false`
- * (the list endpoint doesn't resolve membership; see `StaffChatsPageSchema`).
+ * comes up enabled even though the rows below may report `can_post: false`
+ * (see `StaffChatsPageSchema`).
+ *
+ * Parameterised by kind because a developer who is not a superadmin cannot
+ * reach the richer `/admin/group-notices` console, and would otherwise have no
+ * way at all to open a group-notice thread. Each row's subtitle is the thread's
+ * parties, which for a notice is the clan it was raised against — the thing its
+ * title never says.
  */
 import { useEffect, useState, useTransition } from "react";
-import type { ChatThread } from "@droptracker/api-types";
+import type { ChatThread, StaffChatKind } from "@droptracker/api-types";
 import { loadStaffChats } from "@/app/(site)/support-actions";
 import { Alert, Badge, EmptyState, SkeletonRows } from "@/components/ui";
 import { counterpartyLabel } from "@/lib/chat";
@@ -22,8 +28,44 @@ import { getErrorMessage } from "@/lib/errors";
 import { formatRelativeTime } from "@/lib/format";
 import { useChatWidget } from "./widget-context";
 
-export function StaffClanChats() {
+interface BrowserCopy {
+  intro: string;
+  emptyIcon: string;
+  emptyTitle: string;
+  emptyHint: string;
+  loadError: string;
+}
+
+const COPY: Record<StaffChatKind, BrowserCopy> = {
+  event_invite: {
+    intro: "Every clan-vs-clan conversation. Open one to read it — you can reply as staff.",
+    emptyIcon: "\u2694\uFE0F",
+    emptyTitle: "No clan chats yet",
+    emptyHint:
+      "Clan-vs-clan challenges open a thread between the two clans; they'll all be listed here.",
+    loadError: "Couldn't load clan chats.",
+  },
+  group_notice: {
+    intro:
+      "Every problem the bot has reported to a clan. The clan it concerns is named under each row.",
+    emptyIcon: "\u26A0\uFE0F",
+    emptyTitle: "No group notices yet",
+    emptyHint:
+      "When the bot can't post to a clan's channel it raises a notice here and DMs their leadership.",
+    loadError: "Couldn't load group notices.",
+  },
+  staff_dm: {
+    intro: "Every staff conversation with an individual user.",
+    emptyIcon: "\u{1F6E1}\uFE0F",
+    emptyTitle: "No staff messages yet",
+    emptyHint: "Threads opened from \u201CMessage a user\u201D appear here.",
+    loadError: "Couldn't load staff messages.",
+  },
+};
+
+export function StaffThreadBrowser({ kind }: { kind: StaffChatKind }) {
   const { push } = useChatWidget();
+  const copy = COPY[kind];
   const [threads, setThreads] = useState<ChatThread[] | null>(null);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -31,26 +73,26 @@ export function StaffClanChats() {
 
   useEffect(() => {
     let active = true;
-    loadStaffChats({ kind: "event_invite" })
+    loadStaffChats({ kind })
       .then((page) => {
         if (!active) return;
         setThreads(page.items);
         setTotal(page.meta.total);
       })
       .catch((err) => {
-        if (active) setError(getErrorMessage(err, "Couldn't load clan chats."));
+        if (active) setError(getErrorMessage(err, copy.loadError));
       });
     return () => {
       active = false;
     };
-  }, []);
+  }, [kind, copy.loadError]);
 
   const loadMore = () => {
     if (!threads) return;
     const nextPage = Math.floor(threads.length / 25) + 1;
     startLoadingMore(async () => {
       try {
-        const page = await loadStaffChats({ kind: "event_invite", page: nextPage });
+        const page = await loadStaffChats({ kind, page: nextPage });
         // Id-keyed append: a thread that bubbled to page 1 between fetches
         // would otherwise show up twice.
         setThreads((prev) => {
@@ -59,7 +101,7 @@ export function StaffClanChats() {
         });
         setTotal(page.meta.total);
       } catch (err) {
-        setError(getErrorMessage(err, "Couldn't load more clan chats."));
+        setError(getErrorMessage(err, copy.loadError));
       }
     });
   };
@@ -67,7 +109,7 @@ export function StaffClanChats() {
   return (
     <div className="flex h-full flex-col">
       <p className="border-osrs-bronze/25 text-osrs-parchment-dark/60 shrink-0 border-b px-3 py-2 text-xs">
-        Every clan-vs-clan conversation. Open one to read it — you can reply as staff.
+        {copy.intro}
       </p>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -85,9 +127,9 @@ export function StaffClanChats() {
         ) : threads.length === 0 ? (
           <EmptyState
             className="m-3"
-            icon="⚔️"
-            title="No clan chats yet"
-            hint="Clan-vs-clan challenges open a thread between the two clans; they'll all be listed here."
+            icon={copy.emptyIcon}
+            title={copy.emptyTitle}
+            hint={copy.emptyHint}
           />
         ) : (
           <>
@@ -125,9 +167,10 @@ export function StaffClanChats() {
                             {thread.status}
                           </Badge>
                         )}
-                        {/* The two clans. With no `my_parties` (staff), the
-                            counterparty helper lists every participant — which
-                            is exactly "Iron Wolves, Clan 1" here. */}
+                        {/* The thread's parties. With no `my_parties` (staff),
+                            the counterparty helper lists every participant —
+                            "Iron Wolves, Clan 1" for a challenge, and the clan
+                            a notice concerns for a notice. */}
                         <span className="text-osrs-parchment-dark/60 min-w-0 flex-1 truncate text-xs">
                           {counterpartyLabel(thread)}
                         </span>

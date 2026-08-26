@@ -15,6 +15,7 @@
  * try.
  */
 import type {
+  ChatDelivery,
   ChatMessage,
   ChatMessagePage,
   ChatPartyRef,
@@ -40,6 +41,14 @@ async function assertSignedIn() {
 export async function loadChatThread(threadId: number): Promise<ChatThread> {
   await assertSignedIn();
   return api.chatThread(threadId);
+}
+
+/** Who this thread reached and what became of each notification DM (web103a).
+ * Loaded on demand when the disclosure is opened, never with the thread — most
+ * readers never ask, and it costs several extra queries. */
+export async function loadChatDelivery(threadId: number): Promise<ChatDelivery> {
+  await assertSignedIn();
+  return api.chatDelivery(threadId);
 }
 
 /** One page of a thread, oldest-first. `before` pages backwards through it. */

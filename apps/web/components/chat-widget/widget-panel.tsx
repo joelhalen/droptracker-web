@@ -22,7 +22,7 @@ import { NewTicketForm } from "./new-ticket-form";
 import { NewSuggestionForm } from "./new-suggestion-form";
 import { StaffNewChat } from "./staff-new-chat";
 import { StaffNoticesView } from "./staff-notices-view";
-import { StaffClanChats } from "./staff-clan-chats";
+import { StaffThreadBrowser } from "./staff-thread-browser";
 
 function ViewBody({ view }: { view: WidgetView }) {
   switch (view.kind) {
@@ -45,7 +45,9 @@ function ViewBody({ view }: { view: WidgetView }) {
     case "staff-notices":
       return <StaffNoticesView />;
     case "staff-clan-chats":
-      return <StaffClanChats />;
+      return <StaffThreadBrowser kind="event_invite" />;
+    case "staff-notice-threads":
+      return <StaffThreadBrowser kind="group_notice" />;
   }
 }
 

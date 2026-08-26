@@ -1,10 +1,12 @@
 import { apiGet, apiSend, withFallback } from "./_client";
 import {
+  ChatDeliverySchema,
   ChatThreadSchema,
   ChatMessageSchema,
   ChatMessagePageSchema,
   InboxReadAllSchema,
   InboxSchema,
+  type ChatDelivery,
   type ChatThread,
   type ChatMessage,
   type ChatMessagePage,
@@ -12,7 +14,13 @@ import {
   type Inbox,
   type InboxReadAll,
 } from "@droptracker/api-types";
-import { mockChatMessages, mockChatThreads, mockInbox, mockInboxReadAll } from "../mock-data";
+import {
+  mockChatDelivery,
+  mockChatMessages,
+  mockChatThreads,
+  mockInbox,
+  mockInboxReadAll,
+} from "../mock-data";
 
 export const chatApi = {
   // --- Chat (web96a) -------------------------------------------------------
@@ -33,6 +41,20 @@ export const chatApi = {
       async () =>
         ChatThreadSchema.parse(await apiGet(`/chat/threads/${threadId}`, { authed: true })),
       () => mockChatThreads.find((t) => t.id === threadId) ?? mockChatThreads[0]!,
+    );
+  },
+
+  /** Who this thread reaches and what became of each notification DM
+   * (web103a). Separate from `chatThread` because it costs a handful of extra
+   * queries and only the disclosure panel ever wants it — the thread itself
+   * must not get slower for a detail most readers never open. */
+  async chatDelivery(threadId: number): Promise<ChatDelivery> {
+    return withFallback(
+      async () =>
+        ChatDeliverySchema.parse(
+          await apiGet(`/chat/threads/${threadId}/delivery`, { authed: true }),
+        ),
+      () => mockChatDelivery(threadId),
     );
   },
 
