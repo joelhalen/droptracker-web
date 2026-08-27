@@ -2446,6 +2446,11 @@ export const EventTeamSchema = z.object({
   group_id: z.number().int().nullable().optional(),
   /** Admin-assigned accent color ("#rrggbb"); null = index-based palette. */
   color: z.string().nullable().optional(),
+  /** In-game clan-chat badge (web103a). `short_tag` is the admin's override
+   * (null = never set); `chat_tag` is what the plugin actually prints, derived
+   * from the team name when there is no override. Absent on legacy payloads. */
+  short_tag: z.string().nullable().optional(),
+  chat_tag: z.string().nullable().optional(),
   /** Board game (web44a): coin wallet + OSRS-item game piece. */
   coins: z.number().int().default(0),
   piece_item_id: z.number().int().nullable().optional(),
@@ -4714,10 +4719,27 @@ export const EventTeamPatchSchema = z
       .optional(),
     /** Board-game piece: an OSRS item id (null clears it). */
     piece_item_id: z.number().int().positive().nullable().optional(),
+    /** Short label for the in-game clan-chat badge (web103a). Null resets to
+     * the tag derived from the team's name. The charset is what the game's
+     * chat font can actually draw — anything else renders as empty boxes in
+     * the one place this exists to be read. */
+    short_tag: z
+      .string()
+      .max(8)
+      .regex(/^[A-Za-z0-9 ]*$/, "Chat tag can only use letters, numbers and spaces")
+      .nullable()
+      .optional(),
   })
-  .refine((p) => p.name !== undefined || p.color !== undefined || p.piece_item_id !== undefined, {
-    message: "Provide a name, color, and/or piece",
-  });
+  .refine(
+    (p) =>
+      p.name !== undefined ||
+      p.color !== undefined ||
+      p.piece_item_id !== undefined ||
+      p.short_tag !== undefined,
+    {
+      message: "Provide a name, color, chat tag, and/or piece",
+    },
+  );
 export type EventTeamPatch = z.infer<typeof EventTeamPatchSchema>;
 
 /** Per-name outcomes of the bulk "paste a list of names" roster add. Skipped

@@ -660,6 +660,28 @@ export function EventManager({
     });
   };
 
+  /** Set (or clear) a team's in-game clan-chat tag (optimistic; reverts on
+   * failure). Clearing sends null, which restores the tag derived from the
+   * team's name — the server owns that derivation, so `chat_tag` is left for
+   * the next read to correct rather than guessed at here. */
+  const onTagTeam = (teamId: number, short_tag: string | null) => {
+    const prev = teams;
+    setTeams((ts) =>
+      ts.map((t) =>
+        t.id === teamId ? { ...t, short_tag, chat_tag: short_tag ?? t.chat_tag } : t,
+      ),
+    );
+    setError(null);
+    startTransition(async () => {
+      try {
+        await updateEventTeam(groupId, event.id, teamId, { short_tag });
+      } catch (err) {
+        setTeams(prev);
+        setError(getErrorMessage(err, "Couldn't set the chat tag. Please try again."));
+      }
+    });
+  };
+
   /** Delete a team and its roster/progress (optimistic; reverts on failure). */
   const onDeleteTeam = (teamId: number) => {
     const prev = teams;
@@ -1702,6 +1724,7 @@ export function EventManager({
                 onRemoveMember={onRemoveMember}
                 onRename={onRenameTeam}
                 onColor={onColorTeam}
+                onTag={onTagTeam}
                 onDelete={onDeleteTeam}
               />
               ));
@@ -1805,6 +1828,7 @@ function TeamRoster({
   onRemoveMember,
   onRename,
   onColor,
+  onTag,
   onDelete,
 }: {
   groupId: number | null;
@@ -1820,6 +1844,7 @@ function TeamRoster({
   onRemoveMember: (teamId: number, playerId: number) => void;
   onRename: (teamId: number, name: string) => void;
   onColor: (teamId: number, color: string | null) => void;
+  onTag: (teamId: number, shortTag: string | null) => void;
   onDelete: (teamId: number) => void;
 }) {
   const members = team.members ?? [];
@@ -1827,6 +1852,8 @@ function TeamRoster({
   const [draftName, setDraftName] = useState(team.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pickingColor, setPickingColor] = useState(false);
+  const [editingTag, setEditingTag] = useState(false);
+  const [draftTag, setDraftTag] = useState(team.short_tag ?? "");
 
   const clanLabel =
     team.group_id != null
@@ -1895,6 +1922,24 @@ function TeamRoster({
             {team.name}
             {clanLabel && (
               <span className="text-osrs-parchment-dark/50 ml-1 text-xs">({clanLabel})</span>
+            )}
+            {team.chat_tag && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDraftTag(team.short_tag ?? "");
+                  setEditingTag((v) => !v);
+                  setPickingColor(false);
+                  setConfirmDelete(false);
+                }}
+                disabled={pending}
+                title="Tag shown beside this team's players in game clan chat"
+                aria-label={`Change ${team.name}'s clan chat tag`}
+                className="border-osrs-bronze/40 hover:border-osrs-gold cursor-pointer rounded border px-1 py-0.5 font-mono text-[0.65rem] leading-none disabled:opacity-50"
+                style={{ color: accentColor }}
+              >
+                [{team.chat_tag}]
+              </button>
             )}
           </span>
           <div className="flex items-center gap-1">
@@ -1974,6 +2019,70 @@ function TeamRoster({
             </button>
           )}
         </div>
+      )}
+
+      {editingTag && !editing && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const next = draftTag.trim();
+            // "" means "no override" — the same signal as never having set one.
+            onTag(team.id, next || null);
+            setEditingTag(false);
+          }}
+          className="border-osrs-bronze/30 mt-2 rounded border p-2 text-xs"
+        >
+          <label className="text-osrs-parchment-dark/80 block" htmlFor={`tag-${team.id}`}>
+            Clan chat tag
+          </label>
+          <p className="text-osrs-parchment-dark/50 mt-0.5 mb-1.5">
+            Players running the plugin see this beside their teammates&apos; names in game
+            during the event. Leave it empty to use the tag derived from the team name.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id={`tag-${team.id}`}
+              value={draftTag}
+              onChange={(e) =>
+                // Same charset the game's chat font can draw, enforced here so
+                // the field can't accept something the API will reject.
+                setDraftTag(e.target.value.replace(/[^A-Za-z0-9 ]/g, "").slice(0, 8))
+              }
+              maxLength={8}
+              placeholder={team.chat_tag ?? ""}
+              className={`${field} w-24 font-mono`}
+            />
+            <span
+              className="border-osrs-bronze/30 bg-osrs-brown-dark/40 rounded border px-2 py-1 font-mono"
+              style={{ color: accentColor }}
+            >
+              [{(draftTag.trim() || team.chat_tag) ?? ""}]{" "}
+              <span className="text-osrs-parchment-dark/70">
+                {members[0]?.player_name ?? "Player"}: hey
+              </span>
+            </span>
+            <button
+              type="submit"
+              disabled={pending}
+              className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-1 font-medium disabled:opacity-50"
+            >
+              Save
+            </button>
+            {team.short_tag != null && (
+              <button
+                type="button"
+                onClick={() => {
+                  onTag(team.id, null);
+                  setEditingTag(false);
+                }}
+                disabled={pending}
+                className="text-osrs-parchment-dark/70 hover:text-osrs-parchment rounded px-2 py-1 disabled:opacity-50"
+              >
+                Reset to default
+              </button>
+            )}
+          </div>
+        </form>
       )}
 
       {confirmDelete && !editing && (
