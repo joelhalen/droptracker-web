@@ -19,6 +19,8 @@ import {
 } from "@/lib/activity/auth-context";
 import { ActivityDataProvider, type ActivityData } from "@/lib/activity/data-context";
 import { ActivityNavProvider, type ActivityView } from "@/lib/activity/nav";
+import { StreamEndpointProvider } from "@/lib/stream-endpoint";
+import { ACTIVITY_STREAM_PATH } from "@/lib/stream-key";
 import { activityClientId, getDiscordSdk, inDiscordFrame } from "@/lib/activity/discord-sdk";
 import { eventByChannel, exchangeAuthCode, guildGroup, launchIntent } from "@/lib/activity/api";
 import { ActivityShell } from "@/components/activity/shell";
@@ -188,11 +190,19 @@ export function ActivityApp() {
     case "ready":
       return (
         <ActivityAuthProvider value={auth}>
-          <ActivityDataProvider value={data}>
-            <ActivityNavProvider initial={initialView}>
-              <ActivityShell />
-            </ActivityNavProvider>
-          </ActivityDataProvider>
+          {/* Every SSE subscriber below here — including shared components
+              like the board view and loot-sweep matrix, which have no idea
+              they're in an iframe — streams through the activity proxy with
+              this session. Without it the cookie-less iframe is anonymous to
+              the Web API, which then refuses session-gated scopes without
+              saying so. */}
+          <StreamEndpointProvider path={ACTIVITY_STREAM_PATH} token={auth.sessionToken}>
+            <ActivityDataProvider value={data}>
+              <ActivityNavProvider initial={initialView}>
+                <ActivityShell />
+              </ActivityNavProvider>
+            </ActivityDataProvider>
+          </StreamEndpointProvider>
         </ActivityAuthProvider>
       );
   }
