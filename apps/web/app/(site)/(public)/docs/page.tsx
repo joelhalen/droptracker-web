@@ -1,7 +1,7 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { groupDocsByCategory } from "@/lib/docs";
+import { groupDocsByCategory, withRepoDocs } from "@/lib/docs";
 import { ScrollPanel } from "@/components/scroll-panel";
 
 export const metadata: Metadata = {
@@ -25,7 +25,7 @@ function GitHubIcon({ className }: { className?: string }) {
 }
 
 export default async function DocsIndexPage() {
-  const groups = groupDocsByCategory(await api.docs());
+  const groups = groupDocsByCategory(withRepoDocs(await api.docs()));
 
   return (
     <ScrollPanel>

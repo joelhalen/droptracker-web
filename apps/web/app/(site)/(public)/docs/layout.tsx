@@ -1,9 +1,9 @@
 import { api } from "@/lib/api";
-import { groupDocsByCategory } from "@/lib/docs";
+import { groupDocsByCategory, withRepoDocs } from "@/lib/docs";
 import { DocsSidebar } from "@/components/docs-sidebar";
 
 export default async function DocsLayout({ children }: { children: React.ReactNode }) {
-  const groups = groupDocsByCategory(await api.docs());
+  const groups = groupDocsByCategory(withRepoDocs(await api.docs()));
 
   return (
     <div className="grid gap-8 md:grid-cols-[14rem_1fr]">

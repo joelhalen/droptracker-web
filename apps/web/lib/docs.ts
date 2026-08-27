@@ -28,13 +28,24 @@ const REPO_DOCS: DocSummary[] = [
   },
 ];
 
+/**
+ * The CMS list plus the repo-defined pages, for the sidebar and the index.
+ *
+ * Kept separate from `groupDocsByCategory` so that stays a pure function of
+ * its input — callers opt in to the extra entries rather than every grouping
+ * silently gaining them.
+ */
+export function withRepoDocs(docs: DocSummary[]): DocSummary[] {
+  // A CMS doc claiming a repo slug would shadow the real route, so the repo
+  // entry wins and the duplicate is dropped.
+  const repoSlugs = new Set(REPO_DOCS.map((d) => d.slug));
+  return [...REPO_DOCS, ...docs.filter((d) => !repoSlugs.has(d.slug))];
+}
+
 /** Docs grouped by category (reader-friendly category order, API's order within). */
 export function groupDocsByCategory(docs: DocSummary[]): { category: string; docs: DocSummary[] }[] {
   const groups: { category: string; docs: DocSummary[] }[] = [];
-  // A CMS doc that claims a repo slug would shadow the real route, so the
-  // repo's own entry wins and the duplicate is dropped.
-  const repoSlugs = new Set(REPO_DOCS.map((d) => d.slug));
-  for (const doc of [...REPO_DOCS, ...docs.filter((d) => !repoSlugs.has(d.slug))]) {
+  for (const doc of docs) {
     let group = groups.find((g) => g.category === doc.category);
     if (!group) {
       group = { category: doc.category, docs: [] };
