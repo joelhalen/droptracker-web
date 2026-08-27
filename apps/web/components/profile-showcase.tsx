@@ -252,7 +252,10 @@ export function ProfileShowcase({
 
             {tab === "collection" &&
               (hasLog ? (
-                <CollectionLogBrowser tabs={collectionLog!.tabs} />
+                <CollectionLogBrowser
+                  tabs={collectionLog!.tabs}
+                  details={collectionLog!.details}
+                />
               ) : (
                 <Empty
                   label="Collection log"

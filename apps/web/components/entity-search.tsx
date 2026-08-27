@@ -15,89 +15,17 @@ import { entityPath } from "@/lib/slug";
 import { cycleActive } from "@/lib/listbox";
 import { useEffect, useId, useRef, useState } from "react";
 import type { SearchResults } from "@droptracker/api-types";
+import {
+  ALL_SEARCH_KINDS,
+  MIN_SEARCH_LENGTH,
+  SEARCH_DEBOUNCE_MS,
+  SEARCH_KIND_LABELS,
+  toSuggestions,
+  type SearchKind,
+  type Suggestion,
+} from "@/lib/search-suggestions";
 
-const DEBOUNCE_MS = 250;
-/** Per-kind caps in the combined (multi-kind) popup. */
-const COMBINED_CAPS = { players: 5, groups: 4, npcs: 3, items: 3 } as const;
-/** When scoped to a single kind the popup is all signal — show more rows. */
-const SCOPED_CAP = 8;
-
-export type SearchKind = "players" | "groups" | "npcs" | "items";
-
-const ALL_KINDS: SearchKind[] = ["players", "groups", "npcs", "items"];
-
-const KIND_LABELS: Record<SearchKind, string> = {
-  players: "Player",
-  groups: "Clan",
-  npcs: "Boss",
-  items: "Item",
-};
-
-type Suggestion = {
-  key: string;
-  href: Route;
-  name: string;
-  kind: SearchKind;
-  detail: string | null;
-  iconUrl: string | null;
-};
-
-function toSuggestions(results: SearchResults, kinds: SearchKind[]): Suggestion[] {
-  const cap = (kind: SearchKind) => (kinds.length === 1 ? SCOPED_CAP : COMBINED_CAPS[kind]);
-  const out: Suggestion[] = [];
-  if (kinds.includes("players")) {
-    for (const p of results.players.slice(0, cap("players"))) {
-      out.push({
-        key: `p-${p.id}`,
-        href: entityPath("players", p.id, p.name),
-        name: p.name,
-        kind: "players",
-        detail: p.global_rank != null ? `Global rank #${p.global_rank}` : null,
-        iconUrl: null,
-      });
-    }
-  }
-  if (kinds.includes("groups")) {
-    for (const g of results.groups.slice(0, cap("groups"))) {
-      out.push({
-        key: `g-${g.id}`,
-        href: entityPath("groups", g.id, g.name),
-        name: g.name,
-        kind: "groups",
-        detail:
-          g.member_count != null
-            ? `${g.member_count} member${g.member_count === 1 ? "" : "s"}`
-            : null,
-        iconUrl: null,
-      });
-    }
-  }
-  if (kinds.includes("npcs")) {
-    for (const n of (results.npcs ?? []).slice(0, cap("npcs"))) {
-      out.push({
-        key: `n-${n.id}`,
-        href: entityPath("npcs", n.id, n.name),
-        name: n.name,
-        kind: "npcs",
-        detail: null,
-        iconUrl: n.icon_url,
-      });
-    }
-  }
-  if (kinds.includes("items")) {
-    for (const i of (results.items ?? []).slice(0, cap("items"))) {
-      out.push({
-        key: `i-${i.id}`,
-        href: entityPath("items", i.id, i.name),
-        name: i.name,
-        kind: "items",
-        detail: null,
-        iconUrl: i.icon_url,
-      });
-    }
-  }
-  return out;
-}
+export type { SearchKind };
 
 const INPUT_SIZES = {
   // Hero field: large, translucent over the hero art.
@@ -112,7 +40,7 @@ const BUTTON_SIZES = {
 } as const;
 
 export function EntitySearch({
-  kinds = ALL_KINDS,
+  kinds = ALL_SEARCH_KINDS,
   placeholder = "Find a player, clan, boss or item…",
   initial = "",
   size = "md",
@@ -120,7 +48,7 @@ export function EntitySearch({
   className = "",
 }: {
   /** Which entity kinds to surface — scope this to the page's subject. */
-  kinds?: SearchKind[];
+  kinds?: readonly SearchKind[];
   placeholder?: string;
   initial?: string;
   size?: "md" | "lg";
@@ -147,7 +75,7 @@ export function EntitySearch({
   useEffect(() => {
     if (!interacted) return;
     const query = q.trim();
-    if (query.length < 2) {
+    if (query.length < MIN_SEARCH_LENGTH) {
       setSuggestions([]);
       setSearched(false);
       return;
@@ -166,7 +94,7 @@ export function EntitySearch({
         .catch(() => {
           /* best-effort — Enter still goes to /search */
         });
-    }, DEBOUNCE_MS);
+    }, SEARCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -187,10 +115,14 @@ export function EntitySearch({
     router.push(href);
   };
 
+  /** A suggestion's site URL — the site's half of the shared shaping. */
+  const hrefOf = (s: Suggestion) => entityPath(s.kind, s.id, s.name);
+
   const submit = () => {
     const query = q.trim();
     if (!query) return;
-    if (active >= 0 && suggestions[active]) go(suggestions[active].href);
+    const picked = active >= 0 ? suggestions[active] : undefined;
+    if (picked) go(hrefOf(picked));
     else go(`/search?q=${encodeURIComponent(query)}` as Route);
   };
 
@@ -207,7 +139,7 @@ export function EntitySearch({
     }
   };
 
-  const showDropdown = open && q.trim().length >= 2 && searched;
+  const showDropdown = open && q.trim().length >= MIN_SEARCH_LENGTH && searched;
   const showKindBadge = kinds.length > 1;
 
   return (
@@ -262,7 +194,7 @@ export function EntitySearch({
             <li key={s.key} role="option" aria-selected={i === active}>
               <button
                 type="button"
-                onClick={() => go(s.href)}
+                onClick={() => go(hrefOf(s))}
                 onMouseEnter={() => setActive(i)}
                 className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm ${
                   i === active ? "bg-osrs-bronze/20" : ""
@@ -283,7 +215,7 @@ export function EntitySearch({
                 </span>
                 {showKindBadge && (
                   <span className="text-osrs-parchment-dark/50 border-osrs-bronze/30 shrink-0 rounded border px-1.5 py-0.5 text-[10px] tracking-wide uppercase">
-                    {KIND_LABELS[s.kind]}
+                    {SEARCH_KIND_LABELS[s.kind]}
                   </span>
                 )}
               </button>

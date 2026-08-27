@@ -685,7 +685,11 @@ const SetupChannelsSchema = z.object({
       id: z.string(),
       name: z.string(),
       position: z.number().int().default(0),
-      type: z.enum(["text", "thread", "forum"]).optional(),
+      // Must list every type the bot caches, "category" included: this schema
+      // parses the whole array, so one unlisted type threw the entire picker
+      // away and left the wizard demanding raw channel ids. `catch` keeps a
+      // future type the bot learns from doing that again.
+      type: z.enum(["text", "thread", "forum", "category"]).catch("text").optional(),
       parent_id: z.string().optional(),
     }),
   ),

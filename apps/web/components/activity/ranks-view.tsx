@@ -15,6 +15,7 @@ import { leaderboard, pbBosses } from "@/lib/activity/api";
 import { useActivityData } from "@/lib/activity/data-context";
 import { useActivityNav } from "@/lib/activity/nav";
 import { ErrorNote, LoadingBlock, PressRow } from "@/components/activity/bits";
+import { ActivitySearch } from "@/components/activity/entity-search";
 import { npcIcon } from "@/lib/activity/img";
 
 type RankTab = "players" | "groups" | "pbs";
@@ -136,7 +137,14 @@ export function RanksView({ tab }: { tab: RankTab }) {
       <div className="mt-2.5">
         {failed && <ErrorNote>Couldn&apos;t load the board — try again shortly.</ErrorNote>}
 
+        {/* Search covers the whole board: the leaderboard only holds the top
+            ranks, so a clanmate outside them is otherwise unreachable in here.
+            The board itself renders as the idle state. */}
         {tab !== "pbs" && !failed && (
+          <ActivitySearch
+            kinds={[tab]}
+            placeholder={tab === "groups" ? "Find a clan…" : "Find a player…"}
+          >
           <Card padding="p-0">
             {!page ? (
               <LoadingBlock rows={6} />
@@ -174,6 +182,7 @@ export function RanksView({ tab }: { tab: RankTab }) {
               ))
             )}
           </Card>
+          </ActivitySearch>
         )}
 
         {tab === "pbs" && !failed && (

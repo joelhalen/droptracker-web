@@ -12,6 +12,7 @@ import { PlayerBadgeList } from "@/components/player-badges";
 import { CountUp } from "@/components/count-up";
 import { gpAmount, gpText } from "@/lib/activity/money";
 import { playerProfile } from "@/lib/activity/api";
+import { AccountTypeBadge } from "@/components/account-type-badge";
 import { useActivityNav } from "@/lib/activity/nav";
 import {
   BackBar,
@@ -71,7 +72,13 @@ export function PlayerView({ id }: { id: number }) {
         <div className="flex items-center gap-3">
           <NameTile name={profile.name} size="lg" />
           <div className="min-w-0 flex-1">
-            <p className="text-osrs-gold truncate font-serif text-lg font-semibold">{profile.name}</p>
+            {/* Account type sits with the name, as it does in game and on the
+                site. Icons are same-origin under /account-types, so the
+                iframe CSP is happy; normal accounts render nothing. */}
+            <p className="text-osrs-gold flex min-w-0 items-center gap-1.5 font-serif text-lg font-semibold">
+              <AccountTypeBadge type={profile.account_type} size="sm" />
+              <span className="truncate">{profile.name}</span>
+            </p>
             <p className="text-osrs-parchment-dark/55 text-[11.5px]">
               {profile.top_npc ? `Mostly farming ${profile.top_npc}` : "Tracked player"}
             </p>

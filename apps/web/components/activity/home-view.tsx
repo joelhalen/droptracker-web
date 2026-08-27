@@ -8,13 +8,13 @@
  * collections strip, and a live slice of the global feed).
  */
 import { useEffect, useRef, useState } from "react";
-import type { EventSummary, SearchResults, Submission } from "@droptracker/api-types";
+import type { EventSummary, Submission } from "@droptracker/api-types";
 import { Badge, Card, NameTile, Skeleton, StatTile } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
 import { HoverCard, CardStatLine, CARD_SECTION_CLASS } from "@/components/hover-card";
 import { useEventStream } from "@/lib/use-event-stream";
 import { formatGp, formatRelativeTime } from "@/lib/format";
-import { guildEvents, manageableGuilds, myEvents, recentFeed, searchAll } from "@/lib/activity/api";
+import { guildEvents, manageableGuilds, myEvents, recentFeed } from "@/lib/activity/api";
 import { toActivityFeedRow, type ActivityFeedRow } from "@/lib/activity/feed";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityData } from "@/lib/activity/data-context";
@@ -24,6 +24,8 @@ import { openExternal } from "@/lib/activity/discord-sdk";
 import { discordAvatar } from "@/lib/activity/img";
 import { gpAmount, gpText } from "@/lib/activity/money";
 import { SectionHeading } from "@/components/activity/bits";
+import { ActivitySearch } from "@/components/activity/entity-search";
+import { ALL_SEARCH_KINDS } from "@/lib/search-suggestions";
 import { ActivityClaimRsn } from "@/components/activity/claim-rsn";
 
 const SUBMISSION_KIND: Record<Submission["type"], string> = {
@@ -277,8 +279,6 @@ export function HomeView() {
 
   const [activeEvents, setActiveEvents] = useState<EventSummary[] | null>(null);
   const [feed, setFeed] = useState<ActivityFeedRow[]>([]);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResults | null>(null);
   // Unregistered launch guild + the viewer manages it → offer in-app setup.
   const [canSetupGuild, setCanSetupGuild] = useState(false);
 
@@ -308,7 +308,9 @@ export function HomeView() {
       return;
     }
     let cancelled = false;
-    (guildId ? guildEvents(guildId, "active", null) : myEvents("active", sessionToken!))
+    // Present the session: the BFF widens visibility for a bearer, so without
+    // it a member of a private event saw it in the Events tab but not here.
+    (guildId ? guildEvents(guildId, "active", sessionToken) : myEvents("active", sessionToken!))
       .then((evs) => {
         if (!cancelled) setActiveEvents(evs);
       })
@@ -340,21 +342,6 @@ export function HomeView() {
     const row = toActivityFeedRow(event.type, event.data as Record<string, unknown>, `l-${liveSeq.current++}`);
     if (row) setFeed((prev) => [row, ...prev].slice(0, FEED_LIMIT));
   });
-
-  // Debounced search.
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults(null);
-      return;
-    }
-    const t = setTimeout(() => {
-      searchAll(q)
-        .then(setResults)
-        .catch(() => setResults(null));
-    }, 250);
-    return () => clearTimeout(t);
-  }, [query]);
 
   const liveEvent = activeEvents?.[0];
 
@@ -418,65 +405,12 @@ export function HomeView() {
 
       {/* Hub content */}
       <div className="mt-4 space-y-1 lg:mt-0">
-        {/* Search */}
-        <div>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search players, groups, bosses, items…"
-            className="border-osrs-bronze/40 bg-osrs-surface-1 focus:border-osrs-gold text-osrs-parchment placeholder:text-osrs-parchment-dark/40 w-full rounded-xl border px-3.5 py-2.5 text-sm outline-none"
-          />
-          {results && (
-            <Card padding="p-1" className="mt-1.5">
-              {results.players.slice(0, 4).map((p) => (
-                <button
-                  key={`p${p.id}`}
-                  onClick={() => nav.push({ name: "player", id: p.id })}
-                  className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
-                >
-                  <NameTile name={p.name} size="sm" />
-                  <span className="text-osrs-parchment flex-1 truncate text-[13px]">{p.name}</span>
-                  <span className="text-osrs-parchment-dark/45 text-[10px] uppercase">Player</span>
-                </button>
-              ))}
-              {results.groups.slice(0, 3).map((g) => (
-                <button
-                  key={`g${g.id}`}
-                  onClick={() => nav.push({ name: "group", id: g.id })}
-                  className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
-                >
-                  <NameTile name={g.name} size="sm" />
-                  <span className="text-osrs-parchment flex-1 truncate text-[13px]">{g.name}</span>
-                  <span className="text-osrs-parchment-dark/45 text-[10px] uppercase">Group</span>
-                </button>
-              ))}
-              {[...results.npcs.slice(0, 2), ...results.items.slice(0, 2)].map((e) => (
-                <button
-                  key={`x${e.id}-${e.name}`}
-                  onClick={() =>
-                    void openExternal(
-                      `https://www.droptracker.io/${results.npcs.includes(e) ? "npcs" : "items"}/${e.id}`,
-                    )
-                  }
-                  className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left"
-                >
-                  {e.icon_url ? (
-                    <img src={e.icon_url} alt="" className="size-6 object-contain" />
-                  ) : (
-                    <NameTile name={e.name} size="sm" />
-                  )}
-                  <span className="text-osrs-parchment flex-1 truncate text-[13px]">{e.name}</span>
-                  <span className="text-osrs-parchment-dark/45 text-[10px] uppercase">Site ↗</span>
-                </button>
-              ))}
-              {!results.players.length && !results.groups.length && !results.npcs.length && !results.items.length && (
-                <p className="text-osrs-parchment-dark/50 px-3 py-2.5 text-center text-xs">
-                  No matches for “{query.trim()}”.
-                </p>
-              )}
-            </Card>
-          )}
-        </div>
+        {/* Search — all four kinds here, since this is the hub. Shares its
+            shaping with the site's search so the two can't drift apart. */}
+        <ActivitySearch
+          kinds={ALL_SEARCH_KINDS}
+          placeholder="Search players, groups, bosses, items…"
+        />
 
         {/* Section cards */}
         <div className="grid grid-cols-2 gap-2.5 pt-2 xl:grid-cols-4">
