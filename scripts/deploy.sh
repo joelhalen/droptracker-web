@@ -88,6 +88,28 @@ fi
 # --- Build the idle colour (bypass turbo: its cache key ignores NEXT_DIST_DIR) -
 log "pnpm gen:api-types"
 run bash -c "cd '$REPO' && pnpm gen:api-types"
+# Two kinds of stale artefact have each broken a deploy, and neither announces
+# itself — the build fails somewhere unrelated, minutes in:
+#
+#   cache/  webpack's persistent filesystem cache, several GB, reused across
+#           every deploy since the colour was created. When it goes stale the
+#           emitted chunk can reference a symbol whose import was elided,
+#           surfacing as `ReferenceError: <hook> is not defined` while
+#           prerendering some page that merely pulls the chunk in. That is the
+#           2026-08-27 failure; the same commit built clean into a fresh dir.
+#
+#   types/  Next generates a route-type stub per page, and tsconfig includes
+#           EVERY colour's stubs. A page that existed when the other colour was
+#           built but not in this source tree leaves a stub importing a file
+#           that is gone, and the build dies in "Checking validity of types".
+#
+# Both are pure build inputs — no `next start` reads them — so clearing them
+# costs one slower build and buys a deterministic one. The live colour's
+# serving output (server/, static/, BUILD_ID) is untouched.
+log "Clearing stale build artefacts (webpack cache for $IDLE_DIST, route types)…"
+run bash -c "rm -rf '$APP/$IDLE_DIST/cache'"
+run bash -c "rm -rf '$APP'/.next*/types"
+
 log "Building source into $IDLE_DIST…"
 run bash -c "cd '$APP' && NEXT_DIST_DIR='$IDLE_DIST' ./node_modules/.bin/next build"
 
