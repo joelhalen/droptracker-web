@@ -154,9 +154,9 @@ curl -H "Authorization: Bearer $DT_API_KEY" \\
         code={`X-RateLimit-Limit            60
 X-RateLimit-Remaining        59
 X-RateLimit-Reset            1787837280
-X-RateLimit-Cost             26
-X-RateLimit-Cost-Limit       300
-X-RateLimit-Cost-Remaining   274`}
+X-RateLimit-Cost             34400
+X-RateLimit-Cost-Limit       200000
+X-RateLimit-Cost-Remaining   165600`}
       />
       <p className="ink-muted mt-3 text-sm">
         Going over any budget returns <code>429</code> with <code>Retry-After</code> and a{" "}
@@ -183,15 +183,26 @@ X-RateLimit-Cost-Remaining   274`}
             <strong>{requestCost(["identity", "loot"], 1)}</strong>.
           </li>
           <li>
-            A 100-player page of <code>identity,loot</code> → costs <strong>{cheapPage}</strong>,
-            comfortably inside the entry tier.
+            A 100-player page of <code>identity,loot</code> → costs <strong>{cheapPage}</strong>.
           </li>
           <li>
-            A 100-player page of <code>all</code> → costs <strong>{everythingPage}</strong>, which
-            the entry tier refuses. Ask for fewer sections, or page in smaller batches.
+            A 100-player page of <code>all</code> → costs{" "}
+            <strong>{everythingPage.toLocaleString()}</strong>.
+          </li>
+          <li>
+            <strong>A whole 400-member roster, every section</strong> — four pages — costs{" "}
+            <strong>{(everythingPage * 4).toLocaleString()}</strong>, which fits inside one minute
+            on the entry tier with room to spare. Measured end to end: about 10 seconds and 1.1 MB
+            of compressed JSON.
           </li>
         </ul>
       </div>
+      <p className="ink-muted mt-4 text-sm">
+        The prices are measured, not estimated — one unit is roughly 0.05 ms of server work per
+        player. That is why the spread is so wide: <code>clog_slots</code> genuinely costs 161x
+        what <code>loot</code> does, and pricing them closer together would mean cheap requests
+        subsidising expensive ones.
+      </p>
 
       <Heading id="endpoints">Endpoints</Heading>
       <p className="ink-muted mb-4 text-sm">
@@ -289,6 +300,26 @@ X-RateLimit-Cost-Remaining   274`}
           </div>
         </section>
       ))}
+
+      <div className="ink-rule mt-6 rounded-md border p-4">
+        <div className="ink-heading mb-2 text-sm font-semibold">
+          The shape of <code>clog_slots</code>
+        </div>
+        <p className="ink-muted text-sm">
+          Most collection log slots have a quantity of 1, so repeating that for every slot would
+          triple the response for no information. Slots come back as a sorted id array plus a
+          sparse map of the quantities that are <em>not</em> 1:
+        </p>
+        <div className="mt-3">
+          <CodeBlock
+            code={`"clog_slots": {
+  "items": [995, 1149, 11802, 22981],
+  "quantities": { "995": 40, "22981": 3 }
+}
+// 1149 and 11802 are absent from "quantities", so both are 1.`}
+          />
+        </div>
+      </div>
 
       <Heading id="paging">Paging a roster</Heading>
       <p className="ink-muted text-sm">

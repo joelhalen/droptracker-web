@@ -9,6 +9,12 @@
  * This mirrors the server's registry in `data_api/sections.py`. It is
  * documentation, not the source of truth — `GET /v2/sections` always reports
  * what the running API actually offers, and the page says so.
+ *
+ * The costs are measured, not estimated: one unit is roughly 0.05 ms of
+ * server work per player, taken from timing every loader over 100 real
+ * players. That is why the spread is so wide — `clog_slots` really is 161x
+ * `loot`, and pricing them within a factor of 8 of each other (as the first
+ * version did) meant the cheap sections subsidised the expensive ones.
  */
 
 export const API_BASE = "https://api.droptracker.io/v2";
@@ -40,80 +46,80 @@ export const SECTIONS: ApiSection[] = [
   },
   {
     key: "stats",
-    cost: 2,
+    cost: 1,
     category: "Progress",
     summary: "Experience in all 24 skills, plus the total.",
   },
   {
     key: "clog",
-    cost: 2,
+    cost: 8,
     category: "Progress",
     summary:
       "Collection log progress: slots obtained out of the game's own total, and how many individual slots we hold rows for.",
   },
   {
     key: "combat_achievements",
-    cost: 2,
+    cost: 1,
     category: "Progress",
     summary: "Combat achievement tasks completed and points earned.",
   },
   {
     key: "quests",
-    cost: 2,
+    cost: 4,
     category: "Progress",
     summary: "Quest counts by state: not started, in progress, finished.",
   },
   {
     key: "diaries",
-    cost: 2,
+    cost: 8,
     category: "Progress",
     summary: "Achievement diary tasks completed, per area and tier.",
   },
   {
     key: "points",
-    cost: 2,
+    cost: 8,
     category: "Progress",
     summary: "Lifetime DropTracker points earned.",
   },
   {
     key: "badges",
-    cost: 2,
+    cost: 1,
     category: "Progress",
     summary: "Badges the player currently holds.",
   },
   {
     key: "pets",
-    cost: 2,
+    cost: 3,
     category: "Progress",
     summary: "Pets received, with the date each was recorded.",
   },
   {
     key: "deaths",
-    cost: 2,
+    cost: 3,
     category: "Progress",
     summary: "Recorded death count and the most recent one.",
   },
   {
     key: "personal_bests",
-    cost: 3,
+    cost: 8,
     category: "Progress",
     summary: "Best time per boss, split by team-size bracket.",
   },
   {
     key: "loot_npcs",
-    cost: 5,
+    cost: 16,
     category: "Loot",
     summary: "Top NPCs by loot value over the requested window.",
   },
   {
     key: "loot_items",
-    cost: 5,
+    cost: 121,
     category: "Loot",
     summary: "Top items by loot value over the requested window.",
   },
   {
     key: "clog_slots",
-    cost: 8,
+    cost: 161,
     category: "Progress",
     summary:
       "Every recorded collection log slot with its quantity — around 1,500 rows per player, so price a page accordingly.",
