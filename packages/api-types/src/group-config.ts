@@ -45,6 +45,14 @@ export interface ConfigField {
   default: string | number | boolean | null;
   /** For `select` fields. */
   options?: { value: string; label: string }[];
+  /**
+   * For `channel` fields: which kind of channel this setting wants. Defaults
+   * to "sendable" (text channels and threads — somewhere the bot can post).
+   * "voice" is for the `vc_to_display_*` stat displays, which rename a voice
+   * channel every 10 minutes rather than write to it. Presentational only:
+   * every channel field still stores a plain channel id.
+   */
+  channelKind?: "sendable" | "voice";
   /** For `int` fields. */
   min?: number;
   max?: number;
@@ -245,9 +253,9 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
 
   // --- Member activity log + voice-channel stat displays -------------------
   { key: "channel_id_to_send_logs", label: "Member log channel", category: "channels", type: "channel", help: "Channel where member join/leave log messages are posted. Leave unset to disable.", default: null },
-  { key: "vc_to_display_monthly_loot", label: "Monthly loot voice channel", category: "integration", type: "channel", help: "Voice channel renamed every 10 minutes to show the group's monthly loot total. Voice channels aren't listed in the picker — use manual ID entry.", default: null },
+  { key: "vc_to_display_monthly_loot", label: "Monthly loot voice channel", category: "integration", type: "channel", channelKind: "voice", help: "Voice channel renamed every 10 minutes to show the group's monthly loot total. Nobody needs to be able to talk in it — the name is the display. Give the bot Manage Channel on it.", default: null },
   { key: "vc_to_display_monthly_loot_text", label: "Monthly loot channel text", category: "integration", type: "string", help: "Template for the loot voice channel name. Placeholders: {month}, {gp_amount}.", default: "{month}: {gp_amount} gp" },
-  { key: "vc_to_display_droptracker_users", label: "Member count voice channel", category: "integration", type: "channel", help: "Voice channel renamed every 10 minutes to show the group's tracked member count. Voice channels aren't listed in the picker — use manual ID entry.", default: null },
+  { key: "vc_to_display_droptracker_users", label: "Member count voice channel", category: "integration", type: "channel", channelKind: "voice", help: "Voice channel renamed every 10 minutes to show the group's tracked member count. Nobody needs to be able to talk in it — the name is the display. Give the bot Manage Channel on it.", default: null },
   { key: "vc_to_display_droptracker_users_text", label: "Member count channel text", category: "integration", type: "string", help: "Template for the member-count voice channel name. Placeholder: {member_count}.", default: "{member_count} members" },
 
   // --- Misc / integration -------------------------------------------------

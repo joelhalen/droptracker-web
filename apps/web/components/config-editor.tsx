@@ -667,6 +667,9 @@ function InputField({
           value={String(value ?? "")}
           onChange={(v) => onChange(v)}
           disabled={disabled}
+          // The vc_to_display_* stat displays want a voice channel; everything
+          // else wants somewhere postable.
+          mode={field.channelKind === "voice" ? "voice" : "sendable"}
         />
       ) : field.type === "bosslist" ? (
         <BossListPicker

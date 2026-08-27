@@ -156,10 +156,15 @@ export interface DiscordChannel {
   position: number;
   /** "text" (also the implied default for pre-migration cache entries),
    * "forum" (not directly messageable — only its threads are), "thread"
-   * (a forum post / channel thread; sendable exactly like a channel), or
+   * (a forum post / channel thread; sendable exactly like a channel),
    * "category" (a channel group — not messageable; a container target for
-   * per-team channels). */
-  type?: "text" | "forum" | "thread" | "category";
+   * per-team channels), or "voice" (offered for the `vc_to_display_*` stat
+   * displays, which rename the channel rather than post in it).
+   *
+   * This list is the guild's channel INVENTORY, not a list of places the bot
+   * can post — a picker choosing a notification destination has to select for
+   * messageable kinds itself. */
+  type?: "text" | "forum" | "thread" | "category" | "voice";
   /** Threads only: id of the parent forum/text channel. */
   parent_id?: string;
 }

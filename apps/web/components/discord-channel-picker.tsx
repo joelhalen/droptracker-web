@@ -24,6 +24,9 @@ function channelLabel(c: DiscordChannel, byId: Map<string, DiscordChannel>): str
     const parent = c.parent_id ? byId.get(c.parent_id) : undefined;
     return parent ? `#${parent.name} › ${c.name}` : `#${c.name}`;
   }
+  // Voice channels aren't "#" in Discord's own UI, and these lists sit next to
+  // text-channel pickers — the speaker keeps the two visibly distinct.
+  if (c.type === "voice") return `🔊 ${c.name}`;
   return `#${c.name}`;
 }
 
@@ -40,11 +43,13 @@ export function DiscordChannelPicker({
   onChange: (v: string) => void;
   placeholder?: string;
   disabled?: boolean;
-  /** "sendable" (default): text channels + threads — forums AND categories
-   * excluded, they aren't messageable. "forum": ONLY forum channels, flat
-   * list — the per-team thread parent. "category": ONLY channel categories,
-   * flat list — the parent for per-team private channels. */
-  mode?: "sendable" | "forum" | "category";
+  /** "sendable" (default): text channels + threads — forums, categories AND
+   * voice channels excluded, none of them are a place notifications can go.
+   * "forum": ONLY forum channels, flat list — the per-team thread parent.
+   * "category": ONLY channel categories, flat list — the parent for per-team
+   * private channels. "voice": ONLY voice channels — the `vc_to_display_*`
+   * stat displays, which rename the channel instead of posting in it. */
+  mode?: "sendable" | "forum" | "category" | "voice";
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -56,17 +61,21 @@ export function DiscordChannelPicker({
   const [manualOverride, setManualOverride] = useState<boolean | null>(null);
 
   const byId = useMemo(() => new Map(channels.map((c) => [c.id, c])), [channels]);
-  // Sendable mode: forums and categories are not messageable — forums exist
-  // in the list only to prefix their threads' labels, categories not at all,
-  // so neither appears as an option. Forum/category modes invert that: only
-  // that container type is listed (no thread rows).
+  // Sendable mode is an ALLOW-list, not a deny-list. It used to exclude the
+  // known-unpostable types, which meant every new kind the bot learned to
+  // cache turned up in notification pickers by default — adding voice
+  // channels would have offered them as a drops destination. Naming the
+  // sendable kinds instead keeps that decision explicit. Undefined type =
+  // pre-migration cache entry, which was always text.
   const selectable = useMemo(
     () =>
       mode === "forum"
         ? channels.filter((c) => c.type === "forum")
         : mode === "category"
           ? channels.filter((c) => c.type === "category")
-          : channels.filter((c) => c.type !== "forum" && c.type !== "category"),
+          : mode === "voice"
+            ? channels.filter((c) => c.type === "voice")
+            : channels.filter((c) => c.type === undefined || c.type === "text" || c.type === "thread"),
     [channels, mode],
   );
   const manual = manualOverride ?? selectable.length === 0;
@@ -136,7 +145,9 @@ export function DiscordChannelPicker({
             ? "Search forum channels…"
             : mode === "category"
               ? "Search categories…"
-              : "Search channels…"
+              : mode === "voice"
+                ? "Search voice channels…"
+                : "Search channels…"
         }
         disabled={disabled}
         className="w-full disabled:cursor-not-allowed disabled:opacity-60"

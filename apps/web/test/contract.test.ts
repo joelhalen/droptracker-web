@@ -481,6 +481,29 @@ test("group-config registry resolves all keys", () => {
   assert.doesNotThrow(() => GroupConfigPatchSchema.parse({}));
 });
 
+// The vc_to_display_* settings rename a VOICE channel rather than post in it.
+// They are the only channel fields that want a non-sendable target, and they
+// spent a long time unconfigurable from the picker because voice channels
+// weren't offered at all — so pin both which keys are marked and that nothing
+// else is, since a stray mark would offer a voice channel as a drops
+// destination.
+test("only the voice stat-display settings ask for a voice channel", () => {
+  const voiceKeys = GROUP_CONFIG_FIELDS.filter((f) => f.channelKind === "voice").map((f) => f.key);
+  assert.deepEqual(voiceKeys.sort(), [
+    "vc_to_display_droptracker_users",
+    "vc_to_display_monthly_loot",
+  ]);
+  // Marking a non-channel field would silently do nothing — catch it here.
+  for (const f of GROUP_CONFIG_FIELDS) {
+    if (f.channelKind) assert.equal(f.type, "channel", `${f.key} is not a channel field`);
+  }
+  // Seasonal mirrors resolve to the base field, so they inherit the kind
+  // rather than needing their own mark.
+  assert.equal(getConfigField("vc_to_display_monthly_loot")?.channelKind, "voice");
+  // And the ordinary notification channels must stay sendable.
+  assert.equal(getConfigField("channel_id_to_post_loot")?.channelKind, undefined);
+});
+
 // `comingSoon` is presentational only: it must never make a field unsaveable,
 // or admins would be told to configure something ahead of release and then be
 // unable to. So a flagged field still validates and still round-trips a patch.
