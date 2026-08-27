@@ -37,9 +37,7 @@ export function OsrsWindow({
           {title}
         </h2>
         {subtitle && (
-          <span className="font-osrs text-osrs-parchment/90 text-sm leading-none">
-            {subtitle}
-          </span>
+          <span className="font-osrs text-osrs-parchment/90 text-sm leading-none">{subtitle}</span>
         )}
       </div>
       {children}
@@ -81,15 +79,22 @@ export function OsrsListRow({
 /**
  * An item slot. Unobtained items are dimmed rather than hidden — the empty
  * slots are the whole point of a collection log.
+ *
+ * `label` names the slot for assistive tech, which the icon cannot: it is
+ * decorative (`alt=""`) because the name belongs to the slot, not the picture.
+ * Pass `title` only where nothing richer is attached — a native tooltip and a
+ * hover card fire on the same gesture and end up stacked on top of each other.
  */
 export function OsrsItemSlot({
   children,
   obtained,
+  label,
   title,
 }: {
   children: ReactNode;
   obtained: boolean;
-  title: string;
+  label?: string;
+  title?: string;
 }) {
   return (
     <div
@@ -98,6 +103,7 @@ export function OsrsItemSlot({
         obtained ? "" : "opacity-25 grayscale"
       }`}
     >
+      {label && <span className="sr-only">{label}</span>}
       {children}
     </div>
   );

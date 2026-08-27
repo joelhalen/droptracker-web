@@ -336,18 +336,41 @@ export const CollectionLogTabSchema = z.object({
 });
 export type CollectionLogTab = z.infer<typeof CollectionLogTabSchema>;
 
+/** What the player's own submission adds to a slot, when one exists for it. */
+export const CollectionLogDetailSchema = z.object({
+  /** When they unlocked it. Absent for anything the interface scrape backfilled. */
+  ts: z.number().int().nullable(),
+  /** Screenshot from the submission, already filtered to URLs we still host. */
+  image_url: z.string().nullable(),
+});
+export type CollectionLogDetail = z.infer<typeof CollectionLogDetailSchema>;
+
 export const PlayerCollectionLogSchema = z.object({
   player_id: z.number().int(),
   /** What the game reports; correct even when our structure lags a game update. */
   slots: z.number().int().nullable(),
   slots_total: z.number().int().nullable(),
-  /** What we can account for against the structure we know. */
+  /**
+   * What we can account for against the structure we know, counting slot
+   * instances — an item on six pages fills six of them, exactly as in game.
+   */
   obtained: z.number().int(),
   total: z.number().int(),
+  /** Distinct items, which is the only figure comparable with `slots`. */
+  obtained_unique: z.number().int(),
   /** Recorded items the structure does not define — a sign it needs re-syncing. */
   unknown_recorded: z.number().int(),
   has_structure: z.boolean(),
   tabs: z.array(CollectionLogTabSchema),
+  /**
+   * Slot id (as a string key) -> what a submission can say about it. Sparse:
+   * a slot appears only if the plugin announced that unlock, which is a small
+   * minority — everything older was backfilled with no date and no screenshot.
+   * Kept out of the items themselves so ~1,900 slots do not each carry two
+   * mostly-null fields. Optional so a backend still on the previous build
+   * degrades to hover cards with just the name rather than failing the parse.
+   */
+  details: z.record(z.string(), CollectionLogDetailSchema).optional().default({}),
   last_synced: z.string().nullable(),
   has_synced: z.boolean(),
 });

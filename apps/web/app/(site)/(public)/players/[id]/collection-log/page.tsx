@@ -76,7 +76,10 @@ export default async function CollectionLogPage({ params }: { params: Promise<{ 
   const filled = log.slots ?? log.obtained;
   const total = log.slots_total ?? log.total;
   const percent = total > 0 ? Math.round((filled / total) * 100) : null;
-  const partial = log.slots != null && log.obtained < log.slots;
+  // Against `obtained_unique`, not `obtained`: the page totals count a slot per
+  // page, so an item on six pages counts six times, and comparing that with the
+  // game's item count would call a full log incomplete.
+  const partial = log.slots != null && log.obtained_unique < log.slots;
 
   return (
     <div className="space-y-6">
@@ -94,8 +97,8 @@ export default async function CollectionLogPage({ params }: { params: Promise<{ 
         {partial && (
           <p className="border-osrs-bronze/20 text-osrs-parchment-dark/80 border-b px-3 py-2 text-xs">
             The game reports {filled.toLocaleString()} slots filled, but only{" "}
-            {log.obtained.toLocaleString()} have been recorded here. Opening the collection log in
-            game captures the rest.
+            {log.obtained_unique.toLocaleString()} have been recorded here. Opening the collection
+            log in game captures the rest.
           </p>
         )}
 
@@ -107,7 +110,7 @@ export default async function CollectionLogPage({ params }: { params: Promise<{ 
             />
           </div>
         ) : (
-          <CollectionLogBrowser tabs={log.tabs} />
+          <CollectionLogBrowser tabs={log.tabs} details={log.details} />
         )}
       </OsrsWindow>
 
