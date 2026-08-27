@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { apiGet, apiSend, withFallback } from "./_client";
 import {
+  AdminApiKeyListSchema,
+  ApiKeySchema,
+  ApiKeyTierSchema,
+  ApiUsageWindowSchema,
   AdminLookupResponseSchema,
   PbBlockListSchema,
   PbBlockSearchResponseSchema,
@@ -26,6 +30,10 @@ import {
   type ServiceLogs,
   type ServiceStatus,
   type SubscriptionTierInput,
+  type AdminApiKeyList,
+  type ApiKey,
+  type ApiKeyTier,
+  type ApiUsageWindow,
 } from "@droptracker/api-types";
 import {
   mockLookup,
@@ -186,6 +194,89 @@ export const adminApi = {
   /** Delete one cap (that scope reverts to unlimited). */
   async adminDeleteEventRateLimit(id: number): Promise<void> {
     await apiSend("DELETE", `/admin/event-rate-limits/${id}`, {});
+  },
+
+
+  // ── Data API (v2) keys ────────────────────────────────────────────────────
+
+  /** Every key plus the tier definitions they resolve against. */
+  async adminApiKeys(): Promise<AdminApiKeyList> {
+    return withFallback(
+      async () => AdminApiKeyListSchema.parse(await apiGet(`/admin/api-keys`, { authed: true })),
+      () => ({ keys: [], tiers: [] }),
+    );
+  },
+
+  /** Mint a key for a user or a group. The token is in the response ONCE. */
+  async adminMintApiKey(input: {
+    owner_user_id?: number | null;
+    group_id?: number | null;
+    label?: string;
+    tier?: string;
+    notes?: string;
+  }): Promise<ApiKey> {
+    return ApiKeySchema.parse(await apiSend("POST", `/admin/api-keys`, input));
+  },
+
+  /** Promote a tier, set or clear per-key overrides (null clears), revoke. */
+  async adminUpdateApiKey(
+    id: number,
+    input: {
+      tier?: string;
+      label?: string;
+      notes?: string;
+      revoked?: boolean;
+      requests_per_min?: number | null;
+      cost_units_per_min?: number | null;
+      requests_per_day?: number | null;
+      max_concurrency?: number | null;
+    },
+  ): Promise<ApiKey> {
+    return ApiKeySchema.parse(await apiSend("PATCH", `/admin/api-keys/${id}`, input));
+  },
+
+  /** Tier definitions, with how many live keys each is responsible for. */
+  async adminApiKeyTiers(): Promise<ApiKeyTier[]> {
+    return withFallback(
+      async () =>
+        ApiKeyTierSchema.array().parse(
+          ((await apiGet(`/admin/api-key-tiers`, { authed: true })) as { tiers: unknown })
+            .tiers,
+        ),
+      () => [],
+    );
+  },
+
+  /** Create or update a tier. Its limits apply to every key on it at once. */
+  async adminPutApiKeyTier(
+    tierKey: string,
+    input: {
+      display_name?: string;
+      requests_per_min?: number;
+      cost_units_per_min?: number;
+      requests_per_day?: number;
+      max_concurrency?: number;
+      enabled?: boolean;
+      sort_order?: number;
+    },
+  ): Promise<ApiKeyTier> {
+    return ApiKeyTierSchema.parse(await apiSend("PUT", `/admin/api-key-tiers/${tierKey}`, input));
+  },
+
+  /** Delete a tier. Refused by the backend while live keys still use it. */
+  async adminDeleteApiKeyTier(tierKey: string): Promise<void> {
+    await apiSend("DELETE", `/admin/api-key-tiers/${tierKey}`, {});
+  },
+
+  /** Per-key spend, latency and errors over the last `hours`. */
+  async adminApiUsage(hours = 24): Promise<ApiUsageWindow> {
+    return withFallback(
+      async () =>
+        ApiUsageWindowSchema.parse(
+          await apiGet(`/admin/api-usage?hours=${hours}`, { authed: true }),
+        ),
+      () => ({ available: false, hours, totals: {}, endpoints: {}, statuses: {}, keys: [] }),
+    );
   },
 
 

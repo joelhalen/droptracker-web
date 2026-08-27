@@ -2278,6 +2278,96 @@ export const AdminEventRateLimitSchema = z.object({
 });
 export type AdminEventRateLimit = z.infer<typeof AdminEventRateLimitSchema>;
 
+/* ── Data API (v2) keys ─────────────────────────────────────────────────────
+ * Keys for the external /v2 data API. A key belongs to a user OR a group and
+ * sits in a tier; the tier supplies its limits and per-key overrides beat
+ * them field by field. Tiers are a property of the KEY, not of any
+ * subscription — every key starts on the entry tier and staff promote it once
+ * its usage proves itself.
+ */
+export const ApiKeyStates = ["active", "revoked", "expired"] as const;
+
+export const ApiKeyOverridesSchema = z.object({
+  requests_per_min: z.number().int().positive().optional(),
+  cost_units_per_min: z.number().int().positive().optional(),
+  requests_per_day: z.number().int().positive().optional(),
+  max_concurrency: z.number().int().positive().optional(),
+});
+export type ApiKeyOverrides = z.infer<typeof ApiKeyOverridesSchema>;
+
+export const ApiKeySchema = z.object({
+  id: z.number().int(),
+  label: z.string(),
+  state: z.enum(ApiKeyStates),
+  tier: z.string(),
+  owner_type: z.enum(["user", "group"]),
+  owner_user_id: z.number().int().nullable(),
+  group_id: z.number().int().nullable(),
+  /** "dtk_12_ab34cd..." — enough to recognise, useless to authenticate with. */
+  display: z.string(),
+  created_at: z.string().nullable(),
+  last_used_at: z.string().nullable(),
+  expires_at: z.string().nullable(),
+  revoked_at: z.string().nullable(),
+  overrides: ApiKeyOverridesSchema,
+  /** Present on the mint response ONLY, and never again. */
+  token: z.string().optional(),
+  warning: z.string().optional(),
+});
+export type ApiKey = z.infer<typeof ApiKeySchema>;
+
+export const ApiKeyTierSchema = z.object({
+  tier_key: z.string(),
+  display_name: z.string(),
+  requests_per_min: z.number().int(),
+  cost_units_per_min: z.number().int(),
+  requests_per_day: z.number().int(),
+  max_concurrency: z.number().int(),
+  enabled: z.boolean(),
+  sort_order: z.number().int(),
+  /** Live keys on this tier — how consequential editing it is. */
+  active_keys: z.number().int().optional(),
+});
+export type ApiKeyTier = z.infer<typeof ApiKeyTierSchema>;
+
+export const AdminApiKeyListSchema = z.object({
+  keys: ApiKeySchema.array(),
+  tiers: ApiKeyTierSchema.array(),
+});
+export type AdminApiKeyList = z.infer<typeof AdminApiKeyListSchema>;
+
+/** One key's spend over the usage window. */
+export const ApiKeyUsageSchema = z.object({
+  key_id: z.number().int(),
+  requests: z.number().int(),
+  cost: z.number().int(),
+  players: z.number().int(),
+  duration_ms: z.number().int(),
+  slow: z.number().int(),
+  limited: z.number().int(),
+  max_ms: z.number().int(),
+  errors: z.number().int(),
+  avg_ms: z.number().optional(),
+  label: z.string().optional(),
+  tier: z.string().optional(),
+  owner_type: z.enum(["user", "group"]).optional(),
+  group_id: z.number().int().nullable().optional(),
+  owner_user_id: z.number().int().nullable().optional(),
+});
+export type ApiKeyUsage = z.infer<typeof ApiKeyUsageSchema>;
+
+export const ApiUsageWindowSchema = z.object({
+  /** False when Redis is unreachable — the dashboard says so rather than
+   *  rendering zeros as though nobody called. */
+  available: z.boolean(),
+  hours: z.number().int(),
+  totals: z.record(z.string(), z.number()).default({}),
+  endpoints: z.record(z.string(), z.number()).default({}),
+  statuses: z.record(z.string(), z.number()).default({}),
+  keys: ApiKeyUsageSchema.array().default([]),
+});
+export type ApiUsageWindow = z.infer<typeof ApiUsageWindowSchema>;
+
 /** Clan-vs-clan participant roster (web_event_groups). */
 export const EVENT_PARTICIPANT_ROLES = ["host", "opponent"] as const;
 export const EVENT_PARTICIPANT_STATUSES = ["invited", "accepted", "declined"] as const;
