@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ServiceActionSchema, type ServiceAction } from "@droptracker/api-types";
 import { api } from "@/lib/api";
+import type { EdgeMirrorState } from "@/lib/api/admin";
 import { requireDeveloper, requireSuperadmin } from "@/lib/auth";
 
 /** Server Action: start/stop/restart a backend service unit. Superadmin only. */
@@ -46,4 +47,24 @@ export async function setSeasonalActive(
   }
   revalidatePath("/admin/services");
   return { ok: true as const };
+}
+
+/**
+ * Server Action: mirror production submissions at the dev instance, or stop.
+ *
+ * Superadmin only, re-asserted here rather than relying on the page guard — a
+ * Server Action is an independently addressable POST endpoint.
+ */
+export async function setEdgeMirror(
+  enabled: boolean,
+  ttlSeconds: number | null,
+): Promise<{ ok: true; state: EdgeMirrorState } | { ok: false; error: string }> {
+  await requireSuperadmin("/admin/services");
+  try {
+    const state = await api.adminSetEdgeMirror(Boolean(enabled), ttlSeconds);
+    revalidatePath("/admin/services");
+    return { ok: true as const, state };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message || "Toggle failed." };
+  }
 }

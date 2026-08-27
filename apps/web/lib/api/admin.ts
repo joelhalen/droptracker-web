@@ -36,6 +36,17 @@ import {
   mockServices,
 } from "../mock-data";
 
+/**
+ * State of the edge Worker's dev-mirror switch. `expires_at` is the auto-expiry:
+ * null means it runs until someone turns it off.
+ */
+const EdgeMirrorStateSchema = z.object({
+  enabled: z.boolean(),
+  sample: z.number(),
+  expires_at: z.string().nullable(),
+});
+export type EdgeMirrorState = z.infer<typeof EdgeMirrorStateSchema>;
+
 export const adminApi = {
 
   /** Whether seasonal-world (Leagues/DMM) submission processing is globally on. */
@@ -67,6 +78,34 @@ export const adminApi = {
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,
+    );
+  },
+
+
+  /**
+   * Whether the Cloudflare edge Worker is also mirroring production submissions
+   * at the dev instance, and when that lapses.
+   */
+  async adminEdgeMirror(): Promise<EdgeMirrorState> {
+    return withFallback(
+      async () =>
+        EdgeMirrorStateSchema.parse(await apiGet(`/admin/edge-mirror`, { authed: true })),
+      () => ({ enabled: false, sample: 1, expires_at: null }),
+    );
+  },
+
+
+  /**
+   * Start or stop mirroring. `ttlSeconds` null means no expiry — everything
+   * else self-disables, which is the point.
+   */
+  async adminSetEdgeMirror(enabled: boolean, ttlSeconds: number | null): Promise<EdgeMirrorState> {
+    return withFallback(
+      async () =>
+        EdgeMirrorStateSchema.parse(
+          await apiSend("POST", `/admin/edge-mirror`, { enabled, ttl_seconds: ttlSeconds }),
+        ),
+      () => ({ enabled, sample: 1, expires_at: null }),
     );
   },
 
