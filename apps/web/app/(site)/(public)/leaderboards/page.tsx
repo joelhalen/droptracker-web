@@ -1,6 +1,7 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { EntitySearch } from "@/components/entity-search";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { PERIOD_OPTIONS, DEFAULT_PERIOD, resolvePeriod } from "@/lib/period";
 
@@ -66,6 +67,15 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
               {p.label}
             </Link>
           ))}
+        </div>
+        {/* Page-scoped live search: jump straight to a profile instead of
+            paginating the table. Wraps to its own full-width row on mobile. */}
+        <div className="ms-auto w-full sm:w-72">
+          <EntitySearch
+            key={tab}
+            kinds={[tab]}
+            placeholder={tab === "groups" ? "Find a clan…" : "Find a player…"}
+          />
         </div>
       </div>
 

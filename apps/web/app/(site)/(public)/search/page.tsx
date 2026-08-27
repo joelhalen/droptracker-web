@@ -4,7 +4,7 @@ import type { SearchEntity } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { entityPath } from "@/lib/slug";
 import { EntityHoverCard } from "@/components/entity-hover-card";
-import { SearchBox } from "@/components/search-box";
+import { EntitySearch } from "@/components/entity-search";
 import { EmptyState, EntityChip } from "@/components/ui";
 
 export const metadata: Metadata = {
@@ -50,7 +50,10 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
     <div className="mx-auto max-w-2xl space-y-8">
       <div>
         <h1 className="text-osrs-gold mb-4 text-3xl font-bold">Search</h1>
-        <SearchBox initial={q} />
+        {/* Live typeahead popup while typing; Enter / the button re-render the
+            full result sections below. Keyed on q so a popup navigation to
+            /search?q=… resets the field to the submitted query. */}
+        <EntitySearch key={q} initial={q} withButton />
       </div>
 
       {!results && (
