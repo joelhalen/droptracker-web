@@ -33,12 +33,12 @@ export default async function DocsIndexPage() {
         {/* Compact dev-docs button — pinned to the corner on wider screens so it
             doesn't push the page content down. */}
         <Link
-          href={"/docs/dev" as Route}
-          title="Internal workings — API, architecture, and contributor guides"
+          href="/docs/api"
+          title="Read DropTracker data from your own app"
           className="ink-link ink-rule absolute right-0 top-0 hidden items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-opacity hover:opacity-80 sm:inline-flex"
         >
           <span aria-hidden="true">{"</>"}</span>
-          Developer Docs
+          Data API
         </Link>
 
         <h1 className="ink-heading text-2xl font-bold sm:text-3xl">Documentation</h1>
@@ -49,11 +49,11 @@ export default async function DocsIndexPage() {
         {/* On small screens the corner button would collide with the title,
             so it drops inline below the subtitle instead. */}
         <Link
-          href={"/docs/dev" as Route}
+          href="/docs/api"
           className="ink-link ink-rule mt-3 inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium sm:hidden"
         >
           <span aria-hidden="true">{"</>"}</span>
-          Developer Docs
+          Data API
         </Link>
       </header>
 

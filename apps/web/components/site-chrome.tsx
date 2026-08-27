@@ -30,7 +30,23 @@ const HEADER_TABS: NavTab[] = [
   },
   { href: "/events", label: "Events", matchPrefix: true },
   { href: "/announcements", label: "News", matchPrefix: true },
-  { href: "/docs", label: "Docs", matchPrefix: true },
+  {
+    href: "/docs",
+    label: "Docs",
+    matchPrefix: true,
+    children: [
+      {
+        href: "/docs",
+        label: "Guides",
+        description: "Getting started, accounts, groups and events",
+      },
+      {
+        href: "/docs/api",
+        label: "Data API",
+        description: "Read player and group data from your own app",
+      },
+    ],
+  },
   { href: "/suggestions", label: "Suggestions" },
   {
     href: "/premium",
