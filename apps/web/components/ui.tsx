@@ -193,9 +193,11 @@ export function NameTile({
   const hue = nameHue(name);
   const initial = (name.trim()[0] ?? "?").toUpperCase();
   const f = resolveFlair(flair);
+  const withAvatar = playerId !== undefined && playerId >= 0;
   return (
     <span
       aria-hidden
+      data-avatar-tile={withAvatar ? "" : undefined}
       className={`relative flex shrink-0 select-none items-center justify-center overflow-hidden font-bold text-white/90 shadow-sm ${TILE_SIZES[size]} ${className}`}
       style={{
         background: `linear-gradient(135deg, hsl(${hue} 45% 42%), hsl(${(hue + 40) % 360} 50% 30%))`,
@@ -204,18 +206,27 @@ export function NameTile({
         ...f?.tileStyle,
       }}
     >
-      {initial}
-      {playerId !== undefined && playerId >= 0 && (
+      {/* Classed so the stylesheet can hide it behind a loaded model — with no
+          fill left underneath, the letter would otherwise show through the
+          transparent parts of the character. */}
+      <span className="dt-avatar-initial">{initial}</span>
+      {withAvatar && (
         // A raw <img>, not next/image, on purpose: the optimizer would turn a
         // 404 into a build-time error rather than the transparent PNG this
         // fallback depends on, and it would route every row of a leaderboard
         // through it for an image most players do not have.
+        //
+        // object-contain, and the source is square by construction, so the
+        // figure is neither cropped nor letterboxed nor nudged off-centre at
+        // any of the sizes this renders at — the centring is done once, in the
+        // crop, rather than compensated for per surface in CSS.
         <img
+          data-avatar=""
           src={playerAvatarUrl(playerId)}
           alt=""
           loading="lazy"
           decoding="async"
-          className="absolute inset-0 size-full object-cover"
+          className="absolute inset-0 size-full object-contain"
         />
       )}
     </span>

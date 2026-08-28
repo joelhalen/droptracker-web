@@ -376,3 +376,29 @@ body {
   background: transparent;
   color: var(--scroll-ink-muted);
 }
+
+/* ---------------------------------------------------------------------- */
+/* Character avatar tiles (components/ui.tsx NameTile).                    */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * A player with a character model gets the model on transparency; a player
+ * without one keeps the coloured initial. Both keep the same border, so a
+ * mixed list reads as one set of tiles rather than two treatments.
+ *
+ * The fill and the initial are removed only once the image has actually
+ * arrived — `data-has-model` is set by the listener in components/avatar-tile.ts,
+ * because whether a player has a model is not knowable until the request is
+ * answered. Until then (and forever, for the majority who have no model) this
+ * does nothing at all and the letter tile stands.
+ *
+ * `!important` because the fill is an inline style: the gradient is derived
+ * from the name at render time, so it cannot live in a stylesheet. The border
+ * is a separate declaration and is deliberately left alone.
+ */
+[data-avatar-tile][data-has-model] {
+  background: none !important;
+}
+[data-avatar-tile][data-has-model] > .dt-avatar-initial {
+  visibility: hidden;
+}

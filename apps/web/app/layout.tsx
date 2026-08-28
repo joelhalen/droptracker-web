@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { THEME_INIT_SCRIPT } from "@/components/theme";
+import { AVATAR_TILE_SCRIPT } from "@/components/avatar-tile";
 
 /*
  * Committed variable fonts (UI refresh): Figtree for body/UI text, Cinzel as
@@ -88,6 +89,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen antialiased">
         {/* Apply the stored theme before first paint (components/theme.tsx). */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Drop the tile fill behind character avatars that load
+            (components/avatar-tile.ts). Registered here rather than per tile:
+            the listener must exist before the first avatar finishes loading,
+            and one document listener serves a whole leaderboard. */}
+        <script dangerouslySetInnerHTML={{ __html: AVATAR_TILE_SCRIPT }} />
         <Providers>{children}</Providers>
       </body>
     </html>
