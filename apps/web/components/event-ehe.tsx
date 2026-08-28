@@ -21,23 +21,54 @@ import { effortSummary, formatEheHours } from "@/lib/events";
 
 export const EHE_FULL_NAME = "Efficient Hours towards Event";
 
+/** Copy for the one state where the number is not a measurement at all. */
+export const EHE_UNAVAILABLE = "EHE unavailable";
+
+/**
+ * Whether an EHE figure is currently meaningful.
+ *
+ * The rate table lives in a cache the backend keeps warm; when it is cold
+ * every boss with a published rate prices at 0 and the total collapses to
+ * whatever our own derived rates happened to cover. That is an undercount, not
+ * a measurement, and it is indistinguishable from "this player did nothing"
+ * unless we say so — which is exactly how a site-wide outage went unnoticed
+ * for a day on 2026-08-28.
+ *
+ * Defaults to true when the flag is absent so an older API response, or a
+ * payload that carries only a scalar, renders exactly as it did before.
+ */
+export function eheRatesKnown(ratesKnown?: boolean | null): boolean {
+  return ratesKnown !== false;
+}
+
 /** The explanation body, shared by every EHE tooltip on the site. */
 export function EheExplainer({
   effort,
   estimated = false,
+  ratesKnown,
 }: {
   effort?: EventEffort | null;
   /** True when the figure includes hours priced with DropTracker-derived
    * rates (bosses WOM publishes no rate for) — adds the tilde explanation. */
   estimated?: boolean;
+  /** False when the rate table could not be read — see `eheRatesKnown`. */
+  ratesKnown?: boolean | null;
 }) {
   const hasEstimate = estimated || (effort?.ehb_estimated_hours ?? 0) > 0;
+  const known = eheRatesKnown(ratesKnown ?? effort?.rates_known);
   return (
     <div className="space-y-2 text-xs">
       <div>
         <div className="text-osrs-gold-bright font-semibold">EHE</div>
         <div className="text-osrs-parchment-dark/70">{EHE_FULL_NAME}</div>
       </div>
+      {!known && (
+        <p className="text-osrs-gold-bright/90">
+          Efficiency rates are temporarily unavailable, so hours can&apos;t be
+          calculated right now. Kills are still being recorded — the figures
+          fill back in on their own once rates return.
+        </p>
+      )}
       <p className="text-osrs-parchment/85">
         An estimate of the time this player spent working towards this event&apos;s tasks
         — counted from kills at the bosses those tasks care about, whether or not
@@ -92,6 +123,20 @@ export function EheChip({
 }) {
   if (!effort || (effort.kills ?? 0) <= 0) return null;
   const estimated = (effort.ehb_estimated_hours ?? 0) > 0;
+  if (!eheRatesKnown(effort.rates_known)) {
+    // The kills are real and worth showing; the hours are not. Saying so beats
+    // a confident "0h EHE" next to a player who bossed all week.
+    return (
+      <HoverCard content={<EheExplainer effort={effort} />} width={272}>
+        <span
+          className={`cursor-help text-osrs-parchment-dark/60 italic ${className}`}
+        >
+          {children}
+          {EHE_UNAVAILABLE}
+        </span>
+      </HoverCard>
+    );
+  }
   return (
     <HoverCard content={<EheExplainer effort={effort} />} width={272}>
       <span className={`cursor-help tabular-nums ${className}`}>
@@ -111,15 +156,27 @@ export function EheChip({
 export function EheHoursChip({
   hours,
   estimatedHours,
+  ratesKnown,
   className = "",
 }: {
   hours: number | null | undefined;
   /** The estimated (derived-rate) portion of `hours` — >0 adds the tilde. */
   estimatedHours?: number | null;
+  /** False when the rate table could not be read — see `eheRatesKnown`. */
+  ratesKnown?: boolean | null;
   className?: string;
 }) {
-  if (!hours || hours <= 0) return null;
   const estimated = (estimatedHours ?? 0) > 0;
+  if (!eheRatesKnown(ratesKnown)) {
+    return (
+      <HoverCard content={<EheExplainer ratesKnown={false} />} width={272}>
+        <span className={`cursor-help text-osrs-parchment-dark/60 italic ${className}`}>
+          {EHE_UNAVAILABLE}
+        </span>
+      </HoverCard>
+    );
+  }
+  if (!hours || hours <= 0) return null;
   return (
     <HoverCard content={<EheExplainer estimated={estimated} />} width={272}>
       <span className={`cursor-help tabular-nums ${className}`}>
@@ -137,12 +194,24 @@ export function EheHoursChip({
 export function EheValue({
   hours,
   estimatedHours,
+  ratesKnown,
 }: {
   hours: number | null | undefined;
   /** The estimated (derived-rate) portion of `hours` — >0 adds the tilde. */
   estimatedHours?: number | null;
+  /** False when the rate table could not be read — see `eheRatesKnown`. */
+  ratesKnown?: boolean | null;
 }) {
   const estimated = (estimatedHours ?? 0) > 0;
+  if (!eheRatesKnown(ratesKnown)) {
+    return (
+      <HoverCard content={<EheExplainer ratesKnown={false} />} width={272}>
+        <span className="cursor-help text-osrs-parchment-dark/60 text-sm italic">
+          unavailable
+        </span>
+      </HoverCard>
+    );
+  }
   return (
     <HoverCard content={<EheExplainer estimated={estimated} />} width={272}>
       <span className="cursor-help tabular-nums">

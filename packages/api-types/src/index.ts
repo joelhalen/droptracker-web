@@ -3586,6 +3586,11 @@ export const EventEffortSchema = z.object({
   last_at: z.number().int().nullable().optional(),
   /** How many of their bosses have frozen (their tasks are all done). */
   frozen: z.number().int().default(0),
+  /** False when the WOM rate table could not be read, in which case every
+   * WOM-priced boss scored 0 and `ehb_hours` is an undercount rather than a
+   * measurement — show "unavailable", never a confident number. Defaults true
+   * so an older API (which omits it) keeps rendering normally. */
+  rates_known: z.boolean().default(true),
 });
 export type EventEffort = z.infer<typeof EventEffortSchema>;
 

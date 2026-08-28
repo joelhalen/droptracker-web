@@ -357,6 +357,10 @@ export function EventTeamView({
 
   const completedCount = tasks.filter((t) => progress.get(t.id)?.completed).length;
   const contributors = members.filter((m) => m.completions > 0 || m.points > 0).length;
+  // The team total carries no rates flag of its own — it is a sum of the same
+  // rows the members are priced from, so if any member's pricing is
+  // unavailable the total is an undercount too.
+  const teamRatesKnown = !members.some((m) => m.effort?.rates_known === false);
 
   /** One roster card: identity, counters, what they did last, and (on demand)
    * the full per-task / per-item breakdown. */
@@ -686,6 +690,7 @@ export function EventTeamView({
               <EheValue
                 hours={team.ehb_hours}
                 estimatedHours={team.ehb_estimated_hours}
+                ratesKnown={teamRatesKnown}
               />
             }
           />

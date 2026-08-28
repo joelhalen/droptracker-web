@@ -212,6 +212,7 @@ function PlayerDetail({ detail }: { detail: EventPlayerDetail }) {
             <EheValue
               hours={player.effort?.ehb_hours}
               estimatedHours={player.effort?.ehb_estimated_hours}
+              ratesKnown={player.effort?.rates_known}
             />
           }
           hint={
@@ -466,6 +467,7 @@ function PlayerRow({
               <EheValue
                 hours={player.effort?.ehb_hours}
                 estimatedHours={player.effort?.ehb_estimated_hours}
+                ratesKnown={player.effort?.rates_known}
               />
             </div>
             <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">

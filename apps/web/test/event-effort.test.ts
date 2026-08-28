@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EventEffort } from "@droptracker/api-types";
 import { effortSummary, formatEheHours } from "@/lib/events";
+import { eheRatesKnown } from "@/components/event-ehe";
 
 function effort(over: Partial<EventEffort> = {}): EventEffort {
   return {
@@ -18,6 +19,7 @@ function effort(over: Partial<EventEffort> = {}): EventEffort {
     boss_count: 0,
     last_at: null,
     frozen: 0,
+    rates_known: true,
     ...over,
   };
 }
@@ -78,4 +80,34 @@ test("effortSummary falls back to the boss list when boss_count is absent", () =
   const e = effort({ kills: 30, bosses: [{} as never, {} as never] });
   delete (e as Partial<EventEffort>).boss_count;
   assert.equal(effortSummary(e), "30 kills at 2 bosses");
+});
+
+/**
+ * `eheRatesKnown` decides whether an EHE figure is a measurement at all.
+ *
+ * When the backend's rate table is cold, every boss with a published rate
+ * prices at 0 and the total collapses — which looks exactly like a player who
+ * did nothing. On 2026-08-28 that state ran site-wide for a day and every
+ * surface rendered a confident dash, because only the admin report carried the
+ * flag. The default must stay permissive so an older payload (or a scalar-only
+ * one) renders as it always did.
+ */
+test("eheRatesKnown only reports unavailable on an explicit false", () => {
+  assert.equal(eheRatesKnown(false), false);
+  assert.equal(eheRatesKnown(true), true);
+  // Absent flag = older API or a payload with no per-player effort object.
+  assert.equal(eheRatesKnown(undefined), true);
+  assert.equal(eheRatesKnown(null), true);
+});
+
+test("a cold rate table is distinguishable from an idle player", () => {
+  // Same rendered hours, opposite meanings — the flag is the only thing that
+  // separates them, which is why it rides on the summary rather than a wrapper.
+  const idle = effort({ kills: 0, ehb_hours: 0 });
+  const unpriced = effort({ kills: 640, ehb_hours: 0, rates_known: false });
+  assert.equal(formatEheHours(idle.ehb_hours), formatEheHours(unpriced.ehb_hours));
+  assert.equal(eheRatesKnown(idle.rates_known), true);
+  assert.equal(eheRatesKnown(unpriced.rates_known), false);
+  // The kills still stand on their own and must keep being shown.
+  assert.equal(effortSummary(unpriced), "640 kills");
 });

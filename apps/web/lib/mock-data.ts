@@ -2430,6 +2430,7 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
           ? {
               ehb_hours: 7.06,
               ehb_estimated_hours: 0,
+              rates_known: true,
               kills: 240,
               bosses: [
                 {
@@ -2450,6 +2451,7 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
               ehb_hours: i % 2 === 0 ? 2.17 : 0.41,
               // Odd members demo the derived-rate estimate ("~25m").
               ehb_estimated_hours: i % 2 === 0 ? 0 : 0.41,
+              rates_known: true,
               kills: i % 2 === 0 ? 100 : 14,
               bosses: [
                 {
@@ -2551,6 +2553,7 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       effort: {
         ehb_hours: 16.9,
         ehb_estimated_hours: 4.5,
+        rates_known: true,
         kills: 650,
         bosses: [
           {
@@ -2605,6 +2608,7 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       effort: {
         ehb_hours: 3.2,
         ehb_estimated_hours: 0,
+        rates_known: true,
         kills: 110,
         bosses: [
           {
@@ -2637,6 +2641,7 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
       effort: {
         ehb_hours: 0,
         ehb_estimated_hours: 0,
+        rates_known: true,
         kills: 0,
         bosses: [],
         boss_count: 0,
@@ -2716,6 +2721,7 @@ export function mockEventEffortReport(eventId: number): EventEffortReport {
     ...(p.effort ?? {
       ehb_hours: 0,
       ehb_estimated_hours: 0,
+      rates_known: true,
       kills: 0,
       bosses: [],
       boss_count: 0,
