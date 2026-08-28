@@ -170,7 +170,7 @@ function PersonalPanel({ my }: { my: MyProfile }) {
               onClick={() => nav.push({ name: "player", id: p.id })}
               className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left"
             >
-              <NameTile name={p.name} size="sm" />
+              <NameTile name={p.name} size="sm" playerId={p.id} />
               <span className="min-w-0 flex-1">
                 <span className="text-osrs-parchment block truncate text-[13.5px] font-semibold">
                   {p.name}
@@ -477,7 +477,11 @@ export function HomeView() {
                   {row.iconUrl ? (
                     <img src={row.iconUrl} alt="" className="size-7 shrink-0 object-contain" loading="lazy" />
                   ) : (
-                    <NameTile name={row.playerName} size="sm" />
+                    <NameTile
+                      name={row.playerName}
+                      size="sm"
+                      playerId={row.playerId ?? undefined}
+                    />
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="text-osrs-parchment block truncate text-[12.5px]">

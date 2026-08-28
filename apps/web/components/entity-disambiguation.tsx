@@ -66,7 +66,12 @@ export function EntityDisambiguation({
                       className="border-osrs-bronze/40 size-9 shrink-0 rounded-lg border object-cover"
                     />
                   ) : (
-                    <NameTile name={c.name} size="sm" flair={c.flair?.style} />
+                    <NameTile
+                      name={c.name}
+                      size="sm"
+                      flair={c.flair?.style}
+                      playerId={kind === "players" ? c.id : undefined}
+                    />
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-medium">{c.name}</div>

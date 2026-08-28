@@ -70,7 +70,7 @@ export function PlayerView({ id }: { id: number }) {
 
       <Card padding="p-4">
         <div className="flex items-center gap-3">
-          <NameTile name={profile.name} size="lg" />
+          <NameTile name={profile.name} size="lg" playerId={id} />
           <div className="min-w-0 flex-1">
             {/* Account type sits with the name, as it does in game and on the
                 site. Icons are same-origin under /account-types, so the

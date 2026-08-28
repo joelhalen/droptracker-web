@@ -104,7 +104,7 @@ export default async function PlayerPage({ params }: { params: Params }) {
 
       <header className="rise-in space-y-5">
         <div className="flex items-center gap-4">
-          <NameTile name={player.name} size="lg" />
+          <NameTile name={player.name} size="lg" playerId={player.id} />
           <div>
             <h1
               className={`flex flex-wrap items-center gap-2 text-3xl font-bold ${

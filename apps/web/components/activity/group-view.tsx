@@ -105,7 +105,7 @@ export function GroupView({ id }: { id: number }) {
                     className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left"
                   >
                     <RankMedal rank={p.rank} />
-                    <NameTile name={p.name} size="sm" />
+                    <NameTile name={p.name} size="sm" playerId={p.id} />
                     <span className="text-osrs-parchment min-w-0 flex-1 truncate text-[13px]">{p.name}</span>
                     <span className="text-osrs-gold-bright shrink-0 text-[12.5px] font-semibold tabular-nums">
                       {gpText(p.loot)}

@@ -180,6 +180,7 @@ export function UserOverviewPanel({
                   name={p.name}
                   size="sm"
                   subtitle={p.wom_id != null ? `WOM #${p.wom_id}` : undefined}
+                  playerId={p.id}
                 />
                 {p.hidden && <Badge variant="neutral">Hidden</Badge>}
               </li>

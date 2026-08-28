@@ -139,6 +139,7 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                         size="sm"
                         className="shrink-0"
                         tileClassName="max-sm:hidden"
+                        playerId={r.id}
                       />
                       {r.badges?.length ? <PlayerBadgeIcons badges={r.badges} /> : null}
                     </EntityHoverCard>

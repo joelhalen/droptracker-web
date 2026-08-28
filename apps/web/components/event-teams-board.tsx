@@ -212,7 +212,11 @@ export function EventTeamsBoard({
                             className="bg-osrs-surface-2/50 hover:bg-osrs-bronze/20 flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2 text-xs"
                             title={`${c.player_name} · ${fmtPoints(c.points)} pts`}
                           >
-                            <NameTile name={c.player_name} size="sm" />
+                            <NameTile
+                              name={c.player_name}
+                              size="sm"
+                              playerId={c.player_id ?? undefined}
+                            />
                             <span className="text-osrs-parchment max-w-[7rem] truncate">
                               {c.player_name}
                             </span>
@@ -227,7 +231,11 @@ export function EventTeamsBoard({
                             className="bg-osrs-surface-2/50 hover:bg-osrs-bronze/20 flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-2 text-xs"
                             title={`${c.player_name} · ${fmtPoints(c.points)} pts`}
                           >
-                            <NameTile name={c.player_name} size="sm" />
+                            <NameTile
+                              name={c.player_name}
+                              size="sm"
+                              playerId={c.player_id ?? undefined}
+                            />
                             <span className="text-osrs-parchment max-w-[7rem] truncate">
                               {c.player_name}
                             </span>

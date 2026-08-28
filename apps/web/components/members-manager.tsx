@@ -98,7 +98,12 @@ export function MembersManager({
                 >
                   <td className="px-3 py-2">
                     <EntityHoverCard kind="player" id={m.id} name={m.name} className="flex min-w-0">
-                      <EntityChip href={entityPath("players", m.id, m.name)} name={m.name} size="sm" />
+                      <EntityChip
+                        href={entityPath("players", m.id, m.name)}
+                        name={m.name}
+                        size="sm"
+                        playerId={m.id}
+                      />
                     </EntityHoverCard>
                   </td>
                   <td className="px-3 py-2">

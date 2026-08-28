@@ -133,7 +133,11 @@ function PodiumCard({
   const inner = (
     <div className="flex flex-col items-center gap-1.5 text-center">
       <RankMedal rank={rank} />
-      <NameTile name={player.player_name} size={rank === 1 ? "md" : "sm"} />
+      <NameTile
+        name={player.player_name}
+        size={rank === 1 ? "md" : "sm"}
+        playerId={player.player_id ?? undefined}
+      />
       <div className="min-w-0 max-w-full">
         <div className="text-osrs-parchment truncate font-semibold">
           {player.player_name}
@@ -419,7 +423,11 @@ function PlayerRow({
               onClick={() => onOpenPlayer(player.player_id!)}
               className="group flex min-w-0 flex-1 items-center gap-2 text-left"
             >
-              <NameTile name={player.player_name} size="sm" />
+              <NameTile
+                name={player.player_name}
+                size="sm"
+                playerId={player.player_id ?? undefined}
+              />
               {identity}
             </button>
           ) : (
@@ -433,7 +441,11 @@ function PlayerRow({
                 href={`/players/${player.player_id}` as Route}
                 className="group flex min-w-0 items-center gap-2"
               >
-                <NameTile name={player.player_name} size="sm" />
+                <NameTile
+                  name={player.player_name}
+                  size="sm"
+                  playerId={player.player_id ?? undefined}
+                />
                 {identity}
               </Link>
             </EntityHoverCard>

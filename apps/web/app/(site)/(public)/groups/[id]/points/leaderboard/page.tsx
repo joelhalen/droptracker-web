@@ -151,7 +151,7 @@ export default async function GroupPointsLeaderboardPage({
                       href={entityPath("players", row.id, row.name)}
                       className="hover:text-osrs-gold-bright flex items-center gap-2"
                     >
-                      <NameTile name={row.name} />
+                      <NameTile name={row.name} playerId={row.id} />
                       <span className="font-medium">{row.name}</span>
                     </Link>
                   </td>

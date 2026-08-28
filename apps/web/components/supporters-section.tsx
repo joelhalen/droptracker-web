@@ -73,6 +73,7 @@ export function SupportersSection({ supporters }: { supporters: Supporters }) {
                     href={entityPath("players", p.player_id, p.name)}
                     name={p.name}
                     size="sm"
+                    playerId={p.player_id}
                     badges={
                       <Badge variant="gold" title="This player supports DropTracker">
                         ★

@@ -141,7 +141,7 @@ function PlayerCardBody({ id, name, seed }: { id: number; name: string; seed?: E
   return (
     <CardShell href={entityPath("players", id, name)} linkLabel="View full profile">
       <div className="flex items-center gap-2.5">
-        <NameTile name={name} size="md" />
+        <NameTile name={name} size="md" playerId={id} />
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="truncate font-semibold">{name}</span>

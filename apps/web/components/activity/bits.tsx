@@ -72,6 +72,7 @@ export function PressRow({
   subtitle,
   right,
   onPress,
+  playerId,
 }: {
   /** Explicit icon node; falls back to a NameTile identicon from `name`. */
   icon?: React.ReactNode;
@@ -80,10 +81,12 @@ export function PressRow({
   subtitle?: React.ReactNode;
   right?: React.ReactNode;
   onPress?: () => void;
+  /** When this row is a player, shows their character avatar in the fallback. */
+  playerId?: number;
 }) {
   const body = (
     <>
-      {icon ?? <NameTile name={name} size="sm" />}
+      {icon ?? <NameTile name={name} size="sm" playerId={playerId} />}
       <span className="min-w-0 flex-1">
         <span className="text-osrs-parchment block truncate text-[13.5px] font-semibold">
           {title ?? name}

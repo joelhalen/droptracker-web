@@ -157,6 +157,7 @@ export default async function GroupPage({ params }: { params: Params }) {
                 size="sm"
                 className="mt-1.5"
                 subtitle={group.top_player.total_loot?.value_formatted}
+                playerId={group.top_player.id}
               />
             </EntityHoverCard>
           ) : (

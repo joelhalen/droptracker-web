@@ -32,7 +32,12 @@ export function TopPlayersList({ players }: { players: GroupTopPlayer[] }) {
               seed={{ rank: p.rank, loot: p.loot.value_formatted, periodLabel: "this month" }}
               className="flex min-w-0"
             >
-              <EntityChip href={entityPath("players", p.id, p.name)} name={p.name} size="sm" />
+              <EntityChip
+                href={entityPath("players", p.id, p.name)}
+                name={p.name}
+                size="sm"
+                playerId={p.id}
+              />
             </EntityHoverCard>
             <div className="bg-osrs-surface-3/60 mt-1.5 h-1 overflow-hidden rounded-full">
               <div

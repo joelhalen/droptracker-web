@@ -160,7 +160,12 @@ export function RanksView({ tab }: { tab: RankTab }) {
                     icon={
                       <span className="flex items-center gap-2.5">
                         <RankMedal rank={e.rank} />
-                        <NameTile name={e.name} size="sm" flair={e.flair?.style} />
+                        <NameTile
+                          name={e.name}
+                          size="sm"
+                          flair={e.flair?.style}
+                          playerId={tab === "players" ? e.id : undefined}
+                        />
                       </span>
                     }
                     title={

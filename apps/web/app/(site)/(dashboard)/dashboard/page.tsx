@@ -31,6 +31,7 @@ export default async function DashboardPage() {
                     href={entityPath("players", p.id, p.name)}
                     name={p.name}
                     subtitle={`Global rank #${p.global_rank ?? "—"}`}
+                    playerId={p.id}
                   />
                 </EntityHoverCard>
                 <span className="text-osrs-gold-bright text-sm tabular-nums">

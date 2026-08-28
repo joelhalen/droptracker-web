@@ -151,7 +151,11 @@ export function ActivitySearch({
                           }}
                         />
                       ) : (
-                        <NameTile name={s.name} size="sm" />
+                        <NameTile
+                          name={s.name}
+                          size="sm"
+                          playerId={s.kind === "players" ? s.id : undefined}
+                        />
                       )
                     }
                     subtitle={s.detail ?? undefined}

@@ -141,21 +141,54 @@ const TILE_SIZES = {
 } as const;
 
 /**
+ * A player's character avatar: a torso-up crop of the 3D model they uploaded
+ * from the RuneLite plugin.
+ *
+ * Relative `/img`, deliberately. Every host that renders this proxies `/img/`
+ * to the same image server — www, the Activity's `discordsays.com` iframe, and
+ * group sites on their own subdomains — so one relative path is correct on all
+ * three. (`<img>` is not subject to CORS, which is why this needs no BFF proxy
+ * of the kind `/api/models` gives the `fetch`-based 3D renderer.)
+ *
+ * `avatar.png` is a stable per-player alias rather than a fingerprinted name:
+ * the image server resolves it to whichever outfit is current. That keeps the
+ * URL derivable from a player id alone, which is what lets every listing use
+ * this without threading a fingerprint through a dozen API payloads.
+ */
+export const playerAvatarUrl = (playerId: number): string =>
+  `/img/models/${playerId}/avatar.png`;
+
+/**
  * Identicon tile: colored square with the entity's initials, colored
  * deterministically from the name so the same player/group always gets the
- * same tile everywhere. Stand-in until real avatars exist in the API.
+ * same tile everywhere.
+ *
+ * When `playerId` is given, the player's character avatar is layered over the
+ * initial — and the initial stays underneath as the fallback rather than being
+ * swapped out. Most players have no model (2.6k of them do), so "no avatar" is
+ * the ordinary case and has to be the resting state, not an error path.
+ *
+ * The fallback needs no JavaScript, which is what makes it safe to put in a
+ * 100-row leaderboard: the image server answers a player with no model with a
+ * transparent PNG, so the layer above simply shows nothing and the letter below
+ * shows through. Note that relying on `onError` alone would NOT work here even
+ * if this were a client component — the response body is a decodable image, so
+ * chromium paints it and fires `load`, not `error`.
  */
 export function NameTile({
   name,
   size = "md",
   className = "",
   flair,
+  playerId,
 }: {
   name: string;
   size?: keyof typeof TILE_SIZES;
   className?: string;
   /** Subscription tier flair — adds a colored border + glow to the tile. */
   flair?: TierFlairStyle;
+  /** When set, overlays this player's character avatar on the initial. */
+  playerId?: number;
 }) {
   const hue = nameHue(name);
   const initial = (name.trim()[0] ?? "?").toUpperCase();
@@ -163,7 +196,7 @@ export function NameTile({
   return (
     <span
       aria-hidden
-      className={`flex shrink-0 select-none items-center justify-center font-bold text-white/90 shadow-sm ${TILE_SIZES[size]} ${className}`}
+      className={`relative flex shrink-0 select-none items-center justify-center overflow-hidden font-bold text-white/90 shadow-sm ${TILE_SIZES[size]} ${className}`}
       style={{
         background: `linear-gradient(135deg, hsl(${hue} 45% 42%), hsl(${(hue + 40) % 360} 50% 30%))`,
         border: `1px solid hsl(${hue} 45% 55% / 0.5)`,
@@ -172,6 +205,19 @@ export function NameTile({
       }}
     >
       {initial}
+      {playerId !== undefined && playerId >= 0 && (
+        // A raw <img>, not next/image, on purpose: the optimizer would turn a
+        // 404 into a build-time error rather than the transparent PNG this
+        // fallback depends on, and it would route every row of a leaderboard
+        // through it for an image most players do not have.
+        <img
+          src={playerAvatarUrl(playerId)}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 size-full object-cover"
+        />
+      )}
     </span>
   );
 }
@@ -191,6 +237,7 @@ export function EntityChip({
   tileClassName = "",
   flair,
   flairTitle,
+  playerId,
 }: {
   href: Route | string;
   name: string;
@@ -206,11 +253,22 @@ export function EntityChip({
   flair?: TierFlairStyle;
   /** Tooltip for the flaired name, e.g. the tier's display name. */
   flairTitle?: string;
+  /**
+   * Player id, when this chip is a player — shows their character avatar in
+   * place of the initial. Omitted for groups, which have no character model.
+   */
+  playerId?: number;
 }) {
   const f = resolveFlair(flair);
   return (
     <Link href={href as Route} className={`group flex min-w-0 items-center gap-2.5 ${className}`}>
-      <NameTile name={name} size={size} className={tileClassName} flair={flair} />
+      <NameTile
+        name={name}
+        size={size}
+        className={tileClassName}
+        flair={flair}
+        playerId={playerId}
+      />
       <span className="min-w-0">
         <span className="flex min-w-0 items-center gap-1.5">
           {f && (

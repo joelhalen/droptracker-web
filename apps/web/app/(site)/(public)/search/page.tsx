@@ -77,6 +77,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Searc
                         href={entityPath("players", p.id, p.name)}
                         name={p.name}
                         subtitle={p.global_rank != null ? `Global rank #${p.global_rank}` : "Player"}
+                        playerId={p.id}
                       />
                     </EntityHoverCard>
                     {p.total_loot && (
