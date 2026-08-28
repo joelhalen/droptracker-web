@@ -444,6 +444,11 @@ export const LoadoutEntrySchema = z.object({
   quantity: z.number().int(),
   name: z.string(),
   icon: z.string(),
+  /** The sprite to draw: the stack-size pile variant for `quantity`, which is a
+   * different item id from `item_id` (the game swaps art as a stack grows).
+   * Equal to `item_id` for anything unstacked, or when the pile sprite has no
+   * icon available. Optional so an older backend response still parses. */
+  display_item_id: z.number().int().optional(),
 });
 export type LoadoutEntry = z.infer<typeof LoadoutEntrySchema>;
 

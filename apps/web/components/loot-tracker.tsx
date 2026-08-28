@@ -55,7 +55,7 @@ function ItemCardContent({ item, npc }: { item: LootTrackerItem; npc: LootTracke
   const unit = item.quantity > 1 ? Math.floor(item.loot.value / item.quantity) : null;
   const share = npc.loot.value > 0 ? (item.loot.value / npc.loot.value) * 100 : null;
   return (
-    <div className="p-3">
+    <div>
       <div className="flex items-center gap-2.5">
         <span className="bg-osrs-surface-3/60 flex size-9 shrink-0 items-center justify-center rounded">
           <img

@@ -27,7 +27,7 @@ export function HelpTip({
     <HoverCard
       width={260}
       content={
-        <div className="p-2.5 text-xs">
+        <div className="text-xs">
           {title && <p className="text-osrs-gold-bright mb-1 font-semibold">{title}</p>}
           <div className="text-osrs-parchment/85 space-y-1">{children}</div>
           {docsHref && (

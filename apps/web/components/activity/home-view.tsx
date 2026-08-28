@@ -200,7 +200,7 @@ function SubmissionThumb({ s }: { s: Submission }) {
     <HoverCard
       className="shrink-0"
       content={
-        <div className="p-3">
+        <div>
           <div className="flex items-center gap-2.5">
             {s.image_url ? (
               <img src={s.image_url} alt="" className="size-9 shrink-0 object-contain" />

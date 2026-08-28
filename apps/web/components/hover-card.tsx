@@ -147,6 +147,15 @@ export function HoverCard({
         style={style}
         onMouseEnter={scheduleOpen}
         onMouseLeave={scheduleClose}
+        // Keyboard parity with hover: a card reachable only by pointer is
+        // invisible to anyone tabbing through, and several of these carry the
+        // only copy of a name or stat. Focus opens immediately rather than on
+        // the hover delay — a deliberate tab stop is not an accidental pass.
+        onFocus={() => {
+          clearTimers();
+          openNow();
+        }}
+        onBlur={scheduleClose}
         onClick={onTriggerClick}
       >
         {children}
@@ -171,10 +180,16 @@ export function HoverCard({
             onMouseEnter={cancelClose}
             onMouseLeave={scheduleClose}
           >
+            {/* Padding belongs here, not in each caller. `.card-pop` is a bare
+             * surface (background, border, radius, shadow — no spacing), so
+             * every body had to remember to pad itself and most did not: of the
+             * hover cards on the site only three did, and the rest rendered
+             * their text flush against the card border. Owning it here is the
+             * same move `.card` made for resting panels. */}
             <div
               role="tooltip"
               style={{ maxHeight: "80vh", overflowY: "auto" }}
-              className="card-pop menu-in"
+              className="card-pop menu-in p-3"
             >
               {content}
             </div>

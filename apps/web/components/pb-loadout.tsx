@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import type { LoadoutEntry, PersonalBestLoadout } from "@droptracker/api-types";
 import { ItemDbIcon } from "@/components/item-db-icon";
+import { HoverCard } from "@/components/hover-card";
 import { EmptyState, Skeleton } from "@/components/ui";
 import {
   EQUIPMENT_LAYOUT,
@@ -59,15 +60,47 @@ function itemTitle(entry: LoadoutEntry): string {
 }
 
 /**
+ * The sprite to draw for an entry.
+ *
+ * A stack of coins is not drawn with the one-coin sprite: the game swaps to a
+ * larger pile as the stack grows, and each pile is a separate item id. The
+ * backend resolves which one from the game cache's own thresholds (and only
+ * swaps when that sprite actually exists), so this just prefers its answer and
+ * falls back for responses that predate the field.
+ */
+function spriteId(entry: LoadoutEntry): number {
+  return entry.display_item_id ?? entry.item_id;
+}
+
+/** Tooltip body: the item's name, and its stack size when it has one. */
+function ItemTooltip({ entry }: { entry: LoadoutEntry }) {
+  return (
+    <div className="text-xs">
+      <div className="text-osrs-parchment font-semibold">{entry.name}</div>
+      {entry.quantity > 1 && (
+        <div className="text-osrs-parchment-dark/70 mt-0.5">
+          {entry.quantity.toLocaleString()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * One worn-equipment slot, drawn as the game draws it: the stone tile, with the
  * slot's own faint glyph when empty and the item sprite over a plain tile when
  * filled. The tile is a background image rather than a CSS box so it is the
  * actual interface sprite, not an approximation of it.
+ *
+ * A filled slot is wrapped in the site's shared HoverCard, which already solves
+ * the parts that are easy to get wrong: hover on desktop, tap-to-toggle on
+ * touch, close on Escape/scroll/resize, and a portal so the card is not clipped
+ * by the panel. An empty slot is not interactive — there is nothing to name.
  */
 function EquipmentSlot({ name, entry }: { name: SlotName; entry?: LoadoutEntry }) {
-  return (
-    <div
-      className="relative"
+  const tile = (
+    <span
+      className="relative block"
       style={{
         width: TILE_PX,
         height: TILE_PX,
@@ -76,15 +109,39 @@ function EquipmentSlot({ name, entry }: { name: SlotName; entry?: LoadoutEntry }
         // The tiles are 36px pixel art; never let the browser smooth them.
         imageRendering: "pixelated",
       }}
-      title={entry ? itemTitle(entry) : `${name} slot (empty)`}
     >
       {entry && (
         <span className="absolute inset-0 flex items-center justify-center">
-          <ItemDbIcon itemId={entry.item_id} size={32} />
+          <ItemDbIcon itemId={spriteId(entry)} size={32} />
         </span>
       )}
       {entry && <Quantity quantity={entry.quantity} />}
-    </div>
+    </span>
+  );
+
+  if (!entry) {
+    return (
+      <div style={{ width: TILE_PX, height: TILE_PX }} aria-hidden>
+        {tile}
+      </div>
+    );
+  }
+
+  return (
+    <HoverCard width={200} content={<ItemTooltip entry={entry} />}>
+      {/* Focusable so the name is reachable by keyboard, and labelled so a
+       * screen reader announces the item rather than an unlabelled image. The
+       * title stays as the no-JS fallback. */}
+      <span
+        tabIndex={0}
+        role="img"
+        aria-label={itemTitle(entry)}
+        title={itemTitle(entry)}
+        className="focus-visible:ring-osrs-gold inline-block cursor-help rounded-[2px] focus-visible:ring-2 focus-visible:outline-none"
+      >
+        {tile}
+      </span>
+    </HoverCard>
   );
 }
 
@@ -100,14 +157,19 @@ function InventorySlot({ entry }: { entry?: LoadoutEntry }) {
     );
   }
   return (
-    <div
-      className="border-osrs-bronze/25 relative flex items-center justify-center rounded-sm border bg-black/30"
-      style={{ width: TILE_PX, height: TILE_PX }}
-      title={itemTitle(entry)}
-    >
-      <ItemDbIcon itemId={entry.item_id} size={32} />
-      <Quantity quantity={entry.quantity} />
-    </div>
+    <HoverCard width={200} content={<ItemTooltip entry={entry} />}>
+      <span
+        tabIndex={0}
+        role="img"
+        aria-label={itemTitle(entry)}
+        title={itemTitle(entry)}
+        className="border-osrs-bronze/25 focus-visible:ring-osrs-gold relative flex cursor-help items-center justify-center rounded-sm border bg-black/30 focus-visible:ring-2 focus-visible:outline-none"
+        style={{ width: TILE_PX, height: TILE_PX }}
+      >
+        <ItemDbIcon itemId={spriteId(entry)} size={32} />
+        <Quantity quantity={entry.quantity} />
+      </span>
+    </HoverCard>
   );
 }
 
