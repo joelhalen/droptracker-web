@@ -33,6 +33,8 @@ export async function mintApiKey(input: {
   scope?: "user" | "group" | "global";
   label?: string;
   tier?: string;
+  deliver_link?: boolean;
+  deliver_to_user_id?: number | null;
 }): Promise<Result<ApiKey>> {
   await requireSuperadmin(PATH);
   try {

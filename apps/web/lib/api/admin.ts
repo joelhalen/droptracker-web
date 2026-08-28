@@ -5,6 +5,7 @@ import {
   ApiKeySchema,
   ApiKeyTierSchema,
   ApiUsageWindowSchema,
+  ApiKeyRevealResultSchema,
   AdminLookupResponseSchema,
   PbBlockListSchema,
   PbBlockSearchResponseSchema,
@@ -34,6 +35,7 @@ import {
   type ApiKey,
   type ApiKeyTier,
   type ApiUsageWindow,
+  type ApiKeyRevealResult,
 } from "@droptracker/api-types";
 import {
   mockLookup,
@@ -216,6 +218,10 @@ export const adminApi = {
     label?: string;
     tier?: string;
     notes?: string;
+    /** Deliver as a one-time link DMed to the owner instead of showing it here. */
+    deliver_link?: boolean;
+    /** Required for a global key, which has no owner to deliver to. */
+    deliver_to_user_id?: number | null;
   }): Promise<ApiKey> {
     return ApiKeySchema.parse(await apiSend("POST", `/admin/api-keys`, input));
   },
@@ -268,6 +274,27 @@ export const adminApi = {
   /** Delete a tier. Refused by the backend while live keys still use it. */
   async adminDeleteApiKeyTier(tierKey: string): Promise<void> {
     await apiSend("DELETE", `/admin/api-key-tiers/${tierKey}`, {});
+  },
+
+  /**
+   * Claim a one-time key link. Spends it — call once, from a page render.
+   *
+   * Returns a discriminated result rather than throwing, because "already
+   * opened" and "not yours" are ordinary outcomes the page must explain, not
+   * errors. `spent` distinguishes the one case where the holder should be
+   * told the link was real.
+   */
+  async claimApiKeyReveal(token: string): Promise<
+    | ({ ok: true } & ApiKeyRevealResult)
+    | { ok: false; spent: boolean }
+  > {
+    try {
+      const raw = await apiSend("GET", `/api-key-reveals/${encodeURIComponent(token)}`, {});
+      return { ok: true as const, ...ApiKeyRevealResultSchema.parse(raw) };
+    } catch (e) {
+      const status = (e as { status?: number })?.status;
+      return { ok: false as const, spent: status === 410 };
+    }
   },
 
   /** Per-key spend, latency and errors over the last `hours`. */

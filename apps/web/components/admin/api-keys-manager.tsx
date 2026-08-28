@@ -64,7 +64,9 @@ export function ApiKeysManager({
 
   // Shown once, in the page, immediately after minting — the API never returns
   // it again and there is nowhere else it could be recovered from.
-  const [freshToken, setFreshToken] = useState<{ id: number; token: string } | null>(null);
+  const [freshToken, setFreshToken] = useState<
+    { id: number; token: string; revealUrl?: string; dmSent?: boolean } | null
+  >(null);
 
   const usageByKey = useMemo(
     () => new Map(usage.keys.map((u) => [u.key_id, u])),
@@ -101,6 +103,12 @@ export function ApiKeysManager({
           <code className="block overflow-x-auto rounded border border-white/10 bg-black/60 px-3 py-2 text-sm text-emerald-100">
             {freshToken.token}
           </code>
+          {freshToken.revealUrl && (
+            <p className="text-osrs-parchment-dark/70 mt-3 text-sm">
+              One-time link{freshToken.dmSent ? " (DMed to them)" : " — the DM could not be sent, so pass this on yourself"}:{" "}
+              <code className="break-all">{freshToken.revealUrl}</code>
+            </p>
+          )}
           <button
             type="button"
             onClick={() => setFreshToken(null)}
@@ -119,7 +127,11 @@ export function ApiKeysManager({
             () => mintApiKey(input),
             (key) => {
               setKeys((all) => [key, ...all]);
-              if (key.token) setFreshToken({ id: key.id, token: key.token });
+              if (key.token)
+                setFreshToken({
+                  id: key.id, token: key.token,
+                  revealUrl: key.reveal_url, dmSent: key.reveal_dm_sent,
+                });
             },
           )
         }
@@ -201,11 +213,14 @@ function MintForm({
   const [ownerId, setOwnerId] = useState("");
   const [label, setLabel] = useState("");
   const [tier, setTier] = useState(tiers[0]?.tier_key ?? "standard");
+  // Off by default: showing the token here is the simplest thing that works,
+  // and a link is only better when the recipient is someone else.
+  const [deliver, setDeliver] = useState(false);
 
   const id = Number(ownerId);
   // A global key has no owner, so there is no id to validate.
-  const valid =
-    ownerKind === "global" || (ownerId.trim() !== "" && Number.isInteger(id) && id >= 0);
+  const needsId = ownerKind !== "global" || deliver;
+  const valid = !needsId || (ownerId.trim() !== "" && Number.isInteger(id) && id >= 0);
 
   return (
     <Card>
@@ -242,11 +257,15 @@ function MintForm({
             {ownerKind === "global" ? "Owner" : ownerKind === "group" ? "Group id" : "User id"}
           </span>
           <input
-            value={ownerKind === "global" ? "" : ownerId}
-            disabled={ownerKind === "global"}
+            value={ownerKind === "global" && !deliver ? "" : ownerId}
+            disabled={ownerKind === "global" && !deliver}
             onChange={(e) => setOwnerId(e.target.value)}
             inputMode="numeric"
-            placeholder={ownerKind === "global" ? "none — reads everything" : "e.g. 275"}
+            placeholder={
+              ownerKind === "global"
+                ? deliver ? "recipient's user id" : "none — reads everything"
+                : "e.g. 275"
+            }
             className="w-full rounded border border-white/15 bg-black/30 px-2 py-1.5 disabled:opacity-50"
           />
         </label>
@@ -274,18 +293,30 @@ function MintForm({
           </select>
         </label>
       </div>
+      <label className="text-osrs-parchment-dark/70 mt-4 flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={deliver}
+          onChange={(e) => setDeliver(e.target.checked)}
+        />
+        Deliver as a one-time link, DMed to the owner
+        {ownerKind === "global" && " (put the recipient's user id above)"}
+      </label>
       <button
         type="button"
         disabled={!valid || pending}
         onClick={() =>
           onMint(
             ownerKind === "global"
-              ? { scope: "global", label: label.trim(), tier }
+              ? { scope: "global", label: label.trim(), tier,
+                  deliver_link: deliver,
+                  deliver_to_user_id: deliver && ownerId.trim() ? id : undefined }
               : {
                   scope: ownerKind,
                   [ownerKind === "group" ? "group_id" : "owner_user_id"]: id,
                   label: label.trim(),
                   tier,
+                  deliver_link: deliver,
                 },
           )
         }

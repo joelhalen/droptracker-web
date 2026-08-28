@@ -87,3 +87,29 @@ test("scope defaults to group for rows predating the column", () => {
   // Never 'global' by default — the widest scope is only ever explicit.
   assert.equal(parsed.scope, "group");
 });
+
+test("a mint response can carry a one-time link instead of a bare token", () => {
+  // When the key is delivered by link, the ACP shows the URL (and whether the
+  // DM landed) rather than expecting the operator to relay the secret.
+  const parsed = ApiKeySchema.parse({
+    id: 11, label: "partner", state: "active", tier: "standard",
+    scope: "group", owner_type: "group", owner_user_id: null, group_id: 7,
+    display: "dtk_11_a...", created_at: null, last_used_at: null,
+    expires_at: null, revoked_at: null, overrides: {},
+    token: "dtk_11_secret",
+    reveal_url: "https://www.droptracker.io/api-keys/claim/abc",
+    reveal_dm_sent: true,
+  });
+  assert.equal(parsed.reveal_url, "https://www.droptracker.io/api-keys/claim/abc");
+  assert.equal(parsed.reveal_dm_sent, true);
+});
+
+test("a plain mint response is still valid without the reveal fields", () => {
+  const parsed = ApiKeySchema.parse({
+    id: 12, label: "", state: "active", tier: "standard",
+    scope: "group", owner_type: "group", owner_user_id: null, group_id: 7,
+    display: "dtk_12_a...", created_at: null, last_used_at: null,
+    expires_at: null, revoked_at: null, overrides: {},
+  });
+  assert.equal(parsed.reveal_url, undefined);
+});

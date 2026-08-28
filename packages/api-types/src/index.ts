@@ -2318,6 +2318,9 @@ export const ApiKeySchema = z.object({
   /** Present on the mint response ONLY, and never again. */
   token: z.string().optional(),
   warning: z.string().optional(),
+  /** Present when the key was minted for one-time link delivery. */
+  reveal_url: z.string().optional(),
+  reveal_dm_sent: z.boolean().optional(),
 });
 export type ApiKey = z.infer<typeof ApiKeySchema>;
 
@@ -2372,6 +2375,18 @@ export const ApiUsageWindowSchema = z.object({
   keys: ApiKeyUsageSchema.array().default([]),
 });
 export type ApiUsageWindow = z.infer<typeof ApiUsageWindowSchema>;
+
+/** The payload of a claimed one-time key link. Shown once, never refetchable. */
+export const ApiKeyRevealResultSchema = z.object({
+  token: z.string(),
+  key_id: z.number().int(),
+  label: z.string(),
+  tier: z.string().nullable(),
+  scope: z.string().nullable(),
+  group_id: z.number().int().nullable(),
+  warning: z.string().optional(),
+});
+export type ApiKeyRevealResult = z.infer<typeof ApiKeyRevealResultSchema>;
 
 /** Clan-vs-clan participant roster (web_event_groups). */
 export const EVENT_PARTICIPANT_ROLES = ["host", "opponent"] as const;
