@@ -30,6 +30,7 @@ const PATH = "/admin/api-keys";
 export async function mintApiKey(input: {
   owner_user_id?: number | null;
   group_id?: number | null;
+  scope?: "user" | "group" | "global";
   label?: string;
   tier?: string;
 }): Promise<Result<ApiKey>> {

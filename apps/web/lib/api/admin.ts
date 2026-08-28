@@ -211,6 +211,8 @@ export const adminApi = {
   async adminMintApiKey(input: {
     owner_user_id?: number | null;
     group_id?: number | null;
+    /** "global" mints an all-access key and takes no owner. */
+    scope?: "user" | "group" | "global";
     label?: string;
     tier?: string;
     notes?: string;

@@ -61,3 +61,29 @@ test("an unavailable usage window parses rather than throwing", () => {
   assert.deepEqual(w.keys, []);
   assert.deepEqual(w.totals, {});
 });
+
+test("a global key parses with no owner", () => {
+  // The wire shape for a third-party integration key: scope global, both
+  // owner columns null. If the schema demanded an owner the ACP could not
+  // render one.
+  const parsed = ApiKeySchema.parse({
+    id: 9, label: "partner site", state: "active", tier: "standard",
+    scope: "global", owner_type: "global", owner_user_id: null, group_id: null,
+    display: "dtk_9_abc...", created_at: null, last_used_at: null,
+    expires_at: null, revoked_at: null, overrides: {},
+  });
+  assert.equal(parsed.scope, "global");
+  assert.equal(parsed.group_id, null);
+  assert.equal(parsed.owner_user_id, null);
+});
+
+test("scope defaults to group for rows predating the column", () => {
+  const parsed = ApiKeySchema.parse({
+    id: 1, label: "", state: "active", tier: "standard",
+    owner_type: "group", owner_user_id: null, group_id: 7,
+    display: "dtk_1_a...", created_at: null, last_used_at: null,
+    expires_at: null, revoked_at: null, overrides: {},
+  });
+  // Never 'global' by default — the widest scope is only ever explicit.
+  assert.equal(parsed.scope, "group");
+});

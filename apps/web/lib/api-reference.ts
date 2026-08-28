@@ -145,6 +145,31 @@ export interface ApiEndpoint {
 export const ENDPOINTS: ApiEndpoint[] = [
   {
     method: "GET",
+    path: "/v2/groups",
+    title: "Every group",
+    summary:
+      "All groups, cursor-paginated, with each one's visible member count. Requires a global key — the scope issued to third-party integrations.",
+    auth: true,
+    params: [
+      { name: "limit", default: "25", description: "Groups per page. Maximum 100." },
+      { name: "cursor", description: "The `next_cursor` from your previous response." },
+    ],
+  },
+  {
+    method: "GET",
+    path: "/v2/players",
+    title: "Every player",
+    summary:
+      "All visible players, cursor-paginated, carrying whichever sections you ask for. Requires a global key; a group key pages its own roster instead.",
+    auth: true,
+    params: [
+      { name: "include", default: "identity", description: "Comma-separated section list, or `all`." },
+      { name: "limit", default: "25", description: "Players per page. Maximum 100." },
+      { name: "cursor", description: "The `next_cursor` from your previous response." },
+    ],
+  },
+  {
+    method: "GET",
     path: "/v2/health",
     title: "Health",
     summary: "Liveness check. The only endpoint that does not need a key.",

@@ -192,17 +192,20 @@ function MintForm({
   onMint: (input: {
     owner_user_id?: number | null;
     group_id?: number | null;
+    scope?: "user" | "group" | "global";
     label?: string;
     tier?: string;
   }) => void;
 }) {
-  const [ownerKind, setOwnerKind] = useState<"group" | "user">("group");
+  const [ownerKind, setOwnerKind] = useState<"group" | "user" | "global">("group");
   const [ownerId, setOwnerId] = useState("");
   const [label, setLabel] = useState("");
   const [tier, setTier] = useState(tiers[0]?.tier_key ?? "standard");
 
   const id = Number(ownerId);
-  const valid = ownerId.trim() !== "" && Number.isInteger(id) && id >= 0;
+  // A global key has no owner, so there is no id to validate.
+  const valid =
+    ownerKind === "global" || (ownerId.trim() !== "" && Number.isInteger(id) && id >= 0);
 
   return (
     <Card>
@@ -211,28 +214,40 @@ function MintForm({
         Self-serve minting is disabled site-wide, so this and the CLI are the only ways a key
         comes into existence. A key created here works immediately.
       </p>
+      {ownerKind === "global" && (
+        <div className="mb-3">
+          <Alert variant="info">
+            A global key reads <strong>every group and every player</strong> — for a
+            third-party site tying into our data. It still cannot see players who hid
+            themselves, or whose account owner is hidden; those stay invisible exactly as
+            they are on the website.
+          </Alert>
+        </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <label className="text-sm">
           <span className="text-osrs-parchment-dark/70 mb-1 block">Owner</span>
           <select
             value={ownerKind}
-            onChange={(e) => setOwnerKind(e.target.value as "group" | "user")}
+            onChange={(e) => setOwnerKind(e.target.value as "group" | "user" | "global")}
             className="w-full rounded border border-white/15 bg-black/30 px-2 py-1.5"
           >
             <option value="group">Group</option>
             <option value="user">User</option>
+            <option value="global">Global — all data</option>
           </select>
         </label>
         <label className="text-sm">
           <span className="text-osrs-parchment-dark/70 mb-1 block">
-            {ownerKind === "group" ? "Group id" : "User id"}
+            {ownerKind === "global" ? "Owner" : ownerKind === "group" ? "Group id" : "User id"}
           </span>
           <input
-            value={ownerId}
+            value={ownerKind === "global" ? "" : ownerId}
+            disabled={ownerKind === "global"}
             onChange={(e) => setOwnerId(e.target.value)}
             inputMode="numeric"
-            placeholder="e.g. 275"
-            className="w-full rounded border border-white/15 bg-black/30 px-2 py-1.5"
+            placeholder={ownerKind === "global" ? "none — reads everything" : "e.g. 275"}
+            className="w-full rounded border border-white/15 bg-black/30 px-2 py-1.5 disabled:opacity-50"
           />
         </label>
         <label className="text-sm">
@@ -263,11 +278,16 @@ function MintForm({
         type="button"
         disabled={!valid || pending}
         onClick={() =>
-          onMint({
-            [ownerKind === "group" ? "group_id" : "owner_user_id"]: id,
-            label: label.trim(),
-            tier,
-          })
+          onMint(
+            ownerKind === "global"
+              ? { scope: "global", label: label.trim(), tier }
+              : {
+                  scope: ownerKind,
+                  [ownerKind === "group" ? "group_id" : "owner_user_id"]: id,
+                  label: label.trim(),
+                  tier,
+                },
+          )
         }
         className="bg-osrs-bronze/40 hover:bg-osrs-bronze/60 mt-4 rounded px-3 py-1.5 text-sm font-medium disabled:opacity-40"
       >
@@ -309,10 +329,12 @@ function KeyCard({
         </div>
         <div className="text-osrs-parchment-dark/60 flex items-center gap-3 text-xs">
           <span className={tone}>{apiKey.state}</span>
-          <span>
-            {apiKey.owner_type === "group"
-              ? `group ${apiKey.group_id}`
-              : `user ${apiKey.owner_user_id}`}
+          <span className={apiKey.scope === "global" ? "text-amber-300" : undefined}>
+            {apiKey.scope === "global"
+              ? "GLOBAL — all data"
+              : apiKey.scope === "group"
+                ? `group ${apiKey.group_id}`
+                : `user ${apiKey.owner_user_id}`}
           </span>
           <span>used {ago(apiKey.last_used_at)}</span>
         </div>

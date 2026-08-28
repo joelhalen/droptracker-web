@@ -117,8 +117,16 @@ curl -H "Authorization: Bearer $DT_API_KEY" \\
       <p className="ink-muted mt-3 text-sm">
         A key sees exactly what its owner could see on the website and nothing more. A{" "}
         <strong>group key</strong> reads that group&apos;s members; a <strong>user key</strong>{" "}
-        reads the accounts that user has claimed. A player who is hidden — or whose account owner is
-        hidden — is invisible here just as they are on the site.
+        reads the accounts that user has claimed; a <strong>global key</strong> reads every group
+        and every player. Global keys are issued by staff to third-party integrations — a site
+        displaying clan information, for example — and are never self-serve.{" "}
+        <code>GET /v2/meta</code> tells you which one you hold, as <code>scope</code>.
+      </p>
+      <p className="ink-muted mt-3 text-sm">
+        <strong>A global key is not a visibility override.</strong> Players who have hidden
+        themselves, and players whose account owner is hidden, are invisible through this API to
+        every scope — exactly as they are to a signed-out visitor on the website.
+        &ldquo;Everything&rdquo; means everything the site itself would show.
       </p>
       <p className="ink-muted mt-3 text-sm">
         Missing, malformed, unknown, revoked and expired keys all return the same{" "}

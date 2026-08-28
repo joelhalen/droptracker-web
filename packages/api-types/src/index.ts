@@ -2286,6 +2286,10 @@ export type AdminEventRateLimit = z.infer<typeof AdminEventRateLimitSchema>;
  * its usage proves itself.
  */
 export const ApiKeyStates = ["active", "revoked", "expired"] as const;
+/** What a key may read. `global` is every group and player — staff-issued to
+ *  third-party integrations, and never a visibility override: hidden players
+ *  stay hidden to every scope. */
+export const ApiKeyScopes = ["user", "group", "global"] as const;
 
 export const ApiKeyOverridesSchema = z.object({
   requests_per_min: z.number().int().positive().optional(),
@@ -2300,7 +2304,8 @@ export const ApiKeySchema = z.object({
   label: z.string(),
   state: z.enum(ApiKeyStates),
   tier: z.string(),
-  owner_type: z.enum(["user", "group"]),
+  scope: z.enum(ApiKeyScopes).default("group"),
+  owner_type: z.enum(ApiKeyScopes),
   owner_user_id: z.number().int().nullable(),
   group_id: z.number().int().nullable(),
   /** "dtk_12_ab34cd..." — enough to recognise, useless to authenticate with. */
@@ -2350,7 +2355,7 @@ export const ApiKeyUsageSchema = z.object({
   avg_ms: z.number().optional(),
   label: z.string().optional(),
   tier: z.string().optional(),
-  owner_type: z.enum(["user", "group"]).optional(),
+  owner_type: z.enum(ApiKeyScopes).optional(),
   group_id: z.number().int().nullable().optional(),
   owner_user_id: z.number().int().nullable().optional(),
 });
