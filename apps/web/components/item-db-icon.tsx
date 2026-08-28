@@ -4,6 +4,8 @@
 // Activity host (activity.droptracker.io) — both map `/img/` in nginx. An
 // absolute www URL would be blocked by the activity iframe's CSP (which is why
 // bingo-tile also uses a relative base).
+import { isPlaceholderIcon } from "@/lib/item-icon";
+
 const IMG_BASE = "/img";
 
 /** OSRS item icon from droptracker.io static assets (`/img/itemdb/{id}.png`). */
@@ -39,6 +41,16 @@ export function ItemDbIcon({
       loading="lazy"
       decoding="async"
       className={`inline-block shrink-0 object-contain ${className}`}
+      onLoad={(e) => {
+        // A missing icon comes back as a 1x1 transparent PNG (at 404, which an
+        // <img> cannot see — a decodable body fires load, not error). Stretched
+        // to `size` it is already invisible; hiding it as well keeps it out of
+        // the accessibility tree and makes the two fallback paths identical, so
+        // a surface drawing its own empty state underneath — the equipment
+        // panel's slot tile — shows through cleanly either way.
+        const el = e.currentTarget as HTMLImageElement;
+        if (isPlaceholderIcon(el)) el.style.visibility = "hidden";
+      }}
       onError={(e) => {
         const el = e.currentTarget as HTMLImageElement;
         // Grayscale variant not baked yet (backend still generating it): fall
