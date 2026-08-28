@@ -336,6 +336,43 @@ X-RateLimit-Cost-Remaining   165600`}
         </div>
       </div>
 
+      <div className="ink-rule mt-6 rounded-md border p-4">
+        <div className="ink-heading mb-2 text-sm font-semibold">
+          <code>meta</code> — standing, at no cost
+        </div>
+        <p className="ink-muted text-sm">
+          <code>include=meta</code> adds where an entity sits on the boards. It is priced at
+          zero because it is: two batched cache reads for the whole page, with no per-player
+          work. On a player it adds ranks and memberships; on a group request it also attaches
+          the group&apos;s own row, which describes the <em>group</em> rather than the page — so
+          it reads the same on page 4 of a roster as on page 1.
+        </p>
+        <div className="mt-3">
+          <CodeBlock
+            code={`"group": {
+  "group_id": 264, "name": "Negevs GIM", "members": 3,
+  "month_gp": 59581487, "month_rank": 148, "ranked_groups": 276,
+  "all_time_gp": 332662006, "partition": 202608
+}
+
+"meta": {                       // per player
+  "month_rank": 1623,    "ranked_players": 4465,
+  "all_time_rank": 3732, "ranked_players_all_time": 13293,
+  "groups": [{ "group_id": 264, "name": "Negevs GIM" }]
+}`}
+          />
+        </div>
+        <p className="ink-muted mt-3 text-sm">
+          On <code>GET /v2/groups</code> each row gains the monthly figures as{" "}
+          <code>stats</code>. Two deliberate absences: there is no all-time group{" "}
+          <em>rank</em> — monthly group standings are maintained, but deriving an all-time one
+          means summing every group across all history — and <code>all_time_gp</code> is
+          returned for a single group, not on the listing where it would be that work per row.
+          Every figure comes from the same source as the website&apos;s leaderboards, so a rank
+          here cannot disagree with a profile page.
+        </p>
+      </div>
+
       <Heading id="paging">Paging a roster</Heading>
       <p className="ink-muted text-sm">
         Group listings page by cursor, not by offset — a deep offset makes the database walk and

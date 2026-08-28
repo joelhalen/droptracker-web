@@ -28,11 +28,18 @@ test("every section has a non-empty summary and a sane cost", () => {
   }
 });
 
-test("identity is free, and it is the only free section", () => {
+test("meta is free — it is advertised as attachable at no cost", () => {
+  const meta = SECTIONS.find((s) => s.key === "meta")!;
+  assert.equal(meta.cost, 0);
+  assert.equal(requestCost(["identity", "loot", "meta"], 100),
+               requestCost(["identity", "loot"], 100));
+});
+
+test("identity is free, and it is the only other free section", () => {
   // Identity rides along on every response, so charging for it would make the
   // advertised cost of every other section wrong.
-  const free = SECTIONS.filter((s) => s.cost === 0).map((s) => s.key);
-  assert.deepEqual(free, ["identity"]);
+  const free = SECTIONS.filter((s) => s.cost === 0).map((s) => s.key).sort();
+  assert.deepEqual(free, ["identity", "meta"]);
 });
 
 test("the expensive sections cost more than the cheap ones", () => {

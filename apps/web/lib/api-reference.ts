@@ -38,6 +38,13 @@ export const SECTIONS: ApiSection[] = [
       "Name, account type, combat and total level, EHB, last sync. Always included — every response says who it is about.",
   },
   {
+    key: "meta",
+    cost: 0,
+    category: "Core",
+    summary:
+      "Board standing — monthly and all-time rank, with the number of ranked players — plus group memberships. On a group request it also attaches the group's own stats. Free.",
+  },
+  {
     key: "loot",
     cost: 1,
     category: "Loot",
