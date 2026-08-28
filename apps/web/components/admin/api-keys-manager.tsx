@@ -207,6 +207,8 @@ function MintForm({
     scope?: "user" | "group" | "global";
     label?: string;
     tier?: string;
+    deliver_link?: boolean;
+    deliver_to_user_id?: number | null;
   }) => void;
 }) {
   const [ownerKind, setOwnerKind] = useState<"group" | "user" | "global">("group");

@@ -26,8 +26,11 @@ export default async function ClaimApiKeyPage({
 }: {
   params: Promise<{ token: string }>;
 }) {
-  await requireUser();
   const { token } = await params;
+  // Return them to this exact link after signing in — someone clicking the DM
+  // while signed out would otherwise land on the dashboard having lost it.
+  // Nothing is spent before the session exists: the claim happens below.
+  await requireUser(`/api-keys/claim/${token}`);
   const result = await api.claimApiKeyReveal(token);
 
   if (!result.ok) {

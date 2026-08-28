@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiGet, apiSend, withFallback } from "./_client";
+import { ApiError, apiGet, apiSend, withFallback } from "./_client";
 import {
   AdminApiKeyListSchema,
   ApiKeySchema,
@@ -289,10 +289,18 @@ export const adminApi = {
     | { ok: false; spent: boolean }
   > {
     try {
-      const raw = await apiSend("GET", `/api-key-reveals/${encodeURIComponent(token)}`, {});
+      // Claiming is a GET with a side effect, which is unusual — but the
+      // side effect is "burn this link", and the page render is the only
+      // caller. `authed` forwards the session the backend re-checks.
+      const raw = await apiGet(`/api-key-reveals/${encodeURIComponent(token)}`, {
+        authed: true,
+      });
       return { ok: true as const, ...ApiKeyRevealResultSchema.parse(raw) };
     } catch (e) {
-      const status = (e as { status?: number })?.status;
+      // 410 is the one failure worth distinguishing: the link WAS real and
+      // has been spent, so the holder needs a replacement rather than a
+      // "check you're signed in" nudge.
+      const status = e instanceof ApiError ? e.status : undefined;
       return { ok: false as const, spent: status === 410 };
     }
   },
