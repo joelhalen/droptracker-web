@@ -21,6 +21,7 @@ const TYPE_OPTIONS = [
   { value: "players", label: "Players" },
   { value: "clans", label: "Clans" },
   { value: "support", label: "Support" },
+  { value: "api_token", label: "API token" },
   { value: "other", label: "Other" },
 ];
 

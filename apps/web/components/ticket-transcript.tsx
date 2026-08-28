@@ -25,7 +25,9 @@ export function TicketTypeBadge({ type }: { type: string }) {
         ? "purple"
         : type === "support"
           ? "gold"
-          : "bronze";
+          : type === "api_token"
+            ? "green"
+            : "bronze";
   return <Badge variant={tone as never}>{type}</Badge>;
 }
 

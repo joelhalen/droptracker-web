@@ -5164,7 +5164,7 @@ export type EventMemberInput = z.infer<typeof EventMemberInputSchema>;
 export const TicketStatusSchema = z.enum(["pending", "open", "closing", "closed"]);
 export type TicketStatus = z.infer<typeof TicketStatusSchema>;
 
-export const TicketTypeSchema = z.enum(["players", "clans", "support", "other"]);
+export const TicketTypeSchema = z.enum(["players", "clans", "support", "api_token", "other"]);
 export type TicketType = z.infer<typeof TicketTypeSchema>;
 
 export const TicketSummarySchema = z.object({

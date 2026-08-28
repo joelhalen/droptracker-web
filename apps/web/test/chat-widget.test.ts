@@ -559,11 +559,30 @@ test("noticeSeverityTone maps the backend vocabulary plus legacy values", () => 
 test("TICKET_TYPES covers every ticket type with copy", () => {
   assert.deepEqual(
     TICKET_TYPES.map((t) => t.value),
-    ["players", "clans", "support", "other"],
+    ["players", "clans", "support", "api_token", "other"],
   );
   for (const t of TICKET_TYPES) {
     assert.ok(t.label.length > 0);
     assert.ok(t.emoji.length > 0);
     assert.ok(t.hint.length > 0);
+  }
+});
+
+// The picker order is product-visible: the catch-all has to stay last or
+// people pick "General Inquiry" for things that have a home.
+test("the general catch-all is always the last option", () => {
+  assert.equal(TICKET_TYPES[TICKET_TYPES.length - 1]!.value, "other");
+});
+
+test("API token requests sit immediately before the catch-all", () => {
+  const values = TICKET_TYPES.map((t) => t.value);
+  assert.equal(values[values.indexOf("other") - 1], "api_token");
+});
+
+test("every picker option has copy to render", () => {
+  for (const t of TICKET_TYPES) {
+    assert.ok(t.label.trim(), t.value);
+    assert.ok(t.hint.trim(), t.value);
+    assert.ok(t.emoji.trim(), t.value);
   }
 });

@@ -526,6 +526,12 @@ export const TICKET_TYPES: {
     hint: "Hit a bug or something behaving strangely? Tell us about it.",
   },
   {
+    value: "api_token",
+    label: "API Token Request",
+    emoji: "\u{1F511}",
+    hint: "Want to pull DropTracker data into your own app or site? Tell us what you're building.",
+  },
+  {
     value: "other",
     label: "General Inquiry",
     emoji: "\u{1F4E9}",
