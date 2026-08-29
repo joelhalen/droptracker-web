@@ -8,6 +8,7 @@ import type { EventParticipant } from "@droptracker/api-types";
 import {
   EVENT_FORMATION_MODES,
   EVENT_SUBMISSION_POLICIES,
+  type EventCompetitionInput,
   type EventDetail,
   type EventReadiness,
   type EventScheduleInput,
@@ -15,6 +16,8 @@ import {
   type EventTeam,
   type EventTeamBulkAddResult,
 } from "@droptracker/api-types";
+import { competitionBlockToInput, isCompetitionKind } from "@/lib/competition";
+import { CompetitionSetup } from "@/components/competition-setup";
 import {
   FORMATION_MODE_LABELS,
   EVENT_MODE_LABELS,
@@ -111,6 +114,7 @@ function StatusChip({ status }: { status: EventDetail["status"] }) {
  * one endless scroll — including the Discord settings that lived on their own
  * page — now sits behind one tab bar under the always-visible header. */
 const MANAGER_TABS = [
+  { key: "competition", label: "Competition" },
   { key: "tasks", label: "Tasks" },
   { key: "teams", label: "Teams" },
   { key: "board", label: "Board" },
@@ -128,6 +132,7 @@ const READINESS_TARGET_TAB: Record<string, ManagerTab | undefined> = {
   teams: "teams",
   board: "board",
   tasks: "tasks",
+  competition: "competition",
 };
 
 /* The Discord panel is only hidden (not unmounted) when its tab loses focus,
@@ -215,7 +220,13 @@ export function EventManager({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
-  const [tab, setTab] = useState<ManagerTab>("tasks");
+  const [tab, setTab] = useState<ManagerTab>(
+    isCompetitionKind(initialEvent.kind) ? "competition" : "tasks",
+  );
+  // SOTW/BOTW (web105a): the Competition tab's buffered settings.
+  const [competitionInput, setCompetitionInput] = useState<EventCompetitionInput>(() =>
+    competitionBlockToInput(initialEvent.competition),
+  );
   // Reported by the Discord panel; gates every switch away from its tab.
   const [discordDirty, setDiscordDirty] = useState(false);
   const router = useRouter();
@@ -1278,7 +1289,14 @@ export function EventManager({
           {MANAGER_TABS.filter(
             // Loot Sweep has no designable board (its board is auto-built from
             // the set tasks) — hide the bingo/board designer tab for it.
-            (t) => !(t.key === "board" && event.kind === "loot_sweep"),
+            // Competition kinds (web105a) have no Tasks/Teams/Board at all
+            // (the race is the task; the roster is automatic); every other
+            // kind hides the Competition tab instead.
+            (t) =>
+              !(t.key === "board" && event.kind === "loot_sweep") &&
+              (isCompetitionKind(event.kind)
+                ? !["tasks", "teams", "board"].includes(t.key)
+                : t.key !== "competition"),
           ).map((t) => (
             <button
               key={t.key}
@@ -1304,6 +1322,67 @@ export function EventManager({
           ))}
         </div>
       </div>
+
+      {/* Competition (sotw/botw, web105a) */}
+      {isCompetitionKind(event.kind) && (
+        <section className={tab === "competition" ? "" : "hidden"}>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="heading-rule text-osrs-gold pb-1 text-lg font-semibold">
+              Competition
+            </h3>
+            {event.status === "draft" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={pending}
+                onClick={() =>
+                  startTransition(async () => {
+                    setError(null);
+                    try {
+                      const updated = await updateGroupEvent(groupId, event.id, {
+                        competition: competitionInput,
+                      });
+                      applyDetail(updated);
+                      setCompetitionInput(competitionBlockToInput(updated.competition));
+                    } catch (err) {
+                      setError(
+                        getErrorMessage(err, "Couldn't save the competition settings."),
+                      );
+                    }
+                  })
+                }
+              >
+                {pending ? "Saving…" : "Save competition settings"}
+              </Button>
+            )}
+          </div>
+          <CompetitionSetup
+            kind={event.kind}
+            groupId={groupId}
+            event={event}
+            value={competitionInput}
+            onChange={setCompetitionInput}
+            onSaveDraft={async (input) => {
+              try {
+                const updated = await updateGroupEvent(groupId, event.id, {
+                  competition: input,
+                });
+                applyDetail(updated);
+                setCompetitionInput(competitionBlockToInput(updated.competition));
+                return updated;
+              } catch (err) {
+                setError(getErrorMessage(err, "Couldn't save the competition settings."));
+                return null;
+              }
+            }}
+            onEventUpdated={(d) => {
+              applyDetail(d);
+              setCompetitionInput(competitionBlockToInput(d.competition));
+            }}
+            disabled={event.status !== "draft"}
+          />
+        </section>
+      )}
 
       {/* Tasks */}
       <section className={tab === "tasks" ? "" : "hidden"}>

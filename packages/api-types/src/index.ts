@@ -2194,6 +2194,11 @@ export const EVENT_TASK_TYPES = [
    * collecting a full set awards a bonus (capped). Scored continuously off the
    * ledger — never "completes". See the backend docs/LOOT_SWEEP.md. */
   "loot_sweep",
+  /** SOTW/BOTW (sotw/botw kinds): the single hidden "race" task carrying the
+   * competition config. Managed by the event — never created/edited through
+   * the task routes (they 422 on it); task UIs render it read-only/hidden
+   * via the detail payload's `managed` flag. */
+  "competition",
   /** Manual-confirmation-only tasks (no automated evaluation). */
   "custom",
 ] as const;
@@ -2233,8 +2238,23 @@ export type EventTaskDifficulty = (typeof EVENT_TASK_DIFFICULTIES)[number];
  * kinds a non-superadmin may CREATE is governed site-wide by the
  * web_event_types registry (enabled/admin_only + test-group allowlist);
  * existing events of a disabled kind keep running. */
-export const EVENT_KINDS = ["standard", "bingo", "board_game", "loot_sweep"] as const;
+export const EVENT_KINDS = [
+  "standard",
+  "bingo",
+  "board_game",
+  "loot_sweep",
+  /** Skill of the Week — individuals race XP gained in one skill (web105a). */
+  "sotw",
+  /** Boss of the Week — individuals race KC gained at one boss, with optional
+   * bonus points (pets, sub-threshold kill times). */
+  "botw",
+] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
+
+/** The kinds implemented by the competition engine (one hidden race task,
+ * individual standings, optional WOM linkage). */
+export const COMPETITION_EVENT_KINDS = ["sotw", "botw"] as const;
+export type CompetitionEventKind = (typeof COMPETITION_EVENT_KINDS)[number];
 
 /** One row of GET /events/meta/types — the create form's kind picker.
  * Every registry row is returned; `creatable` is resolved for the current
@@ -2263,6 +2283,234 @@ export const AdminEventTypeSchema = z.object({
     .default([]),
 });
 export type AdminEventType = z.infer<typeof AdminEventTypeSchema>;
+
+/* ── SOTW/BOTW competitions (web105a) ─────────────────────────────────────── */
+
+/** Where a competition event's gained numbers come from: pure DropTracker,
+ * mirroring an existing WOM competition, or a WOM competition DropTracker
+ * created (and holds the edit credential for). */
+export const COMPETITION_SOURCE_MODES = ["hosted", "linked", "created"] as const;
+export type CompetitionSourceMode = (typeof COMPETITION_SOURCE_MODES)[number];
+
+/** Per-event ranking: raw gained (WOM parity; bonus points ride as a
+ * secondary column) or combined points (gained converts at a configurable
+ * rate + bonuses stack). */
+export const COMPETITION_RANKING_MODES = ["gained", "points"] as const;
+export type CompetitionRankingMode = (typeof COMPETITION_RANKING_MODES)[number];
+
+/** Who competes: every clan member automatically, or opt-in sign-ups. */
+export const COMPETITION_PARTICIPATION_MODES = ["whole_clan", "signup"] as const;
+export type CompetitionParticipationMode =
+  (typeof COMPETITION_PARTICIPATION_MODES)[number];
+
+export const COMPETITION_BONUS_RULE_TYPES = ["pet", "time_under"] as const;
+export type CompetitionBonusRuleType = (typeof COMPETITION_BONUS_RULE_TYPES)[number];
+
+/** One bonus rule as the backend serializes it (ids are server-assigned and
+ * stable once the config locks at activation). */
+export const CompetitionBonusRuleSchema = z.object({
+  id: z.number().int(),
+  type: z.enum(COMPETITION_BONUS_RULE_TYPES),
+  points: z.number().int(),
+  /** Per-player award cap. */
+  max_awards: z.number().int().default(1),
+  label: z.string(),
+  /** pet rules: the canonical pet names that award. */
+  pets: z.array(z.string()).optional(),
+  /** time_under rules: the raced boss + tick-precision threshold. */
+  npc: z.string().nullable().optional(),
+  threshold_ms: z.number().int().optional(),
+});
+export type CompetitionBonusRule = z.infer<typeof CompetitionBonusRuleSchema>;
+
+export const CompetitionMetricSchema = z.object({
+  kind: z.enum(["skill", "boss"]).nullable(),
+  /** sotw: the skill key ("mining"). */
+  skill: z.string().nullable().optional(),
+  /** botw: canonical NPC names (multi-NPC races share one counter). */
+  npcs: z.array(z.string()).optional(),
+  /** botw: name → npc_id for /img/npcdb/{id}.png icons. */
+  npc_ids: z.record(z.string(), z.number().int()).optional(),
+  display: z.string().nullable().optional(),
+});
+export type CompetitionMetric = z.infer<typeof CompetitionMetricSchema>;
+
+/** The WOM linkage state (never includes the competition verification code —
+ * that credential never leaves the server). */
+export const CompetitionWomStateSchema = z.object({
+  competition_id: z.number().int(),
+  url: z.string(),
+  title: z.string().nullable().optional(),
+  starts_at: z.number().int().nullable().optional(),
+  ends_at: z.number().int().nullable().optional(),
+  synced_at: z.number().int().nullable().optional(),
+  sync_error: z.string().nullable().optional(),
+});
+export type CompetitionWomState = z.infer<typeof CompetitionWomStateSchema>;
+
+/** The competition block on EventDetail (and, minus participation/configured,
+ * on the standings read model). */
+export const EventCompetitionSchema = z.object({
+  metric: CompetitionMetricSchema,
+  ranking: z.object({
+    mode: z.enum(COMPETITION_RANKING_MODES),
+    gained_per_point: z.number().int().optional(),
+  }),
+  bonus_rules: z.array(CompetitionBonusRuleSchema).default([]),
+  source_mode: z.enum(COMPETITION_SOURCE_MODES).default("hosted"),
+  wom: CompetitionWomStateSchema.nullable().optional(),
+  participation: z.enum(COMPETITION_PARTICIPATION_MODES).optional(),
+  /** False while the wizard hasn't picked a metric yet (activation blocks). */
+  configured: z.boolean().optional(),
+});
+export type EventCompetition = z.infer<typeof EventCompetitionSchema>;
+
+/** One standings row — DT-registered players carry ledger-derived numbers
+ * (and bonus detail); `registered: false` rows come from the linked WOM
+ * competition and are display-only. */
+export const CompetitionStandingRowSchema = z.object({
+  rank: z.number().int(),
+  player_id: z.number().int().nullable(),
+  wom_player_id: z.number().int().nullable().optional(),
+  player_name: z.string(),
+  registered: z.boolean(),
+  gained: z.number().int(),
+  bonus_points: z.number().int(),
+  /** Combined points (gained conversion + bonuses) — the ranked number in
+   * points mode. */
+  points: z.number().int(),
+  bonus: z
+    .record(
+      z.string(),
+      z.object({
+        type: z.string(),
+        count: z.number().int(),
+        awarded: z.number().int(),
+        points: z.number().int(),
+      }),
+    )
+    .optional(),
+});
+export type CompetitionStandingRow = z.infer<typeof CompetitionStandingRowSchema>;
+
+/** GET /events/{id}/competition — config + merged, ranked standings (frozen
+ * final standings once the event ends). */
+export const EventCompetitionBoardSchema = z.object({
+  event_id: z.number().int(),
+  kind: z.enum(EVENT_KINDS),
+  status: z.string(),
+  competition: EventCompetitionSchema,
+  totals: z.object({
+    participants: z.number().int(),
+    gained: z.number().int(),
+    bonus_points: z.number().int(),
+  }),
+  standings: z.array(CompetitionStandingRowSchema).default([]),
+  finalized: z.boolean().default(false),
+  updated_at: z.number().int(),
+});
+export type EventCompetitionBoard = z.infer<typeof EventCompetitionBoardSchema>;
+
+/** GET /events/{id}/competition/players/{playerId} — one participant's bonus
+ * awards (the auditable ledger rows behind their bonus column). */
+export const CompetitionPlayerAwardSchema = z.object({
+  rule_id: z.number().int(),
+  type: z.string().nullable(),
+  points: z.number().int(),
+  label: z.string().nullable(),
+  matched_target: z.string().nullable().optional(),
+  proof_url: z.string().nullable().optional(),
+  awarded_at: z.number().int().nullable(),
+  /** False when the row sits past the rule's per-player cap (pays nothing). */
+  counted: z.boolean(),
+});
+export type CompetitionPlayerAward = z.infer<typeof CompetitionPlayerAwardSchema>;
+
+export const CompetitionPlayerDetailSchema = z.object({
+  event_id: z.number().int(),
+  player_id: z.number().int(),
+  row: CompetitionStandingRowSchema.nullable(),
+  awards: z.array(CompetitionPlayerAwardSchema).default([]),
+});
+export type CompetitionPlayerDetail = z.infer<typeof CompetitionPlayerDetailSchema>;
+
+/** GET /events/meta/wom-competition — the wizard's link validator. */
+export const WomCompetitionPreviewSchema = z.object({
+  id: z.number().int(),
+  title: z.string().nullable(),
+  url: z.string(),
+  metric: z.string().nullable(),
+  metric_kind: z.enum(["skill", "boss"]).nullable(),
+  multi_metric: z.boolean(),
+  type: z.string().nullable(),
+  starts_at: z.number().int().nullable(),
+  ends_at: z.number().int().nullable(),
+  wom_group_id: z.number().int().nullable(),
+  /** Whether the comp's WOM group matches this DT group's (soft warning). */
+  group_matches: z.boolean().nullable(),
+  participant_count: z.number().int().nullable(),
+  linkable: z.boolean(),
+  /** Machine reasons it can't back the event (team_competition, multi_metric,
+   * unsupported_metric, metric_kind_mismatch, finished, already_linked). */
+  problems: z.array(z.string()).default([]),
+  linked_event_id: z.number().int().nullable(),
+  /** Pre-fill hint for the wizard's metric picker. */
+  mappable: z
+    .object({
+      event_kind: z.enum(COMPETITION_EVENT_KINDS),
+      skill: z.string().nullable().optional(),
+      npc: z.string().nullable().optional(),
+      npc_id: z.number().int().nullable().optional(),
+      display: z.string().nullable().optional(),
+    })
+    .nullable(),
+});
+export type WomCompetitionPreview = z.infer<typeof WomCompetitionPreviewSchema>;
+
+/** GET /events/meta/wom-readiness — create-on-WOM gating (boolean-only; the
+ * verification code itself never leaves the server). */
+export const WomReadinessSchema = z.object({
+  wom_group_id: z.number().int().nullable(),
+  has_verification_code: z.boolean(),
+  can_create: z.boolean(),
+  reason: z.enum(["no_wom_id", "no_code"]).nullable(),
+});
+export type WomReadiness = z.infer<typeof WomReadinessSchema>;
+
+/** The `competition` block on POST/PATCH /events (draft-only after creation).
+ * Bonus rules are sent without ids (the server assigns them). */
+export const EventCompetitionInputSchema = z.object({
+  metric: z
+    .object({
+      key: z.string().optional(),
+      display: z.string().optional(),
+    })
+    .optional(),
+  skill: z.string().optional(),
+  npcs: z.array(z.string()).max(10).optional(),
+  ranking: z
+    .object({
+      mode: z.enum(COMPETITION_RANKING_MODES),
+      gained_per_point: z.number().int().positive().optional(),
+    })
+    .optional(),
+  bonus_rules: z
+    .array(
+      z.object({
+        type: z.enum(COMPETITION_BONUS_RULE_TYPES),
+        points: z.number().int().positive(),
+        max_awards: z.number().int().positive().optional(),
+        label: z.string().max(120).optional(),
+        pets: z.array(z.string()).optional(),
+        npc: z.string().optional(),
+        threshold_ms: z.number().int().positive().optional(),
+      }),
+    )
+    .max(6)
+    .optional(),
+  participation: z.enum(COMPETITION_PARTICIPATION_MODES).optional(),
+});
+export type EventCompetitionInput = z.infer<typeof EventCompetitionInputSchema>;
 
 /** Sentinel `type_key` on an event rate limit: the rule caps the tier's TOTAL
  * events across every kind, not one kind. */
@@ -2462,6 +2710,9 @@ export type EventPingKey = (typeof EVENT_PING_KEYS)[number];
 export const EVENT_MESSAGE_TOGGLE_KEYS = [
   "event_started",
   "event_ended",
+  /** Recurring schedules (web82a): a scoring window opened / closed. */
+  "event_window_opened",
+  "event_window_closed",
   "event_completion",
   "event_task_progress",
   "event_line",
@@ -2469,10 +2720,27 @@ export const EVENT_MESSAGE_TOGGLE_KEYS = [
   "event_lead_change",
   "event_pending",
   "event_activation_failed",
+  /** A scheduled end failed / wrap-up incomplete — an admin should look. */
+  "event_end_failed",
   "event_board_turn",
   /** Board game: "task done — roll the dice" nudge (default OFF for the
    * event's main channels; per-team channels carry it by default). */
   "event_board_roll_prompt",
+  /** Board game: an offensive/defensive item hit a rival (or was blocked). */
+  "event_board_action",
+  /** Loot Sweep verbosity: per-item receipts (default OFF), subset and
+   * whole-set completions (default ON). */
+  "event_sweep_item",
+  "event_sweep_group",
+  "event_sweep_set",
+  /** Kind-agnostic lifecycle reminders (web105a): "starts in an hour" /
+   * "ends in an hour — top 3 so far". */
+  "event_starting_soon",
+  "event_ending_soon",
+  /** SOTW/BOTW: a bonus-rule award landed (+N pts — pet / fast kill). */
+  "event_competition_bonus",
+  /** Reserved (nothing sends it yet). */
+  "event_competition_milestone",
 ] as const;
 export type EventMessageToggleKey = (typeof EVENT_MESSAGE_TOGGLE_KEYS)[number];
 
@@ -2524,6 +2792,9 @@ export const EventTaskSchema = z.object({
   difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
   /** JSON string: any_of/assembly/point_collection item lists etc. */
   config: z.string().nullable().optional(),
+  /** SOTW/BOTW race task (web105a): managed by the event's Competition
+   * settings — task UIs render it read-only/hidden. */
+  managed: z.boolean().optional(),
   /** Board-tile display metadata (absent on payloads from before the
    * tile-resurrection pass). */
   tile: TaskTileSchema.nullable().optional(),
@@ -3484,6 +3755,10 @@ export const EventDetailSchema = EventSummarySchema.extend({
   /** Recurring schedule (web82a) — null for a continuous event, absent on
    * payloads predating the feature. */
   schedule: EventScheduleStateSchema.nullable().optional(),
+  /** SOTW/BOTW (web105a): the competition config + WOM linkage state.
+   * Present only on competition-kind events; standings live on
+   * GET /events/{id}/competition. */
+  competition: EventCompetitionSchema.nullable().optional(),
 });
 export type EventDetail = z.infer<typeof EventDetailSchema>;
 
@@ -4160,6 +4435,9 @@ export const EventInputSchema = z.object({
       selection: z.enum(["admin", "election"]).optional(),
     })
     .optional(),
+  /** SOTW/BOTW (web105a): competition settings — metric, ranking, bonus
+   * rules, participation. Draft-only after creation (409 once live). */
+  competition: EventCompetitionInputSchema.optional(),
 });
 export type EventInput = z.infer<typeof EventInputSchema>;
 
@@ -4566,6 +4844,9 @@ export const EventMetaEntrySchema = z.object({
   /** Item search only: false = never seen in the drop history (catalog-only
    * fallback rows — a task targeting one may be uncompletable). */
   tracked: z.boolean().optional(),
+  /** NPC search only (web105a): the WOM hiscores boss slug, or null when the
+   * boss isn't on the hiscores (a botw race stays plugin-only for it). */
+  wom_metric: z.string().nullable().optional(),
 });
 export type EventMetaEntry = z.infer<typeof EventMetaEntrySchema>;
 

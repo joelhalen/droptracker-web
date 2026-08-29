@@ -100,6 +100,7 @@ export const TASK_TYPE_LABELS: Record<EventTask["type"], string> = {
   loot_value: "Loot value",
   pet_collection: "Pet",
   loot_sweep: "Loot Sweep set",
+  competition: "Competition race",
   custom: "Custom (manual)",
 };
 
@@ -121,6 +122,8 @@ export const TASK_TYPE_HELP: Record<EventTask["type"], string> = {
     "Obtain a pet — a specific one, any pet from a category (boss / skilling / raids), or any pet at all. Credited from pet submissions.",
   loot_sweep:
     "One boss/“set” worth of items (Loot Sweep events only). Each item scores points that decay on every repeat receipt (capped per item); collecting the whole set awards a bonus. Never “completes” — it accrues points until the event ends.",
+  competition:
+    "The Skill/Boss of the Week race itself (competition events only). Managed from the event's Competition settings — not editable here.",
   custom: "Anything else. Completed manually via an admin award.",
 };
 

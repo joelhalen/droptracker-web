@@ -36,6 +36,10 @@ import {
   LeaderboardPageSchema,
   LootboardSchema,
   LootSweepBoardSchema,
+  EventCompetitionBoardSchema,
+  CompetitionPlayerDetailSchema,
+  WomCompetitionPreviewSchema,
+  WomReadinessSchema,
   LootSweepReceiptsSchema,
   ItemDetailSchema,
   ManualSubmissionReviewResultSchema,
@@ -75,6 +79,10 @@ import {
   mockAnnouncements,
   mockEvent,
   mockEventLootSweep,
+  mockEventCompetition,
+  mockCompetitionPlayerDetail,
+  mockWomCompetitionPreview,
+  mockWomReadiness,
   mockEventLootSweepReceipts,
   mockEventTeam,
   mockEventTeams,
@@ -167,6 +175,16 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(1)));
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(3)));
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(4)));
+  // SOTW/BOTW (web105a): the competition detail + board + drill-in mocks.
+  assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(6)));
+  assert.doesNotThrow(() => EventCompetitionBoardSchema.parse(mockEventCompetition(6)));
+  assert.doesNotThrow(() =>
+    CompetitionPlayerDetailSchema.parse(mockCompetitionPlayerDetail(6, 1337)),
+  );
+  assert.doesNotThrow(() =>
+    WomCompetitionPreviewSchema.parse(mockWomCompetitionPreview("90210")),
+  );
+  assert.doesNotThrow(() => WomReadinessSchema.parse(mockWomReadiness(101)));
   assert.doesNotThrow(() => LootSweepBoardSchema.parse(mockEventLootSweep(3)));
   assert.doesNotThrow(() => LootSweepBoardSchema.parse(mockEventLootSweep(4)));
   assert.doesNotThrow(() =>

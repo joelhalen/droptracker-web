@@ -27,6 +27,7 @@ import {
   EVENT_FORMATION_MODES,
   EVENT_PRIZE_DISTRIBUTIONS,
   type DiscordRole,
+  type EventCompetitionInput,
   type EventDetail,
   type EventDiscordPolicy,
   type EventKind,
@@ -69,8 +70,10 @@ import {
   teamColorMap,
 } from "@/lib/events";
 import { materializeSchedule } from "@/lib/event-schedule";
+import { competitionBlockToInput, isCompetitionKind } from "@/lib/competition";
 import { confirmDiscard } from "@/lib/use-unsaved-changes";
 import { Alert, buttonVariants, EmptyState } from "@/components/ui";
+import { CompetitionSetup } from "@/components/competition-setup";
 import { DiscordRolePicker } from "@/components/discord-role-picker";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
@@ -113,7 +116,25 @@ function toLocalInput(unix: number | null | undefined): string {
 
 const toUnix = (v: string): number | null => (v ? Math.floor(new Date(v).getTime() / 1000) : null);
 
-type StepKey = "basics" | "schedule" | "rules" | "tasks" | "teams" | "discord" | "review";
+type StepKey =
+  | "basics"
+  | "schedule"
+  | "competition"
+  | "rules"
+  | "tasks"
+  | "teams"
+  | "discord"
+  | "review";
+
+/** SOTW/BOTW (web105a): the kind-specific step that replaces Tasks & Teams —
+ * metric, WOM linkage, ranking, bonus rules and participation. */
+const COMPETITION_STEP: { key: StepKey; label: string; blurb: string; docs?: string } = {
+  key: "competition",
+  label: "Competition",
+  blurb:
+    "What the race tracks, where it runs (DropTracker, or mirrored on WiseOldMan), and any bonus points.",
+  docs: "/docs/events-create",
+};
 
 const STEPS: { key: StepKey; label: string; blurb: string; docs?: string }[] = [
   {
@@ -168,7 +189,19 @@ const BLOCKER_STEP: Record<string, StepKey> = {
   tasks: "tasks",
   board: "tasks",
   teams: "teams",
+  competition: "competition",
 };
+
+/** The wizard's step list per kind: competition kinds swap Tasks & Teams for
+ * the Competition step (the race IS the tasks; the roster is automatic). */
+function stepsForKind(kind: EventKind): typeof STEPS {
+  if (!isCompetitionKind(kind)) return STEPS;
+  return STEPS.flatMap((s) => {
+    if (s.key === "tasks" || s.key === "teams") return [];
+    if (s.key === "rules") return [COMPETITION_STEP, s];
+    return [s];
+  });
+}
 
 export function EventSetupWizard({
   groupId,
@@ -191,7 +224,7 @@ export function EventSetupWizard({
   // rebuild this component at step 0 — the "wizard loops back to step 1" bug.
   // Without a draft only the first two steps exist, so clamp accordingly.
   const [stepIdx, setStepIdx] = useState(() => {
-    const max = initialEvent ? STEPS.length - 1 : 1;
+    const max = initialEvent ? stepsForKind(initialEvent.kind).length - 1 : 1;
     return Math.min(Math.max(Math.trunc(initialStep) || 0, 0), max);
   });
 
@@ -256,7 +289,23 @@ export function EventSetupWizard({
   const [readiness, setReadiness] = useState<EventReadiness | null>(null);
   const [checkingReadiness, setCheckingReadiness] = useState(false);
 
-  const step = STEPS[stepIdx]!;
+  // SOTW/BOTW (web105a): the Competition step's buffered settings — committed
+  // on Continue like Basics/Schedule. Seeded from a resumed draft's block.
+  const [competitionInput, setCompetitionInput] = useState<EventCompetitionInput>(() =>
+    competitionBlockToInput(initialEvent?.competition),
+  );
+
+  // The kind-dependent step list (competition kinds swap Tasks & Teams for
+  // the Competition step). Once a draft exists the SAVED kind decides — the
+  // picked-but-unsaved kind must not open steps whose PATCHes the backend
+  // would refuse. Clamp the index whenever the list shrinks under it.
+  const steps = useMemo(() => stepsForKind(detail ? detail.kind : kind), [detail, kind]);
+  const stepCount = steps.length;
+  useEffect(() => {
+    setStepIdx((i) => Math.min(i, stepCount - 1));
+  }, [stepCount]);
+
+  const step = steps[stepIdx]!;
   const managerPath = (id: number) =>
     (groupId == null ? `/admin/events/${id}` : `/groups/${groupId}/events/${id}`) as Route;
 
@@ -369,10 +418,13 @@ export function EventSetupWizard({
             setDetail({ ...detail, name: name.trim(), description: description || null, kind, mode });
           }
         } else if (step.key === "schedule") {
-          // Board-game events can't carry one (the builder hides itself for
-          // them, but the kind can change on the Basics step after a rule was
-          // built) — send an explicit null so switching kind clears it.
-          const scheduleInput = kind === "board_game" ? null : schedule;
+          // Board-game and competition events can't carry one (the builder
+          // hides itself for them, but the kind can change on the Basics step
+          // after a rule was built) — send an explicit null so switching kind
+          // clears it. Competitions run one continuous window (a linked WOM
+          // comp certainly does).
+          const scheduleInput =
+            kind === "board_game" || isCompetitionKind(kind) ? null : schedule;
           if (scheduleInput) {
             // Refuse a rule that produces nothing here rather than round-trip
             // to the same 422: the API is the authority, this is just courtesy.
@@ -420,10 +472,23 @@ export function EventSetupWizard({
             });
             setDetail(updated);
           }
+        } else if (step.key === "competition" && detail) {
+          const updated = await updateGroupEvent(groupId, detail.id, {
+            competition: competitionInput,
+          });
+          setDetail(updated);
+          setCompetitionInput(competitionBlockToInput(updated.competition));
         } else if (step.key === "rules" && detail) {
+          // Competition kinds: the scaffold owns formation_mode (participation
+          // on the Competition step decides it) — never override it here.
+          const comp = isCompetitionKind(detail.kind);
           await updateGroupEvent(groupId, detail.id, {
-            formation_mode: formationMode,
-            join_code: formationMode === "self_join" ? joinCode.trim() || null : null,
+            ...(comp
+              ? {}
+              : {
+                  formation_mode: formationMode,
+                  join_code: formationMode === "self_join" ? joinCode.trim() || null : null,
+                }),
             submission_policy: submissionPolicy,
             requires_confirmation: requiresConfirmation,
             allow_live_edits: allowLiveEdits,
@@ -461,7 +526,7 @@ export function EventSetupWizard({
                 },
           );
         }
-        setStepIdx((i) => Math.min(i + 1, STEPS.length - 1));
+        setStepIdx((i) => Math.min(i + 1, steps.length - 1));
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't save this step. Please try again."));
       }
@@ -598,14 +663,14 @@ export function EventSetupWizard({
   const acceptedParticipants = participants.filter((p) => p.status === "accepted");
   const acceptedIds = acceptedParticipants.map((p) => p.group_id);
   const isClanVsClan = (detail?.mode ?? mode) === "clan_vs_clan";
-  const isLastStep = stepIdx === STEPS.length - 1;
+  const isLastStep = stepIdx === steps.length - 1;
 
   return (
     <div className="space-y-5">
       {/* Progress rail */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <ol className="flex flex-wrap gap-1.5 text-xs">
-          {STEPS.map((s, i) => {
+          {steps.map((s, i) => {
             const reachable = i <= 1 || detail != null;
             return (
               <li key={s.key}>
@@ -812,15 +877,24 @@ export function EventSetupWizard({
           <TimezoneNote className="text-osrs-parchment-dark/60 block text-xs" />
 
           {/* Recurring windows (web82a) — sits under the dates because it
-              narrows them: the span above is still the event's overall life. */}
-          <EventScheduleBuilder
-            value={schedule}
-            onChange={setSchedule}
-            startsAt={toUnix(startsAt)}
-            endsAt={toUnix(endsAt)}
-            kind={kind}
-            status={detail?.status}
-          />
+              narrows them: the span above is still the event's overall life.
+              Competition kinds run one continuous window, so no builder. */}
+          {!isCompetitionKind(kind) && (
+            <EventScheduleBuilder
+              value={schedule}
+              onChange={setSchedule}
+              startsAt={toUnix(startsAt)}
+              endsAt={toUnix(endsAt)}
+              kind={kind}
+              status={detail?.status}
+            />
+          )}
+          {isCompetitionKind(kind) && detail?.competition?.wom && (
+            <p className="text-osrs-parchment-dark/60 text-xs">
+              This event mirrors a WiseOldMan competition — its dates follow the
+              competition and sync automatically.
+            </p>
+          )}
 
           {!detail && (
             <fieldset className="border-osrs-bronze/20 space-y-2 rounded border p-3">
@@ -889,9 +963,55 @@ export function EventSetupWizard({
         </div>
       )}
 
+      {/* ---- Competition (sotw/botw only) ------------------------------- */}
+      {step.key === "competition" && detail && isCompetitionKind(detail.kind) && (
+        <CompetitionSetup
+          kind={detail.kind}
+          groupId={groupId}
+          event={detail}
+          value={competitionInput}
+          onChange={setCompetitionInput}
+          onSaveDraft={async (input) => {
+            try {
+              const updated = await updateGroupEvent(groupId, detail.id, {
+                competition: input,
+              });
+              setDetail(updated);
+              setCompetitionInput(competitionBlockToInput(updated.competition));
+              return updated;
+            } catch (err) {
+              setError(getErrorMessage(err, "Couldn't save the competition settings."));
+              return null;
+            }
+          }}
+          onEventUpdated={(d) => {
+            setDetail(d);
+            setCompetitionInput(competitionBlockToInput(d.competition));
+            // Linking adopts the competition's dates — mirror them into the
+            // Schedule step's fields so going back shows the truth.
+            setStartsAt(toLocalInput(d.starts_at));
+            setEndsAt(toLocalInput(d.ends_at));
+          }}
+          disabled={detail.status !== "draft"}
+        />
+      )}
+
       {/* ---- Step 3: Joining & rules ------------------------------------ */}
+      {step.key === "rules" && detail && isCompetitionKind(detail.kind) && (
+        <div className="max-w-2xl space-y-1 pb-1 text-sm">
+          <p className="text-osrs-parchment">
+            {competitionInput.participation === "signup"
+              ? "Players opt in from the event page or the Discord sign-up button."
+              : "Every clan member is entered automatically."}
+          </p>
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            Change who competes on the Competition step. The rules below still apply.
+          </p>
+        </div>
+      )}
       {step.key === "rules" && detail && (
         <div className="max-w-2xl space-y-4">
+          {!isCompetitionKind(detail.kind) && (
           <div className="text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
               How do players get onto teams?
@@ -925,7 +1045,10 @@ export function EventSetupWizard({
               ))}
             </div>
           </div>
-          {formationMode !== "admin_assign" && (
+          )}
+          {(isCompetitionKind(detail.kind)
+            ? competitionInput.participation === "signup"
+            : formationMode !== "admin_assign") && (
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
@@ -1222,7 +1345,7 @@ export function EventSetupWizard({
               <ul className="space-y-1.5">
                 {readiness.blockers.map((b) => {
                   const target = BLOCKER_STEP[b.target];
-                  const idx = target ? STEPS.findIndex((s) => s.key === target) : -1;
+                  const idx = target ? steps.findIndex((s) => s.key === target) : -1;
                   return (
                     <li key={b.code} className="flex items-center justify-between gap-2">
                       <span className="text-osrs-parchment-dark/80">{b.message}</span>

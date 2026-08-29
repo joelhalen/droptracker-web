@@ -45,6 +45,14 @@ import {
   TaskRequirementsSchema,
   type TaskRequirements,
   EventSummarySchema,
+  EventCompetitionBoardSchema,
+  type EventCompetitionBoard,
+  CompetitionPlayerDetailSchema,
+  type CompetitionPlayerDetail,
+  WomCompetitionPreviewSchema,
+  type WomCompetitionPreview,
+  WomReadinessSchema,
+  type WomReadiness,
   type BingoBoard,
   type BingoBoardInput,
   type EventAwardInput,
@@ -69,6 +77,10 @@ import {
   mockEventLootSweepReceipts,
   mockEvents,
   mockEventsMine,
+  mockEventCompetition,
+  mockCompetitionPlayerDetail,
+  mockWomCompetitionPreview,
+  mockWomReadiness,
 } from "../mock-data";
 
 export const eventsApi = {
@@ -154,6 +166,17 @@ export const eventsApi = {
     );
   },
 
+
+  /** SOTW/BOTW standings for the render page (internal render token) — the
+   * compact table the Discord board image screenshots (web105a). */
+  async eventCompetitionForRender(
+    eventId: number,
+    token: string,
+  ): Promise<EventCompetitionBoard> {
+    return EventCompetitionBoardSchema.parse(
+      await apiGet(`/events/${eventId}/competition`, { internalToken: token }),
+    );
+  },
 
   /** Public team page: standings context, roster with contribution stats,
    * per-task progress, recent applied activity. */
@@ -550,6 +573,95 @@ export const eventsApi = {
       async () =>
         LootSweepBoardSchema.parse(await apiGet(`/events/${eventId}/loot-sweep`, { authed: true })),
       () => mockEventLootSweep(eventId),
+    );
+  },
+
+  // --- SOTW/BOTW competitions (web105a) -----------------------------------
+  /** Config + merged ranked standings (frozen final standings once past). */
+  async eventCompetition(eventId: number): Promise<EventCompetitionBoard> {
+    return withFallback(
+      async () =>
+        EventCompetitionBoardSchema.parse(
+          await apiGet(`/events/${eventId}/competition`, { authed: true }),
+        ),
+      () => mockEventCompetition(eventId),
+    );
+  },
+
+  /** One participant's standings row + bonus-award ledger. */
+  async eventCompetitionPlayer(
+    eventId: number,
+    playerId: number,
+  ): Promise<CompetitionPlayerDetail> {
+    return withFallback(
+      async () =>
+        CompetitionPlayerDetailSchema.parse(
+          await apiGet(`/events/${eventId}/competition/players/${playerId}`, { authed: true }),
+        ),
+      () => mockCompetitionPlayerDetail(eventId, playerId),
+    );
+  },
+
+  /** Wizard link validator: preview a WOM competition by URL or id. */
+  async womCompetitionPreview(
+    query: string,
+    params: { kind?: "sotw" | "botw"; groupId?: number } = {},
+  ): Promise<WomCompetitionPreview> {
+    const q = new URLSearchParams({ query });
+    if (params.kind) q.set("kind", params.kind);
+    if (params.groupId) q.set("group_id", String(params.groupId));
+    return withFallback(
+      async () =>
+        WomCompetitionPreviewSchema.parse(
+          await apiGet(`/events/meta/wom-competition?${q.toString()}`, { authed: true }),
+        ),
+      () => mockWomCompetitionPreview(query),
+    );
+  },
+
+  /** Create-on-WOM gating: has the group a WOM id + stored verification code? */
+  async womReadiness(groupId: number): Promise<WomReadiness> {
+    return withFallback(
+      async () =>
+        WomReadinessSchema.parse(
+          await apiGet(`/events/meta/wom-readiness?group_id=${groupId}`, { authed: true }),
+        ),
+      () => mockWomReadiness(groupId),
+    );
+  },
+
+  /** Attach an existing WOM competition to a draft event (source: linked). */
+  async linkWomCompetition(eventId: number, competitionId: number | string): Promise<EventDetail> {
+    return withFallback(
+      async () =>
+        EventDetailSchema.parse(
+          await apiSend("POST", `/events/${eventId}/competition/wom-link`, {
+            competition_id: competitionId,
+          }),
+        ),
+      () => mockEvent(eventId),
+    );
+  },
+
+  /** Detach the WOM competition (draft only; created comps are deleted on WOM). */
+  async unlinkWomCompetition(eventId: number): Promise<EventDetail> {
+    return withFallback(
+      async () =>
+        EventDetailSchema.parse(
+          await apiSend("DELETE", `/events/${eventId}/competition/wom-link`, {}),
+        ),
+      () => mockEvent(eventId),
+    );
+  },
+
+  /** Create the WOM competition for a draft event (source: created). */
+  async createWomCompetition(eventId: number): Promise<EventDetail> {
+    return withFallback(
+      async () =>
+        EventDetailSchema.parse(
+          await apiSend("POST", `/events/${eventId}/competition/wom-create`, {}),
+        ),
+      () => mockEvent(eventId),
     );
   },
 

@@ -11,6 +11,9 @@ import { EventTaskBoard } from "@/components/event-task-progress";
 import { EventCompletionHistory } from "@/components/event-completion-history";
 import { EventTeamsPanel } from "@/components/event-teams-panel";
 import { PrizePotPanel } from "@/components/prize-pot-panel";
+import { CompetitionBonusRulesCard } from "@/components/competition-bonus-rules-card";
+import { CompetitionStandings, CompetitionTopStrip } from "@/components/competition-standings";
+import { isCompetitionKind } from "@/lib/competition";
 import { EmptyState } from "@/components/ui";
 import { EventPageHeader, loadEventForView } from "./_shared";
 
@@ -44,6 +47,11 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   // Loot Sweep events: the icon-grid collection race replaces the task list.
   const lootSweep =
     event.kind === "loot_sweep" ? await api.eventLootSweep(eventId).catch(() => null) : null;
+
+  // SOTW/BOTW (web105a): the individual leaderboard replaces teams + tasks.
+  const competition = isCompetitionKind(event.kind)
+    ? await api.eventCompetition(eventId).catch(() => null)
+    : null;
 
   // Prize pot (web52a): the "Who's bought in" panel — only when the event runs
   // a pot. Read-only on the public page (no actions).
@@ -110,6 +118,61 @@ export default async function EventDetailPage({ params }: { params: Params }) {
       />
     </div>
   ) : null;
+
+  if (competition) {
+    // SOTW/BOTW: an individual race — the leaderboard IS the event, full
+    // width; participate + scoring cards ride above it. No teams surface.
+    return (
+      <div className="space-y-8">
+        <EventPageHeader event={event} />
+        <CompetitionTopStrip board={competition} />
+        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+          {event.competition?.participation === "signup" ? (
+            participatePanel
+          ) : (
+            <div>
+              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+                Participate
+              </h2>
+              <p className="text-osrs-parchment-dark/70 text-sm">
+                Every clan member is entered automatically — just play. Gains track
+                live from the plugin and the WiseOldMan hiscores.
+              </p>
+            </div>
+          )}
+          <CompetitionBonusRulesCard board={competition} />
+          {potPanel}
+        </div>
+        <div>
+          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+            Standings
+          </h2>
+          <CompetitionStandings
+            eventId={event.id}
+            initial={competition}
+            live={event.status === "active"}
+            viewerPlayerIds={user?.players.map((p) => p.id) ?? []}
+          />
+        </div>
+        {event.status !== "draft" && (
+          <section>
+            <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+              Bonus history
+            </h2>
+            <p className="text-osrs-parchment-dark/60 mb-4 max-w-2xl text-sm">
+              Every bonus award with its proof — gained progress updates are folded away
+              by default.
+            </p>
+            <EventCompletionHistory
+              eventId={event.id}
+              teams={event.teams.map((t) => ({ id: t.id, name: t.name }))}
+              taskTypes={event.tasks.map((t) => t.type)}
+            />
+          </section>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

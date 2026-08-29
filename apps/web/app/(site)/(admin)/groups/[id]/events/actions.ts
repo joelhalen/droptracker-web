@@ -180,6 +180,8 @@ export async function updateGroupEvent(
       | "kind"
       | "leadership"
       | "visibility"
+      /** SOTW/BOTW (web105a): competition settings — draft-only after create. */
+      | "competition"
     >
   >,
 ) {
@@ -1332,4 +1334,87 @@ export async function updateEventPotConfig(
     }
     throw err;
   }
+}
+
+/* ── SOTW/BOTW competitions (web105a) ─────────────────────────────────────── */
+
+/** Create-on-WOM gating for the wizard: does the group have a WOM group id
+ * and a stored verification code? Boolean-only — the code never leaves the
+ * backend. */
+export async function fetchWomReadiness(groupId: EventGroupId) {
+  await assertCanManageEvent(groupId);
+  if (groupId == null) {
+    return { wom_group_id: null, has_verification_code: false, can_create: false, reason: "no_wom_id" as const };
+  }
+  return api.womReadiness(groupId);
+}
+
+/** Validate a pasted WOM competition URL/id and preview it for the wizard. */
+export async function previewWomCompetition(
+  groupId: EventGroupId,
+  query: string,
+  kind?: "sotw" | "botw",
+) {
+  await assertCanManageEvent(groupId);
+  try {
+    const preview = await api.womCompetitionPreview(query, {
+      kind,
+      ...(groupId != null ? { groupId } : {}),
+    });
+    return { ok: true as const, preview };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false as const, message: err.message };
+    throw err;
+  }
+}
+
+/** Attach an existing WOM competition to a draft event (source: linked). */
+export async function linkWomCompetition(
+  groupId: EventGroupId,
+  eventId: number,
+  competitionId: number | string,
+) {
+  await assertCanManageEvent(groupId);
+  try {
+    const event = await api.linkWomCompetition(eventId, competitionId);
+    revalidatePath(eventAdminPath(groupId, eventId));
+    return { ok: true as const, event };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false as const, message: err.message };
+    throw err;
+  }
+}
+
+/** Detach the WOM competition from a draft event (created comps are deleted
+ * on WOM first, server-side). */
+export async function unlinkWomCompetition(groupId: EventGroupId, eventId: number) {
+  await assertCanManageEvent(groupId);
+  try {
+    const event = await api.unlinkWomCompetition(eventId);
+    revalidatePath(eventAdminPath(groupId, eventId));
+    return { ok: true as const, event };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false as const, message: err.message };
+    throw err;
+  }
+}
+
+/** Create the WOM competition for a draft event (source: created). */
+export async function createWomCompetitionForEvent(groupId: EventGroupId, eventId: number) {
+  await assertCanManageEvent(groupId);
+  try {
+    const event = await api.createWomCompetition(eventId);
+    revalidatePath(eventAdminPath(groupId, eventId));
+    return { ok: true as const, event };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false as const, message: err.message };
+    throw err;
+  }
+}
+
+/** The live competition standings (admin surfaces; public pages read it
+ * directly in their server components). */
+export async function fetchEventCompetition(groupId: EventGroupId, eventId: number) {
+  await assertCanManageEvent(groupId);
+  return api.eventCompetition(eventId);
 }

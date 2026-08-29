@@ -31,6 +31,10 @@ export default async function EventTeamsIndexPage({ params }: { params: Params }
   if ("denied" in loaded) return loaded.denied;
   const { event } = loaded;
 
+  // SOTW/BOTW (web105a): an individual race — there is no teams surface
+  // (the single roster team is scaffolding, not a competitor).
+  if (event.kind === "sotw" || event.kind === "botw") notFound();
+
   // Self-sufficient standings rollup: rank/score + tasks-done, pot share,
   // event-window loot GP, top task-credited items, and top contributors.
   const teamsData = user

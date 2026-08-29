@@ -14,6 +14,11 @@ import type {
   EventChannelConfig,
   EventTeamDiscordConfig,
   EventCompletion,
+  EventCompetition,
+  EventCompetitionBoard,
+  CompetitionPlayerDetail,
+  WomCompetitionPreview,
+  WomReadiness,
   EventDetail,
   EventTeamDetail,
   EventTeamsResponse,
@@ -1900,6 +1905,20 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
       activated_at: null,
       ...eventDefaults,
     },
+    {
+      id: 6,
+      group_id: groupId ?? 101,
+      name: "Zulrah Blitz",
+      description: "Boss of the Week: most Zulrah KC gained wins — bonus points for pets and sub-1:00 kills.",
+      status: "active",
+      starts_at: now - 2 * DAY,
+      ends_at: now + 5 * DAY,
+      has_bingo: false,
+      kind: "botw" as const,
+      activated_at: now - 2 * DAY,
+      ...eventDefaults,
+      formation_mode: "auto_assign" as const,
+    },
   ];
   return all.filter((e) => (status ? e.status === status : true));
 }
@@ -1937,6 +1956,38 @@ export function mockEvent(id: number): EventDetail {
       join_code: null,
       starts_at: summary.starts_at ?? now,
       ends_at: summary.ends_at ?? now + 7 * DAY,
+    };
+  }
+  if (summary.kind === "sotw" || summary.kind === "botw") {
+    return {
+      ...summary,
+      id,
+      tasks: [
+        {
+          id: 901,
+          type: "competition" as const,
+          label: "Boss race: Zulrah",
+          target: "Zulrah",
+          target_value: 0,
+          points: 0,
+          requires_confirmation: false,
+          visibility: "private" as const,
+          difficulty: null,
+          config: null,
+          managed: true,
+        },
+      ],
+      teams: [
+        { id: 61, name: "Participants", score: 812, coins: 0, member_count: 24, members: [] },
+      ],
+      progress: [],
+      bingo: null,
+      viewer: { player_ids_on_event: [1337], team_id: 61, signed_up_player_ids: [1337] },
+      join_requires_code: false,
+      join_code: null,
+      starts_at: summary.starts_at ?? now - 2 * DAY,
+      ends_at: summary.ends_at ?? now + 5 * DAY,
+      competition: mockEventCompetitionBlock(),
     };
   }
   const cells = Array.from({ length: 25 }, (_, i) => ({
@@ -4080,4 +4131,137 @@ export function mockEventParticipants(): EventParticipant[] {
       unread: 1,
     },
   ];
+}
+
+/* ── SOTW/BOTW competition mocks (web105a) ─────────────────────────────────── */
+
+/** The competition block on the mock botw event's detail payload. */
+export function mockEventCompetitionBlock(): EventCompetition {
+  return {
+    metric: {
+      kind: "boss",
+      npcs: ["Zulrah"],
+      npc_ids: { Zulrah: 2042 },
+      display: "Zulrah",
+    },
+    ranking: { mode: "gained" },
+    bonus_rules: [
+      { id: 1, type: "pet", points: 100, max_awards: 1, label: "New pet: Pet Snakeling", pets: ["Pet snakeling"] },
+      { id: 2, type: "time_under", points: 5, max_awards: 3, label: "Zulrah kill under 1:00", npc: "Zulrah", threshold_ms: 60_000 },
+    ],
+    source_mode: "linked",
+    wom: {
+      competition_id: 90210,
+      url: "https://wiseoldman.net/competitions/90210",
+      title: "Zulrah Blitz",
+      starts_at: Math.floor(Date.now() / 1000) - 2 * DAY,
+      ends_at: Math.floor(Date.now() / 1000) + 5 * DAY,
+      synced_at: Math.floor(Date.now() / 1000) - 120,
+      sync_error: null,
+    },
+    participation: "signup",
+    configured: true,
+  };
+}
+
+/** GET /events/{id}/competition — a live botw leaderboard with a WOM-only
+ * greyed row and bonus detail on the leaders. */
+export function mockEventCompetition(eventId: number): EventCompetitionBoard {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    event_id: eventId,
+    kind: "botw",
+    status: "active",
+    competition: mockEventCompetitionBlock(),
+    totals: { participants: 4, gained: 812, bonus_points: 115 },
+    standings: [
+      {
+        rank: 1, player_id: 1337, wom_player_id: 2188996, player_name: "Zezima",
+        registered: true, gained: 291, bonus_points: 110, points: 401,
+        bonus: {
+          "1": { type: "pet", count: 1, awarded: 1, points: 100 },
+          "2": { type: "time_under", count: 2, awarded: 2, points: 10 },
+        },
+      },
+      {
+        rank: 2, player_id: 1338, wom_player_id: 399504, player_name: "B0aty",
+        registered: true, gained: 260, bonus_points: 5, points: 265,
+        bonus: { "2": { type: "time_under", count: 1, awarded: 1, points: 5 } },
+      },
+      {
+        rank: 3, player_id: null, wom_player_id: 777001, player_name: "Total Stranger",
+        registered: false, gained: 181, bonus_points: 0, points: 181, bonus: {},
+      },
+      {
+        rank: 4, player_id: 1340, wom_player_id: null, player_name: "Framed",
+        registered: true, gained: 80, bonus_points: 0, points: 80, bonus: {},
+      },
+    ],
+    finalized: false,
+    updated_at: now,
+  };
+}
+
+/** GET /events/{id}/competition/players/{playerId} — the leader's award log. */
+export function mockCompetitionPlayerDetail(eventId: number, playerId: number): CompetitionPlayerDetail {
+  const now = Math.floor(Date.now() / 1000);
+  const board = mockEventCompetition(eventId);
+  const row = board.standings.find((r) => r.player_id === playerId) ?? board.standings[0]!;
+  return {
+    event_id: eventId,
+    player_id: playerId,
+    row,
+    awards:
+      row.rank === 1
+        ? [
+            {
+              rule_id: 1, type: "pet", points: 100,
+              label: "New pet: Pet snakeling",
+              matched_target: "Pet snakeling",
+              proof_url: null, awarded_at: now - DAY, counted: true,
+            },
+            {
+              rule_id: 2, type: "time_under", points: 5,
+              label: "Zulrah in 0:55.8 (under 1:00)",
+              matched_target: "Zulrah",
+              proof_url: null, awarded_at: now - 2 * 3600, counted: true,
+            },
+            {
+              rule_id: 2, type: "time_under", points: 5,
+              label: "Zulrah in 0:58.2 (under 1:00)",
+              matched_target: "Zulrah",
+              proof_url: null, awarded_at: now - 3600, counted: true,
+            },
+          ]
+        : [],
+  };
+}
+
+/** GET /events/meta/wom-competition — the wizard's link preview. */
+export function mockWomCompetitionPreview(query: string): WomCompetitionPreview {
+  const now = Math.floor(Date.now() / 1000);
+  const id = /\d+/.exec(query)?.[0];
+  return {
+    id: id ? parseInt(id, 10) : 90210,
+    title: "Zulrah Blitz",
+    url: `https://wiseoldman.net/competitions/${id ?? 90210}`,
+    metric: "zulrah",
+    metric_kind: "boss",
+    multi_metric: false,
+    type: "classic",
+    starts_at: now - 2 * DAY,
+    ends_at: now + 5 * DAY,
+    wom_group_id: 141,
+    group_matches: true,
+    participant_count: 61,
+    linkable: true,
+    problems: [],
+    linked_event_id: null,
+    mappable: { event_kind: "botw", npc: "Zulrah", npc_id: 2042, display: "Zulrah" },
+  };
+}
+
+/** GET /events/meta/wom-readiness — mock groups can create on WOM. */
+export function mockWomReadiness(_groupId: number): WomReadiness {
+  return { wom_group_id: 141, has_verification_code: true, can_create: true, reason: null };
 }

@@ -91,13 +91,17 @@ const STATUS_STYLES: Record<string, string> = {
 export function EventPageHeader({
   event,
 }: {
-  event: EventSummary & Partial<Pick<EventDetail, "schedule">>;
+  event: EventSummary & Partial<Pick<EventDetail, "schedule" | "competition">>;
 }) {
+  // SOTW/BOTW (web105a): an individual race has no Teams surface.
+  const isCompetition = event.kind === "sotw" || event.kind === "botw";
   const tabs = [
     { href: `/events/${event.id}`, label: "Overview" },
     { href: `/events/${event.id}/players`, label: "Players" },
     // matchPrefix keeps Teams active on the /teams/[teamId] drill-down.
-    { href: `/events/${event.id}/teams`, label: "Teams", matchPrefix: true },
+    ...(isCompetition
+      ? []
+      : [{ href: `/events/${event.id}/teams`, label: "Teams", matchPrefix: true }]),
   ];
   return (
     <header>
@@ -118,6 +122,32 @@ export function EventPageHeader({
       <p className="text-osrs-parchment-dark/60 mt-1 text-sm">
         <EventWindow startsAt={event.starts_at} endsAt={event.ends_at} status={event.status} />
       </p>
+      {/* SOTW/BOTW: the race + its source in one line — a stranger landing
+          here should know what's being raced without scrolling. */}
+      {isCompetition && event.competition && (
+        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-osrs-parchment">
+            {event.kind === "sotw" ? "⚔️ Skill of the Week" : "⚔️ Boss of the Week"}
+            {event.competition.metric.display ? ` — ${event.competition.metric.display}` : ""}
+          </span>
+          {event.competition.wom ? (
+            <a
+              href={event.competition.wom.url}
+              target="_blank"
+              rel="noreferrer"
+              className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:text-osrs-gold-bright rounded border px-1.5 py-px text-xs"
+            >
+              {event.competition.source_mode === "created"
+                ? "Created on WiseOldMan ↗"
+                : "Mirrors WiseOldMan ↗"}
+            </a>
+          ) : (
+            <span className="border-osrs-bronze/40 text-osrs-parchment-dark/60 rounded border px-1.5 py-px text-xs">
+              Hosted on DropTracker
+            </span>
+          )}
+        </p>
+      )}
       {/* Scheduled events (web82a) score only inside repeating windows, and
           stay live-but-paused between them — say which, and when the next one
           opens, or a player has no way to tell why nothing is counting. */}
