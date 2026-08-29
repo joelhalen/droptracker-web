@@ -20,6 +20,7 @@ const field =
 
 const PLUGIN_URL = "https://www.droptracker.io/runelite";
 const DISCORD_URL = "https://discord.gg/droptracker";
+const WOM_GROUPS_URL = "https://wiseoldman.net/groups";
 
 export function ClaimRsnFlow({
   client,
@@ -161,10 +162,25 @@ export function ClaimRsnFlow({
         </Alert>
       )}
 
+      {/* Mirrors the Discord /claim-rsn "Already claimed" embed: re-claiming is
+          what people try when their drops never reach the clan channel, and it
+          is not what controls that — the clan's WOM roster is. */}
       {!checking && status === "already_yours" && (
-        <Alert variant="success">
+        <Alert variant="info">
           <span>
-            <strong>{shownName}</strong> is already linked to your account.
+            <strong>{shownName}</strong> is already linked to your account, so claiming it
+            again won&apos;t change anything. If your drops are tracked here but never post
+            in your clan&apos;s Discord, that isn&apos;t what claiming controls — clan
+            channels post for the members of the clan&apos;s{" "}
+            <button
+              type="button"
+              className="text-osrs-gold-bright underline"
+              onClick={() => env.openLink(WOM_GROUPS_URL)}
+            >
+              Wise Old Man group
+            </button>
+            . Ask a clan leader to add <strong>{shownName}</strong> there — we re-sync every
+            hour, so posting starts within an hour of them adding you.
           </span>
         </Alert>
       )}
