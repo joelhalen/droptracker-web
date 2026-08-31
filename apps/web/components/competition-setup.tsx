@@ -15,10 +15,14 @@ import type {
   EventCompetitionInput,
   EventDetail,
   EventMetaEntry,
+  EventTask,
+  EventTaskInput,
   WomCompetitionPreview,
   WomReadiness,
 } from "@droptracker/api-types";
+import { EVENT_TASK_TYPES } from "@droptracker/api-types";
 import {
+  bonusRuleIcon,
   bonusRuleSentence,
   COMPETITION_SKILLS,
   formatTimeMs,
@@ -26,6 +30,7 @@ import {
   rateSentence,
   WOM_LINK_PROBLEM_COPY,
 } from "@/lib/competition";
+import { EventTaskForm } from "@/components/event-task-form";
 import {
   createWomCompetitionForEvent,
   fetchWomReadiness,
@@ -39,6 +44,97 @@ const field =
   "w-full rounded border border-osrs-bronze/40 bg-osrs-brown-dark/60 px-2.5 py-1.5 text-sm text-osrs-parchment placeholder:text-osrs-parchment-dark/40 focus:border-osrs-gold focus:outline-none";
 
 type BonusRuleInput = NonNullable<EventCompetitionInput["bonus_rules"]>[number];
+type EmbeddedTask = NonNullable<BonusRuleInput["task"]>;
+
+/** Which task types a bonus rule may embed, per race kind.
+ *
+ * A SKILL race is deliberately short: nothing in the game says which skill an
+ * item came from, so a drop bonus on a Skill of the Week could only ever mean
+ * "from anywhere". A pet and a level are the two things genuinely scopable to
+ * one skill — the backend enforces the same list and 422s the rest.
+ */
+const BOSS_BONUS_TASK_TYPES = [
+  "item_collection",
+  "loot_value",
+  "pb_target",
+  "pet_collection",
+  "ca_target",
+] as const;
+const SKILL_BONUS_TASK_TYPES = ["pet_collection", "skill_target"] as const;
+
+/** The "+ …" buttons, in the order they read as a menu. */
+const TASK_BONUS_PRESETS: {
+  type: EmbeddedTask["type"];
+  label: string;
+  help: string;
+  bosses: boolean;
+  skills: boolean;
+}[] = [
+  {
+    type: "item_collection",
+    label: "+ Drop bonus",
+    help: "One drop, a full set, an either-or, or a weighted pool — scoped to the raced boss.",
+    bosses: true,
+    skills: false,
+  },
+  {
+    type: "loot_value",
+    label: "+ Loot value bonus",
+    help: "GP of loot from the raced boss.",
+    bosses: true,
+    skills: false,
+  },
+  {
+    type: "ca_target",
+    label: "+ Combat achievement bonus",
+    help: "Combat achievements at the raced boss, optionally by tier.",
+    bosses: true,
+    skills: false,
+  },
+  {
+    type: "pet_collection",
+    label: "+ Pet task bonus",
+    help: "A pet, with the repeat and quantity options of a full task.",
+    bosses: true,
+    skills: true,
+  },
+  {
+    type: "skill_target",
+    label: "+ Level bonus",
+    help: "Reach a level in the raced skill.",
+    bosses: false,
+    skills: true,
+  },
+];
+
+/** A rule's embedded criteria → the shape EventTaskForm pre-fills from. */
+function taskFromRule(rule: BonusRuleInput, label: string): EventTask {
+  const task = rule.task;
+  return {
+    id: -1,
+    type: (task?.type ?? "item_collection") as EventTask["type"],
+    label,
+    target: task?.target ?? null,
+    target_value: task?.target_value ?? null,
+    points: 0,
+    requires_confirmation: false,
+    visibility: "private",
+    difficulty: null,
+    config: task?.config ?? null,
+  } as EventTask;
+}
+
+/** EventTaskForm's draft output → the rule's embedded criteria. The form's own
+ * `points` is the TASK's points, which a bonus rule doesn't have — the bonus
+ * award is the rule's `points`, edited beside it. */
+function ruleTaskFromDraft(input: EventTaskInput): EmbeddedTask {
+  return {
+    type: input.type as EmbeddedTask["type"],
+    target: input.target ?? undefined,
+    target_value: input.target_value ?? undefined,
+    config: input.config ?? null,
+  };
+}
 
 export function CompetitionSetup({
   kind,
@@ -114,9 +210,14 @@ export function CompetitionSetup({
   const removeNpc = (name: string) => {
     patch({
       npcs: npcs.filter((n) => n !== name),
-      bonus_rules: (value.bonus_rules ?? []).filter(
-        (r) => r.type !== "time_under" || r.npc !== name,
-      ),
+      // Drop the bonus rules that named this boss specifically — a kill-time
+      // tier, or an embedded task pinned to it (a pb_target). Everything else
+      // is scoped by the race as a whole and is re-scoped on save.
+      bonus_rules: (value.bonus_rules ?? []).filter((r) => {
+        if (r.type === "time_under") return r.npc !== name;
+        if (r.type === "task") return (r.task?.target ?? null) !== name;
+        return true;
+      }),
     });
   };
 
@@ -197,8 +298,41 @@ export function CompetitionSetup({
   const hasPetRule = rules.some((r) => r.type === "pet");
   const setRule = (idx: number, rule: BonusRuleInput) =>
     patch({ bonus_rules: rules.map((r, i) => (i === idx ? rule : r)) });
-  const removeRule = (idx: number) =>
+  const removeRule = (idx: number) => {
     patch({ bonus_rules: rules.filter((_r, i) => i !== idx) });
+    setEditing(null);
+  };
+  const ruleCap = 12;
+
+  // Which rule's criteria are open in the embedded task builder. `-1` means
+  // "a new rule being built" — it isn't added to the list until the form is
+  // submitted, so cancelling leaves no half-built rule behind.
+  const [editing, setEditing] = useState<number | null>(null);
+  const [draftType, setDraftType] = useState<EmbeddedTask["type"]>("item_collection");
+  const bonusTaskTypes = isBoss ? BOSS_BONUS_TASK_TYPES : SKILL_BONUS_TASK_TYPES;
+  const omitTaskTypes = EVENT_TASK_TYPES.filter(
+    (t) => !(bonusTaskTypes as readonly string[]).includes(t),
+  ) as EventTask["type"][];
+
+  const startTaskRule = (type: EmbeddedTask["type"]) => {
+    setDraftType(type);
+    setEditing(-1);
+  };
+  const commitTaskRule = (idx: number, input: EventTaskInput) => {
+    const task = ruleTaskFromDraft(input);
+    const label = input.label?.trim() || undefined;
+    if (idx < 0) {
+      patch({
+        bonus_rules: [
+          ...rules,
+          { type: "task", points: 25, max_awards: 1, task, ...(label ? { label } : {}) },
+        ],
+      });
+    } else {
+      setRule(idx, { ...rules[idx]!, task, ...(label ? { label } : {}) });
+    }
+    setEditing(null);
+  };
 
   const rankingMode = value.ranking?.mode ?? "gained";
   const participation = value.participation ?? "whole_clan";
@@ -537,15 +671,29 @@ export function CompetitionSetup({
                 className="border-osrs-bronze/30 bg-osrs-brown-dark/40 space-y-1.5 rounded border p-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-osrs-parchment text-sm">{bonusRuleSentence(r)}</span>
+                  <span className="text-osrs-parchment flex items-start gap-1.5 text-sm">
+                    <span aria-hidden>{bonusRuleIcon(r.type)}</span>
+                    <span>{bonusRuleSentence(r)}</span>
+                  </span>
                   {!disabled && (
-                    <button
-                      type="button"
-                      onClick={() => removeRule(i)}
-                      className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
-                    >
-                      Remove
-                    </button>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {r.type === "task" && (
+                        <button
+                          type="button"
+                          onClick={() => setEditing(editing === i ? null : i)}
+                          className="text-osrs-gold-bright text-xs hover:underline"
+                        >
+                          {editing === i ? "Close" : "Edit criteria"}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeRule(i)}
+                        className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
+                      >
+                        Remove
+                      </button>
+                    </span>
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -610,10 +758,100 @@ export function CompetitionSetup({
                       </label>
                     </>
                   )}
+                  {r.type === "milestone" && (
+                    <label className="flex items-center gap-1.5">
+                      Every
+                      <input
+                        type="number"
+                        min={1}
+                        value={r.step ?? (isBoss ? 100 : 1_000_000)}
+                        onChange={(e) =>
+                          setRule(i, {
+                            ...r,
+                            step: Math.max(parseInt(e.target.value || "1", 10) || 1, 1),
+                          })
+                        }
+                        className={`${field} w-28`}
+                      />
+                      {isBoss ? "kills" : "XP"}
+                    </label>
+                  )}
+                  {r.type === "task" && (
+                    <label className="flex items-center gap-1.5">
+                      Name it
+                      <input
+                        type="text"
+                        maxLength={120}
+                        placeholder="optional"
+                        value={r.label ?? ""}
+                        onChange={(e) =>
+                          setRule(i, { ...r, label: e.target.value || undefined })
+                        }
+                        className={`${field} w-56`}
+                      />
+                    </label>
+                  )}
                 </div>
+                {r.type === "task" && editing === i && !disabled && (
+                  <div className="border-osrs-bronze/30 mt-2 border-t pt-2">
+                    <p className="text-osrs-parchment-dark/50 mb-2 text-xs">
+                      {isBoss
+                        ? "Anything the task builder can express. The race's boss is added to the source restriction when you save, so these only count there."
+                        : "Scoped to the raced skill when you save."}
+                    </p>
+                    <EventTaskForm
+                      groupId={groupId}
+                      eventId={event?.id ?? 0}
+                      initial={taskFromRule(r, r.label ?? "Bonus")}
+                      onDraftSubmit={(input) => commitTaskRule(i, input)}
+                      onCancel={() => setEditing(null)}
+                      omitTypes={omitTaskTypes}
+                      hideDifficulty
+                      submitLabel="Update criteria"
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
+        )}
+        {editing === -1 && !disabled && (
+          <div className="border-osrs-bronze/30 bg-osrs-brown-dark/40 space-y-2 rounded border p-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-osrs-gold text-sm font-semibold">New bonus</span>
+              <button
+                type="button"
+                onClick={() => setEditing(null)}
+                className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
+              >
+                Cancel
+              </button>
+            </div>
+            <EventTaskForm
+              key={draftType}
+              groupId={groupId}
+              eventId={event?.id ?? 0}
+              initial={
+                {
+                  id: -1,
+                  type: draftType,
+                  label: "",
+                  target: null,
+                  target_value: null,
+                  points: 0,
+                  requires_confirmation: false,
+                  visibility: "private",
+                  difficulty: null,
+                  config: null,
+                } as EventTask
+              }
+              onDraftSubmit={(input) => commitTaskRule(-1, input)}
+              onCancel={() => setEditing(null)}
+              omitTypes={omitTaskTypes}
+              hideDifficulty
+              submitLabel="Add bonus"
+            />
+          </div>
         )}
         {!disabled && (
           <div className="flex flex-wrap gap-2">
@@ -633,7 +871,7 @@ export function CompetitionSetup({
                 + Pet bonus
               </button>
             )}
-            {isBoss && npcs.length > 0 && rules.length < 6 && (
+            {isBoss && npcs.length > 0 && rules.length < ruleCap && (
               <button
                 type="button"
                 onClick={() =>
@@ -655,11 +893,61 @@ export function CompetitionSetup({
                 + Fast-kill bonus
               </button>
             )}
+            {rules.length < ruleCap && (
+              <button
+                type="button"
+                onClick={() =>
+                  patch({
+                    bonus_rules: [
+                      ...rules,
+                      {
+                        type: "milestone",
+                        points: 10,
+                        max_awards: 20,
+                        step: isBoss ? 100 : 1_000_000,
+                      },
+                    ],
+                  })
+                }
+                title={
+                  isBoss
+                    ? "Points every N kills, on top of the race itself."
+                    : "Points every N XP, on top of the race itself."
+                }
+                className="border-osrs-bronze/50 text-osrs-parchment hover:border-osrs-gold rounded border px-3 py-1.5 text-xs"
+              >
+                + Milestone bonus
+              </button>
+            )}
+            {TASK_BONUS_PRESETS.filter((p) => (isBoss ? p.bosses : p.skills)).map((preset) => (
+              <button
+                key={preset.type}
+                type="button"
+                disabled={rules.length >= ruleCap || (isBoss && npcs.length === 0)}
+                onClick={() => startTaskRule(preset.type)}
+                title={preset.help}
+                className="border-osrs-bronze/50 text-osrs-parchment hover:border-osrs-gold rounded border px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {preset.label}
+              </button>
+            ))}
           </div>
+        )}
+        {isBoss && npcs.length === 0 && (
+          <p className="text-osrs-parchment-dark/40 text-xs">
+            Pick the boss first — bonus criteria are scoped to it.
+          </p>
         )}
         {!isBoss && !hasPetRule && (
           <p className="text-osrs-parchment-dark/40 text-xs">
             The pet bonus pays for the skill&apos;s skilling pet (when it has one).
+            Skills without one can use an XP milestone or a level goal instead.
+          </p>
+        )}
+        {!isBoss && (
+          <p className="text-osrs-parchment-dark/40 text-xs">
+            A Skill of the Week can&apos;t pay for drops: nothing in the game says which
+            skill an item came from, so a drop bonus would count from anywhere.
           </p>
         )}
       </fieldset>

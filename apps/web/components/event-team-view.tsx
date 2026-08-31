@@ -41,8 +41,11 @@ import {
   METRIC_TASK_TYPES,
   TASK_TYPE_LABELS,
   contributionSummary,
+  effortKillLabel,
+  effortPairNote,
   effortSummary,
   formatEheHours,
+  isClueEffort,
   taskGoal,
   taskQuantityLabel,
   taskTypeLabel,
@@ -564,8 +567,17 @@ export function EventTeamView({
                           </span>
                         )}
                       </span>
-                      <span className="text-osrs-parchment-dark/60 shrink-0 tabular-nums">
-                        {b.kills.toLocaleString()} kill{b.kills === 1 ? "" : "s"}
+                      <span
+                        className="text-osrs-parchment-dark/60 shrink-0 tabular-nums"
+                        title={effortPairNote(b)}
+                      >
+                        {effortKillLabel(b)}
+                        {isClueEffort(b) && (
+                          <span className="text-osrs-parchment-dark/40">
+                            {" · "}
+                            {(b.paired ?? 0).toLocaleString()} paired
+                          </span>
+                        )}
                         {b.ehb_hours > 0 && (
                           <span className="text-osrs-parchment-dark/40">
                             {" · "}

@@ -3,7 +3,7 @@
  * scoring must never be a surprise. Server component (pure props). */
 
 import type { EventCompetitionBoard } from "@droptracker/api-types";
-import { bonusRuleSentence, metricSummary, rateSentence } from "@/lib/competition";
+import { bonusRuleIcon, bonusRuleSentence, metricSummary, rateSentence } from "@/lib/competition";
 
 export function CompetitionBonusRulesCard({ board }: { board: EventCompetitionBoard }) {
   const { competition, totals } = board;
@@ -29,9 +29,27 @@ export function CompetitionBonusRulesCard({ board }: { board: EventCompetitionBo
           {competition.bonus_rules.map((r) => (
             <li key={r.id} className="flex items-start gap-2 text-xs">
               <span aria-hidden className="mt-px">
-                {r.type === "pet" ? "🐾" : "⏱️"}
+                {bonusRuleIcon(r.type)}
               </span>
-              <span className="text-osrs-parchment-dark/85">{bonusRuleSentence(r)}</span>
+              <span className="text-osrs-parchment-dark/85">
+                {bonusRuleSentence(r)}
+                {/* What "the listed drops" actually are. A player shouldn't
+                    have to guess what they're racing for. */}
+                {r.items_preview?.length ? (
+                  <span className="text-osrs-parchment-dark/55 block">
+                    {r.items_preview.join(", ")}
+                    {r.item_count && r.item_count > r.items_preview.length
+                      ? ` (+${r.item_count - r.items_preview.length} more)`
+                      : ""}
+                  </span>
+                ) : null}
+                {r.task_kind === "ca_target" && r.item_count ? (
+                  <span className="text-osrs-parchment-dark/55 block">
+                    {r.item_count} qualifying achievement{r.item_count === 1 ? "" : "s"}
+                    {r.tiers?.length ? ` · ${r.tiers.join(", ")} tier` : ""}
+                  </span>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>

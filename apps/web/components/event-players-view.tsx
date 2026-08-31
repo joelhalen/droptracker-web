@@ -9,7 +9,7 @@
  * for standard, bingo, board-game and loot-sweep events.
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import type {
@@ -23,7 +23,14 @@ import { Card, EmptyState, NameTile, RankMedal, StatTile } from "@/components/ui
 import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { ItemDbIcon } from "@/components/item-db-icon";
-import { TASK_TYPE_LABELS, effortSummary, formatEheHours } from "@/lib/events";
+import {
+  TASK_TYPE_LABELS,
+  effortKillLabel,
+  effortPairNote,
+  effortSummary,
+  formatEheHours,
+  isClueEffort,
+} from "@/lib/events";
 import { EheChip, EheLabel, EheValue } from "@/components/event-ehe";
 
 const fmtPoints = (p: number) => (Math.round(p * 100) / 100).toLocaleString();
@@ -110,6 +117,10 @@ function roleBadge(role?: string | null) {
   return null;
 }
 
+/** DOM id of a podium player's drill-down panel — shared by the card's
+ * `aria-controls` and the panel itself. */
+const podiumPanelId = (playerId: number) => `podium-detail-${playerId}`;
+
 /* ------------------------------------------------------------------ */
 /* Podium — the top three under the active sort                        */
 /* ------------------------------------------------------------------ */
@@ -124,10 +135,15 @@ const PODIUM_FRAME = [
 function PodiumCard({
   player,
   rank,
+  expanded,
+  onToggleDetail,
   onOpenPlayer,
 }: {
   player: EventPlayerRow;
   rank: number;
+  /** Whether this card's drill-down panel (rendered under the podium) is open. */
+  expanded: boolean;
+  onToggleDetail: (playerId: number) => void;
   onOpenPlayer?: (playerId: number) => void;
 }) {
   const inner = (
@@ -193,6 +209,26 @@ function PodiumCard({
       ) : (
         inner
       )}
+      {/* The podium used to be a dead end: the identity above navigates away,
+          so the drill-down every ranked row offers needs its own control. It
+          opens a full-width panel beneath the podium (see EventPlayersView) —
+          this card is far too narrow to hold the detail grid. */}
+      {player.player_id != null && (
+        <button
+          type="button"
+          onClick={() => onToggleDetail(player.player_id!)}
+          aria-expanded={expanded}
+          aria-controls={podiumPanelId(player.player_id)}
+          className={`border-osrs-bronze/25 hover:border-osrs-gold/50 hover:text-osrs-gold-bright mt-3 flex w-full items-center justify-center gap-1 rounded border py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors ${
+            expanded ? "text-osrs-gold-bright border-osrs-gold/50" : "text-osrs-parchment-dark/60"
+          }`}
+        >
+          <span className={`inline-block transition-transform ${expanded ? "rotate-90" : ""}`}>
+            ▸
+          </span>
+          {expanded ? "Hide detail" : "Contribution detail"}
+        </button>
+      )}
     </div>
   );
 }
@@ -247,8 +283,17 @@ function PlayerDetail({ detail }: { detail: EventPlayerDetail }) {
                     </span>
                   )}
                 </span>
-                <span className="text-osrs-parchment-dark/60 shrink-0 text-xs tabular-nums">
-                  {num(b.kills)} kill{b.kills === 1 ? "" : "s"}
+                <span
+                  className="text-osrs-parchment-dark/60 shrink-0 text-xs tabular-nums"
+                  title={effortPairNote(b)}
+                >
+                  {effortKillLabel(b)}
+                  {isClueEffort(b) && (
+                    <span className="text-osrs-parchment-dark/40">
+                      {" · "}
+                      {num(b.paired ?? 0)} paired
+                    </span>
+                  )}
                 </span>
                 <span className="text-osrs-parchment-dark/80 w-14 shrink-0 text-right text-xs tabular-nums">
                   {formatEheHours(b.ehb_hours, b.estimated)}
@@ -355,6 +400,53 @@ function PlayerDetail({ detail }: { detail: EventPlayerDetail }) {
   );
 }
 
+/** Fetches one player's drill-down and renders it. Mounted lazily by both the
+ * ranked rows and the podium panel, and kept mounted (hidden) once opened so
+ * collapsing and re-expanding doesn't refetch. */
+function PlayerDetailSection({
+  playerId,
+  eventId,
+  fetchDetail,
+}: {
+  playerId: number;
+  eventId: number;
+  fetchDetail?: PlayerDetailFetcher;
+}) {
+  const [detail, setDetail] = useState<EventPlayerDetail | null>(null);
+  const [state, setState] = useState<"loading" | "idle" | "error">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+    setDetail(null);
+    setState("loading");
+    const load = fetchDetail
+      ? fetchDetail(playerId)
+      : fetch(`/api/events/${eventId}/players/${playerId}`).then(async (res) => {
+          if (!res.ok) throw new Error(String(res.status));
+          return (await res.json()) as EventPlayerDetail;
+        });
+    load
+      .then((d) => {
+        if (!cancelled) {
+          setDetail(d);
+          setState("idle");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [playerId, eventId, fetchDetail]);
+
+  if (state === "loading")
+    return <p className="text-osrs-parchment-dark/50 px-2 pb-2 text-xs">Loading detail…</p>;
+  if (state === "error")
+    return <p className="text-osrs-red/80 px-2 pb-2 text-xs">Couldn&apos;t load detail.</p>;
+  return detail ? <PlayerDetail detail={detail} /> : null;
+}
+
 /* ------------------------------------------------------------------ */
 /* Leaderboard rows                                                    */
 /* ------------------------------------------------------------------ */
@@ -373,29 +465,15 @@ function PlayerRow({
   onOpenPlayer?: (playerId: number) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [detail, setDetail] = useState<EventPlayerDetail | null>(null);
-  const [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  // Sticky: once opened, the detail stays mounted (hidden while collapsed) so
+  // re-expanding costs nothing.
+  const [everOpened, setEverOpened] = useState(false);
 
-  const toggle = useCallback(async () => {
+  const toggle = useCallback(() => {
     if (player.player_id == null) return; // masked (hidden) player — no drill-down
-    const next = !open;
-    setOpen(next);
-    if (next && detail === null && state !== "loading") {
-      setState("loading");
-      try {
-        if (fetchDetail) {
-          setDetail(await fetchDetail(player.player_id));
-        } else {
-          const res = await fetch(`/api/events/${eventId}/players/${player.player_id}`);
-          if (!res.ok) throw new Error(String(res.status));
-          setDetail((await res.json()) as EventPlayerDetail);
-        }
-        setState("idle");
-      } catch {
-        setState("error");
-      }
-    }
-  }, [open, detail, state, eventId, player.player_id, fetchDetail]);
+    setEverOpened(true);
+    setOpen((o) => !o);
+  }, [player.player_id]);
 
   const identity = (
     <span className="min-w-0">
@@ -519,15 +597,13 @@ function PlayerRow({
           )}
         </div>
       </div>
-      {open && (
-        <div className="pb-3">
-          {state === "loading" && detail === null ? (
-            <p className="text-osrs-parchment-dark/50 px-2 pb-2 text-xs">Loading detail…</p>
-          ) : state === "error" ? (
-            <p className="text-osrs-red/80 px-2 pb-2 text-xs">Couldn&apos;t load detail.</p>
-          ) : detail ? (
-            <PlayerDetail detail={detail} />
-          ) : null}
+      {everOpened && player.player_id != null && (
+        <div className={open ? "pb-3" : "hidden"}>
+          <PlayerDetailSection
+            playerId={player.player_id}
+            eventId={eventId}
+            fetchDetail={fetchDetail}
+          />
         </div>
       )}
     </li>
@@ -555,6 +631,15 @@ export function EventPlayersView({
 }) {
   const { players, totals } = data;
   const [sort, setSort] = useState<SortKey>("points");
+  // Podium drill-down: one open at a time, but every player opened so far stays
+  // mounted (hidden) so switching back is instant.
+  const [openPodiumId, setOpenPodiumId] = useState<number | null>(null);
+  const [openedPodiumIds, setOpenedPodiumIds] = useState<number[]>([]);
+
+  const togglePodiumDetail = useCallback((playerId: number) => {
+    setOpenedPodiumIds((ids) => (ids.includes(playerId) ? ids : [...ids, playerId]));
+    setOpenPodiumId((cur) => (cur === playerId ? null : playerId));
+  }, []);
 
   const sorted = useMemo(() => {
     const rows = [...players];
@@ -582,6 +667,15 @@ export function EventPlayersView({
   const podium = showPodium ? sorted.slice(0, 3) : [];
   const rest = showPodium ? sorted.slice(3) : sorted;
 
+  // Re-sorting reshuffles the podium; an open panel for someone who dropped off
+  // it (or a podium that vanished entirely) collapses rather than dangling.
+  const podiumIds = podium.map((p) => p.player_id);
+  const activePodiumId =
+    openPodiumId != null && podiumIds.includes(openPodiumId) ? openPodiumId : null;
+  const podiumPanels = podium.filter(
+    (p) => p.player_id != null && openedPodiumIds.includes(p.player_id),
+  );
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -607,14 +701,45 @@ export function EventPlayersView({
       </div>
 
       {showPodium && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end sm:pt-2">
-          {podium.map((p, i) => (
-            <PodiumCard
-              key={p.player_id ?? `hidden-podium-${i}`}
-              player={p}
-              rank={i + 1}
-              onOpenPlayer={onOpenPlayer}
-            />
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:items-end sm:pt-2">
+            {podium.map((p, i) => (
+              <PodiumCard
+                key={p.player_id ?? `hidden-podium-${i}`}
+                player={p}
+                rank={i + 1}
+                expanded={activePodiumId != null && activePodiumId === p.player_id}
+                onToggleDetail={togglePodiumDetail}
+                onOpenPlayer={onOpenPlayer}
+              />
+            ))}
+          </div>
+          {podiumPanels.map((p) => (
+            <Card
+              key={p.player_id}
+              id={podiumPanelId(p.player_id!)}
+              padding="p-4"
+              className={activePodiumId === p.player_id ? undefined : "hidden"}
+            >
+              <div className="flex items-center gap-2">
+                <RankMedal rank={podium.indexOf(p) + 1} />
+                <span className="text-osrs-parchment min-w-0 truncate font-semibold">
+                  {p.player_name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => togglePodiumDetail(p.player_id!)}
+                  className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright ml-auto shrink-0 rounded px-1 text-xs"
+                >
+                  Hide
+                </button>
+              </div>
+              <PlayerDetailSection
+                playerId={p.player_id!}
+                eventId={eventId}
+                fetchDetail={fetchDetail}
+              />
+            </Card>
           ))}
         </div>
       )}

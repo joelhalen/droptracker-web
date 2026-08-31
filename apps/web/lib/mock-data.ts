@@ -1030,8 +1030,10 @@ export function mockEventManagers(): EventManagersResponse {
   };
 }
 
-/** A group's notification blacklist: one item entry and one NPC entry, so the
- * editor's two lists and the icon path are both visible in mock mode. */
+/** A group's notification blacklist: one entry of each kind, so all three of
+ * the editor's lists — and the icon path — are visible in mock mode. The two
+ * region rows cover both shapes: an area name spanning several map regions,
+ * and a bare id covering exactly one. */
 export function mockNotificationBlacklist(): NotificationBlacklist {
   return {
     entries: [
@@ -1042,6 +1044,8 @@ export function mockNotificationBlacklist(): NotificationBlacklist {
         match_key: "bones",
         game_id: 526,
         added_at: "2026-08-01T12:00:00",
+        resolved_name: null,
+        covers: null,
       },
       {
         id: 2,
@@ -1050,6 +1054,28 @@ export function mockNotificationBlacklist(): NotificationBlacklist {
         match_key: "barrows",
         game_id: null,
         added_at: "2026-08-02T12:00:00",
+        resolved_name: null,
+        covers: null,
+      },
+      {
+        id: 3,
+        entry_type: "region",
+        name: "Castle Wars",
+        match_key: "castle-wars",
+        game_id: null,
+        added_at: "2026-08-03T12:00:00",
+        resolved_name: null,
+        covers: "area",
+      },
+      {
+        id: 4,
+        entry_type: "region",
+        name: "9520",
+        match_key: "#9520",
+        game_id: 9520,
+        added_at: "2026-08-03T12:05:00",
+        resolved_name: "Castle Wars",
+        covers: "region",
       },
     ],
     limit: 250,
@@ -2492,6 +2518,8 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
                   ehb_hours: 7.06,
                   estimated: false,
                   frozen: false,
+                  rolled: null,
+                  paired: null,
                 },
               ],
               boss_count: 1,
@@ -2513,6 +2541,8 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
                   ehb_hours: i % 2 === 0 ? 2.17 : 0.41,
                   estimated: i % 2 !== 0,
                   frozen: i % 2 !== 0,
+                  rolled: null,
+                  paired: null,
                 },
               ],
               boss_count: 1,
@@ -2615,6 +2645,8 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
             ehb_hours: 9.14,
             estimated: false,
             frozen: false,
+            rolled: null,
+            paired: null,
           },
           {
             npc_id: 8061,
@@ -2624,6 +2656,8 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
             ehb_hours: 5.88,
             estimated: false,
             frozen: true,
+            rolled: null,
+            paired: null,
           },
           // WOM publishes no rate — priced with our derived rate, tilde'd.
           {
@@ -2634,6 +2668,8 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
             ehb_hours: 4.5,
             estimated: true,
             frozen: false,
+            rolled: null,
+            paired: null,
           },
         ],
         boss_count: 3,
@@ -2670,6 +2706,8 @@ export function mockEventPlayers(eventId: number): EventPlayersResponse {
             ehb_hours: 3.24,
             estimated: false,
             frozen: false,
+            rolled: null,
+            paired: null,
           },
         ],
         boss_count: 1,

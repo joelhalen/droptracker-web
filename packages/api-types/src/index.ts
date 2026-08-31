@@ -1246,7 +1246,7 @@ export type AuthorizedUsersResponse = z.infer<typeof AuthorizedUsersResponseSche
  * by ("Twisted Bow" → `twisted-bow`). It is surfaced so the UI can explain what
  * an entry actually catches rather than implying an exact-string match.
  */
-export const BlacklistEntryTypeSchema = z.enum(["item", "npc"]);
+export const BlacklistEntryTypeSchema = z.enum(["item", "npc", "region"]);
 export type BlacklistEntryType = z.infer<typeof BlacklistEntryTypeSchema>;
 
 export const NotificationBlacklistEntrySchema = z.object({
@@ -1254,11 +1254,34 @@ export const NotificationBlacklistEntrySchema = z.object({
   entry_type: BlacklistEntryTypeSchema,
   name: z.string(),
   match_key: z.string(),
-  /** item_id / npc_id for the icon; null when the name was typed by hand. */
+  /** item_id / npc_id for the icon; null when the name was typed by hand.
+   * For a region entry this is the map region id, and only when the entry IS
+   * a raw id — an area name spans several regions, so none of them names it. */
   game_id: z.number().int().nullable().default(null),
   added_at: z.string().nullable().default(null),
+  /** Region entries only: the area a raw region id belongs to, for display.
+   * The entry still mutes exactly that one region, not the whole area. */
+  resolved_name: z.string().nullable().default(null),
+  /** Region entries only: "area" mutes every region the area spans, "region"
+   * mutes exactly one. */
+  covers: z.enum(["area", "region"]).nullable().default(null),
 });
 export type NotificationBlacklistEntry = z.infer<typeof NotificationBlacklistEntrySchema>;
+
+/** One named area from the region picker: the name is what a "region" entry is
+ * added under, and the ids are shown so two same-named areas can be told apart. */
+export const RegionAreaSchema = z.object({
+  name: z.string(),
+  type: z.string(),
+  regions: z.array(z.number().int()),
+});
+export type RegionArea = z.infer<typeof RegionAreaSchema>;
+
+export const RegionListSchema = z.object({
+  regions: z.array(RegionAreaSchema),
+  types: z.array(z.string()),
+});
+export type RegionList = z.infer<typeof RegionListSchema>;
 
 export const NotificationBlacklistSchema = z.object({
   entries: z.array(NotificationBlacklistEntrySchema),
@@ -1266,6 +1289,21 @@ export const NotificationBlacklistSchema = z.object({
   limit: z.number().int(),
 });
 export type NotificationBlacklist = z.infer<typeof NotificationBlacklistSchema>;
+
+/** Mirrors `MAX_ENTRIES_PER_GROUP` in `web_api/routes/group_blacklist.py`, and
+ * used only when a response omits the cap. The live number always comes from
+ * the API. */
+export const NOTIFICATION_BLACKLIST_LIMIT = 250;
+
+/** Adds and removes echo the whole list back, so the editor can replace its
+ * state without guessing the server's normalization or ordering — but an API
+ * build that answers those two with `entries` alone must not read as a failed
+ * mutation. The row is already written by then; rejecting the response showed
+ * an error over a change that had happened. The cap is the one field a mutation
+ * may leave out. */
+export const NotificationBlacklistMutationSchema = NotificationBlacklistSchema.extend({
+  limit: z.number().int().default(NOTIFICATION_BLACKLIST_LIMIT),
+});
 
 /** web64a: a group event manager — full event control, no group-admin access.
  * Web-only (keyed on a DropTracker user id; no Discord bot grant). */
@@ -2189,6 +2227,11 @@ export const EVENT_TASK_TYPES = [
   /** Pet acquisition: a specific pet, a pet category (boss/skilling/raids/…),
    * or "any pet". Credited from pet submissions. */
   "pet_collection",
+  /** Combat achievements. `target` names one task, or `config.task_names` is
+   * an explicit allow-list the server resolved from the achievement
+   * registry's monster/tier fields — the CA envelope carries no NPC, so
+   * scoping one to a boss is only possible by resolving names up front. */
+  "ca_target",
   /** Loot Sweep (loot_sweep kind): one task per boss "set". Each config item
    * awards points that decay per successive team receipt (capped per item);
    * collecting a full set awards a bonus (capped). Scored continuously off the
@@ -2303,23 +2346,82 @@ export const COMPETITION_PARTICIPATION_MODES = ["whole_clan", "signup"] as const
 export type CompetitionParticipationMode =
   (typeof COMPETITION_PARTICIPATION_MODES)[number];
 
-export const COMPETITION_BONUS_RULE_TYPES = ["pet", "time_under"] as const;
+/** `pet` — a new pet. `time_under` — a kill at or under a threshold.
+ * `task` — any criteria the event task builder can express, embedded and
+ * scoped to the raced boss(es). `milestone` — every N units of gained metric. */
+export const COMPETITION_BONUS_RULE_TYPES = [
+  "pet",
+  "time_under",
+  "task",
+  "milestone",
+] as const;
 export type CompetitionBonusRuleType = (typeof COMPETITION_BONUS_RULE_TYPES)[number];
 
+/** How a `task` rule's progress folds — derived server-side from the embedded
+ * config and mirrored from the backend's utils/task_progress.PROGRESS_KINDS. */
+export const COMPETITION_PROGRESS_KINDS = [
+  "count",
+  "distinct",
+  "groups",
+  "any_path",
+  "points",
+] as const;
+export type CompetitionProgressKind = (typeof COMPETITION_PROGRESS_KINDS)[number];
+
 /** One bonus rule as the backend serializes it (ids are server-assigned and
- * stable once the config locks at activation). */
+ * stable once the config locks at activation).
+ *
+ * `type` is a bare string, NOT the enum: a backend that ships a new rule type
+ * ahead of this package must degrade to "an unrecognised bonus" on the card,
+ * not 500 `GET /events/{id}` for every viewer of the page. Renderers switch on
+ * the known values and fall through. */
 export const CompetitionBonusRuleSchema = z.object({
   id: z.number().int(),
-  type: z.enum(COMPETITION_BONUS_RULE_TYPES),
+  type: z.string(),
   points: z.number().int(),
-  /** Per-player award cap. */
+  /** Per-player award cap. Pinned to 1 for progress kinds that saturate. */
   max_awards: z.number().int().default(1),
+  /** The sentence to SHOW — the admin's own wording when they named the rule,
+   * a derived one otherwise. Never send this back: see `custom_label`. */
   label: z.string(),
-  /** pet rules: the canonical pet names that award. */
+  /** The admin's raw label, present only when they actually set one. This is
+   * the half that round-trips; echoing `label` would freeze a derived
+   * sentence into the config and leave it stale after the next edit. */
+  custom_label: z.string().nullable().optional(),
+  /** Where the rule counts ("at Zulrah" / "counts anywhere"); absent when the
+   * rule is inherently scoped by its own wording. */
+  scope_line: z.string().nullable().optional(),
+  /** pet rules (and `task` rules embedding a pet goal): the pet names. */
   pets: z.array(z.string()).optional(),
   /** time_under rules: the raced boss + tick-precision threshold. */
   npc: z.string().nullable().optional(),
   threshold_ms: z.number().int().optional(),
+  /** milestone rules: gained units per payout. */
+  step: z.number().int().optional(),
+  /** task rules — a DISPLAY PROJECTION of the embedded criteria, never the
+   * config itself (it can be a 40-item list, and this payload is public). */
+  task_kind: z.enum(EVENT_TASK_TYPES).optional(),
+  progress_kind: z.enum(COMPETITION_PROGRESS_KINDS).optional(),
+  /** Progress units one award costs. */
+  need: z.number().int().optional(),
+  npcs: z.array(z.string()).optional(),
+  items_preview: z.array(z.string()).optional(),
+  /** Total items (or achievements) behind `items_preview`. */
+  item_count: z.number().int().optional(),
+  tiers: z.array(z.string()).optional(),
+  /** task rules: the criteria in the shape the wizard PATCHes back. The
+   * projection fields above are for DISPLAY and can't be sent back, so
+   * without this a manager round-trip (load block → edit → save) would erase
+   * every task rule. `config` is a JSON string, like EventTaskInput's. */
+  task: z
+    .object({
+      type: z.enum(EVENT_TASK_TYPES),
+      target: z.string().nullable().optional(),
+      target_value: z.number().int().nullable().optional(),
+      config: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 export type CompetitionBonusRule = z.infer<typeof CompetitionBonusRuleSchema>;
 
@@ -2387,6 +2489,11 @@ export const CompetitionStandingRowSchema = z.object({
         count: z.number().int(),
         awarded: z.number().int(),
         points: z.number().int(),
+        /** task/milestone rules: units banked toward the next award, and how
+         * many that award costs. Present even at zero points, so a player
+         * halfway to a set bonus can still be shown a meter. */
+        progress: z.number().int().optional(),
+        need: z.number().int().optional(),
       }),
     )
     .optional(),
@@ -2423,6 +2530,10 @@ export const CompetitionPlayerAwardSchema = z.object({
   awarded_at: z.number().int().nullable(),
   /** False when the row sits past the rule's per-player cap (pays nothing). */
   counted: z.boolean(),
+  /** task rules: this row's contribution in PROGRESS units (items, GP, kills).
+   * Its `points` is 0 — a task rule pays at the rule level, once its need is
+   * met, so reporting the row's quantity as points would invent a score. */
+  contribution: z.number().int().optional(),
 });
 export type CompetitionPlayerAward = z.infer<typeof CompetitionPlayerAwardSchema>;
 
@@ -2504,9 +2615,29 @@ export const EventCompetitionInputSchema = z.object({
         pets: z.array(z.string()).optional(),
         npc: z.string().optional(),
         threshold_ms: z.number().int().positive().optional(),
+        /** milestone rules: gained units per payout. */
+        step: z.number().int().positive().optional(),
+        /** task rules: the criteria, in the shape the task builder emits.
+         * The server re-validates it through the very same validator a real
+         * task goes through, then INJECTS the raced boss(es) into its source
+         * restriction — so anything sent here about scoping is overwritten,
+         * deliberately. `config` is a JSON string, like EventTaskInput's. */
+        task: z
+          .object({
+            type: z.enum(EVENT_TASK_TYPES),
+            // Nullable, not just optional: the backend serializes a blanked
+            // target as JSON null (every embedded type but pb_target,
+            // skill_target and a single-item collection blanks it), and the
+            // wizard round-trips that value straight back — a bare
+            // `.optional()` rejected the manager's own payload.
+            target: z.string().nullable().optional(),
+            target_value: z.number().int().nonnegative().nullable().optional(),
+            config: z.string().nullable().optional(),
+          })
+          .optional(),
       }),
     )
-    .max(6)
+    .max(12)
     .optional(),
   participation: z.enum(COMPETITION_PARTICIPATION_MODES).optional(),
 });
@@ -3845,6 +3976,14 @@ export const EventEffortBossSchema = z.object({
   ehb_hours: z.number().default(0),
   estimated: z.boolean().default(false),
   frozen: z.boolean().default(false),
+  /** Clue tiers only (null everywhere else): scrolls the player was DEALT
+   * inside the event window. A casket can be banked from before the event, so
+   * `kills` (caskets opened) alone measures nothing — see
+   * services/event_effort.CLUE_TIERS. */
+  rolled: z.number().int().nullable().default(null),
+  /** Clue tiers only: `min(rolled, kills)`, the openings actually priced.
+   * Non-null is what marks a row as a clue tier on the client. */
+  paired: z.number().int().nullable().default(null),
 });
 export type EventEffortBoss = z.infer<typeof EventEffortBossSchema>;
 
@@ -4881,6 +5020,24 @@ export const EventPetCategorySchema = z.object({
     .array(),
 });
 export type EventPetCategory = z.infer<typeof EventPetCategorySchema>;
+
+/** GET /events/meta/ca-monsters — which bosses/activities have combat
+ * achievements, with per-tier counts. The counts matter: an admin picking
+ * "Zulrah, Master" needs to see it is two tasks before saving, and the picker
+ * reads the same registry the write validator resolves against, so it can
+ * never offer a combination the save would reject. */
+export const EventCaCatalogSchema = z.object({
+  tiers: z.array(z.string()),
+  monsters: z
+    .object({
+      name: z.string(),
+      total: z.number().int(),
+      /** Tier name → how many achievements at this monster carry it. */
+      tiers: z.record(z.string(), z.number().int()),
+    })
+    .array(),
+});
+export type EventCaCatalog = z.infer<typeof EventCaCatalogSchema>;
 
 /** One NPC that drops an item, from the ingested OSRS Wiki drop table
  * (`xenforo.dt_npc_loot`). `tracked` = we've observed real drops from this NPC

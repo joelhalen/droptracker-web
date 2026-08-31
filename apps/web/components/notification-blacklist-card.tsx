@@ -3,18 +3,21 @@
 /**
  * Notification blacklist editor (group settings).
  *
- * Leaders pick items and NPCs whose submissions must never be announced in
- * their Discord channels. The wording throughout is deliberate: a blacklisted
+ * Leaders pick items, NPCs and places whose submissions must never be announced
+ * in their Discord channels. The wording throughout is deliberate: a blacklisted
  * drop is still **recorded, scored and counted** — on the lootboard, the
  * leaderboards, points and events — it simply is not posted. Every clan that
  * asked for this wanted a quieter feed, not a smaller total, and a control that
  * looked like it deleted data would not get used.
  *
- * The picker searches the same `/events/meta/*` catalogs the event task builder
- * uses, so it only ever offers names that have actually been seen in the drop
- * history. A hand-typed name is still allowed (Enter adds the query as-is) for
- * anything the catalog has not caught up with; the backend refuses names it
- * could never match and its message is shown verbatim.
+ * The item and NPC pickers search the same `/events/meta/*` catalogs the event
+ * task builder uses, so they only offer names actually seen in the drop history.
+ * The place picker is different: it filters a fixed list of named map areas, so
+ * a leader can mute somewhere nobody has died yet. A hand-typed name is still
+ * allowed everywhere (Enter adds the query as-is) — for places that is how a
+ * bare region id gets in, which mutes exactly that one chunk of the map rather
+ * than the whole area. The backend refuses names it could never match and its
+ * message is shown verbatim.
  */
 
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -34,6 +37,12 @@ import { Alert, Badge, Button, Card, EmptyState, Input } from "@/components/ui";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 
+const EMPTY_NOUN: Record<BlacklistEntryType, { subject: string; action: string }> = {
+  item: { subject: "items", action: "an item" },
+  npc: { subject: "NPCs", action: "everything from a boss or NPC" },
+  region: { subject: "places", action: "everything that happens somewhere" },
+};
+
 const KINDS: { key: BlacklistEntryType; label: string; placeholder: string; hint: string }[] = [
   {
     key: "item",
@@ -47,10 +56,20 @@ const KINDS: { key: BlacklistEntryType; label: string; placeholder: string; hint
     placeholder: "Search NPCs — Barrows, Zulrah, Chambers of Xeric…",
     hint: "Nothing from this source is posted, whichever item drops.",
   },
+  {
+    key: "region",
+    label: "Places",
+    placeholder: "Search places — Castle Wars, Wilderness, Prifddinas… or a region id",
+    hint:
+      "Nothing that happens here is posted — deaths, for now. Picking an area covers " +
+      "every map region it spans; type a bare region id to mute just that one.",
+  },
 ];
 
 function EntityIcon({ kind, id }: { kind: BlacklistEntryType; id: number | null }) {
-  if (id == null) return <span className="inline-block h-5 w-5 shrink-0" />;
+  // Places have no artwork, and a region id is not an npc id — rendering one
+  // through the NPC image path would request a wrong, existing sprite.
+  if (id == null || kind === "region") return <span className="inline-block h-5 w-5 shrink-0" />;
   return (
     <img
       src={`${IMG_BASE}/${kind === "item" ? "itemdb" : "npcdb"}/${id}.png`}
@@ -141,9 +160,9 @@ export function NotificationBlacklistCard({
     <Card padding="p-6" className="mb-6">
       <h2 className="text-osrs-gold mb-1 text-lg font-semibold">Notification blacklist</h2>
       <p className="text-osrs-parchment-dark/60 mb-4 text-xs">
-        Items and NPCs your Discord channels never hear about. Blacklisted submissions
-        are still <strong>recorded, scored and counted</strong> — on your lootboard,
-        leaderboards, points and events. Only the Discord message is withheld.
+        Items, NPCs and places your Discord channels never hear about. Blacklisted
+        submissions are still <strong>recorded, scored and counted</strong> — on your
+        lootboard, leaderboards, points and events. Only the Discord message is withheld.
       </p>
 
       <div className="mb-3 flex flex-wrap gap-2">
@@ -234,10 +253,8 @@ export function NotificationBlacklistCard({
       <div className="mt-4">
         {shown.length === 0 ? (
           <EmptyState
-            title={`No ${kind === "npc" ? "NPCs" : "items"} blacklisted`}
-            hint={`Search above to mute ${
-              kind === "npc" ? "everything from a boss or NPC" : "an item"
-            } in your Discord notifications.`}
+            title={`No ${EMPTY_NOUN[kind].subject} blacklisted`}
+            hint={`Search above to mute ${EMPTY_NOUN[kind].action} in your Discord notifications.`}
           />
         ) : (
           <ul className="flex flex-wrap gap-2">
@@ -248,6 +265,11 @@ export function NotificationBlacklistCard({
               >
                 <EntityIcon kind={entry.entry_type} id={entry.game_id} />
                 <span className="truncate">{entry.name}</span>
+                {entry.entry_type === "region" && entry.resolved_name && (
+                  <span className="text-osrs-parchment-dark/50 truncate text-xs">
+                    {entry.resolved_name}
+                  </span>
+                )}
                 <button
                   type="button"
                   aria-label={`Stop blacklisting ${entry.name}`}

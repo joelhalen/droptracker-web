@@ -16,6 +16,7 @@ export type ConfigCategory =
   | "drops"
   | "deaths"
   | "levels"
+  | "milestones"
   | "pbs"
   | "cas"
   | "board"
@@ -105,6 +106,7 @@ export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "drops", label: "Drop notifications" },
   { id: "deaths", label: "Deaths" },
   { id: "levels", label: "Level notifications" },
+  { id: "milestones", label: "Milestones" },
   { id: "pbs", label: "Personal best" },
   { id: "cas", label: "Combat achievements" },
   { id: "board", label: "Lootboard" },
@@ -128,6 +130,8 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "channel_id_to_post_quests", label: "Quests channel", category: "channels", type: "channel", help: "Channel for quest-completion notifications. Falls back to the drops channel when unset.", default: null },
   { key: "channel_id_to_post_clog", label: "Collection log channel", category: "channels", type: "channel", help: "Channel for collection-log notifications. Falls back to the drops channel when unset.", default: null },
   { key: "channel_id_to_post_diaries", label: "Diaries channel", category: "channels", type: "channel", help: "Channel for achievement-diary notifications. Falls back to the drops channel when unset.", default: null },
+  { key: "channel_id_to_post_kc", label: "KC milestones channel", category: "channels", type: "channel", help: "Channel for kill-count milestone notifications. Falls back to the drops channel when unset.", default: null },
+  { key: "channel_id_to_post_ranks", label: "Rank milestones channel", category: "channels", type: "channel", help: "Channel for hiscores-rank milestone notifications. Falls back to the drops channel when unset.", default: null },
   { key: "announcements_channel_id", label: "Announcements channel", category: "channels", type: "channel", help: "Channel where published announcements are syndicated (FRONTEND_PLAN.md §10).", default: null },
   { key: "activity_launch_channel", label: "Activity launcher channel", category: "channels", type: "channel", help: "Post an “Open DropTracker” card in this channel with a button that opens the in-Discord app. The bot keeps one card here and moves or removes it when you change this.", default: null },
 
@@ -152,8 +156,9 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // death_message_variants is a JSON string array; it lives in LONG_VALUE_KEYS
   // on the backend so lists past 255 chars spill into long_value.
   { key: "notify_deaths", label: "Notify deaths", category: "deaths", type: "boolean", help: "Post a notification when a member dies.", default: false, seasonalMirror: true },
+  { key: "notify_deaths_safe", label: "Notify safe deaths", category: "deaths", type: "boolean", help: "Also announce deaths that cost nothing — raid and Gauntlet wipes, Castle Wars, Soul Wars, Barbarian Assault, Nightmare Zone, your own house. Off by default so the deaths channel shows the ones that hurt. Inferno and Fight Caves always count as real deaths regardless of this setting; mute those by blacklisting the region instead.", default: false, seasonalMirror: true },
   { key: "channel_id_to_post_deaths", label: "Deaths channel", category: "deaths", type: "channel", help: "Channel for player-death notifications. Falls back to the drops channel when unset.", default: null },
-  { key: "death_message_variants", label: "Death messages", category: "deaths", type: "messagelist", help: "Custom death messages, one picked at random per death — like the in-game clan broadcasts. Placeholders like {player_name} and {source} are filled in. Leave empty for the default message. Groups using a Components layout for deaths keep their layout; these messages don't apply there.", default: "" },
+  { key: "death_message_variants", label: "Death messages", category: "deaths", type: "messagelist", help: "Custom death messages, one picked at random per death — like the in-game clan broadcasts. Placeholders like {player_name}, {source}, {region_name} and {value_lost} are filled in. {value_lost} is blank for members on a plugin older than 6.0.4, which sends no value. Leave empty for the default message. Groups using a Components layout for deaths keep their layout; these messages don't apply there.", default: "" },
   { key: "death_message_as_embed_description", label: "Show message inside the embed", category: "deaths", type: "boolean", help: "On: the picked message replaces the embed description (including a custom embed's). Off: it's sent as the plain message text above the embed.", default: false },
 
   // --- Level notifications ------------------------------------------------
@@ -164,6 +169,20 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "notify_combat_levels", label: "Combat level-ups", category: "levels", type: "boolean", help: "Notify when a member's combat level increases. Combat levels ignore the minimum/increment filters above.", default: false },
   { key: "level_milestones", label: "Total level milestones", category: "levels", type: "csv", help: "Comma-separated TOTAL levels that always notify (e.g. 1500,2000,2277).", default: "" },
   { key: "post99_xp_interval", label: "Post-99 XP interval", category: "levels", type: "int", help: "After a skill reaches 99, notify every N XP (e.g. 25m = every 25M). Multiples of 1M; 0 disables.", default: 25000000, min: 0, unit: "xp" },
+
+  // --- Milestones (KC + hiscores rank) ------------------------------------
+  // KC milestones are fed from the plugin's per-kill KC reports, WOM-recognized
+  // bosses only; rank milestones from the periodic WiseOldMan bulk-hiscores
+  // sweep. Neither family has a seasonal mirror: drops.kill_count is main-world
+  // only and WOM mirrors the main-game hiscores.
+  { key: "notify_kc_milestones", label: "Notify KC milestones", category: "milestones", type: "boolean", help: "Master toggle for boss kill-count milestone notifications (first kill and every-Nth-kill).", default: false },
+  { key: "notify_first_kc", label: "Announce first kills", category: "milestones", type: "boolean", help: "Announce a member's first kill of a boss. Only applies while KC milestones are enabled.", default: true },
+  { key: "kc_milestone_interval", label: "KC milestone interval", category: "milestones", type: "int", help: "Announce every Nth kill of a boss (e.g. 100 or 1000). 0 disables interval announcements (first kills can still announce).", default: 100, min: 0, max: 50000 },
+  { key: "notify_rank_milestones", label: "Notify rank milestones", category: "milestones", type: "boolean", help: "Announce when a member's hiscores rank enters a configured threshold (e.g. top 10,000) on a boss, skill or clue tier. Checked periodically via WiseOldMan.", default: false },
+  { key: "rank_milestone_thresholds", label: "Rank thresholds", category: "milestones", type: "csv", help: "Comma-separated rank thresholds to announce on entering (e.g. 10000,5000,1000). Only the deepest newly-entered threshold announces.", default: "10000,5000,1000" },
+  { key: "rank_milestone_bosses", label: "Boss ranks", category: "milestones", type: "boolean", help: "Include boss kill-count ranks in rank milestone checks.", default: true },
+  { key: "rank_milestone_skills", label: "Skill ranks", category: "milestones", type: "boolean", help: "Include skill XP ranks in rank milestone checks.", default: true },
+  { key: "rank_milestone_clues", label: "Clue ranks", category: "milestones", type: "boolean", help: "Include clue scroll completion ranks in rank milestone checks.", default: true },
 
   // --- Personal best ------------------------------------------------------
   // notify_pbs (PB notifications) is available to every group. The Hall of

@@ -17,7 +17,7 @@
 import type { ReactNode } from "react";
 import type { EventEffort } from "@droptracker/api-types";
 import { HoverCard } from "@/components/hover-card";
-import { effortSummary, formatEheHours } from "@/lib/events";
+import { effortSummary, formatEheHours, isClueEffort } from "@/lib/events";
 
 export const EHE_FULL_NAME = "Efficient Hours towards Event";
 
@@ -56,6 +56,7 @@ export function EheExplainer({
 }) {
   const hasEstimate = estimated || (effort?.ehb_estimated_hours ?? 0) > 0;
   const known = eheRatesKnown(ratesKnown ?? effort?.rates_known);
+  const hasClues = (effort?.bosses ?? []).some((b) => isClueEffort(b));
   return (
     <div className="space-y-2 text-xs">
       <div>
@@ -76,6 +77,13 @@ export function EheExplainer({
       </p>
       {effort && (effort.kills ?? 0) > 0 && (
         <p className="text-osrs-parchment-dark/70">{effortSummary(effort)}.</p>
+      )}
+      {hasClues && (
+        <p className="text-osrs-parchment-dark/70">
+          Clues are paired before they count: only caskets matched by a clue
+          that <em>dropped</em> during the event earn hours. Opening a stack
+          saved up beforehand shows the openings but pays nothing.
+        </p>
       )}
       {hasEstimate && (
         <p className="text-osrs-parchment-dark/70">

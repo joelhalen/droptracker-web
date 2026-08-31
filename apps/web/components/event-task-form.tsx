@@ -24,6 +24,7 @@ import {
   EVENT_TASK_DIFFICULTIES,
   EVENT_TASK_TYPES,
   type EventMetaEntry,
+  type EventCaCatalog,
   type EventPetCategory,
   type EventTask,
   type EventTaskInput,
@@ -65,6 +66,7 @@ import { QuantityInput } from "@/components/quantity-input";
 import { isForwardOnlyTask, taskScoringDirty } from "@/lib/event-live-edit";
 import {
   addEventTask,
+  fetchEventCaCatalog,
   fetchEventPetCategories,
   fetchItemSources,
   fetchNpcDropItems,
@@ -720,6 +722,46 @@ export function EventTaskForm({
     initial?.type === "pet_collection" && initial.target ? [{ name: initial.target }] : [],
   );
   const [petCategories, setPetCategories] = useState<string[]>(initialPetCategories);
+
+  // ---- ca_target ----------------------------------------------------------
+  // The task stores a resolved allow-list of achievement NAMES (the CA
+  // envelope carries no NPC, so scoping is only possible by resolving up
+  // front). The form edits the INPUTS to that resolution — bosses and tiers —
+  // and the server does the resolving, so the two can never disagree.
+  const [caMonsters, setCaMonsters] = useState<string[]>(
+    initial?.type === "ca_target" && Array.isArray(initialConfig.monsters)
+      ? (initialConfig.monsters as string[])
+      : [],
+  );
+  const [caTiers, setCaTiers] = useState<string[]>(
+    initial?.type === "ca_target" && Array.isArray(initialConfig.tiers)
+      ? (initialConfig.tiers as string[])
+      : [],
+  );
+  const [caCount, setCaCount] = useState<number>(
+    initial?.type === "ca_target" ? (initial.target_value ?? 1) : 1,
+  );
+  const [caCatalog, setCaCatalog] = useState<EventCaCatalog>({ tiers: [], monsters: [] });
+  const [caQuery, setCaQuery] = useState("");
+  useEffect(() => {
+    if (type !== "ca_target") return;
+    let cancelled = false;
+    fetchEventCaCatalog(groupId)
+      .then((c) => !cancelled && setCaCatalog(c))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [type, groupId]);
+
+  /** How many achievements the current boss/tier selection actually covers —
+   * the number that makes "Master tier at Zulrah" legible before saving. */
+  const caMatchCount = caMonsters.reduce((sum, name) => {
+    const entry = caCatalog.monsters.find((m) => m.name === name);
+    if (!entry) return sum;
+    if (!caTiers.length) return sum + entry.total;
+    return sum + caTiers.reduce((t, tier) => t + (entry.tiers[tier] ?? 0), 0);
+  }, 0);
   const [petList, setPetList] = useState<PickerEntry[]>(
     initialPetList.map((name) => ({ name })),
   );
@@ -888,6 +930,14 @@ export function EventTaskForm({
         if (petMode === "custom" && petList.length === 0)
           return "Add at least one pet to the list.";
         if (petMode !== "specific" && petCount < 1) return "Number of pets must be at least 1.";
+        break;
+      case "ca_target":
+        if (!caMonsters.length) return "Pick at least one boss.";
+        if (caMatchCount < 1)
+          return "No achievements match that boss and tier combination.";
+        if (caCount < 1) return "Number of achievements must be at least 1.";
+        if (caCount > caMatchCount)
+          return `Only ${caMatchCount} achievement${caMatchCount === 1 ? "" : "s"} match — lower the goal or widen the tiers.`;
         break;
       case "loot_sweep":
         if (lootSweep.groups.length < 1) return "Add at least one group.";
@@ -1141,6 +1191,15 @@ export function EventTaskForm({
             config: JSON.stringify({ pets: petList.map((p) => p.name) }),
           };
         return { ...base, target_value: petCount }; // any pet (misc excluded)
+      case "ca_target":
+        return {
+          ...base,
+          target_value: caCount,
+          config: JSON.stringify({
+            monsters: caMonsters,
+            ...(caTiers.length ? { tiers: caTiers } : {}),
+          }),
+        };
       case "loot_sweep":
         // One task = one boss "set"; params + items live in config. The task
         // never "completes", so target/target_value are unused.
@@ -1703,6 +1762,108 @@ export function EventTaskForm({
               emptyHint="Leave empty to count drops from anywhere."
             />
           </div>
+        </div>
+      )}
+
+      {type === "ca_target" && (
+        <div className="grid gap-3">
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            A combat achievement submission carries only its name and tier — no boss.
+            Pick the bosses and the exact achievements are resolved when you save, so
+            what counts can never drift from what you chose.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-sm">
+              <span className="text-osrs-parchment-dark/80">Add a boss</span>
+              <input
+                type="text"
+                list="ca-monster-options"
+                value={caQuery}
+                placeholder="Zulrah, Chambers of Xeric…"
+                onChange={(e) => {
+                  const next = e.target.value;
+                  const match = caCatalog.monsters.find((m) => m.name === next);
+                  if (match) {
+                    if (!caMonsters.includes(match.name)) {
+                      setCaMonsters([...caMonsters, match.name]);
+                    }
+                    setCaQuery("");
+                  } else {
+                    setCaQuery(next);
+                  }
+                }}
+                className={field}
+              />
+              <datalist id="ca-monster-options">
+                {caCatalog.monsters
+                  .filter((m) => !caMonsters.includes(m.name))
+                  .map((m) => (
+                    <option key={m.name} value={m.name}>
+                      {m.total} achievement{m.total === 1 ? "" : "s"}
+                    </option>
+                  ))}
+              </datalist>
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-osrs-parchment-dark/80">Achievements to complete</span>
+              <QuantityInput min={1} value={caCount} onChange={setCaCount} />
+            </label>
+          </div>
+          {caMonsters.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5">
+              {caMonsters.map((name) => (
+                <li
+                  key={name}
+                  className="border-osrs-bronze/40 bg-osrs-brown-dark/50 flex items-center gap-1.5 rounded border px-2 py-1 text-xs"
+                >
+                  <span className="text-osrs-parchment">{name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setCaMonsters(caMonsters.filter((n) => n !== name))}
+                    className="text-osrs-parchment-dark/60 hover:text-osrs-red"
+                    aria-label={`Remove ${name}`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="grid gap-1 text-sm">
+            <span className="text-osrs-parchment-dark/80">Tiers (all if none picked)</span>
+            <div className="flex flex-wrap gap-1.5">
+              {caCatalog.tiers.map((tier) => {
+                const on = caTiers.includes(tier);
+                return (
+                  <button
+                    key={tier}
+                    type="button"
+                    onClick={() =>
+                      setCaTiers(on ? caTiers.filter((t) => t !== tier) : [...caTiers, tier])
+                    }
+                    className={`rounded border px-2.5 py-1 text-xs ${
+                      on
+                        ? "border-osrs-gold bg-osrs-brown-dark text-osrs-gold"
+                        : "border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-gold/60"
+                    }`}
+                  >
+                    {tier}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          {caMonsters.length > 0 && (
+            <p
+              className={`text-xs ${
+                caMatchCount > 0 ? "text-osrs-parchment-dark/60" : "text-osrs-red"
+              }`}
+            >
+              {caMatchCount > 0
+                ? `${caMatchCount} achievement${caMatchCount === 1 ? "" : "s"} count toward this task.`
+                : "Nothing matches that boss and tier combination."}
+            </p>
+          )}
         </div>
       )}
 

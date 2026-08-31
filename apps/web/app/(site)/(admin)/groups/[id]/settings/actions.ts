@@ -148,6 +148,17 @@ export async function searchBlacklistCandidates(
     throw new Error("Forbidden: you do not administer this group.");
   }
   if (query.trim().length < 2) return [];
+  if (kind === "region") {
+    // Areas are static reference data, not a drop-history catalog, so this is a
+    // filter rather than a search. `id` carries the area's first region id: the
+    // backend ignores it for a name entry (an area spans several regions, so no
+    // single id names it) and it gives the row something stable to key on.
+    const { regions } = await api.groupBlacklistRegions(groupId, query);
+    return regions.slice(0, 25).map((area) => ({
+      id: area.regions[0] ?? 0,
+      name: area.name,
+    }));
+  }
   return kind === "npc" ? api.searchEventNpcs(query) : api.searchEventItems(query);
 }
 

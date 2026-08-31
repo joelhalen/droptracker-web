@@ -20,6 +20,20 @@ import { EmptyState, RankMedal } from "@/components/ui";
 
 const REFETCH_KINDS = new Set(["competition", "revoke", "recompute", "ended"]);
 
+/** A player's in-flight bonus meters: the rules that track progress toward a
+ * threshold (task / milestone) and have moved at all. Discrete rules
+ * (pet, fast kill) never carry `need`, so they never show a meter. */
+function bonusProgressSlots(row: CompetitionStandingRow) {
+  const out: { ruleId: number; progress: number; need: number; awarded: number }[] = [];
+  for (const [key, slot] of Object.entries(row.bonus ?? {})) {
+    const need = slot.need ?? 0;
+    const progress = slot.progress ?? 0;
+    if (need <= 0 || progress <= 0) continue;
+    out.push({ ruleId: Number(key), progress, need, awarded: slot.awarded });
+  }
+  return out.sort((a, b) => a.ruleId - b.ruleId);
+}
+
 export function CompetitionStandings({
   eventId,
   initial,
@@ -33,6 +47,10 @@ export function CompetitionStandings({
   viewerPlayerIds?: number[];
 }) {
   const [board, setBoard] = useState(initial);
+  // Rule id -> its sentence, so a meter can say what it is a meter FOR.
+  const ruleLabels = new Map(
+    board.competition.bonus_rules.map((r) => [r.id, r.label]),
+  );
   const [expanded, setExpanded] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, CompetitionPlayerDetail | "loading">>({});
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,7 +142,14 @@ export function CompetitionStandings({
           {standings.map((row) => {
             const isViewer =
               row.player_id != null && viewerPlayerIds.includes(row.player_id);
-            const expandable = row.registered && row.player_id != null && row.bonus_points > 0;
+            // Expandable on any bonus STATE, not just points scored: a player
+            // three items into a five-item set has earned nothing yet and is
+            // exactly the person who wants to see the meter.
+            const inFlight = bonusProgressSlots(row);
+            const expandable =
+              row.registered &&
+              row.player_id != null &&
+              (row.bonus_points > 0 || inFlight.length > 0);
             const isOpen = expanded != null && expanded === row.player_id;
             const detail = row.player_id != null ? details[row.player_id] : undefined;
             return (
@@ -180,6 +205,32 @@ export function CompetitionStandings({
                 {isOpen && (
                   <tr className="border-osrs-bronze/15 bg-osrs-brown-dark/30 border-b">
                     <td colSpan={3 + (hasBonuses ? 1 : 0) + (pointsMode ? 1 : 0)} className="px-4 py-2.5">
+                      {inFlight.length > 0 && (
+                        <ul className="mb-2 space-y-1.5 text-xs">
+                          {inFlight.map(({ ruleId, progress, need, awarded }) => (
+                            <li key={`p-${ruleId}`}>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-osrs-parchment-dark/70">
+                                  {ruleLabels.get(ruleId) ?? "Bonus"}
+                                </span>
+                                <span className="text-osrs-parchment-dark/50 shrink-0 tabular-nums">
+                                  {Math.min(progress, need).toLocaleString("en-US")} /{" "}
+                                  {need.toLocaleString("en-US")}
+                                  {awarded > 0 ? ` · ${awarded} earned` : ""}
+                                </span>
+                              </div>
+                              <div className="bg-osrs-brown-dark/70 mt-1 h-1 overflow-hidden rounded">
+                                <div
+                                  className="bg-osrs-gold h-full"
+                                  style={{
+                                    width: `${Math.min(100, Math.round((progress / need) * 100))}%`,
+                                  }}
+                                />
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                       {detail === "loading" || detail === undefined ? (
                         <p className="text-osrs-parchment-dark/50 text-xs">Loading awards…</p>
                       ) : detail.awards.length ? (
@@ -196,7 +247,13 @@ export function CompetitionStandings({
                                 {a.label ?? "Bonus award"}
                               </span>
                               <span className="text-osrs-green shrink-0 tabular-nums">
-                                +{a.points} pts
+                                {/* A task rule's row is progress, not a payout —
+                                    it pays at the rule level, shown in the meter
+                                    above. Printing "+0 pts" on every drop would
+                                    read as a bug. */}
+                                {a.contribution != null && a.points === 0
+                                  ? `+${a.contribution.toLocaleString("en-US")}`
+                                  : `+${a.points} pts`}
                               </span>
                             </li>
                           ))}

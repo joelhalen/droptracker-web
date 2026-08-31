@@ -6,8 +6,14 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { EventEffort } from "@droptracker/api-types";
-import { effortSummary, formatEheHours } from "@/lib/events";
+import type { EventEffort, EventEffortBoss } from "@droptracker/api-types";
+import {
+  effortKillLabel,
+  effortPairNote,
+  effortSummary,
+  formatEheHours,
+  isClueEffort,
+} from "@/lib/events";
 import { eheRatesKnown } from "@/components/event-ehe";
 
 function effort(over: Partial<EventEffort> = {}): EventEffort {
@@ -110,4 +116,49 @@ test("a cold rate table is distinguishable from an idle player", () => {
   assert.equal(eheRatesKnown(unpriced.rates_known), false);
   // The kills still stand on their own and must keep being shown.
   assert.equal(effortSummary(unpriced), "640 kills");
+});
+
+
+function boss(over: Partial<EventEffortBoss> = {}): EventEffortBoss {
+  return {
+    npc_id: 15742,
+    name: "Yama",
+    metric: "yama",
+    kills: 0,
+    ehb_hours: 0,
+    estimated: false,
+    frozen: false,
+    rolled: null,
+    paired: null,
+    ...over,
+  };
+}
+
+test("a clue tier counts caskets, not kills", () => {
+  // "25 kills at Clue Scroll (Elite)" reads as a boss nobody has heard of and
+  // makes the hours beside it look broken.
+  const clue = boss({ name: "Clue Scroll (Elite)", kills: 25, rolled: 20, paired: 20 });
+  assert.equal(isClueEffort(clue), true);
+  assert.equal(effortKillLabel(clue), "25 caskets");
+  assert.equal(effortKillLabel(boss({ kills: 412 })), "412 kills");
+  assert.equal(effortKillLabel(boss({ kills: 1 })), "1 kill");
+  assert.equal(effortKillLabel(boss({ name: "Clue Scroll (Hard)", kills: 1, paired: 1 })), "1 casket");
+});
+
+test("an ordinary boss is never mistaken for a clue tier", () => {
+  assert.equal(isClueEffort(boss()), false);
+  assert.equal(effortPairNote(boss({ kills: 412 })), undefined);
+});
+
+test("the pair note explains where the missing hours went", () => {
+  const note = effortPairNote(
+    boss({ name: "Clue Scroll (Elite)", kills: 25, rolled: 20, paired: 20 }),
+  );
+  assert.match(note ?? "", /20 of 25 openings paired/);
+  // The dumped-stack case is the one people will actually be looking at.
+  const dumped = effortPairNote(
+    boss({ name: "Clue Scroll (Elite)", kills: 100, rolled: 0, paired: 0 }),
+  );
+  assert.match(dumped ?? "", /No hours/);
+  assert.match(dumped ?? "", /banked before the event/);
 });

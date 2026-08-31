@@ -29,6 +29,9 @@ import {
   type BlacklistEntryType,
   type NotificationBlacklist,
   NotificationBlacklistSchema,
+  NotificationBlacklistMutationSchema,
+  type RegionList,
+  RegionListSchema,
   type WomGroupPreview,
   type WomSyncResult,
 } from "@droptracker/api-types";
@@ -330,6 +333,23 @@ export const groupsApi = {
   },
 
 
+  /** The named areas a "region" blacklist entry can be added under. Static
+   * reference data, but group-scoped so it rides the same admin auth as the
+   * rest of the blacklist. An empty list on failure keeps the picker usable —
+   * a numeric region id is still addable by hand. */
+  async groupBlacklistRegions(groupId: number, q = ""): Promise<RegionList> {
+    const query = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : "";
+    return withFallback(
+      async () =>
+        RegionListSchema.parse(
+          await apiGet(`/groups/${groupId}/notification-blacklist/regions${query}`, {
+            authed: true,
+          }),
+        ),
+      () => ({ regions: [], types: [] }),
+    );
+  },
+
   /** Add one entry. `gameId` is the item/npc id behind the picker's icon; pass
    * null for a hand-typed name the catalog may not carry. The backend is
    * idempotent, so re-adding what is already muted returns the same list. */
@@ -341,7 +361,7 @@ export const groupsApi = {
   ): Promise<NotificationBlacklist> {
     return withFallback(
       async () =>
-        NotificationBlacklistSchema.parse(
+        NotificationBlacklistMutationSchema.parse(
           await apiSend("POST", `/groups/${groupId}/notification-blacklist`, {
             entry_type: entryType,
             name,
@@ -359,7 +379,7 @@ export const groupsApi = {
   ): Promise<NotificationBlacklist> {
     return withFallback(
       async () =>
-        NotificationBlacklistSchema.parse(
+        NotificationBlacklistMutationSchema.parse(
           await apiSend("DELETE", `/groups/${groupId}/notification-blacklist/${entryId}`, {}),
         ),
       () => mockNotificationBlacklist(),

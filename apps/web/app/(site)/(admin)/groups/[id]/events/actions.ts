@@ -804,6 +804,13 @@ export async function fetchEventPetCategories(groupId: EventGroupId) {
   return api.eventPetCategories();
 }
 
+/** Combat achievement catalogue (monsters + per-tier counts) — the ca_target
+ * task form's boss/tier picker. */
+export async function fetchEventCaCatalog(groupId: EventGroupId) {
+  await assertCanUseEventMeta(groupId);
+  return api.eventCaCatalog();
+}
+
 /** Batch exact-name → game-id lookup — icon hydration for the task form's
  * selection chips when editing a task that only stores names. */
 export async function resolveEventMetaNames(

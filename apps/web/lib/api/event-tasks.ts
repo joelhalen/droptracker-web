@@ -3,7 +3,9 @@ import {
   EventMetaEntrySchema,
   AiTaskQuotaSchema,
   type AiTaskQuota,
+  EventCaCatalogSchema,
   EventPetCategorySchema,
+  type EventCaCatalog,
   type EventPetCategory,
   EventItemSourcesSchema,
   type EventItemSources,
@@ -319,6 +321,19 @@ export const eventTasksApi = {
           await apiGet(`/events/meta/pet-categories`, { authed: true }),
         ),
       () => [],
+    );
+  },
+
+
+  /** Combat achievement catalogue (monsters + per-tier counts) — the
+   * ca_target task builder's picker. */
+  async eventCaCatalog(): Promise<EventCaCatalog> {
+    return withFallback(
+      async () =>
+        EventCaCatalogSchema.parse(
+          await apiGet(`/events/meta/ca-monsters`, { authed: true }),
+        ),
+      () => ({ tiers: [], monsters: [] }),
     );
   },
 

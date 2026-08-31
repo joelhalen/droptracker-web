@@ -12,10 +12,11 @@
     "**/*.ts",
     "**/*.tsx",
     ".next-blue/types/**/*.ts",
+    ".next-buildcheck/types/**/*.ts",
     ".next-green/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-buildcheck/types/**/*.ts"
+    ".next-tmpcheck/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

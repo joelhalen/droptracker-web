@@ -96,25 +96,99 @@ export function parseTimeToMs(value: string): number | null {
   return Math.round((minutes * 60 + seconds) * 1000);
 }
 
-/** One rule as a sentence — the wizard's live preview, the "How points work"
- * card and the Discord award line all render exactly this shape. */
-export function bonusRuleSentence(rule: {
+/** The tab-icon for a rule type. A lookup, not a ternary: an unrecognised
+ * type from a newer backend must get a neutral glyph, not "fast kill". */
+export const BONUS_RULE_ICONS: Record<string, string> = {
+  pet: "🐾",
+  time_under: "⏱️",
+  task: "🎯",
+  milestone: "📈",
+};
+
+export function bonusRuleIcon(type: string): string {
+  return BONUS_RULE_ICONS[type] ?? "✨";
+}
+
+type BonusRuleSentenceInput = {
   type: CompetitionBonusRule["type"];
   points: number;
   max_awards?: number | null;
   pets?: string[] | null;
   npc?: string | null;
   threshold_ms?: number | null;
-}): string {
+  step?: number | null;
+  label?: string | null;
+  scope_line?: string | null;
+  task_kind?: CompetitionBonusRule["task_kind"];
+  progress_kind?: CompetitionBonusRule["progress_kind"];
+  need?: number | null;
+  items_preview?: string[] | null;
+  item_count?: number | null;
+};
+
+/** What a `task` rule asks for, without its points or cap — "all 3 listed
+ * drops", "500 pts of listed loot". Mirrors the backend's task_rule_label so
+ * Discord and the web say the same thing. */
+function taskRuleGoal(rule: BonusRuleSentenceInput): string {
+  const need = Math.max(rule.need ?? 1, 1);
+  const n = need.toLocaleString("en-US");
+  switch (rule.task_kind) {
+    case "loot_value":
+      return `${formatGained(need, "boss").replace(" KC", "")} GP of loot`;
+    case "pb_target":
+      return need <= 1 ? "a fast kill" : `${n} fast kills`;
+    case "ca_target":
+      return need <= 1
+        ? "a combat achievement"
+        : `${n} combat achievements`;
+    case "pet_collection":
+      return (rule.pets?.length ?? 0) === 1 ? `a new ${rule.pets![0]}` : "a new pet";
+    case "skill_target":
+      return "the level goal";
+    default:
+      break;
+  }
+  switch (rule.progress_kind) {
+    case "distinct":
+      return `all ${n} listed drops`;
+    case "groups":
+      return "the listed sets";
+    case "any_path":
+      return "any one of the listed goals";
+    case "points":
+      return `${n} pts of listed loot`;
+    default:
+      return need <= 1 ? "a listed drop" : `${n} listed drops`;
+  }
+}
+
+/** One rule as a sentence — the wizard's live preview, the "How points work"
+ * card and the Discord award line all render exactly this shape. */
+export function bonusRuleSentence(rule: BonusRuleSentenceInput): string {
+  const pts = `+${rule.points.toLocaleString("en-US")} pts`;
   const cap = rule.max_awards && rule.max_awards > 1 ? `, up to ${rule.max_awards}× per player` : "";
+  const where = rule.scope_line ? ` (${rule.scope_line})` : "";
   if (rule.type === "pet") {
     const pets = rule.pets ?? [];
     const what = pets.length === 1 ? `a new ${pets[0]}` : "a new pet";
-    return `+${rule.points.toLocaleString("en-US")} pts for ${what}${cap}`;
+    return `${pts} for ${what}${cap}`;
   }
-  const npc = rule.npc ? `${rule.npc} ` : "";
-  const time = formatTimeMs(rule.threshold_ms ?? 0);
-  return `+${rule.points.toLocaleString("en-US")} pts for a ${npc}kill under ${time}${cap}`;
+  if (rule.type === "milestone") {
+    const step = Math.max(rule.step ?? 1, 1).toLocaleString("en-US");
+    return `${pts} for every ${step} gained${cap}`;
+  }
+  if (rule.type === "task") {
+    // An admin-written label replaces the derived goal, never the points.
+    const goal = rule.label?.trim() ? rule.label.trim() : taskRuleGoal(rule);
+    return `${pts} for ${goal}${where}${cap}`;
+  }
+  if (rule.type === "time_under") {
+    const npc = rule.npc ? `${rule.npc} ` : "";
+    const time = formatTimeMs(rule.threshold_ms ?? 0);
+    return `${pts} for a ${npc}kill under ${time}${cap}`;
+  }
+  // A rule type this build doesn't know: say what it is worth, not what it is.
+  return `${pts}${rule.label?.trim() ? ` for ${rule.label.trim()}` : ""}${cap}`;
 }
 
 /** "**Boss** Zulrah — most kills gained wins" without the markdown (web copy). */
@@ -148,6 +222,43 @@ export function rateSentence(
   return `Every ${per.toLocaleString("en-US")} ${unit} = 1 pt`;
 }
 
+/** Keys the backend SERIALIZES for display but does not accept back — they
+ * are derived from the rule, so echoing them is noise at best. Everything
+ * else on a rule round-trips untouched. */
+const BONUS_RULE_READONLY_KEYS: readonly string[] = [
+  "id",
+  // `label` is the SHOWN sentence, derived when the admin didn't name the
+  // rule — echoing it back would freeze that derived text into the config.
+  // `custom_label` carries their own wording and is restored below.
+  "label",
+  "scope_line",
+  "task_kind",
+  "progress_kind",
+  "need",
+  "npcs",
+  "items_preview",
+  "item_count",
+  "tiers",
+];
+
+type BonusRuleInputShape = NonNullable<EventCompetitionInput["bonus_rules"]>[number];
+
+/** One serialized bonus rule → the shape the wizard PATCHes back. */
+export function bonusRuleToInput(rule: CompetitionBonusRule): BonusRuleInputShape {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rule)) {
+    if (BONUS_RULE_READONLY_KEYS.includes(key)) continue;
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    out[key] = value;
+  }
+  // The admin's own wording survives under its input name; a rule they never
+  // named keeps none, so the server re-derives the sentence each time.
+  delete out.custom_label;
+  if (rule.custom_label) out.label = rule.custom_label;
+  return out as BonusRuleInputShape;
+}
+
 /** The detail payload's competition block → the PATCH input shape (what the
  * wizard/manager edit). Absent block = fresh defaults. */
 export function competitionBlockToInput(
@@ -167,14 +278,11 @@ export function competitionBlockToInput(
         ? { gained_per_point: block.ranking.gained_per_point }
         : {}),
     },
-    bonus_rules: block.bonus_rules.map((r) => ({
-      type: r.type,
-      points: r.points,
-      max_awards: r.max_awards,
-      ...(r.pets?.length ? { pets: r.pets } : {}),
-      ...(r.npc ? { npc: r.npc } : {}),
-      ...(r.threshold_ms != null ? { threshold_ms: r.threshold_ms } : {}),
-    })),
+    // A field-by-field copy silently ERASES anything not listed, and this
+    // runs on every manager load → edit → save cycle. Sanitized by dropping
+    // the read-only projection keys instead of naming the ones to keep, so a
+    // new rule field survives a round trip without an edit here.
+    bonus_rules: block.bonus_rules.map(bonusRuleToInput),
     participation: block.participation ?? "whole_clan",
   };
 }

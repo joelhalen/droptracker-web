@@ -1,6 +1,7 @@
 import type {
   EventDetail,
   EventEffort,
+  EventEffortBoss,
   EventMemberLastContribution,
   EventSummary,
   EventTask,
@@ -99,6 +100,7 @@ export const TASK_TYPE_LABELS: Record<EventTask["type"], string> = {
   skill_target: "Skill level",
   loot_value: "Loot value",
   pet_collection: "Pet",
+  ca_target: "Combat achievement",
   loot_sweep: "Loot Sweep set",
   competition: "Competition race",
   custom: "Custom (manual)",
@@ -120,6 +122,8 @@ export const TASK_TYPE_HELP: Record<EventTask["type"], string> = {
   loot_value: "Earn a GP amount from drops — optionally only from specific NPCs.",
   pet_collection:
     "Obtain a pet — a specific one, any pet from a category (boss / skilling / raids), or any pet at all. Credited from pet submissions.",
+  ca_target:
+    "Complete combat achievements — name one, or pick the bosses (and optionally the tiers) and every achievement at them counts. The achievement list is resolved when you save, so it can't drift.",
   loot_sweep:
     "One boss/“set” worth of items (Loot Sweep events only). Each item scores points that decay on every repeat receipt (capped per item); collecting the whole set awards a bonus. Never “completes” — it accrues points until the event ends.",
   competition:
@@ -143,11 +147,20 @@ export const PET_CATEGORY_LABELS: Record<string, string> = {
   boss: "Boss pets",
   skilling: "Skilling pets",
   raids: "Raids pets",
+  clue: "Clue pets",
+  minigame: "Minigame pets",
   misc: "Misc pets (stackable / trivial)",
 };
 
 /** Category keys offered in the pet task builder, in display order. */
-export const PET_CATEGORY_KEYS = ["boss", "skilling", "raids", "misc"] as const;
+export const PET_CATEGORY_KEYS = [
+  "boss",
+  "skilling",
+  "raids",
+  "clue",
+  "minigame",
+  "misc",
+] as const;
 
 /** Canonical OSRS skills as RuneLite reports them (xp/skill task targets). */
 export const OSRS_SKILLS = [
@@ -479,6 +492,42 @@ export function effortSummary(effort: EventEffort | null | undefined): string {
   const killLabel = `${kills.toLocaleString()} kill${kills === 1 ? "" : "s"}`;
   if (bosses <= 1) return killLabel;
   return `${killLabel} at ${bosses} bosses`;
+}
+
+/** Whether an effort row is a clue tier, where "kills" are caskets opened and
+ * only the ones paired with a scroll rolled in-window were priced. `paired` is
+ * null for every other NPC, which is what distinguishes them. */
+export function isClueEffort(
+  boss: Pick<EventEffortBoss, "paired"> | null | undefined,
+): boolean {
+  return boss?.paired != null;
+}
+
+/**
+ * The count beside a boss on an effort list — "412 kills", or "25 caskets" for
+ * a clue tier, where calling a casket a kill is what makes the hours beside it
+ * look wrong.
+ */
+export function effortKillLabel(boss: EventEffortBoss): string {
+  const n = boss.kills ?? 0;
+  const unit = isClueEffort(boss) ? "casket" : "kill";
+  return `${n.toLocaleString()} ${unit}${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * Why a clue tier's hours are lower than its openings suggest — the tooltip
+ * that answers "I opened 60 elites, where are my hours?". Returns undefined
+ * for anything that is not a clue tier.
+ */
+export function effortPairNote(boss: EventEffortBoss): string | undefined {
+  if (!isClueEffort(boss)) return undefined;
+  const paired = boss.paired ?? 0;
+  const rolled = boss.rolled ?? 0;
+  const opened = boss.kills ?? 0;
+  if (paired <= 0) {
+    return `No hours: ${rolled.toLocaleString()} clue${rolled === 1 ? "" : "s"} of this tier were rolled during the event, so none of these ${opened.toLocaleString()} openings could be paired. Clues banked before the event don't count.`;
+  }
+  return `${paired.toLocaleString()} of ${opened.toLocaleString()} openings paired with a clue rolled during the event (${rolled.toLocaleString()} rolled). Only paired clues earn hours.`;
 }
 
 /**

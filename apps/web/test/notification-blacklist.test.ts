@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  NOTIFICATION_BLACKLIST_LIMIT,
   NotificationBlacklistEntrySchema,
+  NotificationBlacklistMutationSchema,
   NotificationBlacklistSchema,
 } from "@droptracker/api-types";
 
@@ -82,4 +84,22 @@ test("a list without its cap is rejected", () => {
   // The editor stops offering "add" at `limit`; a missing one would silently
   // read as 0 and lock the card.
   assert.throws(() => NotificationBlacklistSchema.parse({ entries: [] }));
+});
+
+test("an add or remove that omits the cap still parses", () => {
+  // The mutation responses echo the list back so the editor can replace its
+  // state without re-fetching. Holding them to the read schema meant an API
+  // build that answered with `entries` alone turned a *successful* add into an
+  // error message over a row that had already been written — the entry only
+  // appeared after a reload. The cap is the one field they may leave out.
+  const payload = NotificationBlacklistMutationSchema.parse({
+    entries: [{ id: 3, entry_type: "region", name: "Castle Wars", match_key: "castle-wars" }],
+  });
+  assert.equal(payload.limit, NOTIFICATION_BLACKLIST_LIMIT);
+  assert.equal(payload.entries[0]!.name, "Castle Wars");
+});
+
+test("a mutation keeps the cap the server sent", () => {
+  const payload = NotificationBlacklistMutationSchema.parse({ entries: [], limit: 12 });
+  assert.equal(payload.limit, 12);
 });
