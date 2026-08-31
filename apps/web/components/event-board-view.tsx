@@ -222,9 +222,17 @@ export function EventBoardView({
   const colors = useMemo(() => teamColorMap(event.teams ?? []), [event.teams]);
   const render = board.settings.tile_render;
   const iconSize = render.icon_size ?? 20;
-  // Highest a choose_roll (Wizard's Mind Bomb) may pick.
-  const diceMax =
-    board.settings.movement.dice_count * board.settings.movement.dice_sides;
+  // The totals a choose_roll (Wizard's Mind Bomb) may pick, mirroring the
+  // server's range in boardgame_shop._use_choose_roll. A fixed_step board —
+  // which is also what a 1-sided die normalizes to — has exactly one.
+  const fixedStep = Math.max(1, board.settings.movement.fixed_step);
+  const [diceMin, diceMax] =
+    board.settings.movement.mode === "fixed_step"
+      ? [fixedStep, fixedStep]
+      : [
+          board.settings.movement.dice_count,
+          board.settings.movement.dice_count * board.settings.movement.dice_sides,
+        ];
   // The viewer's own team position — drives the pending task-choice picker.
   const myPosition =
     viewerTeamId != null
@@ -708,6 +716,7 @@ export function EventBoardView({
             .filter((p) => p.team_id !== viewerTeamId && p.status !== "finished")
             .map((p) => ({ id: p.team_id, name: p.team_name }))}
           maxTile={board.finish_idx ?? 0}
+          diceMin={diceMin}
           diceMax={diceMax}
           onChanged={refetch}
           leaderGated={leaderGated}
@@ -988,6 +997,7 @@ function BoardShopPanel({
   teamId,
   otherTeams,
   maxTile,
+  diceMin,
   diceMax,
   onChanged,
   leaderGated = false,
@@ -999,7 +1009,10 @@ function BoardShopPanel({
   teamId: number | null;
   otherTeams: { id: number; name: string }[];
   maxTile: number;
-  /** Highest tiles a choose_roll may pick (dice_count × dice_sides). */
+  /** Lowest total a choose_roll may pick (one die each, or the fixed step). */
+  diceMin: number;
+  /** Highest total a choose_roll may pick (dice_count × dice_sides, or the
+   * fixed step — a deterministic board leaves diceMin === diceMax). */
   diceMax: number;
   onChanged: () => void;
   /** web48a: team leadership is on and the viewer holds no role — buy/use
@@ -1077,8 +1090,12 @@ function BoardShopPanel({
     if (VALUE_EFFECTS.has(effect)) {
       const raw = (targetValue[inventoryId] ?? "").trim();
       const v = Number(raw);
-      if (!raw || !Number.isInteger(v) || v < 1 || v > diceMax) {
-        setError(`Pick a number between 1 and ${diceMax}.`);
+      if (!raw || !Number.isInteger(v) || v < diceMin || v > diceMax) {
+        setError(
+          diceMin === diceMax
+            ? `This board always moves ${diceMax}, so ${diceMax} is the only pick.`
+            : `Pick a number between ${diceMin} and ${diceMax}.`,
+        );
         return;
       }
       opts.value = v;
@@ -1290,10 +1307,10 @@ function BoardShopPanel({
                 {VALUE_EFFECTS.has(i.effect) && (
                   <input
                     type="number"
-                    min={1}
+                    min={diceMin}
                     max={diceMax}
-                    placeholder={`1–${diceMax}`}
-                    title={`Move exactly this many tiles (1–${diceMax})`}
+                    placeholder={diceMin === diceMax ? `${diceMax}` : `${diceMin}–${diceMax}`}
+                    title={`Move exactly this many tiles (${diceMin}–${diceMax})`}
                     value={targetValue[i.inventory_id] ?? ""}
                     onChange={(e) =>
                       setTargetValue((prev) => ({

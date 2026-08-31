@@ -1139,13 +1139,16 @@ function BoardSettingsSection({
               />
               <span className="text-osrs-parchment-dark/60 text-xs">d</span>
               <QuantityInput
-                min={2}
+                min={1}
                 max={100}
                 value={m.dice_sides}
                 commitOn="blur"
                 onChange={(dice_sides) => patch({ movement: { dice_sides } })}
                 className={`${field} w-16`}
               />
+            </span>
+            <span className="text-osrs-parchment-dark/50 mt-1 block text-xs">
+              1-sided dice have no randomness, so they save as a fixed step of the same size.
             </span>
           </label>
         ) : (
