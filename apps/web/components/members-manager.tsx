@@ -10,6 +10,12 @@ import { getErrorMessage } from "@/lib/errors";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { Alert, Badge, Button, EmptyState, EntityChip } from "@/components/ui";
 
+/** "in 34 min" / "in 45 sec" — the cooldown is at most an hour. */
+function formatCooldown(seconds: number): string {
+  if (seconds <= 60) return `${Math.max(seconds, 1)} sec`;
+  return `${Math.ceil(seconds / 60)} min`;
+}
+
 export function MembersManager({
   groupId,
   members,
@@ -66,11 +72,20 @@ export function MembersManager({
           {total} member{total === 1 ? "" : "s"}
         </span>
         <div className="flex items-center gap-3">
-          {sync && (
-            <span className="text-osrs-green text-xs">
-              Synced: +{sync.added} / −{sync.removed} ({sync.total} total)
-            </span>
-          )}
+          {sync &&
+            (sync.on_cooldown ? (
+              // A cooldown means the request never reached WOM, so "+0 / −0"
+              // would read as "your roster is already up to date" — the exact
+              // wrong conclusion. Say why nothing happened and when to retry.
+              <span className="text-osrs-parchment-dark/70 text-xs">
+                Synced recently — try again in {formatCooldown(sync.cooldown_remaining_seconds)}
+              </span>
+            ) : (
+              <span className="text-osrs-green text-xs">
+                Synced: +{sync.added} / −{sync.removed} ({sync.total} total)
+                {sync.skipped_removals && " — partial roster from WOM, no members removed"}
+              </span>
+            ))}
           <Button variant="secondary" size="sm" onClick={onSync} disabled={pending}>
             {pending ? "Working…" : "Sync from WOM"}
           </Button>

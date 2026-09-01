@@ -917,6 +917,13 @@ export const AccountSettingsSchema = z.object({
    */
   recap_timezone: z.string().default(""),
   /**
+   * Which linked account that recap covers: `""` (the account with the biggest
+   * month — the default nobody has to set), `"all"` (one card per account), or
+   * a player id as a string. A card per account only fans out once
+   * `dm_monthly_recap` is on; the single free recap stays a single card.
+   */
+  recap_accounts: z.string().default(""),
+  /**
    * Supporter submission-DM opt-ins (per type) + minimum drop value in GP.
    * Saved for everyone; only take effect with the `dm_submissions` supporter
    * entitlement (see `supporter_entitlements`).
@@ -1207,6 +1214,16 @@ export const WomSyncResultSchema = z.object({
   removed: z.number().int(),
   total: z.number().int(),
   synced_ts: z.number().int(),
+  /**
+   * The sync was refused by the per-group 1-hour rate limit and never reached
+   * WOM. Distinct from a sync that ran and found nothing to change — both
+   * report added/removed of 0, so the UI must read this to tell them apart.
+   * Defaulted for compatibility with API builds that predate the field.
+   */
+  on_cooldown: z.boolean().default(false),
+  cooldown_remaining_seconds: z.number().int().default(0),
+  /** WOM returned a partial roster, so no members were evicted this pass. */
+  skipped_removals: z.boolean().default(false),
 });
 export type WomSyncResult = z.infer<typeof WomSyncResultSchema>;
 

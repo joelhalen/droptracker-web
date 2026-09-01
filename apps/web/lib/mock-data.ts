@@ -439,6 +439,7 @@ export function mockAccountSettings(): AccountSettings {
     // Empty in mock mode so the settings page exercises the seed-on-first-visit
     // path rather than the already-configured one.
     recap_timezone: "",
+    recap_accounts: "",
     dm_drops: true,
     dm_pbs: true,
     dm_cas: false,
@@ -589,7 +590,15 @@ export function mockGroupMembers(_groupId: number, page = 1, limit = 25): GroupM
 }
 
 export function mockWomSync(): WomSyncResult {
-  return { added: 3, removed: 1, total: 128, synced_ts: Math.floor(Date.now() / 1000) };
+  return {
+    added: 3,
+    removed: 1,
+    total: 128,
+    synced_ts: Math.floor(Date.now() / 1000),
+    on_cooldown: false,
+    cooldown_remaining_seconds: 0,
+    skipped_removals: false,
+  };
 }
 
 export function mockDiagnostics(): GroupDiagnostics {
