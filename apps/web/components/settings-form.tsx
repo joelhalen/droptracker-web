@@ -15,6 +15,7 @@ type ToggleKey = Exclude<
   | "supporter_entitlements"
   | "dm_delivery_issue"
   | "recap_timezone"
+  | "recap_accounts"
 >;
 
 const PRIVACY_TOGGLES: { key: ToggleKey; label: string; help: string }[] = [
@@ -174,6 +175,12 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
               Recaps arrive around midday, {zone} — detected from this browser.
             </p>
           )}
+          <RecapAccountPicker
+            players={players}
+            value={settings.recap_accounts}
+            userHidden={settings.hidden}
+            onChange={(recap_accounts) => setSettings((s) => ({ ...s, recap_accounts }))}
+          />
         </fieldset>
 
         <fieldset className="space-y-3">
@@ -260,6 +267,77 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
         userHidden={settings.hidden}
         onUpdated={(next) => setSettings((s) => ({ ...s, players: next.players }))}
       />
+    </div>
+  );
+}
+
+/**
+ * Which account the monthly recap covers. Only shown to people who have more
+ * than one linked: with a single account the choice is between one card and the
+ * same card, and an extra control to read past is a cost paid by everyone to
+ * serve nobody.
+ */
+function RecapAccountPicker({
+  players,
+  value,
+  userHidden,
+  onChange,
+}: {
+  players: AccountSettings["players"];
+  value: string;
+  userHidden: boolean;
+  onChange: (value: string) => void;
+}) {
+  if (players.length < 2) return null;
+
+  // A pick can outlive the account it named (unlinked since, or renamed away).
+  // Without a matching option the select renders blank, which looks like the
+  // setting was lost rather than pointing at something gone.
+  const stale = value !== "" && value !== "all" && !players.some((p) => String(p.id) === value);
+  const chosen = players.find((p) => String(p.id) === value);
+  // Hidden accounts are excluded from recaps upstream, so naming one is a
+  // silent "send me nothing" — worth saying out loud at the point of choosing.
+  const chosenHidden = userHidden || Boolean(chosen?.hidden);
+
+  return (
+    <div className="space-y-1 pl-7">
+      <label className="block text-sm font-medium" htmlFor="recap-accounts">
+        Which account to recap
+      </label>
+      <select
+        id="recap-accounts"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="border-osrs-bronze/40 bg-osrs-surface-1 w-full max-w-xs rounded border px-2 py-1 text-sm"
+      >
+        <option value="">Whichever had the biggest month (default)</option>
+        <option value="all">Every account — one card each</option>
+        {players.map((p) => (
+          <option key={p.id} value={String(p.id)}>
+            {p.name}
+            {p.hidden ? " (hidden)" : ""}
+          </option>
+        ))}
+        {stale && <option value={value}>Account #{value} (no longer linked)</option>}
+      </select>
+      <p className="text-osrs-parchment-dark/60 text-xs">
+        Naming one account sends only that account&apos;s card — if it tracked nothing that
+        month, no recap goes out. Every account sends one card per account you played, and
+        applies once &ldquo;DM me my monthly recap&rdquo; is on above; the first, free recap is
+        always a single card.
+      </p>
+      {chosenHidden && (
+        <p className="text-osrs-red text-xs">
+          {userHidden
+            ? "“Hide me everywhere” is on, so no recaps are sent for any account."
+            : "That account is hidden, so no recap will be sent for it."}
+        </p>
+      )}
+      {stale && (
+        <p className="text-osrs-red text-xs">
+          That account isn&apos;t linked to you any more — pick another, or recaps will stop.
+        </p>
+      )}
     </div>
   );
 }
