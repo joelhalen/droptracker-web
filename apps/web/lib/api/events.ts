@@ -494,10 +494,15 @@ export const eventsApi = {
   // --- Event lifecycle (Task 21) ---------------------------------------------
   /** Explicit activation (draft -> active). 422 when the event isn't ready
    * (no teams / incomplete bingo board / end date in the past); 409 at the
-   * tier's active-event limit. Returns the refreshed detail. */
-  async activateEvent(eventId: number): Promise<EventDetail> {
+   * tier's active-event limit, and 409 for a draft scheduled to start later
+   * unless `startNow` is set — the schedule activates it on its own and
+   * sign-ups are already open. Returns the refreshed detail. */
+  async activateEvent(eventId: number, opts: { startNow?: boolean } = {}): Promise<EventDetail> {
     return withFallback(
-      async () => EventDetailSchema.parse(await apiSend("POST", `/events/${eventId}/activate`, {})),
+      async () =>
+        EventDetailSchema.parse(
+          await apiSend("POST", `/events/${eventId}/activate`, { start_now: Boolean(opts.startNow) }),
+        ),
       () => ({ ...mockEvent(eventId), status: "active" as const }),
     );
   },

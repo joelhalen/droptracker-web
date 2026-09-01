@@ -220,6 +220,12 @@ export function EventManager({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
+  // A draft with a future start activates itself on schedule (and sign-ups are
+  // already open), so starting it early is a confirmed, explicitly-labelled
+  // choice rather than the primary button — "Activate" on a scheduled draft
+  // read as "open sign-ups" and started a month-long event a month early.
+  const [confirmingStartNow, setConfirmingStartNow] = useState(false);
+  const scheduledDraft = event.status === "draft" && event.starts_at != null;
   const [tab, setTab] = useState<ManagerTab>(
     isCompetitionKind(initialEvent.kind) ? "competition" : "tasks",
   );
@@ -256,10 +262,11 @@ export function EventManager({
    * and the tier's active-event limit. On failure we surface the API's real
    * message plus the structured blockers (Next redacts thrown Server Action
    * errors, so the action returns a result instead of throwing). */
-  const onActivate = () => {
+  const onActivate = (startNow = false) => {
+    setConfirmingStartNow(false);
     setError(null);
     startTransition(async () => {
-      const res = await activateEvent(groupId, event.id);
+      const res = await activateEvent(groupId, event.id, { startNow });
       if (res.ok) {
         applyDetail(res.detail);
         setReadiness(null);
@@ -1071,8 +1078,9 @@ export function EventManager({
               {event.status === "draft" &&
                 (event.starts_at ? (
                   <>
-                    Scheduled to start <LocalTime unix={event.starts_at} /> (auto-activates if it
-                    passes the checks)
+                    Scheduled to start <LocalTime unix={event.starts_at} /> — it goes live on its
+                    own then, if it passes the checks. Sign-ups are already open: share the event
+                    link now.
                   </>
                 ) : (
                   "Draft — not scheduled; activate it manually when it's ready"
@@ -1140,9 +1148,44 @@ export function EventManager({
                   >
                     {pending ? "Checking…" : "Check readiness"}
                   </button>
-                  <Button variant="primary" size="sm" onClick={onActivate} disabled={pending}>
-                    {pending ? "Activating…" : "Activate"}
-                  </Button>
+                  {scheduledDraft ? (
+                    confirmingStartNow ? (
+                      <>
+                        <span className="text-osrs-parchment-dark/70 text-xs">
+                          Start now instead of <LocalTime unix={event.starts_at!} />? Scoring and
+                          the start announcement begin immediately.
+                        </span>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => onActivate(true)}
+                          disabled={pending}
+                        >
+                          {pending ? "Starting…" : "Yes, start now"}
+                        </Button>
+                        <button
+                          onClick={() => setConfirmingStartNow(false)}
+                          disabled={pending}
+                          className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright text-sm"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmingStartNow(true)}
+                        disabled={pending}
+                        className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:text-osrs-gold-bright hover:border-osrs-gold/40 rounded border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                        title="It starts on its own at the scheduled time — use this only to begin early"
+                      >
+                        Start now instead
+                      </button>
+                    )
+                  ) : (
+                    <Button variant="primary" size="sm" onClick={() => onActivate()} disabled={pending}>
+                      {pending ? "Activating…" : "Activate"}
+                    </Button>
+                  )}
                 </>
               )}
               {event.status === "active" &&

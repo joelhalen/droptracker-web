@@ -537,7 +537,10 @@ export function EventSetupWizard({
     startTransition(async () => {
       if (!detail) return;
       setError(null);
-      const res = await activateEvent(groupId, detail.id);
+      // The wizard's launch button is an explicit "start now": a scheduled
+      // draft goes live on its own at starts_at (and its sign-ups are already
+      // open), which the button label says when that applies.
+      const res = await activateEvent(groupId, detail.id, { startNow: true });
       if (res.ok) {
         router.push(managerPath(detail.id));
       } else {
@@ -1367,7 +1370,7 @@ export function EventSetupWizard({
             <p className="text-osrs-green text-sm">
               ✓ Ready to launch.
               {readiness.auto_start &&
-                " It will also go live on its own at the scheduled start time."}
+                " It goes live on its own at the scheduled start time, and sign-ups are already open — you only need the button below to start it early."}
             </p>
           ) : null}
 
@@ -1378,7 +1381,11 @@ export function EventSetupWizard({
               disabled={pending || checkingReadiness || !(readiness?.ready ?? false)}
               className={primaryBtn}
             >
-              {pending ? "Launching…" : "Launch event now"}
+              {pending
+                ? "Launching…"
+                : readiness?.auto_start
+                  ? "Start now (ahead of schedule)"
+                  : "Launch event now"}
             </button>
             <Link href={managerPath(detail.id)} className={ghostBtn}>
               Keep as draft — finish later

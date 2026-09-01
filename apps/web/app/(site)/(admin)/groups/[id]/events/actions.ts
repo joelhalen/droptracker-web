@@ -237,13 +237,14 @@ export async function checkEventReadiness(
 export async function activateEvent(
   groupId: EventGroupId,
   eventId: number,
+  opts: { startNow?: boolean } = {},
 ): Promise<
   | { ok: true; detail: EventDetail }
   | { ok: false; status: number; message: string; blockers: EventReadinessBlocker[] }
 > {
   await assertCanManageEvent(groupId);
   try {
-    const detail = await api.activateEvent(eventId);
+    const detail = await api.activateEvent(eventId, opts);
     revalidatePath(eventsIndexPath(groupId));
     revalidatePath(eventAdminPath(groupId, eventId));
     revalidatePath(`/events/${eventId}`);
