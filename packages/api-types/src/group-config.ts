@@ -164,10 +164,12 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "notify_special_quests", label: "Notify special quests", category: "drops", type: "boolean", help: "Notify on milestone/special quests even when general quest notifications are off.", default: true, seasonalMirror: true },
   { key: "notify_diaries", label: "Notify achievement diaries", category: "drops", type: "boolean", help: "Post a notification on achievement-diary completions.", default: false, seasonalMirror: true },
   // Announce anything that awarded group points but wouldn't have been
-  // announced by the group's other settings. Default ON so points are never
-  // awarded silently; inert for groups without the point system. Not
-  // seasonal-mirrored: group points are main-world only.
-  { key: "notify_points_awarded", label: "Announce point awards", category: "drops", type: "boolean", help: "When your point system awards points for a submission that wouldn't be announced on its own — a drop below the minimum value, or a notification type you've turned off — announce it anyway, so points are never awarded silently. Screenshot requirements still apply.", default: true },
+  // announced by the group's other settings. Opt-in (default OFF): the default
+  // point template awards for every clog/PB/CA, so a default-ON override
+  // silently discarded the notify_* toggles of every paid group (2026-09-01).
+  // Inert for groups without the point system. Not seasonal-mirrored: group
+  // points are main-world only.
+  { key: "notify_points_awarded", label: "Announce point awards", category: "drops", type: "boolean", help: "When your point system awards points for a submission that wouldn't be announced on its own — a drop below the minimum value, a notification type you've turned off, or a combat achievement below your tier minimum — announce it anyway. Off by default; with the default point rules this posts every collection log, personal best and combat achievement. Screenshot requirements still apply.", default: false },
 
   // --- Deaths ---------------------------------------------------------------
   // Death notifications get their own section: toggle, channel and the custom
