@@ -710,7 +710,54 @@ function InputField({
           placeholder={field.type === "csv" ? "comma,separated" : ""}
         />
       )}
+      {field.templateTokens ? (
+        <TemplatePreview tokens={field.templateTokens} template={String(value ?? "")} fallback={String(field.default ?? "")} />
+      ) : null}
     </label>
+  );
+}
+
+/** Live preview of a name template, plus a warning when the value token is missing.
+ *
+ * Mirrors `render_channel_name` in the bot's `services/channel_name_render.py`:
+ * blank template falls back to the default, tokens substitute, and a template
+ * with no required token gets the value APPENDED rather than dropped. Keep the
+ * two in step — the whole point is that what an admin sees here is what the
+ * channel is named ten minutes later.
+ */
+function TemplatePreview({
+  tokens,
+  template,
+  fallback,
+}: {
+  tokens: NonNullable<ConfigField["templateTokens"]>;
+  template: string;
+  fallback: string;
+}) {
+  const source = template.trim() === "" ? fallback : template;
+  const missing = tokens.filter((t) => t.required && !source.includes(t.token));
+  let rendered = source;
+  for (const t of tokens) rendered = rendered.split(t.token).join(t.sample);
+  for (const t of missing) rendered = `${rendered.trimEnd()} ${t.sample}`.trim();
+  rendered = rendered.slice(0, 100);
+
+  return (
+    <div className="mt-1 space-y-1">
+      <div className="text-osrs-parchment-dark/60 text-xs">
+        Preview: <span className="text-osrs-gold-bright font-mono">{rendered || "\u00a0"}</span>
+      </div>
+      {missing.length > 0 ? (
+        <div className="text-osrs-parchment-dark/70 text-xs">
+          <span className="text-osrs-gold-bright">Heads up:</span> your template has no{" "}
+          {missing.map((t) => (
+            <code key={t.token} className="font-mono">
+              {t.token}
+            </code>
+          ))}
+          , so the number is added on the end. Put the placeholder where you want it to control the position.
+        </div>
+      ) : null}
+    </div>
   );
 }
 

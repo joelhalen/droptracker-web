@@ -64,6 +64,20 @@ export interface ConfigField {
    * still a plain int — this changes the input, not the contract.
    */
   unit?: "gp" | "xp";
+  /**
+   * For string fields holding a *name template* — today the two
+   * `vc_to_display_*_text` counters, whose value the bot writes into a voice
+   * channel's name every 10 minutes. Lists the tokens the backend substitutes,
+   * each with a sample so the editor can show the rendered result live.
+   *
+   * `required: true` marks the token carrying the number the setting exists to
+   * display. A template that omits it renders as a static label that the bot
+   * then rewrites identically forever — indistinguishable from a dead updater
+   * from the outside, which is exactly how it was reported (group 30). The
+   * backend appends the value in that case rather than dropping it; the editor
+   * says so, so nobody has to discover it by waiting ten minutes.
+   */
+  templateTokens?: { token: string; sample: string; required?: boolean }[];
   /** For text-ish fields: character cap, enforced on the input and in Zod. */
   maxLength?: number;
   /** Whether a `seasonal_`-prefixed mirror of this key exists (§11.1). */
@@ -273,9 +287,9 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // --- Member activity log + voice-channel stat displays -------------------
   { key: "channel_id_to_send_logs", label: "Member log channel", category: "channels", type: "channel", help: "Channel where member join/leave log messages are posted. Leave unset to disable.", default: null },
   { key: "vc_to_display_monthly_loot", label: "Monthly loot voice channel", category: "integration", type: "channel", channelKind: "voice", help: "Voice channel renamed every 10 minutes to show the group's monthly loot total. Nobody needs to be able to talk in it — the name is the display. Give the bot Manage Channel on it.", default: null },
-  { key: "vc_to_display_monthly_loot_text", label: "Monthly loot channel text", category: "integration", type: "string", help: "Template for the loot voice channel name. Placeholders: {month}, {gp_amount}.", default: "{month}: {gp_amount} gp" },
+  { key: "vc_to_display_monthly_loot_text", label: "Monthly loot channel text", category: "integration", type: "string", help: "Template for the loot voice channel name. Placeholders: {month}, {gp_amount}.", default: "{month}: {gp_amount} gp", templateTokens: [{ token: "{month}", sample: "September" }, { token: "{gp_amount}", sample: "1.2B", required: true }] },
   { key: "vc_to_display_droptracker_users", label: "Member count voice channel", category: "integration", type: "channel", channelKind: "voice", help: "Voice channel renamed every 10 minutes to show the group's tracked member count. Nobody needs to be able to talk in it — the name is the display. Give the bot Manage Channel on it.", default: null },
-  { key: "vc_to_display_droptracker_users_text", label: "Member count channel text", category: "integration", type: "string", help: "Template for the member-count voice channel name. Placeholder: {member_count}.", default: "{member_count} members" },
+  { key: "vc_to_display_droptracker_users_text", label: "Member count channel text", category: "integration", type: "string", help: "Template for the member-count voice channel name. Placeholder: {member_count}.", default: "{member_count} members", templateTokens: [{ token: "{member_count}", sample: "345", required: true }] },
 
   // --- Misc / integration -------------------------------------------------
   // Not a setting of its own — this is the group's actual name (backend column

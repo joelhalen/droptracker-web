@@ -522,6 +522,27 @@ test("only the voice stat-display settings ask for a voice channel", () => {
   assert.equal(getConfigField("channel_id_to_post_loot")?.channelKind, undefined);
 });
 
+// A counter template with no value placeholder renders a static label that the
+// bot then rewrites identically forever — it reads as a dead updater, which is
+// how it was reported. The editor warns instead of letting an admin find out
+// ten minutes later, so both templates must declare their required token.
+test("counter name templates declare the placeholder carrying the number", () => {
+  for (const [key, token] of [
+    ["vc_to_display_monthly_loot_text", "{gp_amount}"],
+    ["vc_to_display_droptracker_users_text", "{member_count}"],
+  ] as const) {
+    const field = getConfigField(key);
+    const required = field?.templateTokens?.filter((t) => t.required) ?? [];
+    assert.deepEqual(
+      required.map((t) => t.token),
+      [token],
+      `${key} must mark ${token} required so the editor previews and warns`,
+    );
+    // The default must itself be a working template.
+    assert.ok(String(field?.default ?? "").includes(token));
+  }
+});
+
 // `comingSoon` is presentational only: it must never make a field unsaveable,
 // or admins would be told to configure something ahead of release and then be
 // unable to. So a flagged field still validates and still round-trips a patch.
