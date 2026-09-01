@@ -30,6 +30,8 @@ import {
   type NotificationBlacklist,
   NotificationBlacklistSchema,
   NotificationBlacklistMutationSchema,
+  NOTIFICATION_BLACKLIST_LIMIT,
+  type AlwaysListEntryType,
   type RegionList,
   RegionListSchema,
   type WomGroupPreview,
@@ -383,6 +385,61 @@ export const groupsApi = {
           await apiSend("DELETE", `/groups/${groupId}/notification-blacklist/${entryId}`, {}),
         ),
       () => mockNotificationBlacklist(),
+    );
+  },
+
+
+  /**
+   * The blacklist's inverse: items and NPCs this group ALWAYS wants announced,
+   * even below its minimum notification value (the "notable" zero-value kits
+   * and pieces the plugin force-screenshots). Same wire shape as the blacklist,
+   * so the same schemas parse it; mock mode starts it empty — an always-list
+   * has no sensible sample content the way a muted-junk list does.
+   */
+  async groupNotificationAlwaysList(groupId: number): Promise<NotificationBlacklist> {
+    return withFallback(
+      async () =>
+        NotificationBlacklistSchema.parse(
+          await apiGet(`/groups/${groupId}/notification-always-list`, { authed: true }),
+        ),
+      () => ({ entries: [], limit: NOTIFICATION_BLACKLIST_LIMIT }),
+    );
+  },
+
+
+  /** Add one always-announce entry (items and NPCs only — no regions). The
+   * backend is idempotent, so re-adding what is already listed returns the
+   * same list. */
+  async addGroupNotificationAlwaysListEntry(
+    groupId: number,
+    entryType: AlwaysListEntryType,
+    name: string,
+    gameId: number | null = null,
+  ): Promise<NotificationBlacklist> {
+    return withFallback(
+      async () =>
+        NotificationBlacklistMutationSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/notification-always-list`, {
+            entry_type: entryType,
+            name,
+            game_id: gameId,
+          }),
+        ),
+      () => ({ entries: [], limit: NOTIFICATION_BLACKLIST_LIMIT }),
+    );
+  },
+
+
+  async removeGroupNotificationAlwaysListEntry(
+    groupId: number,
+    entryId: number,
+  ): Promise<NotificationBlacklist> {
+    return withFallback(
+      async () =>
+        NotificationBlacklistMutationSchema.parse(
+          await apiSend("DELETE", `/groups/${groupId}/notification-always-list/${entryId}`, {}),
+        ),
+      () => ({ entries: [], limit: NOTIFICATION_BLACKLIST_LIMIT }),
     );
   },
 

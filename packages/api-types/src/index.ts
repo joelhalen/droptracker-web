@@ -1322,6 +1322,17 @@ export const NotificationBlacklistMutationSchema = NotificationBlacklistSchema.e
   limit: z.number().int().default(NOTIFICATION_BLACKLIST_LIMIT),
 });
 
+/**
+ * Always-announce list — the blacklist's inverse: items and NPCs whose drops
+ * are announced even below the group's minimum notification value (built for
+ * the "notable" zero-value kits and pieces the plugin force-screenshots). The
+ * wire payload is identical to the blacklist's, so it reuses those schemas;
+ * only the entry-type universe differs — no `region` entries, because the list
+ * bypasses exactly one gate (a drop's value minimum) and drops carry no region.
+ */
+export const AlwaysListEntryTypeSchema = z.enum(["item", "npc"]);
+export type AlwaysListEntryType = z.infer<typeof AlwaysListEntryTypeSchema>;
+
 /** web64a: a group event manager — full event control, no group-admin access.
  * Web-only (keyed on a DropTracker user id; no Discord bot grant). */
 export const EventManagerSchema = z.object({

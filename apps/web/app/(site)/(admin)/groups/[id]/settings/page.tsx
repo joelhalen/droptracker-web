@@ -5,7 +5,10 @@ import { api } from "@/lib/api";
 import { getUser, requireGroupAdminPage } from "@/lib/auth";
 import { ConfigEditor } from "@/components/config-editor";
 import { GroupIconCard } from "@/components/group-icon-card";
-import { NotificationBlacklistCard } from "@/components/notification-blacklist-card";
+import {
+  NotificationAlwaysListCard,
+  NotificationBlacklistCard,
+} from "@/components/notification-blacklist-card";
 import { TimeframeBoardCard } from "@/components/timeframe-board-card";
 
 export const metadata: Metadata = { title: "Group settings" };
@@ -19,7 +22,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
   if (!Number.isFinite(groupId)) notFound();
   await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
 
-  const [config, subscription, tiers, user, group, seasonal, blacklist] = await Promise.all([
+  const [config, subscription, tiers, user, group, seasonal, blacklist, alwaysList] = await Promise.all([
     api.groupConfig(groupId),
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
@@ -32,6 +35,9 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
     api
       .groupNotificationBlacklist(groupId)
       .catch((): NotificationBlacklist => ({ entries: [], limit: 250 })),
+    api
+      .groupNotificationAlwaysList(groupId)
+      .catch((): NotificationBlacklist => ({ entries: [], limit: 250 })),
   ]);
 
   return (
@@ -42,6 +48,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
       <GroupIconCard groupId={groupId} initialIconUrl={group?.icon_url} />
       <TimeframeBoardCard groupId={groupId} />
       <NotificationBlacklistCard groupId={groupId} initial={blacklist} />
+      <NotificationAlwaysListCard groupId={groupId} initial={alwaysList} />
       <ConfigEditor
         groupId={groupId}
         initial={config}

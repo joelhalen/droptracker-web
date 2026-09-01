@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
   GroupConfigPatchSchema,
   HALL_OF_FAME_CONFIG_KEYS,
+  type AlwaysListEntryType,
   type BlacklistEntryType,
   type EventMetaEntry,
   type GroupConfigPatch,
@@ -198,6 +199,50 @@ export async function removeBlacklistEntry(
   }
   try {
     const result = await api.removeGroupNotificationBlacklistEntry(groupId, entryId);
+    revalidatePath(`/groups/${groupId}/settings`);
+    return result;
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
+}
+
+/** Server Action: always-announce an item or NPC in this group's Discord —
+ * drops of it post even below the minimum notification value. Returns the
+ * whole list, same contract as the blacklist actions. */
+export async function addAlwaysListEntry(
+  groupId: number,
+  kind: AlwaysListEntryType,
+  name: string,
+  gameId: number | null,
+): Promise<NotificationBlacklist> {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  try {
+    const result = await api.addGroupNotificationAlwaysListEntry(groupId, kind, name, gameId);
+    revalidatePath(`/groups/${groupId}/settings`);
+    return result;
+  } catch (err) {
+    // The backend refuses names it could never match ("Unknown", punctuation
+    // only) with a message worth showing verbatim.
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
+}
+
+/** Server Action: remove one always-announce entry. */
+export async function removeAlwaysListEntry(
+  groupId: number,
+  entryId: number,
+): Promise<NotificationBlacklist> {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  try {
+    const result = await api.removeGroupNotificationAlwaysListEntry(groupId, entryId);
     revalidatePath(`/groups/${groupId}/settings`);
     return result;
   } catch (err) {

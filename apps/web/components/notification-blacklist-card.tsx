@@ -1,23 +1,27 @@
 "use client";
 
 /**
- * Notification blacklist editor (group settings).
+ * Notification list editors (group settings): the blacklist and its inverse.
  *
- * Leaders pick items, NPCs and places whose submissions must never be announced
- * in their Discord channels. The wording throughout is deliberate: a blacklisted
- * drop is still **recorded, scored and counted** — on the lootboard, the
- * leaderboards, points and events — it simply is not posted. Every clan that
- * asked for this wanted a quieter feed, not a smaller total, and a control that
- * looked like it deleted data would not get used.
+ * One generic card serves both, because the two features are the same control
+ * pointed in opposite directions. **Blacklist**: items, NPCs and places whose
+ * submissions must never be announced. **Always announce**: items and NPCs
+ * whose drops are announced even below the group's minimum notification value
+ * — built for the "notable" zero-value kits and pieces the plugin
+ * force-screenshots, which would otherwise never clear the value threshold.
+ *
+ * The wording throughout is deliberate: neither list touches the data. A
+ * blacklisted drop is still **recorded, scored and counted**; an
+ * always-announced one gains only its Discord post. Every clan that asked for
+ * these wanted control of the feed, not of the totals, and a control that
+ * looked like it changed scores would not get used.
  *
  * The item and NPC pickers search the same `/events/meta/*` catalogs the event
- * task builder uses, so they only offer names actually seen in the drop history.
- * The place picker is different: it filters a fixed list of named map areas, so
- * a leader can mute somewhere nobody has died yet. A hand-typed name is still
- * allowed everywhere (Enter adds the query as-is) — for places that is how a
- * bare region id gets in, which mutes exactly that one chunk of the map rather
- * than the whole area. The backend refuses names it could never match and its
- * message is shown verbatim.
+ * task builder uses, so they only offer names actually seen in the drop
+ * history. The place picker (blacklist only) filters a fixed list of named map
+ * areas instead. A hand-typed name is still allowed everywhere (Enter adds the
+ * query as-is); the backend refuses names it could never match and its message
+ * is shown verbatim.
  */
 
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -28,7 +32,9 @@ import type {
   NotificationBlacklistEntry,
 } from "@droptracker/api-types";
 import {
+  addAlwaysListEntry,
   addBlacklistEntry,
+  removeAlwaysListEntry,
   removeBlacklistEntry,
   searchBlacklistCandidates,
 } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
@@ -37,34 +43,34 @@ import { Alert, Badge, Button, Card, EmptyState, Input } from "@/components/ui";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 
-const EMPTY_NOUN: Record<BlacklistEntryType, { subject: string; action: string }> = {
-  item: { subject: "items", action: "an item" },
-  npc: { subject: "NPCs", action: "everything from a boss or NPC" },
-  region: { subject: "places", action: "everything that happens somewhere" },
+type KindSpec = {
+  key: BlacklistEntryType;
+  label: string;
+  placeholder: string;
+  hint: string;
+  emptySubject: string;
+  emptyAction: string;
 };
 
-const KINDS: { key: BlacklistEntryType; label: string; placeholder: string; hint: string }[] = [
-  {
-    key: "item",
-    label: "Items",
-    placeholder: "Search items — Bones, Coins, Ranarr seed…",
-    hint: "Nothing is posted about this item, whatever drops it.",
-  },
-  {
-    key: "npc",
-    label: "NPCs & bosses",
-    placeholder: "Search NPCs — Barrows, Zulrah, Chambers of Xeric…",
-    hint: "Nothing from this source is posted, whichever item drops.",
-  },
-  {
-    key: "region",
-    label: "Places",
-    placeholder: "Search places — Castle Wars, Wilderness, Prifddinas… or a region id",
-    hint:
-      "Nothing that happens here is posted — deaths, for now. Picking an area covers " +
-      "every map region it spans; type a bare region id to mute just that one.",
-  },
-];
+/** Everything that differs between the two cards. */
+type ListCopy = {
+  title: string;
+  blurb: React.ReactNode;
+  kinds: KindSpec[];
+  /** Badge on a search result that is already on the list. */
+  alreadyBadge: string;
+  /** aria-label prefix for an entry's remove button. */
+  removeLabel: (name: string) => string;
+  fullMessage: (limit: number) => string;
+  emptyHint: (action: string) => string;
+  add: (
+    groupId: number,
+    kind: BlacklistEntryType,
+    name: string,
+    gameId: number | null,
+  ) => Promise<NotificationBlacklist>;
+  remove: (groupId: number, entryId: number) => Promise<NotificationBlacklist>;
+};
 
 function EntityIcon({ kind, id }: { kind: BlacklistEntryType; id: number | null }) {
   // Places have no artwork, and a region id is not an npc id — rendering one
@@ -85,15 +91,17 @@ function EntityIcon({ kind, id }: { kind: BlacklistEntryType; id: number | null 
   );
 }
 
-export function NotificationBlacklistCard({
+function NotificationListCard({
   groupId,
   initial,
+  copy,
 }: {
   groupId: number;
   initial: NotificationBlacklist;
+  copy: ListCopy;
 }) {
   const [entries, setEntries] = useState<NotificationBlacklistEntry[]>(initial.entries);
-  const [kind, setKind] = useState<BlacklistEntryType>("item");
+  const [kind, setKind] = useState<BlacklistEntryType>(copy.kinds[0]!.key);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<EventMetaEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -101,7 +109,7 @@ export function NotificationBlacklistCard({
   // Monotonic sequence: a slow search must never overwrite a newer one's rows.
   const seq = useRef(0);
 
-  const active = KINDS.find((k) => k.key === kind)!;
+  const active = copy.kinds.find((k) => k.key === kind)!;
   const shown = entries.filter((e) => e.entry_type === kind);
   const full = entries.length >= initial.limit;
 
@@ -126,7 +134,7 @@ export function NotificationBlacklistCard({
     return () => clearTimeout(timer);
   }, [groupId, kind, query]);
 
-  const alreadyMuted = (name: string) =>
+  const alreadyListed = (name: string) =>
     shown.some((e) => e.name.toLowerCase() === name.toLowerCase());
 
   const onAdd = (name: string, gameId: number | null) => {
@@ -135,7 +143,7 @@ export function NotificationBlacklistCard({
     setError(null);
     startTransition(async () => {
       try {
-        const next = await addBlacklistEntry(groupId, kind, trimmed, gameId);
+        const next = await copy.add(groupId, kind, trimmed, gameId);
         setEntries(next.entries);
         setQuery("");
         setResults([]);
@@ -149,7 +157,7 @@ export function NotificationBlacklistCard({
     setError(null);
     startTransition(async () => {
       try {
-        setEntries((await removeBlacklistEntry(groupId, entryId)).entries);
+        setEntries((await copy.remove(groupId, entryId)).entries);
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't remove that entry. Please try again."));
       }
@@ -158,15 +166,11 @@ export function NotificationBlacklistCard({
 
   return (
     <Card padding="p-6" className="mb-6">
-      <h2 className="text-osrs-gold mb-1 text-lg font-semibold">Notification blacklist</h2>
-      <p className="text-osrs-parchment-dark/60 mb-4 text-xs">
-        Items, NPCs and places your Discord channels never hear about. Blacklisted
-        submissions are still <strong>recorded, scored and counted</strong> — on your
-        lootboard, leaderboards, points and events. Only the Discord message is withheld.
-      </p>
+      <h2 className="text-osrs-gold mb-1 text-lg font-semibold">{copy.title}</h2>
+      <p className="text-osrs-parchment-dark/60 mb-4 text-xs">{copy.blurb}</p>
 
       <div className="mb-3 flex flex-wrap gap-2">
-        {KINDS.map((k) => (
+        {copy.kinds.map((k) => (
           <Button
             key={k.key}
             variant={k.key === kind ? "primary" : "secondary"}
@@ -208,23 +212,23 @@ export function NotificationBlacklistCard({
         {results.length > 0 && (
           <ul className="border-osrs-bronze/40 bg-osrs-brown-dark absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded border shadow-lg">
             {results.map((row) => {
-              const muted = alreadyMuted(row.name);
+              const listed = alreadyListed(row.name);
               return (
                 <li key={`${row.id}-${row.name}`}>
                   <button
                     type="button"
-                    disabled={muted || pending}
+                    disabled={listed || pending}
                     onClick={() => onAdd(row.name, row.id)}
                     className="hover:bg-osrs-bronze/20 flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm disabled:opacity-50"
                   >
                     <EntityIcon kind={kind} id={row.id} />
                     <span className="truncate">{row.name}</span>
-                    {muted && (
+                    {listed && (
                       <Badge variant="neutral" size="sm">
-                        already muted
+                        {copy.alreadyBadge}
                       </Badge>
                     )}
-                    {row.tracked === false && !muted && (
+                    {row.tracked === false && !listed && (
                       <Badge variant="ember" size="sm">
                         never seen in a drop
                       </Badge>
@@ -237,12 +241,7 @@ export function NotificationBlacklistCard({
         )}
       </div>
 
-      {full && (
-        <p className="text-osrs-ember mt-2 text-xs">
-          This group has reached the {initial.limit}-entry limit. Remove one to add
-          another — or raise the minimum notification value instead.
-        </p>
-      )}
+      {full && <p className="text-osrs-ember mt-2 text-xs">{copy.fullMessage(initial.limit)}</p>}
 
       {error && (
         <Alert variant="error" className="mt-3">
@@ -253,8 +252,8 @@ export function NotificationBlacklistCard({
       <div className="mt-4">
         {shown.length === 0 ? (
           <EmptyState
-            title={`No ${EMPTY_NOUN[kind].subject} blacklisted`}
-            hint={`Search above to mute ${EMPTY_NOUN[kind].action} in your Discord notifications.`}
+            title={`No ${active.emptySubject}`}
+            hint={copy.emptyHint(active.emptyAction)}
           />
         ) : (
           <ul className="flex flex-wrap gap-2">
@@ -272,7 +271,7 @@ export function NotificationBlacklistCard({
                 )}
                 <button
                   type="button"
-                  aria-label={`Stop blacklisting ${entry.name}`}
+                  aria-label={copy.removeLabel(entry.name)}
                   disabled={pending}
                   onClick={() => onRemove(entry.id)}
                   className="text-osrs-parchment-dark/60 hover:text-osrs-red cursor-pointer px-1 leading-none disabled:opacity-50"
@@ -286,4 +285,109 @@ export function NotificationBlacklistCard({
       </div>
     </Card>
   );
+}
+
+const BLACKLIST_COPY: ListCopy = {
+  title: "Notification blacklist",
+  blurb: (
+    <>
+      Items, NPCs and places your Discord channels never hear about. Blacklisted
+      submissions are still <strong>recorded, scored and counted</strong> — on your
+      lootboard, leaderboards, points and events. Only the Discord message is withheld.
+    </>
+  ),
+  kinds: [
+    {
+      key: "item",
+      label: "Items",
+      placeholder: "Search items — Bones, Coins, Ranarr seed…",
+      hint: "Nothing is posted about this item, whatever drops it.",
+      emptySubject: "items blacklisted",
+      emptyAction: "mute an item",
+    },
+    {
+      key: "npc",
+      label: "NPCs & bosses",
+      placeholder: "Search NPCs — Barrows, Zulrah, Chambers of Xeric…",
+      hint: "Nothing from this source is posted, whichever item drops.",
+      emptySubject: "NPCs blacklisted",
+      emptyAction: "mute everything from a boss or NPC",
+    },
+    {
+      key: "region",
+      label: "Places",
+      placeholder: "Search places — Castle Wars, Wilderness, Prifddinas… or a region id",
+      hint:
+        "Nothing that happens here is posted — deaths, for now. Picking an area covers " +
+        "every map region it spans; type a bare region id to mute just that one.",
+      emptySubject: "places blacklisted",
+      emptyAction: "mute everything that happens somewhere",
+    },
+  ],
+  alreadyBadge: "already muted",
+  removeLabel: (name) => `Stop blacklisting ${name}`,
+  fullMessage: (limit) =>
+    `This group has reached the ${limit}-entry limit. Remove one to add another — ` +
+    "or raise the minimum notification value instead.",
+  emptyHint: (action) => `Search above to ${action} in your Discord notifications.`,
+  add: addBlacklistEntry,
+  remove: removeBlacklistEntry,
+};
+
+const ALWAYS_COPY: ListCopy = {
+  title: "Always announce",
+  blurb: (
+    <>
+      Items and NPCs your Discord channels <strong>always</strong> hear about: a drop of
+      a listed item — or from a listed NPC — is announced even below your minimum
+      notification value. Made for notable valueless drops like ornament kits and dyes,
+      which the plugin already screenshots but the value threshold would silence. Your
+      other rules still apply: a screenshot requirement still holds back imageless
+      drops, and the blacklist wins if a name is somehow on both lists.
+    </>
+  ),
+  kinds: [
+    {
+      key: "item",
+      label: "Items",
+      placeholder: "Search items — Twisted ancestral colour kit, Dragon defender…",
+      hint: "Every drop of this item is announced, whatever it's worth and whatever drops it.",
+      emptySubject: "items always announced",
+      emptyAction: "always announce an item",
+    },
+    {
+      key: "npc",
+      label: "NPCs & bosses",
+      placeholder: "Search NPCs — Zulrah, Chambers of Xeric…",
+      hint: "Every drop from this source is announced, whatever it's worth — including the junk. Most groups want specific items instead.",
+      emptySubject: "NPCs always announced",
+      emptyAction: "always announce everything from a boss or NPC",
+    },
+  ],
+  alreadyBadge: "already listed",
+  removeLabel: (name) => `Stop always announcing ${name}`,
+  fullMessage: (limit) =>
+    `This group has reached the ${limit}-entry limit. Remove one to add another — ` +
+    "or lower the minimum notification value instead.",
+  emptyHint: (action) =>
+    `Search above to ${action} in your Discord notifications, even below your minimum value.`,
+  // This card's kinds array offers no "region" tab, so kind can only be
+  // item/npc here — narrowed explicitly to satisfy the stricter action type.
+  add: (groupId, kind, name, gameId) =>
+    addAlwaysListEntry(groupId, kind === "npc" ? "npc" : "item", name, gameId),
+  remove: removeAlwaysListEntry,
+};
+
+export function NotificationBlacklistCard(props: {
+  groupId: number;
+  initial: NotificationBlacklist;
+}) {
+  return <NotificationListCard {...props} copy={BLACKLIST_COPY} />;
+}
+
+export function NotificationAlwaysListCard(props: {
+  groupId: number;
+  initial: NotificationBlacklist;
+}) {
+  return <NotificationListCard {...props} copy={ALWAYS_COPY} />;
 }
