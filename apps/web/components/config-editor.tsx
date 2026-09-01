@@ -18,6 +18,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage, isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
+import { collidingVoiceCounterChannel } from "@/lib/voice-counter";
 import { viewerZone } from "@/components/local-time";
 import { Alert, Badge, Button, Card, controlClass, Input, Select, Textarea } from "@/components/ui";
 import { GpInput } from "@/components/gp-input";
@@ -272,6 +273,21 @@ export function ConfigEditor({
     return counts;
   }, [changed]);
 
+  /* Both voice counters aimed at one channel: the bot's member-count loop runs
+     after its loot loop, so it overwrites the loot name every ten minutes and
+     the channel shows nothing but the member count. Silent — no error, and
+     Discord logs no audit entry for a rename that changes nothing. Derived from
+     the unsaved `values` so the warning appears as the second picker lands on
+     the first's channel, not after a save. */
+  const voiceCounterCollision = useMemo(
+    () =>
+      collidingVoiceCounterChannel(
+        values.vc_to_display_monthly_loot,
+        values.vc_to_display_droptracker_users,
+      ),
+    [values],
+  );
+
   const set = (key: string, v: ConfigValue) => setValues((s) => ({ ...s, [key]: v }));
 
   const onReset = () => {
@@ -417,6 +433,12 @@ export function ConfigEditor({
             <Card key={cat.id} id={sectionId(cat.id)} padding="p-6" className="scroll-mt-24">
               <h2 className="text-osrs-gold mb-4 text-lg font-semibold">{cat.label}</h2>
               {cat.id === "pbs" && <HallOfFameBotCallout />}
+              {cat.id === "integration" && voiceCounterCollision && (
+                <VoiceCounterCollisionCallout
+                  channelId={voiceCounterCollision}
+                  channelName={channels.find((c) => c.id === voiceCounterCollision)?.name ?? null}
+                />
+              )}
               {fields.some((f) => f.type === "channel") && (
                 <ChannelListDelayHint className={cat.id === "pbs" ? "mb-4" : "-mt-3 mb-4"} />
               )}
@@ -838,6 +860,41 @@ function HallOfFameBotCallout() {
       <p className="text-osrs-parchment-dark/60 mt-2 text-xs">
         Never had the separate bot? Nothing to do — leaderboards are rebuilt automatically and can
         take up to ~10 minutes to first appear.
+      </p>
+    </div>
+  );
+}
+
+/** Shown when both voice counters resolve to the same channel.
+ *
+ * Not a save-blocker: the pair is only broken once both are set, and an admin
+ * mid-edit (having picked the channel for one counter and not yet moved the
+ * other) shouldn't be locked out of saving the rest of the page. It explains
+ * the fix — a second voice channel — because "it stopped working" is how this
+ * reaches support otherwise. */
+function VoiceCounterCollisionCallout({
+  channelId,
+  channelName,
+}: {
+  channelId: string;
+  channelName: string | null;
+}) {
+  return (
+    <div className="border-osrs-red/40 bg-osrs-red/10 mb-4 rounded-lg border p-4">
+      <p className="text-osrs-red text-sm font-medium">
+        Both voice counters point at the same channel
+      </p>
+      <p className="text-osrs-parchment-dark/80 mt-1 text-xs leading-relaxed">
+        <strong>Monthly loot voice channel</strong> and <strong>Member count voice channel</strong>{" "}
+        are both set to{" "}
+        <code className="font-mono">{channelName ? `#${channelName}` : channelId}</code>. A channel
+        can only have one name, and the member count is written last — so that channel will show
+        the member count and your <strong>monthly loot total will never appear</strong>.
+      </p>
+      <p className="text-osrs-parchment-dark/80 mt-2 text-xs leading-relaxed">
+        Make a second voice channel and point one counter at each, or clear whichever of the two
+        you don&apos;t want. Leaving them as they are is not an error the bot can report — the loot
+        name is simply overwritten every ten minutes.
       </p>
     </div>
   );
