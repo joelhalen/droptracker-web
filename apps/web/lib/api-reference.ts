@@ -236,6 +236,7 @@ export const ENDPOINTS: ApiEndpoint[] = [
       { name: "since", default: "until − 24h", description: "`drops` only: window start, unix seconds UTC. Clamped to at most 7 days before `until`." },
       { name: "until", default: "now", description: "`drops` only: window end, unix seconds UTC. Clamped to now." },
       { name: "max_drops", default: "50", description: "`drops` only: rows per player, newest first. Maximum 200." },
+      { name: "npc", description: "`drops` only: a boss name or Wise Old Man boss slug (`barrows_chests`). Restricts the feed, and the per-player cap, to that boss." },
     ],
     example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
   "${API_BASE}/players/Crawlicious?include=identity,stats,loot"`,
@@ -256,9 +257,10 @@ export const ENDPOINTS: ApiEndpoint[] = [
       { name: "since", default: "until − 24h", description: "`drops` only: window start, unix seconds UTC. Clamped to at most 7 days before `until`." },
       { name: "until", default: "now", description: "`drops` only: window end, unix seconds UTC. Clamped to now." },
       { name: "max_drops", default: "50", description: "`drops` only: rows per player, newest first. Maximum 200." },
+      { name: "npc", description: "`drops` only: a boss name or Wise Old Man boss slug (`barrows_chests`). Restricts the feed, and the per-player cap, to that boss — the Boss-of-the-Week query." },
     ],
     example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
-  "${API_BASE}/groups/19/players?include=identity,drops,drop_ids&since=1788343200&limit=100"`,
+  "${API_BASE}/groups/19/players?include=identity,drops,drop_ids&npc=barrows_chests&since=1788343200&limit=100"`,
   },
 ];
 
