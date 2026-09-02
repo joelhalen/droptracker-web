@@ -35,11 +35,26 @@ test("meta is free — it is advertised as attachable at no cost", () => {
                requestCost(["identity", "loot"], 100));
 });
 
-test("identity is free, and it is the only other free section", () => {
+test("identity is free, and the only other free sections are meta and the drop_ids modifier", () => {
   // Identity rides along on every response, so charging for it would make the
-  // advertised cost of every other section wrong.
+  // advertised cost of every other section wrong. drop_ids emits nothing of
+  // its own — it only adds a field to drops — so it has nothing to charge for.
   const free = SECTIONS.filter((s) => s.cost === 0).map((s) => s.key).sort();
-  assert.deepEqual(free, ["identity", "meta"]);
+  assert.deepEqual(free, ["drop_ids", "identity", "meta"]);
+});
+
+test("the drop feed is priced below clog_slots and is documented as outside `all`", () => {
+  const cost = (key: string) => SECTIONS.find((s) => s.key === key)!.cost;
+  assert.ok(cost("drops") > 0);
+  assert.ok(cost("drops") < cost("clog_slots"));
+  const drops = SECTIONS.find((s) => s.key === "drops")!;
+  assert.match(drops.summary, /Not part of `all`/);
+});
+
+test("the collection-log endpoint is documented and needs a key", () => {
+  const endpoint = ENDPOINTS.find((e) => e.path === "/v2/collection-log");
+  assert.ok(endpoint, "/v2/collection-log is undocumented");
+  assert.equal(endpoint!.auth, true);
 });
 
 test("the expensive sections cost more than the cheap ones", () => {

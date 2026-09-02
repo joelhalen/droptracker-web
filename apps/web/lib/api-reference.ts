@@ -19,7 +19,7 @@
 
 export const API_BASE = "https://api.droptracker.io/v2";
 
-export type SectionCategory = "Core" | "Progress" | "Loot";
+export type SectionCategory = "Core" | "Progress" | "Loot" | "Feed";
 
 export interface ApiSection {
   key: string;
@@ -131,6 +131,20 @@ export const SECTIONS: ApiSection[] = [
     summary:
       "Every recorded collection log slot with its quantity — around 1,500 rows per player, so price a page accordingly.",
   },
+  {
+    key: "drops",
+    cost: 50,
+    category: "Feed",
+    summary:
+      "Individual drops, newest first, inside a bounded window: since / until as unix seconds (default the last 24 hours, at most 7 days) and max_drops rows per player (default 50, at most 200). Every entry carries received_at as unix seconds UTC. Priced per 24 hours of window — a week costs 350. Not part of `all`; ask for it by name.",
+  },
+  {
+    key: "drop_ids",
+    cost: 0,
+    category: "Feed",
+    summary:
+      "Modifier: adds drop_id to every entry of drops — the stable identity you need for exactly-once processing. Free, emits nothing on its own, and does nothing without drops.",
+  },
 ];
 
 export interface ApiParam {
@@ -200,6 +214,16 @@ export const ENDPOINTS: ApiEndpoint[] = [
   },
   {
     method: "GET",
+    path: "/v2/collection-log",
+    title: "Collection log structure",
+    summary:
+      "Every collection log slot — item id and name, grouped into tabs and pages — plus a flat items map of id to name. Read from the game cache and refreshed weekly after the game update, so a new boss's drops are known without anyone editing a file. Game data, not player data: any valid key may read it. Flat cost of 20; updated_at_unix moves only when the structure actually changed, so cache on it. The ids in clog_slots are the keys here.",
+    auth: true,
+    example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
+  "${API_BASE}/collection-log"`,
+  },
+  {
+    method: "GET",
     path: "/v2/players/{id_or_name}",
     title: "One player",
     summary:
@@ -209,6 +233,9 @@ export const ENDPOINTS: ApiEndpoint[] = [
       { name: "include", default: "identity", description: "Comma-separated section list, or `all`." },
       { name: "days", default: "30", description: "Window for the loot sections. Maximum 366." },
       { name: "top", default: "10", description: "Rows per player in `loot_npcs` and `loot_items`. Maximum 50." },
+      { name: "since", default: "until − 24h", description: "`drops` only: window start, unix seconds UTC. Clamped to at most 7 days before `until`." },
+      { name: "until", default: "now", description: "`drops` only: window end, unix seconds UTC. Clamped to now." },
+      { name: "max_drops", default: "50", description: "`drops` only: rows per player, newest first. Maximum 200." },
     ],
     example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
   "${API_BASE}/players/Crawlicious?include=identity,stats,loot"`,
@@ -226,9 +253,12 @@ export const ENDPOINTS: ApiEndpoint[] = [
       { name: "cursor", description: "The `next_cursor` from your previous response. Omit for the first page." },
       { name: "days", default: "30", description: "Window for the loot sections. Maximum 366." },
       { name: "top", default: "10", description: "Rows per player in the loot breakdowns. Maximum 50." },
+      { name: "since", default: "until − 24h", description: "`drops` only: window start, unix seconds UTC. Clamped to at most 7 days before `until`." },
+      { name: "until", default: "now", description: "`drops` only: window end, unix seconds UTC. Clamped to now." },
+      { name: "max_drops", default: "50", description: "`drops` only: rows per player, newest first. Maximum 200." },
     ],
     example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
-  "${API_BASE}/groups/19/players?include=identity,loot&limit=100"`,
+  "${API_BASE}/groups/19/players?include=identity,drops,drop_ids&since=1788343200&limit=100"`,
   },
 ];
 
@@ -288,7 +318,7 @@ export const BUDGETS: RateLimitBudget[] = [
 
 /** Section keys grouped for display, in the page's reading order. */
 export function sectionsByCategory(): { category: SectionCategory; sections: ApiSection[] }[] {
-  const order: SectionCategory[] = ["Core", "Loot", "Progress"];
+  const order: SectionCategory[] = ["Core", "Loot", "Progress", "Feed"];
   return order
     .map((category) => ({
       category,

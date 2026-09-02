@@ -338,6 +338,45 @@ X-RateLimit-Cost-Remaining   165600`}
 
       <div className="ink-rule mt-6 rounded-md border p-4">
         <div className="ink-heading mb-2 text-sm font-semibold">
+          <code>drops</code> — the individual-drop feed
+        </div>
+        <p className="ink-muted text-sm">
+          Every other section describes a player&apos;s <em>state</em>; <code>drops</code> is a
+          stream of <em>events</em>, so it has its own window (<code>since</code> /{" "}
+          <code>until</code>, unix seconds UTC, default the last 24 hours, at most 7 days) and its
+          own price: 50 per player per 24 hours of window, rounded up, so a week costs 350. Rows per
+          player are capped by <code>max_drops</code>, newest first, and the payload says when that
+          cap bit. Every entry carries <code>received_at</code> as unix seconds UTC — when
+          DropTracker accepted the submission, not when the drop happened in game. Add{" "}
+          <code>drop_ids</code> when you need the stable <code>drop_id</code> for exactly-once
+          processing.
+        </p>
+        <div className="mt-3">
+          <CodeBlock
+            code={`"drops": {
+  "from": 1788264000, "to": 1788350400,
+  "count": 2, "truncated": false, "oldest": 1788300000,
+  "drops": [
+    { "item_id": 4151, "item_name": "Abyssal whip",
+      "npc_id": 415, "npc_name": "Abyssal Sire",
+      "quantity": 1, "value_each": 2000000, "total_value": 2000000,
+      "received_at": 1788343200, "received_at_iso": "2026-09-02T10:00:00",
+      "drop_id": 203743875 }     // only with include=drop_ids
+  ]
+}
+// truncated: true means more drops than max_drops fell in the window;
+// continue with until=<oldest>.`}
+          />
+        </div>
+        <p className="ink-muted mt-3 text-sm">
+          For a poller: ask for <code>drops,drop_ids</code> with <code>since</code> a few minutes
+          before your last successful poll and dedupe on <code>drop_id</code>. The feed is not part
+          of <code>all</code> — ask for it by name.
+        </p>
+      </div>
+
+      <div className="ink-rule mt-6 rounded-md border p-4">
+        <div className="ink-heading mb-2 text-sm font-semibold">
           <code>meta</code> — standing, at no cost
         </div>
         <p className="ink-muted text-sm">
