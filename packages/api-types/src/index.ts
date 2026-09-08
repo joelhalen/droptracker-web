@@ -917,10 +917,12 @@ export const AccountSettingsSchema = z.object({
    */
   recap_timezone: z.string().default(""),
   /**
-   * Which linked account that recap covers: `""` (the account with the biggest
-   * month — the default nobody has to set), `"all"` (one card per account), or
-   * a player id as a string. A card per account only fans out once
-   * `dm_monthly_recap` is on; the single free recap stays a single card.
+   * Which linked account(s) that recap covers: `""` (the account with the
+   * biggest month — the default nobody has to set), `"all"` (one card per
+   * account), or player ids as a comma-separated string (`"12"`, `"12,34"`).
+   * More than one card only fans out once `dm_monthly_recap` is on; the single
+   * free recap stays a single card. Parsed by apps/web/lib/recap-accounts.ts;
+   * the Discord "Choose accounts" button writes the same value.
    */
   recap_accounts: z.string().default(""),
   /**

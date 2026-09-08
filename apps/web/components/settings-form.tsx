@@ -7,6 +7,11 @@ import { getErrorMessage } from "@/lib/errors";
 import { viewerZone } from "@/components/local-time";
 import { Alert, Button } from "@/components/ui";
 import { GpInput } from "@/components/gp-input";
+import {
+  formatRecapAccounts,
+  parseRecapAccounts,
+  type RecapAccountsMode,
+} from "@/lib/recap-accounts";
 
 type ToggleKey = Exclude<
   keyof AccountSettings,
@@ -272,10 +277,11 @@ export function SettingsForm({ initial }: { initial: AccountSettings }) {
 }
 
 /**
- * Which account the monthly recap covers. Only shown to people who have more
+ * Which account(s) the monthly recap covers. Only shown to people who have more
  * than one linked: with a single account the choice is between one card and the
  * same card, and an extra control to read past is a cost paid by everyone to
- * serve nobody.
+ * serve nobody. The "Choose accounts" button on the recap DM offers the same
+ * choice, and both write the same value (lib/recap-accounts.ts).
  */
 function RecapAccountPicker({
   players,
@@ -288,54 +294,100 @@ function RecapAccountPicker({
   userHidden: boolean;
   onChange: (value: string) => void;
 }) {
+  const parsed = parseRecapAccounts(value);
+  // The mode is state of its own rather than derived from the value: "only
+  // the accounts I pick" with nothing ticked yet stores as "" (the default),
+  // and a select that followed the stored value would snap back to "biggest
+  // month" the moment someone chose it.
+  const [mode, setMode] = useState<RecapAccountsMode>(parsed.mode);
+
   if (players.length < 2) return null;
 
-  // A pick can outlive the account it named (unlinked since, or renamed away).
-  // Without a matching option the select renders blank, which looks like the
-  // setting was lost rather than pointing at something gone.
-  const stale = value !== "" && value !== "all" && !players.some((p) => String(p.id) === value);
-  const chosen = players.find((p) => String(p.id) === value);
+  const ids = parsed.mode === "some" ? parsed.ids : [];
+  // A pick can outlive the account it named (unlinked since). Shown as a ticked
+  // row of its own rather than dropped: silently losing it would look like the
+  // setting was never saved, and the fix is to untick it.
+  const stale = ids.filter((id) => !players.some((p) => p.id === id));
   // Hidden accounts are excluded from recaps upstream, so naming one is a
   // silent "send me nothing" — worth saying out loud at the point of choosing.
-  const chosenHidden = userHidden || Boolean(chosen?.hidden);
+  const chosenHidden = userHidden || players.some((p) => ids.includes(p.id) && p.hidden);
+
+  const pickMode = (next: RecapAccountsMode) => {
+    setMode(next);
+    onChange(formatRecapAccounts(next, next === "some" ? ids : []));
+  };
+  const toggle = (id: number, on: boolean) => {
+    onChange(formatRecapAccounts("some", on ? [...ids, id] : ids.filter((x) => x !== id)));
+  };
 
   return (
-    <div className="space-y-1 pl-7">
+    <div className="space-y-2 pl-7">
       <label className="block text-sm font-medium" htmlFor="recap-accounts">
-        Which account to recap
+        Which accounts to recap
       </label>
       <select
         id="recap-accounts"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        value={mode}
+        onChange={(e) => pickMode(e.target.value as RecapAccountsMode)}
         className="border-osrs-bronze/40 bg-osrs-surface-1 w-full max-w-xs rounded border px-2 py-1 text-sm"
       >
-        <option value="">Whichever had the biggest month (default)</option>
+        <option value="best">Whichever had the biggest month (default)</option>
         <option value="all">Every account — one card each</option>
-        {players.map((p) => (
-          <option key={p.id} value={String(p.id)}>
-            {p.name}
-            {p.hidden ? " (hidden)" : ""}
-          </option>
-        ))}
-        {stale && <option value={value}>Account #{value} (no longer linked)</option>}
+        <option value="some">Only the accounts I pick</option>
       </select>
+      {mode === "some" && (
+        <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+          {players.map((p) => (
+            <label key={p.id} className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                className="size-4"
+                checked={ids.includes(p.id)}
+                onChange={(e) => toggle(p.id, e.target.checked)}
+              />
+              <span className="text-sm">
+                {p.name}
+                {p.hidden ? " (hidden)" : ""}
+              </span>
+            </label>
+          ))}
+          {stale.map((id) => (
+            <label key={id} className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                className="size-4"
+                checked
+                onChange={() => toggle(id, false)}
+              />
+              <span className="text-osrs-red text-sm">Account #{id} (no longer linked)</span>
+            </label>
+          ))}
+        </div>
+      )}
       <p className="text-osrs-parchment-dark/60 text-xs">
-        Naming one account sends only that account&apos;s card — if it tracked nothing that
-        month, no recap goes out. Every account sends one card per account you played, and
-        applies once &ldquo;DM me my monthly recap&rdquo; is on above; the first, free recap is
-        always a single card.
+        Picking accounts sends a card for each of them &mdash; an account that tracked nothing
+        that month gets none. Every account sends one card per account you played. Both apply
+        once &ldquo;DM me my monthly recap&rdquo; is on above; the first, free recap is always a
+        single card. You can also change this with the <strong>Choose accounts</strong> button
+        on any recap DM.
       </p>
+      {mode === "some" && ids.length === 0 && (
+        <p className="text-osrs-red text-xs">
+          Tick at least one account &mdash; with none ticked, recaps fall back to whichever had
+          the biggest month.
+        </p>
+      )}
       {chosenHidden && (
         <p className="text-osrs-red text-xs">
           {userHidden
             ? "“Hide me everywhere” is on, so no recaps are sent for any account."
-            : "That account is hidden, so no recap will be sent for it."}
+            : "A hidden account is ticked, so no recap will be sent for it."}
         </p>
       )}
-      {stale && (
+      {stale.length > 0 && (
         <p className="text-osrs-red text-xs">
-          That account isn&apos;t linked to you any more — pick another, or recaps will stop.
+          An account you picked isn&apos;t linked to you any more &mdash; untick it, or no
+          recap goes out for it.
         </p>
       )}
     </div>
