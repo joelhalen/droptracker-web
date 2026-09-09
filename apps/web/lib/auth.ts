@@ -119,6 +119,30 @@ export function canManageEvents(user: Me, groupId: number): boolean {
 }
 
 /**
+ * Where a group's PUBLIC profile should send this viewer to manage it, or null
+ * when they have no admin surface there (signed out, plain member, or a group
+ * they are not in). Drives the "Manage group" button on `/groups/[id]`.
+ *
+ * Full admins (and superadmins) land on the admin overview — the same target
+ * as the dashboard and account-menu "Manage" links, so the config is one hop
+ * away wherever the viewer starts from. A pure event manager only has the
+ * Events subtree (web64a) and `/admin` would 403 for them, so they are sent
+ * straight to Events instead. Mirrors the gate in the `(admin)/groups/[id]`
+ * layout: whoever gets a link here is admitted there.
+ */
+export function groupManageLink(
+  user: Me | null,
+  groupId: number,
+): { href: string; label: string } | null {
+  if (!user) return null;
+  if (canAdminGroup(user, groupId))
+    return { href: `/groups/${groupId}/admin`, label: "Manage group" };
+  if (canManageEvents(user, groupId))
+    return { href: `/groups/${groupId}/events`, label: "Manage events" };
+  return null;
+}
+
+/**
  * Guard a NON-events group-admin page (settings, members, subscription, …).
  * The shared `(admin)/groups/[id]` layout now admits event managers so they can
  * reach the Events subtree, so every other admin page must re-assert full group

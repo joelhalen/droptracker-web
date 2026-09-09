@@ -2,7 +2,7 @@ import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { entityPath } from "@/lib/slug";
-import { getUser } from "@/lib/auth";
+import { getUser, groupManageLink } from "@/lib/auth";
 import { orNotFound } from "@/lib/fetch";
 import { resolveRef } from "@/lib/entity-ref";
 import { groupSocialMetadata, entityCanonical } from "@/lib/seo";
@@ -52,6 +52,11 @@ export default async function GroupPage({ params }: { params: Params }) {
     getUser().catch(() => null),
   ]);
 
+  // Admins (and event managers) get a shortcut into the admin shell from the
+  // public profile — the same place the dashboard's "Manage" link goes, so
+  // the group's configuration is one click from its public page too.
+  const manage = groupManageLink(viewer, groupId);
+
   const hasTopPlayers = (group.top_players?.length ?? 0) > 0;
   const hasBosses = (group.top_bosses?.length ?? 0) > 0;
   const hasRecords = (group.records?.length ?? 0) > 0;
@@ -84,7 +89,7 @@ export default async function GroupPage({ params }: { params: Params }) {
             )}
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link
             href={`${base}/lootboard` as Route}
             className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
@@ -116,6 +121,14 @@ export default async function GroupPage({ params }: { params: Params }) {
             >
               Join Discord
             </a>
+          )}
+          {manage && (
+            <Link
+              href={manage.href as Route}
+              className="border-osrs-gold/60 text-osrs-gold-bright hover:bg-osrs-gold/15 inline-flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm font-medium"
+            >
+              <span aria-hidden>⚙</span> {manage.label}
+            </Link>
           )}
         </div>
       </header>
