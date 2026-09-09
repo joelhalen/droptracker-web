@@ -14,7 +14,11 @@ const CARDS = [
   { slug: "members", title: "Members", desc: "WOM sync, hide/unhide players." },
   { slug: "events", title: "Events", desc: "Create events, tasks, teams, and bingo." },
   { slug: "subscription", title: "Subscription", desc: "Manage the group's recurring plan." },
-  { slug: "diagnostics", title: "Diagnostics", desc: "Pipeline heartbeat and recent activity." },
+  {
+    slug: "diagnostics",
+    title: "Diagnostics",
+    desc: "Pipeline heartbeat, plugin coverage, and when your clan plays.",
+  },
 ] as const;
 
 export default async function GroupAdminOverview({ params }: { params: Params }) {

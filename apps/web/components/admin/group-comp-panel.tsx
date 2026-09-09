@@ -203,26 +203,47 @@ export function GroupCompPanel({
         {error && <p className="text-osrs-red text-sm">{error}</p>}
       </section>
 
-      {/* Activity */}
+      {/* Activity.
+          "Discord posts", not "Submissions": this series counts `notified`
+          rows, which only exist once a drop clears the group's announce
+          threshold AND posts — a couple of dozen a week against tens of
+          thousands of tracked drops. The group's own Diagnostics tab measures
+          the tracked volume; this panel is the superadmin quick look. */}
       {overview.activity_7d.length > 0 && (
         <section>
           <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
-            Submissions (last 7 days)
+            Discord posts (last 7 days)
           </h2>
-          <div className="flex h-32 items-end gap-2">
+          {/* items-stretch, not items-end: with items-end each column's height
+              is content-derived, so the bars' percentage heights resolved
+              against an indefinite height and rendered 0px tall. */}
+          <div className="flex h-32 items-stretch gap-2">
             {overview.activity_7d.map((d) => (
-              <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
+              <div key={d.date} className="flex flex-1 flex-col justify-end gap-1">
                 <div
                   className="bg-osrs-bronze hover:bg-osrs-gold w-full rounded-t transition-colors"
-                  style={{ height: `${(d.submissions / maxActivity) * 100}%` }}
+                  style={{
+                    height:
+                      d.submissions > 0
+                        ? `${Math.max(2, (d.submissions / maxActivity) * 100)}%`
+                        : "0px",
+                  }}
                   title={`${d.date}: ${d.submissions}`}
                 />
-                <span className="text-osrs-parchment-dark/50 text-[10px]">{d.date.slice(5)}</span>
+                <span className="text-osrs-parchment-dark/50 shrink-0 text-center text-[10px]">
+                  {d.date.slice(5)}
+                </span>
               </div>
             ))}
           </div>
           <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
-            Last submission: {formatDate(overview.last_submission_ts)}
+            Last submission: {formatDate(overview.last_submission_ts)} ·{" "}
+            <Link
+              href={`/groups/${overview.group.id}/diagnostics` as Route}
+              className="hover:text-osrs-gold-bright underline"
+            >
+              full diagnostics
+            </Link>
           </p>
         </section>
       )}
