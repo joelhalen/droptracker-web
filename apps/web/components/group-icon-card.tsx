@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { Button, Card } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { getErrorMessage } from "@/lib/errors";
 import { removeGroupIcon, uploadGroupIcon } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 
@@ -9,11 +9,13 @@ const MAX_BYTES = 2 * 1024 * 1024;
 const ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
 
 /**
- * Group icon uploader for the group settings page. The icon shows on the
- * public group profile, in Discord notification embeds, and as the social
- * preview image when the group's pages are shared.
+ * Group icon uploader. Rendered at the top of the "Group profile" section of
+ * the settings page, styled like one of its fields (label, help, control)
+ * rather than as a card of its own. The icon shows on the public group
+ * profile, in Discord notification embeds, and as the social preview image
+ * when the group's pages are shared.
  */
-export function GroupIconCard({
+export function GroupIconPanel({
   groupId,
   initialIconUrl,
 }: {
@@ -57,7 +59,7 @@ export function GroupIconCard({
   }
 
   return (
-    <Card className="mb-6">
+    <div>
       <div className="flex flex-wrap items-center gap-4">
         {/* Plain <img>: uploaded GIFs stay animated (next/image would re-encode). */}
         {iconUrl ? (
@@ -77,11 +79,11 @@ export function GroupIconCard({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <h2 className="text-osrs-gold font-semibold">Group icon</h2>
-          <p className="text-osrs-parchment-dark/70 text-sm">
+          <span className="block text-sm font-medium">Group icon</span>
+          <span className="text-osrs-parchment-dark/60 block text-xs">
             Shown on your group page, Discord notifications, and link previews. PNG, JPEG, GIF, or
             WEBP up to 2 MB.
-          </p>
+          </span>
         </div>
         <div className="flex gap-2">
           <input
@@ -117,6 +119,6 @@ export function GroupIconCard({
         </div>
       </div>
       {error && <p className="text-osrs-red mt-3 text-sm">{error}</p>}
-    </Card>
+    </div>
   );
 }

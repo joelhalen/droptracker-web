@@ -3,7 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { generateTimeframeBoard } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Button, Card, Input } from "@/components/ui";
+import { Alert, Button, Input } from "@/components/ui";
+import { SettingsSubheading } from "@/components/settings-section";
 
 /** Earliest day any loot data exists (rollup epoch, backend-enforced too). */
 const MIN_DATE = "2024-10-01";
@@ -19,7 +20,8 @@ function isoDaysAgo(days: number): string {
 }
 
 /**
- * Custom-timeframe lootboard generator (group settings page).
+ * Custom-timeframe lootboard generator. Rendered at the bottom of the
+ * "Lootboard" section of the settings page, as a block of that section.
  *
  * Leaders pick an inclusive start/end date and get a shareable PNG rendered
  * from the same pipeline as the scheduled boards. Recent ranges come from the
@@ -27,7 +29,7 @@ function isoDaysAgo(days: number): string {
  * historical backfill hasn't landed yet are refused with a friendly message
  * from the backend, which is surfaced verbatim here.
  */
-export function TimeframeBoardCard({ groupId }: { groupId: number }) {
+export function TimeframeBoardPanel({ groupId }: { groupId: number }) {
   const today = useMemo(isoToday, []);
   const [startDate, setStartDate] = useState(isoDaysAgo(7));
   const [endDate, setEndDate] = useState(today);
@@ -61,12 +63,10 @@ export function TimeframeBoardCard({ groupId }: { groupId: number }) {
   };
 
   return (
-    <Card padding="p-6" className="mb-6">
-      <h2 className="text-osrs-gold mb-1 text-lg font-semibold">Custom timeframe lootboard</h2>
-      <p className="text-osrs-parchment-dark/60 mb-4 text-xs">
-        Generate a shareable lootboard image covering any date range — for events,
-        competitions, or a look back. Uses your group&apos;s configured board style.
-      </p>
+    <div>
+      <SettingsSubheading hint="Generate a shareable lootboard image covering any date range — for events, competitions, or a look back. Uses your group's configured board style.">
+        Custom timeframe lootboard
+      </SettingsSubheading>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="block">
@@ -131,6 +131,6 @@ export function TimeframeBoardCard({ groupId }: { groupId: number }) {
           />
         </div>
       )}
-    </Card>
+    </div>
   );
 }

@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import {
-  CONFIG_CATEGORIES,
   GROUP_CONFIG_FIELDS,
   comingSoonNote,
   getConfigField,
@@ -18,14 +17,29 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage, isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "@/lib/errors";
 import { hasEntitlement } from "@/lib/entitlements";
+import {
+  SEASONAL_FIELDS,
+  blockLayout,
+  fieldBlocks,
+  navGroups,
+  seasonalKey,
+  sectionAnchor,
+  sectionForKey,
+  visibleSections,
+  type SettingsInsertId,
+  type SettingsPanelId,
+  type SettingsSectionId,
+  type VisibleSection,
+} from "@/lib/group-settings-sections";
 import { collidingVoiceCounterChannel } from "@/lib/voice-counter";
 import { viewerZone } from "@/components/local-time";
-import { Alert, Badge, Button, Card, controlClass, Input, Select, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, Card, controlClass, EmptyState, Input, Select, Textarea } from "@/components/ui";
 import { GpInput } from "@/components/gp-input";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { BossListPicker } from "@/components/boss-list-picker";
 import { BoardStylePicker } from "@/components/board-style-picker";
 import { DeathMessageListEditor } from "@/components/death-message-list-editor";
+import { SettingsBlock, SettingsSectionShell, SettingsSubheading } from "@/components/settings-section";
 import type { DiscordChannel, LootboardStyle } from "@/lib/api";
 
 type ConfigValue = string | number | boolean | null;
@@ -52,11 +66,6 @@ function coerce(key: string, raw: ConfigValue): ConfigValue {
   }
 }
 
-/** Fields with a `seasonal_`-prefixed mirror, editable on the Seasonal tab. */
-const SEASONAL_FIELDS = GROUP_CONFIG_FIELDS.filter((f) => f.seasonalMirror);
-const seasonalKey = (key: string) => `seasonal_${key}`;
-const SEASONAL_CATEGORY = { id: "seasonal", label: "Seasonal (Leagues)" };
-
 function normalize(map: ConfigMap): ConfigMap {
   const out: ConfigMap = {};
   for (const f of GROUP_CONFIG_FIELDS) {
@@ -68,9 +77,6 @@ function normalize(map: ConfigMap): ConfigMap {
   }
   return out;
 }
-
-/** Anchor id for a category's card, used by the jump-to sidebar + scroll-spy. */
-const sectionId = (categoryId: string) => `cfg-${categoryId}`;
 
 /* --- Unsaved-edit stash (deploy-skew recovery) -------------------------------
    Admins routinely stage dozens of config edits before pressing Save. If a
@@ -115,6 +121,25 @@ function clearDraft(groupId: number) {
   }
 }
 
+function scrollToSection(id: SettingsSectionId) {
+  document.getElementById(sectionAnchor(id))?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/**
+ * Editors on the settings page that aren't config keys, already bound to
+ * their data by the page. The two panels are sections of their own; the
+ * inserts render inside a registry section (lib/group-settings-sections.ts
+ * says which). They save themselves — nothing here goes through Save.
+ */
+export type ConfigEditorExtras = Record<SettingsPanelId | SettingsInsertId, ReactNode>;
+
+/**
+ * The group settings page: one column of sections with a grouped sidebar, a
+ * filter box, a scroll-spy and one Save for every registry field. Not a
+ * `<form>` — the list editors and the timeframe board nest inside it with
+ * their own inputs, and an Enter in one of those must never save eighty
+ * unrelated settings. Save is the button, nothing else.
+ */
 export function ConfigEditor({
   groupId,
   initial,
@@ -122,6 +147,7 @@ export function ConfigEditor({
   tiers: _tiers = [],
   isSuperadmin = false,
   seasonalActive = true,
+  extras,
 }: {
   groupId: number;
   initial: ConfigMap;
@@ -130,6 +156,7 @@ export function ConfigEditor({
   isSuperadmin?: boolean;
   /** Global seasonal-processing switch state (from GET /seasonal-status). */
   seasonalActive?: boolean;
+  extras: ConfigEditorExtras;
 }) {
   const normalized = useMemo(() => normalize(initial), [initial]);
   const [baseline, setBaseline] = useState<ConfigMap>(normalized);
@@ -206,34 +233,49 @@ export function ConfigEditor({
     };
   }, [groupId]);
 
-  const categories = useMemo(
-    () => [
-      ...CONFIG_CATEGORIES.filter((cat) => GROUP_CONFIG_FIELDS.some((f) => f.category === cat.id)),
-      SEASONAL_CATEGORY,
-    ],
-    [],
-  );
+  /* The filter box narrows the page to matching settings — sections and
+     fields alike. Purely a view: hidden fields keep their values and still
+     count as unsaved changes, so narrowing to one setting, editing it and
+     pressing Save behaves exactly like scrolling to it would. */
+  const [filter, setFilter] = useState("");
+  const sections = useMemo(() => visibleSections(filter), [filter]);
+  const groups = useMemo(() => navGroups(sections), [sections]);
 
-  // Scroll-spy: highlight whichever category section is currently in view.
-  const [activeCategory, setActiveCategory] = useState<string>(categories[0]?.id ?? "");
+  // Scroll-spy: highlight whichever section is currently in view.
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>(
+    sections[0]?.section.id ?? "profile",
+  );
   useEffect(() => {
+    // The observer only reports sections whose intersection CHANGED, so keep
+    // the full set that is inside the band and re-pick the topmost of all of
+    // them every time. Picking from the changed entries alone left the old
+    // highlight in place whenever a section merely scrolled out of the band.
+    const inBand = new Map<string, Element>();
     const observer = new IntersectionObserver(
       (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting);
-        if (visible.length === 0) return;
-        // Prefer the entry closest to the top of the viewport.
-        const topMost = visible.reduce((a, b) => (a.boundingClientRect.top < b.boundingClientRect.top ? a : b));
-        const id = topMost.target.id.replace(/^cfg-/, "");
-        setActiveCategory(id);
+        for (const e of entries) {
+          if (e.isIntersecting) inBand.set(e.target.id, e.target);
+          else inBand.delete(e.target.id);
+        }
+        let topMost: Element | null = null;
+        let topMostY = Infinity;
+        for (const el of inBand.values()) {
+          const y = el.getBoundingClientRect().top;
+          if (y < topMostY) {
+            topMostY = y;
+            topMost = el;
+          }
+        }
+        if (topMost) setActiveSection(topMost.id.replace(/^cfg-/, "") as SettingsSectionId);
       },
       { rootMargin: "-96px 0px -70% 0px", threshold: 0 },
     );
-    for (const cat of categories) {
-      const el = document.getElementById(sectionId(cat.id));
+    for (const s of sections) {
+      const el = document.getElementById(sectionAnchor(s.section.id));
       if (el) observer.observe(el);
     }
     return () => observer.disconnect();
-  }, [categories]);
+  }, [sections]);
 
   const isFieldLocked = (field: ConfigField) =>
     Boolean(
@@ -261,14 +303,13 @@ export function ConfigEditor({
   }, [values, baseline, subscription, isSuperadmin]);
 
   const dirtyCount = Object.keys(changed).length;
-  const changedByCategory = useMemo(() => {
-    const counts: Record<string, number> = {};
+  const changedBySection = useMemo(() => {
+    const counts: Partial<Record<SettingsSectionId, number>> = {};
     for (const key of Object.keys(changed)) {
       const field = getConfigField(key);
       if (!field) continue;
-      // A key that resolved via prefix-stripping is a seasonal mirror.
-      const cat = key !== field.key ? "seasonal" : field.category;
-      counts[cat] = (counts[cat] ?? 0) + 1;
+      const id = sectionForKey(key, field);
+      counts[id] = (counts[id] ?? 0) + 1;
     }
     return counts;
   }, [changed]);
@@ -298,8 +339,7 @@ export function ConfigEditor({
     clearDraft(groupId);
   };
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSave = () => {
     if (!dirtyCount) return;
     setError(null);
     startTransition(async () => {
@@ -328,181 +368,169 @@ export function ConfigEditor({
     });
   };
 
+  /** Callouts that belong above one block of one section. */
+  const calloutFor = (sectionId: SettingsSectionId, group: string | null): ReactNode => {
+    if (sectionId === "pbs" && group === "Hall of Fame") return <HallOfFameBotCallout />;
+    if (sectionId === "voice" && group === null && voiceCounterCollision) {
+      return (
+        <VoiceCounterCollisionCallout
+          channelId={voiceCounterCollision}
+          channelName={channels.find((c) => c.id === voiceCounterCollision)?.name ?? null}
+        />
+      );
+    }
+    return null;
+  };
+
+  const filterBox = (
+    <Input
+      type="search"
+      value={filter}
+      onChange={(e) => setFilter(e.target.value)}
+      placeholder="Find a setting…"
+      aria-label="Find a setting"
+      className="w-full"
+    />
+  );
+
+  const renderFields = (
+    sectionId: SettingsSectionId,
+    fields: ConfigField[],
+    keyFor: (field: ConfigField) => string,
+    startIndex: number,
+  ) =>
+    fieldBlocks(fields).map((block, i) => (
+      <SettingsBlock key={block.group ?? "_"} first={startIndex + i === 0}>
+        {block.group && <SettingsSubheading>{block.group}</SettingsSubheading>}
+        {calloutFor(sectionId, block.group)}
+        <FieldGrid
+          fields={block.fields}
+          keyFor={keyFor}
+          values={values}
+          set={set}
+          channels={channels}
+          bosses={bosses}
+          boardStyles={boardStyles}
+          isFieldLocked={isFieldLocked}
+          groupId={groupId}
+        />
+      </SettingsBlock>
+    ));
+
+  const renderSection = ({ section, fields, inserts }: VisibleSection) => {
+    const id = sectionAnchor(section.id);
+    const count = changedBySection[section.id];
+    const badge = count ? <UnsavedBadge count={count} /> : null;
+
+    if (section.kind === "panel") {
+      return (
+        <SettingsSectionShell key={section.id} id={id} label={section.label} blurb={section.blurb}>
+          {extras[section.id as SettingsPanelId]}
+        </SettingsSectionShell>
+      );
+    }
+
+    if (section.kind === "seasonal") {
+      return (
+        <SettingsSectionShell key={section.id} id={id} label={section.label} blurb={section.blurb} badge={badge}>
+          {!seasonalActive && (
+            <div className="mb-4">
+              <Alert variant="info">
+                Seasonal processing is currently disabled globally — these settings will take
+                effect again when the next seasonal game mode goes live.
+              </Alert>
+            </div>
+          )}
+          {renderFields(section.id, fields, (f) => seasonalKey(f.key), 0)}
+        </SettingsSectionShell>
+      );
+    }
+
+    // Registry section: its inserts around its field blocks, in one stack of
+    // hairline-separated blocks so an insert reads as part of the section.
+    const top = inserts.filter((i) => i.position === "top");
+    const bottom = inserts.filter((i) => i.position === "bottom");
+    const blockCount = fieldBlocks(fields).length;
+    return (
+      <SettingsSectionShell key={section.id} id={id} label={section.label} blurb={section.blurb} badge={badge}>
+        {/* Once, where the routing lives — nine sections carry a channel
+            picker now, and every picker already offers manual id entry. */}
+        {section.id === "channels" && <ChannelListDelayHint className="mb-4" />}
+        {top.map((insert, i) => (
+          <SettingsBlock key={insert.id} first={i === 0}>
+            {extras[insert.id]}
+          </SettingsBlock>
+        ))}
+        {renderFields(section.id, fields, (f) => f.key, top.length)}
+        {bottom.map((insert, i) => (
+          <SettingsBlock key={insert.id} first={top.length + blockCount + i === 0}>
+            {extras[insert.id]}
+          </SettingsBlock>
+        ))}
+      </SettingsSectionShell>
+    );
+  };
+
   return (
-    <div className="grid gap-8 lg:grid-cols-[13rem_1fr]">
+    <div className="grid gap-8 lg:grid-cols-[14rem_1fr]">
       <aside className="hidden lg:block">
-        <nav className="sticky top-24 space-y-0.5 text-sm">
-          {categories.map((cat) => {
-            const active = activeCategory === cat.id;
-            const count = changedByCategory[cat.id];
-            return (
-              <a
-                key={cat.id}
-                href={`#${sectionId(cat.id)}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  document.getElementById(sectionId(cat.id))?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                className={`flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 transition-colors ${
-                  active
-                    ? "bg-osrs-bronze text-osrs-parchment"
-                    : "text-osrs-parchment-dark/80 hover:bg-osrs-surface-2"
-                }`}
-              >
-                {cat.label}
-                {count ? (
-                  <span className="bg-osrs-gold text-osrs-brown-dark rounded-full px-1.5 py-0.5 text-[10px] font-semibold">
-                    {count}
-                  </span>
-                ) : null}
-              </a>
-            );
-          })}
-        </nav>
+        <div className="sticky top-24 space-y-4">
+          {filterBox}
+          <nav className="space-y-3 text-sm" aria-label="Settings sections">
+            {groups.map((group) => (
+              <div key={group.nav}>
+                <div className="text-osrs-parchment-dark/50 mb-1 px-3 text-[10px] font-semibold tracking-wide uppercase">
+                  {group.nav}
+                </div>
+                <div className="space-y-0.5">
+                  {group.sections.map(({ section }) => {
+                    const active = activeSection === section.id;
+                    const count = changedBySection[section.id];
+                    return (
+                      <a
+                        key={section.id}
+                        href={`#${sectionAnchor(section.id)}`}
+                        aria-current={active ? "location" : undefined}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          scrollToSection(section.id);
+                        }}
+                        className={`flex items-center justify-between gap-2 rounded-lg px-3 py-1.5 transition-colors ${
+                          active
+                            ? "bg-osrs-bronze text-osrs-parchment"
+                            : "text-osrs-parchment-dark/80 hover:bg-osrs-surface-2"
+                        }`}
+                      >
+                        <span className="truncate">{section.label}</span>
+                        {count ? <UnsavedBadge count={count} /> : null}
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </nav>
+        </div>
       </aside>
 
-      <form onSubmit={onSubmit} className="min-w-0 space-y-6 pb-24">
-        {categories.map((cat) => {
-          if (cat.id === "seasonal") {
-            const toggles = SEASONAL_FIELDS.filter((f) => f.type === "boolean");
-            const compact = SEASONAL_FIELDS.filter(
-              (f) => !["boolean", "text", "csv", "bosslist", "messagelist"].includes(f.type),
-            );
-            return (
-              <Card key={cat.id} id={sectionId(cat.id)} padding="p-6" className="scroll-mt-24">
-                <h2 className="text-osrs-gold mb-1 text-lg font-semibold">{cat.label}</h2>
-                <p className="text-osrs-parchment-dark/60 mb-4 text-xs">
-                  Separate settings applied only to submissions from seasonal worlds (Leagues,
-                  Deadman). Your main-world settings are unaffected.
-                </p>
-                {!seasonalActive && (
-                  <div className="mb-4">
-                    <Alert variant="info">
-                      Seasonal processing is currently disabled globally — these settings will
-                      take effect again when the next seasonal game mode goes live.
-                    </Alert>
-                  </div>
-                )}
-                {compact.length > 0 && (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {compact.map((f) => (
-                      <InputField
-                        key={seasonalKey(f.key)}
-                        field={f}
-                        value={values[seasonalKey(f.key)] ?? f.default}
-                        onChange={(v) => set(seasonalKey(f.key), v)}
-                        channels={channels}
-                        bosses={bosses}
-                        boardStyles={boardStyles}
-                        locked={isFieldLocked(f)}
-                        groupId={groupId}
-                      />
-                    ))}
-                  </div>
-                )}
-                {toggles.length > 0 && (
-                  <div
-                    className={`grid gap-3 sm:grid-cols-2 ${
-                      compact.length > 0 ? "border-osrs-bronze/20 mt-5 border-t pt-5" : ""
-                    }`}
-                  >
-                    {toggles.map((f) => (
-                      <ToggleField
-                        key={seasonalKey(f.key)}
-                        field={f}
-                        value={Boolean(values[seasonalKey(f.key)] ?? f.default)}
-                        onChange={(v) => set(seasonalKey(f.key), v)}
-                        locked={isFieldLocked(f)}
-                        groupId={groupId}
-                      />
-                    ))}
-                  </div>
-                )}
-              </Card>
-            );
-          }
+      <div className="min-w-0 space-y-6 pb-24">
+        <div className="lg:hidden">{filterBox}</div>
 
-          const fields = GROUP_CONFIG_FIELDS.filter((f) => f.category === cat.id);
-          const toggles = fields.filter((f) => f.type === "boolean");
-          const compact = fields.filter(
-            (f) => !["boolean", "text", "csv", "bosslist", "messagelist"].includes(f.type),
-          );
-          const wide = fields.filter((f) => ["text", "csv", "bosslist", "messagelist"].includes(f.type));
+        {sections.length === 0 && (
+          <Card padding="p-6">
+            <EmptyState
+              title={`No settings match “${filter.trim()}”`}
+              hint="Try another word — settings match on their name, description and section."
+            />
+            <div className="mt-3 text-center">
+              <Button variant="secondary" size="sm" onClick={() => setFilter("")}>
+                Clear filter
+              </Button>
+            </div>
+          </Card>
+        )}
 
-          return (
-            <Card key={cat.id} id={sectionId(cat.id)} padding="p-6" className="scroll-mt-24">
-              <h2 className="text-osrs-gold mb-4 text-lg font-semibold">{cat.label}</h2>
-              {cat.id === "pbs" && <HallOfFameBotCallout />}
-              {cat.id === "integration" && voiceCounterCollision && (
-                <VoiceCounterCollisionCallout
-                  channelId={voiceCounterCollision}
-                  channelName={channels.find((c) => c.id === voiceCounterCollision)?.name ?? null}
-                />
-              )}
-              {fields.some((f) => f.type === "channel") && (
-                <ChannelListDelayHint className={cat.id === "pbs" ? "mb-4" : "-mt-3 mb-4"} />
-              )}
-
-              {compact.length > 0 && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {compact.map((f) => (
-                    <InputField
-                      key={f.key}
-                      field={f}
-                      value={values[f.key] ?? f.default}
-                      onChange={(v) => set(f.key, v)}
-                      channels={channels}
-                      bosses={bosses}
-                      boardStyles={boardStyles}
-                      locked={isFieldLocked(f)}
-                      groupId={groupId}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {wide.length > 0 && (
-                <div className={`space-y-4 ${compact.length > 0 ? "mt-4" : ""}`}>
-                  {wide.map((f) => (
-                    <InputField
-                      key={f.key}
-                      field={f}
-                      value={values[f.key] ?? f.default}
-                      onChange={(v) => set(f.key, v)}
-                      channels={channels}
-                      bosses={bosses}
-                      boardStyles={boardStyles}
-                      locked={isFieldLocked(f)}
-                      groupId={groupId}
-                      // Unsaved checkbox state, so the death-message preview
-                      // flips placement instantly with the toggle below it.
-                      deathAsEmbed={Boolean(values["death_message_as_embed_description"] ?? false)}
-                    />
-                  ))}
-                </div>
-              )}
-
-              {toggles.length > 0 && (
-                <div
-                  className={`grid gap-3 sm:grid-cols-2 ${
-                    compact.length > 0 || wide.length > 0 ? "border-osrs-bronze/20 mt-5 border-t pt-5" : ""
-                  }`}
-                >
-                  {toggles.map((f) => (
-                    <ToggleField
-                      key={f.key}
-                      field={f}
-                      value={Boolean(values[f.key] ?? f.default)}
-                      onChange={(v) => set(f.key, v)}
-                      locked={isFieldLocked(f)}
-                      groupId={groupId}
-                    />
-                  ))}
-                </div>
-              )}
-            </Card>
-          );
-        })}
+        {sections.map(renderSection)}
 
         <div className="bg-osrs-surface-1/95 border-osrs-bronze/30 sticky bottom-0 -mx-1 space-y-2 rounded-lg border px-4 py-3 shadow-lg backdrop-blur">
           {restoredCount > 0 && (
@@ -525,10 +553,11 @@ export function ConfigEditor({
               )}
             </Alert>
           )}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button
-              type="submit"
+              type="button"
               variant="secondary"
+              onClick={onSave}
               // Once the build has moved on, another Save can only fail the same
               // way — the reload above is the only path forward.
               disabled={!dirtyCount || pending || staleDeploy}
@@ -546,10 +575,151 @@ export function ConfigEditor({
               </button>
             )}
             {saved && <span className="text-osrs-green text-sm">Saved.</span>}
+            {/* No sidebar below lg: the jump menu rides in the bar that is
+                always on screen instead. */}
+            <div className="ml-auto lg:hidden">
+              <Select
+                value=""
+                aria-label="Jump to section"
+                onChange={(e) => {
+                  if (e.target.value) scrollToSection(e.target.value as SettingsSectionId);
+                }}
+                className="max-w-[12rem]"
+              >
+                <option value="">Jump to…</option>
+                {groups.map((group) => (
+                  <optgroup key={group.nav} label={group.nav}>
+                    {group.sections.map(({ section }) => {
+                      const count = changedBySection[section.id];
+                      return (
+                        <option key={section.id} value={section.id}>
+                          {section.label}
+                          {count ? ` (${count})` : ""}
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+                ))}
+              </Select>
+            </div>
           </div>
         </div>
-      </form>
+      </div>
     </div>
+  );
+}
+
+function UnsavedBadge({ count }: { count: number }) {
+  return (
+    <span
+      className="bg-osrs-gold text-osrs-brown-dark rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+      title={`${count} unsaved change${count === 1 ? "" : "s"}`}
+    >
+      {count}
+    </span>
+  );
+}
+
+/**
+ * One block of fields. Toggles sit two to a row, inputs two to a row, wide
+ * inputs (textarea, lists, the message editor) on a row of their own. A block
+ * whose first field is a toggle — usually a master "Notify X" switch — shows
+ * its toggles first so the switch reads as the heading of what follows;
+ * otherwise inputs come first (Drop notifications opens on the minimum value).
+ */
+function FieldGrid({
+  fields,
+  keyFor,
+  values,
+  set,
+  channels,
+  bosses,
+  boardStyles,
+  isFieldLocked,
+  groupId,
+}: {
+  fields: ConfigField[];
+  keyFor: (field: ConfigField) => string;
+  values: ConfigMap;
+  set: (key: string, v: ConfigValue) => void;
+  channels: DiscordChannel[];
+  bosses: string[];
+  boardStyles: LootboardStyle[];
+  isFieldLocked: (field: ConfigField) => boolean;
+  groupId: number;
+}) {
+  const { leadWithToggles, toggles, compact, wide } = blockLayout(fields);
+  const hasInputs = compact.length > 0 || wide.length > 0;
+  const divider = "border-osrs-bronze/20 mt-5 border-t pt-5";
+
+  const inputs = hasInputs ? (
+    <div className={leadWithToggles && toggles.length > 0 ? divider : ""}>
+      {compact.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {compact.map((f) => (
+            <InputField
+              key={keyFor(f)}
+              field={f}
+              value={values[keyFor(f)] ?? f.default}
+              onChange={(v) => set(keyFor(f), v)}
+              channels={channels}
+              bosses={bosses}
+              boardStyles={boardStyles}
+              locked={isFieldLocked(f)}
+              groupId={groupId}
+            />
+          ))}
+        </div>
+      )}
+      {wide.length > 0 && (
+        <div className={`space-y-4 ${compact.length > 0 ? "mt-4" : ""}`}>
+          {wide.map((f) => (
+            <InputField
+              key={keyFor(f)}
+              field={f}
+              value={values[keyFor(f)] ?? f.default}
+              onChange={(v) => set(keyFor(f), v)}
+              channels={channels}
+              bosses={bosses}
+              boardStyles={boardStyles}
+              locked={isFieldLocked(f)}
+              groupId={groupId}
+              // Unsaved checkbox state, so the death-message preview flips
+              // placement instantly with its toggle.
+              deathAsEmbed={Boolean(values["death_message_as_embed_description"] ?? false)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null;
+
+  const switches =
+    toggles.length > 0 ? (
+      <div className={`grid gap-3 sm:grid-cols-2 ${!leadWithToggles && hasInputs ? divider : ""}`}>
+        {toggles.map((f) => (
+          <ToggleField
+            key={keyFor(f)}
+            field={f}
+            value={Boolean(values[keyFor(f)] ?? f.default)}
+            onChange={(v) => set(keyFor(f), v)}
+            locked={isFieldLocked(f)}
+            groupId={groupId}
+          />
+        ))}
+      </div>
+    ) : null;
+
+  return leadWithToggles ? (
+    <>
+      {switches}
+      {inputs}
+    </>
+  ) : (
+    <>
+      {inputs}
+      {switches}
+    </>
   );
 }
 

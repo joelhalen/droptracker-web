@@ -4,12 +4,12 @@ import type { NotificationBlacklist } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser, requireGroupAdminPage } from "@/lib/auth";
 import { ConfigEditor } from "@/components/config-editor";
-import { GroupIconCard } from "@/components/group-icon-card";
+import { GroupIconPanel } from "@/components/group-icon-card";
 import {
-  NotificationAlwaysListCard,
-  NotificationBlacklistCard,
+  NotificationAlwaysListPanel,
+  NotificationBlacklistPanel,
 } from "@/components/notification-blacklist-card";
-import { TimeframeBoardCard } from "@/components/timeframe-board-card";
+import { TimeframeBoardPanel } from "@/components/timeframe-board-card";
 
 export const metadata: Metadata = { title: "Group settings" };
 
@@ -31,7 +31,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
     api.group(groupId).catch(() => null),
     api.seasonalStatus().catch(() => ({ active: true })),
     // Best-effort: the rest of the settings page must still render if the
-    // blacklist read fails, so the card falls back to an empty list.
+    // blacklist read fails, so the panel falls back to an empty list.
     api
       .groupNotificationBlacklist(groupId)
       .catch((): NotificationBlacklist => ({ entries: [], limit: 250 })),
@@ -40,15 +40,17 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
       .catch((): NotificationBlacklist => ({ entries: [], limit: 250 })),
   ]);
 
+  // One page, one column of sections: the editor lays out every section —
+  // registry-driven or not — so the sidebar, filter box and scroll-spy cover
+  // all of them. Editors that aren't config keys are handed in here, already
+  // bound to their data, and the editor places them
+  // (lib/group-settings-sections.ts says where).
   return (
     <div>
       <p className="text-osrs-parchment-dark/70 mb-6 text-sm">
-        Notification, lootboard, points, and integration configuration.
+        How your group looks, what it announces and where, and what it&apos;s connected to.
+        Settings save together — make your changes, then press Save.
       </p>
-      <GroupIconCard groupId={groupId} initialIconUrl={group?.icon_url} />
-      <TimeframeBoardCard groupId={groupId} />
-      <NotificationBlacklistCard groupId={groupId} initial={blacklist} />
-      <NotificationAlwaysListCard groupId={groupId} initial={alwaysList} />
       <ConfigEditor
         groupId={groupId}
         initial={config}
@@ -56,6 +58,12 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
         tiers={tiers}
         isSuperadmin={user?.is_superadmin}
         seasonalActive={seasonal.active}
+        extras={{
+          groupIcon: <GroupIconPanel groupId={groupId} initialIconUrl={group?.icon_url} />,
+          blacklist: <NotificationBlacklistPanel groupId={groupId} initial={blacklist} />,
+          always: <NotificationAlwaysListPanel groupId={groupId} initial={alwaysList} />,
+          timeframeBoard: <TimeframeBoardPanel groupId={groupId} />,
+        }}
       />
     </div>
   );

@@ -2,8 +2,11 @@
 
 /**
  * Notification list editors (group settings): the blacklist and its inverse.
+ * Each is rendered as a section of the settings page by the config editor,
+ * which owns the section card, title and blurb (see
+ * lib/group-settings-sections.ts); these panels are the editable body only.
  *
- * One generic card serves both, because the two features are the same control
+ * One generic panel serves both, because the two features are the same control
  * pointed in opposite directions. **Blacklist**: items, NPCs and places whose
  * submissions must never be announced. **Always announce**: items and NPCs
  * whose drops are announced even below the group's minimum notification value
@@ -39,7 +42,7 @@ import {
   searchBlacklistCandidates,
 } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { Alert, Badge, Button, Card, EmptyState, Input } from "@/components/ui";
+import { Alert, Badge, Button, EmptyState, Input } from "@/components/ui";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 
@@ -52,10 +55,8 @@ type KindSpec = {
   emptyAction: string;
 };
 
-/** Everything that differs between the two cards. */
+/** Everything that differs between the two panels. */
 type ListCopy = {
-  title: string;
-  blurb: React.ReactNode;
   kinds: KindSpec[];
   /** Badge on a search result that is already on the list. */
   alreadyBadge: string;
@@ -91,7 +92,7 @@ function EntityIcon({ kind, id }: { kind: BlacklistEntryType; id: number | null 
   );
 }
 
-function NotificationListCard({
+function NotificationListPanel({
   groupId,
   initial,
   copy,
@@ -165,10 +166,7 @@ function NotificationListCard({
   };
 
   return (
-    <Card padding="p-6" className="mb-6">
-      <h2 className="text-osrs-gold mb-1 text-lg font-semibold">{copy.title}</h2>
-      <p className="text-osrs-parchment-dark/60 mb-4 text-xs">{copy.blurb}</p>
-
+    <div>
       <div className="mb-3 flex flex-wrap gap-2">
         {copy.kinds.map((k) => (
           <Button
@@ -283,19 +281,11 @@ function NotificationListCard({
           </ul>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
 
 const BLACKLIST_COPY: ListCopy = {
-  title: "Notification blacklist",
-  blurb: (
-    <>
-      Items, NPCs and places your Discord channels never hear about. Blacklisted
-      submissions are still <strong>recorded, scored and counted</strong> — on your
-      lootboard, leaderboards, points and events. Only the Discord message is withheld.
-    </>
-  ),
   kinds: [
     {
       key: "item",
@@ -335,17 +325,6 @@ const BLACKLIST_COPY: ListCopy = {
 };
 
 const ALWAYS_COPY: ListCopy = {
-  title: "Always announce",
-  blurb: (
-    <>
-      Items and NPCs your Discord channels <strong>always</strong> hear about: a drop of
-      a listed item — or from a listed NPC — is announced even below your minimum
-      notification value. Made for notable valueless drops like ornament kits and dyes,
-      which the plugin already screenshots but the value threshold would silence. Your
-      other rules still apply: a screenshot requirement still holds back imageless
-      drops, and the blacklist wins if a name is somehow on both lists.
-    </>
-  ),
   kinds: [
     {
       key: "item",
@@ -371,23 +350,23 @@ const ALWAYS_COPY: ListCopy = {
     "or lower the minimum notification value instead.",
   emptyHint: (action) =>
     `Search above to ${action} in your Discord notifications, even below your minimum value.`,
-  // This card's kinds array offers no "region" tab, so kind can only be
+  // This panel's kinds array offers no "region" tab, so kind can only be
   // item/npc here — narrowed explicitly to satisfy the stricter action type.
   add: (groupId, kind, name, gameId) =>
     addAlwaysListEntry(groupId, kind === "npc" ? "npc" : "item", name, gameId),
   remove: removeAlwaysListEntry,
 };
 
-export function NotificationBlacklistCard(props: {
+export function NotificationBlacklistPanel(props: {
   groupId: number;
   initial: NotificationBlacklist;
 }) {
-  return <NotificationListCard {...props} copy={BLACKLIST_COPY} />;
+  return <NotificationListPanel {...props} copy={BLACKLIST_COPY} />;
 }
 
-export function NotificationAlwaysListCard(props: {
+export function NotificationAlwaysListPanel(props: {
   groupId: number;
   initial: NotificationBlacklist;
 }) {
-  return <NotificationListCard {...props} copy={ALWAYS_COPY} />;
+  return <NotificationListPanel {...props} copy={ALWAYS_COPY} />;
 }
