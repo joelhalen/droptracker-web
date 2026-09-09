@@ -10,6 +10,11 @@
  * restriction is opt-in: closed = any source. Turning it on pre-selects every
  * known source so the configurator prunes down; removing every chip (or turning
  * it off) reverts to any source.
+ *
+ * Items with hundreds of sources (a Scroll box drops from 150+ NPCs) get bulk
+ * "Select all" / "Deselect all" buttons and a name filter, so "deselect all,
+ * then pick the three bosses that count" is three clicks, not 150. The bulk
+ * buttons act on the chips currently shown, so a filter narrows them too.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -23,6 +28,13 @@ const IMG_BASE = "https://www.droptracker.io/img";
  * restriction must store those (the engine matches drops by recorded name). */
 const chipNames = (src: EventItemSourceNpc): string[] =>
   src.members?.length ? src.members : [src.name];
+
+/** Below this many sources the chip grid is scannable by eye; the name filter
+ * only appears above it (the bulk buttons always show). */
+const FILTER_MIN_SOURCES = 8;
+
+const bulkBtnClass =
+  "text-osrs-gold-bright/80 hover:text-osrs-gold-bright hover:underline underline-offset-2 disabled:cursor-not-allowed disabled:text-osrs-parchment-dark/30 disabled:no-underline";
 
 export function ItemSourceRestriction({
   itemName,
@@ -43,6 +55,7 @@ export function ItemSourceRestriction({
   const [sources, setSources] = useState<EventItemSourceNpc[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [filter, setFilter] = useState("");
   // Which item name we've fetched for, so re-picking a different item refetches.
   const fetchedFor = useRef<string | null>(null);
 
@@ -56,6 +69,7 @@ export function ItemSourceRestriction({
       return;
     }
     fetchedFor.current = itemName;
+    setFilter("");
     setLoading(true);
     setError(false);
     let cancelled = false;
@@ -89,6 +103,38 @@ export function ItemSourceRestriction({
     else onChange([...npcs, ...chipNames(src).filter((n) => !allowed.has(n.toLowerCase()))]);
   };
 
+  // Name filter (matches the chip label or, for an alias chip, any member
+  // name) and the bulk actions, which act on the chips currently shown.
+  const query = filter.trim().toLowerCase();
+  const filtered = query.length > 0;
+  const visible =
+    sources && filtered
+      ? sources.filter(
+          (src) =>
+            src.name.toLowerCase().includes(query) ||
+            (src.members ?? []).some((m) => m.toLowerCase().includes(query)),
+        )
+      : (sources ?? []);
+  const visibleOn = visible.filter(chipOn).length;
+  const selectVisible = () => {
+    const seen = new Set(allowed);
+    const additions: string[] = [];
+    for (const name of visible.flatMap(chipNames)) {
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      additions.push(name);
+    }
+    if (additions.length) onChange([...npcs, ...additions]);
+  };
+  const deselectVisible = () => {
+    // Unfiltered "Deselect all" clears outright (also drops any stored name
+    // that no longer appears as a chip); filtered = only the shown chips.
+    if (!filtered) return onChange([]);
+    const keys = new Set(visible.flatMap(chipNames).map((n) => n.toLowerCase()));
+    onChange(npcs.filter((n) => !keys.has(n.toLowerCase())));
+  };
+
   return (
     <div className="border-osrs-bronze/20 bg-osrs-brown-dark/30 mt-1.5 rounded border p-2">
       <label className="flex cursor-pointer items-center gap-2 text-xs">
@@ -100,6 +146,7 @@ export function ItemSourceRestriction({
             if (e.target.checked) setOpen(true);
             else {
               setOpen(false);
+              setFilter("");
               onChange([]); // off = any source
             }
           }}
@@ -121,8 +168,51 @@ export function ItemSourceRestriction({
             <p className="text-osrs-red/80 text-xs">Couldn&apos;t load drop sources — try again.</p>
           ) : sources && sources.length ? (
             <>
+              <div className="mb-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {sources.length >= FILTER_MIN_SOURCES && (
+                  <input
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    placeholder="Filter sources…"
+                    aria-label="Filter drop sources by name"
+                    disabled={disabled}
+                    onKeyDown={(e) => {
+                      // The control sits inside the task <form>; Enter here
+                      // must not submit it.
+                      if (e.key === "Enter") e.preventDefault();
+                    }}
+                    className="bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 focus:ring-osrs-gold/60 min-w-0 flex-1 basis-40 rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1"
+                  />
+                )}
+                <div className="ml-auto flex shrink-0 items-center gap-1.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={selectVisible}
+                    disabled={disabled || visible.length === 0 || visibleOn === visible.length}
+                    className={bulkBtnClass}
+                  >
+                    {filtered ? "Select shown" : "Select all"}
+                  </button>
+                  <span className="text-osrs-parchment-dark/30" aria-hidden>
+                    ·
+                  </span>
+                  <button
+                    type="button"
+                    onClick={deselectVisible}
+                    disabled={disabled || (filtered ? visibleOn === 0 : npcs.length === 0)}
+                    className={bulkBtnClass}
+                  >
+                    {filtered ? "Deselect shown" : "Deselect all"}
+                  </button>
+                </div>
+              </div>
+              {filtered && visible.length === 0 && (
+                <p className="text-osrs-parchment-dark/50 text-xs">
+                  No sources match &ldquo;{filter.trim()}&rdquo;.
+                </p>
+              )}
               <div className="flex flex-wrap gap-1.5">
-                {sources.map((src) => {
+                {visible.map((src) => {
                   const on = chipOn(src);
                   return (
                     <button
@@ -160,9 +250,18 @@ export function ItemSourceRestriction({
                   );
                 })}
               </div>
+              {filtered && visible.length > 0 && (
+                <p className="text-osrs-parchment-dark/50 mt-1 text-[11px]">
+                  Showing {visible.length} of {sources.length} sources.
+                </p>
+              )}
               {npcs.length === 0 && (
-                <p className="mt-1 text-[11px] text-amber-500/80">
-                  No sources selected — this item counts from any source.
+                <p
+                  role="alert"
+                  className="mt-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-400"
+                >
+                  ⚠ No sources selected: this restriction is inactive and the item counts from{" "}
+                  <strong>any</strong> source. Pick at least one NPC above, or untick the box.
                 </p>
               )}
             </>
