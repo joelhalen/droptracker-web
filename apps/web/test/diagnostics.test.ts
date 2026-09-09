@@ -27,6 +27,16 @@ function coded(): number[][] {
   return Array.from({ length: 7 }, (_, d) => Array.from({ length: 24 }, (_, h) => d * 100 + h));
 }
 
+/** An all-zero 7x24 grid with the given `[weekday, hour, value]` cells set. */
+function matrixWith(...cells: [number, number, number][]): number[][] {
+  return Array.from({ length: 7 }, (_, d) =>
+    Array.from(
+      { length: 24 },
+      (_, h) => cells.find(([cd, ch]) => cd === d && ch === h)?.[2] ?? 0,
+    ),
+  );
+}
+
 test("localiseHourMatrix: UTC viewers see the matrix unchanged", () => {
   assert.deepEqual(localiseHourMatrix(coded(), 0), coded());
 });
@@ -34,23 +44,23 @@ test("localiseHourMatrix: UTC viewers see the matrix unchanged", () => {
 test("localiseHourMatrix: a positive offset pulls earlier UTC hours forward", () => {
   // Tokyo (+9): 9am local Monday is midnight UTC Monday.
   const local = localiseHourMatrix(coded(), 9 * 60);
-  assert.equal(local[0][9], 0 * 100 + 0);
-  assert.equal(local[0][23], 0 * 100 + 14);
+  assert.equal(local[0]![9], 0 * 100 + 0);
+  assert.equal(local[0]![23], 0 * 100 + 14);
 });
 
 test("localiseHourMatrix: a negative offset wraps back into the previous day", () => {
   // New York (-5): 8pm local Monday is 1am UTC Tuesday.
   const local = localiseHourMatrix(coded(), -5 * 60);
-  assert.equal(local[0][20], 1 * 100 + 1);
+  assert.equal(local[0]![20], 1 * 100 + 1);
 });
 
 test("localiseHourMatrix: crossing midnight wraps the weekday, not just the hour", () => {
   // The bug this guards: taking `hour % 24` without carrying the day leaves
   // Monday 08:00 in Tokyo showing Monday 23:00 UTC instead of Sunday's.
   const local = localiseHourMatrix(coded(), 9 * 60);
-  assert.equal(local[0][8], 6 * 100 + 23, "Mon 8am JST is Sun 23:00 UTC");
+  assert.equal(local[0]![8], 6 * 100 + 23, "Mon 8am JST is Sun 23:00 UTC");
   const nyc = localiseHourMatrix(coded(), -5 * 60);
-  assert.equal(nyc[6][20], 0 * 100 + 1, "Sun 8pm EST is Mon 01:00 UTC");
+  assert.equal(nyc[6]![20], 0 * 100 + 1, "Sun 8pm EST is Mon 01:00 UTC");
 });
 
 test("localiseHourMatrix: half-hour zones floor to the hour", () => {
@@ -71,9 +81,7 @@ test("localiseHourMatrix: always returns a full 7x24 grid", () => {
 /* -- Peak ------------------------------------------------------------------ */
 
 test("peakHour: finds the busiest cell", () => {
-  const m = Array.from({ length: 7 }, () => Array(24).fill(0));
-  m[5][21] = 900;
-  m[2][13] = 300;
+  const m = matrixWith([5, 21, 900], [2, 13, 300]);
   assert.deepEqual(peakHour(m), [5, 21]);
 });
 
@@ -83,10 +91,7 @@ test("peakHour: an empty window has no peak rather than a false Monday midnight"
 });
 
 test("peakHour: ties keep the earliest cell so the headline is stable", () => {
-  const m = Array.from({ length: 7 }, () => Array(24).fill(0));
-  m[3][10] = 50;
-  m[3][11] = 50;
-  m[4][10] = 50;
+  const m = matrixWith([3, 10, 50], [3, 11, 50], [4, 10, 50]);
   assert.deepEqual(peakHour(m), [3, 10]);
 });
 
@@ -175,7 +180,7 @@ test("diagnostics: the rich payload round-trips", () => {
   assert.equal(full.range_days, 30);
   assert.equal(full.totals?.drops, 680_983);
   assert.equal(full.coverage?.tracked_ever, 104);
-  assert.equal(full.daily[0].announcements, 3);
+  assert.equal(full.daily[0]!.announcements, 3);
 });
 
 test("diagnostics: a day row without announcements defaults to zero", () => {
@@ -189,5 +194,5 @@ test("diagnostics: a day row without announcements defaults to zero", () => {
     warnings: [],
     daily: [{ date: "2026-09-09", drops: 1, gp: 2, players: 1 }],
   });
-  assert.equal(parsed.daily[0].announcements, 0);
+  assert.equal(parsed.daily[0]!.announcements, 0);
 });

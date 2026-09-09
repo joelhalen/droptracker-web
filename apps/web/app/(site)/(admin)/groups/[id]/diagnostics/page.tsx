@@ -92,7 +92,7 @@ export default async function GroupDiagnosticsPage({
         <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
           Pipeline
         </h2>
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatTile
             label="Intake"
             value={
@@ -117,7 +117,7 @@ export default async function GroupDiagnosticsPage({
             value={formatRelativeTime(diag.members_synced_ts)}
             hint="WiseOldMan roster reconcile"
           />
-        </dl>
+        </div>
       </section>
 
       {/* ---- Volume ------------------------------------------------------ */}
@@ -126,7 +126,7 @@ export default async function GroupDiagnosticsPage({
           <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
             Activity — {windowLabel}
           </h2>
-          <dl className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatTile
               label="Drops tracked"
               value={totals.drops.toLocaleString()}
@@ -147,7 +147,7 @@ export default async function GroupDiagnosticsPage({
               value={totals.announcements.toLocaleString()}
               hint="drops that cleared your announce threshold"
             />
-          </dl>
+          </div>
           <Card>
             <ActivityChart daily={diag.daily} />
           </Card>
