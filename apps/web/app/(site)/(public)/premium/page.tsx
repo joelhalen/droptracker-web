@@ -27,8 +27,8 @@ export default async function PremiumPage() {
         <h1 className="text-osrs-gold text-3xl font-bold">Upgrade your DropTracker Group</h1>
         <p className="text-osrs-parchment-dark/80 mx-auto mt-2 max-w-xl">
           A recurring subscription that unlocks extras for your whole group — customizable Discord embeds,
-          a Personal-Best Hall of Fame, advanced & fully-integrated events, like Bingo, and video submissions (currently unavailable). Manage it from your group&apos;s
-          admin page.
+          a Personal-Best Hall of Fame, and advanced &amp; fully-integrated events like Bingo. Manage it
+          from your group&apos;s admin page.
         </p>
       </header>
 

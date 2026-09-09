@@ -4,6 +4,7 @@
  * falls back to these only when the real API is unreachable.
  */
 import type {
+  PersonalBestLoadout,
   AccountSettings,
   EventParticipant,
   ChatDelivery,
@@ -601,17 +602,84 @@ export function mockWomSync(): WomSyncResult {
   };
 }
 
-export function mockDiagnostics(): GroupDiagnostics {
+export function mockDiagnostics(days = 30): GroupDiagnostics {
   const today = Math.floor(Date.now() / 86_400_000);
+  const now = Math.floor(Date.now() / 1000);
+  // Deterministic, not Math.random(): the panel's trend arrows compare this
+  // window against the previous one, and a series that reshuffles on every
+  // render makes that impossible to eyeball in mock mode.
+  const wobble = (n: number) => 0.55 + 0.45 * Math.abs(Math.sin(n * 1.7));
+  const daily = Array.from({ length: days }, (_, i) => {
+    const date = new Date((today - (days - 1 - i)) * 86_400_000).toISOString().slice(0, 10);
+    const drops = Math.round(9_000 * wobble(i));
+    return {
+      date,
+      drops,
+      gp: drops * 41_000,
+      players: Math.round(40 * wobble(i + 3)),
+      announcements: Math.round(12 * wobble(i + 7)),
+    };
+  });
+  const totals = {
+    drops: daily.reduce((a, d) => a + d.drops, 0),
+    gp: daily.reduce((a, d) => a + d.gp, 0),
+    announcements: daily.reduce((a, d) => a + d.announcements, 0),
+    active_players: 92,
+  };
   return {
     intake_healthy: true,
-    last_submission_ts: Math.floor(Date.now() / 1000) - 120,
-    members_synced_ts: Math.floor(Date.now() / 1000) - 3600,
-    activity_7d: Array.from({ length: 7 }, (_, i) => ({
-      date: new Date((today - (6 - i)) * 86_400_000).toISOString().slice(0, 10),
-      submissions: Math.round(50 + Math.random() * 200),
-    })),
+    last_submission_ts: now - 120,
+    members_synced_ts: now - 3600,
+    activity_7d: daily.slice(-7).map((d) => ({ date: d.date, submissions: d.announcements })),
     warnings: [],
+    range_days: days,
+    generated_ts: now,
+    last_announcement_ts: now - 900,
+    oversized: false,
+    totals,
+    previous_totals: {
+      drops: Math.round(totals.drops * 0.88),
+      gp: Math.round(totals.gp * 0.92),
+      active_players: 86,
+    },
+    daily,
+    // Evenings and weekends busier than weekday mornings — the shape the
+    // heatmap is there to reveal.
+    hour_matrix: Array.from({ length: 7 }, (_, d) =>
+      Array.from({ length: 24 }, (_, h) =>
+        Math.round(400 * wobble(h + d * 3) * (h >= 17 || h <= 1 ? 2.4 : 1) * (d >= 5 ? 1.5 : 1)),
+      ),
+    ),
+    coverage: {
+      roster: 342,
+      active_7d: 80,
+      active_30d: 92,
+      active_window: 92,
+      tracked_ever: 104,
+      hidden: 2,
+      ignored: 1,
+    },
+    kinds: [
+      { key: "drops", label: "Drops", count: totals.drops, last_ts: now - 120 },
+      { key: "clogs", label: "Collection log", count: 852, last_ts: now - 1_400 },
+      { key: "pbs", label: "Personal bests", count: 742, last_ts: now - 24_000 },
+      { key: "cas", label: "Combat achievements", count: 663, last_ts: now - 14_000 },
+      { key: "pets", label: "Pets", count: 23, last_ts: now - 56_000 },
+      { key: "deaths", label: "Deaths", count: 3_783, last_ts: now - 7_500 },
+      { key: "quests", label: "Quests", count: 70, last_ts: now - 16_800 },
+    ],
+    top_players: [
+      { player_id: 5756002, player_name: "Thall Fe", gp: 3_307_201_736, drops: 3_341 },
+      { player_id: 5752118, player_name: "f Davy", gp: 2_243_752_166, drops: 8_041 },
+      { player_id: 5752124, player_name: "Cronus", gp: 1_739_152_715, drops: 1_379 },
+      { player_id: 5760839, player_name: "Lil Mochyy", gp: 1_661_525_250, drops: 1_152 },
+    ],
+    top_npcs: [
+      { npc_id: 14150, npc_name: "Chambers of Xeric Challenge Mode", gp: 8_351_680_205, drops: 2_864 },
+      { npc_id: 13696, npc_name: "Chambers of Xeric", gp: 3_526_629_304, drops: 1_242 },
+      { npc_id: 13699, npc_name: "Theatre of Blood", gp: 2_914_451_832, drops: 1_987 },
+      { npc_id: 9416, npc_name: "Phosani's Nightmare", gp: 1_980_606_180, drops: 2_751 },
+    ],
   };
 }
 
@@ -813,6 +881,8 @@ export function mockPbBosses(groupId?: number): PbBossIndex {
           team_size: "5",
           player_id: 42,
           player_name: "Zezima",
+          pb_id: 4201,
+          has_loadout: true,
         },
       },
       {
@@ -828,6 +898,8 @@ export function mockPbBosses(groupId?: number): PbBossIndex {
           team_size: "Solo",
           player_id: 43,
           player_name: "Woox",
+          pb_id: 4301,
+          has_loadout: false,
         },
       },
     ],
@@ -842,6 +914,9 @@ export function mockPbBoard(npcId: number, groupId?: number): PbBossBoard {
     time_ms: ms,
     time_display: display,
     date_ts: 1783434457,
+    // Row ids are fictional; only the record holders have a captured loadout.
+    pb_id: pid * 100 + rank,
+    has_loadout: rank === 1,
     ...(groupId != null ? { global_rank: rank + 3 } : {}),
   });
   return {
@@ -870,6 +945,41 @@ export function mockPbBoard(npcId: number, groupId?: number): PbBossBoard {
         entries: [entry(1, 45, "B0aty", 495000, "8:15.0")],
       },
     ],
+  };
+}
+
+export function mockPersonalBestLoadout(pbId: number): PersonalBestLoadout {
+  const item = (slot: number, item_id: number, name: string, quantity = 1) => ({
+    slot,
+    item_id,
+    quantity,
+    name,
+    icon: `https://www.droptracker.io/img/itemdb/${item_id}.png`,
+  });
+  return {
+    pb_id: pbId,
+    has_loadout: true,
+    boss: "Chambers of Xeric",
+    equipment: [
+      item(0, 10828, "Helm of neitiznot"),
+      item(1, 21295, "Infernal cape"),
+      item(2, 19553, "Amulet of torture"),
+      item(3, 20997, "Twisted bow"),
+      item(4, 13072, "Elite void top"),
+      item(7, 13073, "Elite void robe"),
+      item(9, 8842, "Void knight gloves"),
+      item(10, 13239, "Primordial boots"),
+      item(12, 11773, "Berserker ring (i)"),
+      item(13, 11212, "Dragon arrow", 500),
+    ],
+    inventory: [
+      item(0, 12695, "Super combat potion(4)"),
+      item(1, 2444, "Ranging potion(4)"),
+      item(2, 385, "Shark", 1),
+      item(3, 385, "Shark", 1),
+      item(27, 995, "Coins", 1_250_000),
+    ],
+    model: null,
   };
 }
 

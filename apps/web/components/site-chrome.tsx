@@ -29,7 +29,7 @@ const HEADER_TABS: NavTab[] = [
     ],
   },
   { href: "/events", label: "Events", matchPrefix: true },
-  { href: "/announcements", label: "News", matchPrefix: true },
+  // hide news for now - { href: "/announcements", label: "News", matchPrefix: true },
   { href: "/docs", label: "Docs", matchPrefix: true },
   { href: "/suggestions", label: "Suggestions" },
   {

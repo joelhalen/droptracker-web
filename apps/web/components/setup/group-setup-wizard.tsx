@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button } from "@/components/ui";
 import { getErrorMessage } from "@/lib/errors";
+import { CHANNELS_POLL_INTERVAL_MS, shouldKeepPollingChannels } from "@/lib/group-setup-channels";
 import {
   ChannelListDelayHint,
   DiscordChannelPicker,
@@ -134,6 +135,10 @@ export function GroupSetupWizard({
   const [channels, setChannels] = useState<DiscordChannel[]>([]);
   const [channelsCached, setChannelsCached] = useState(true);
   const [channelsLoaded, setChannelsLoaded] = useState(false);
+  // Re-reads of an empty list (see lib/group-setup-channels.ts): the cache
+  // is usually still warming when this step opens right after the invite.
+  const [channelsPolling, setChannelsPolling] = useState(false);
+  const [channelsPolls, setChannelsPolls] = useState(0);
   const [lootboardChannel, setLootboardChannel] = useState("");
   const [dropsChannel, setDropsChannel] = useState("");
   const [savingChannels, setSavingChannels] = useState(false);
@@ -303,28 +308,49 @@ export function GroupSetupWizard({
     }
   }, [client, discordUrl, env, gotoStep, guildId, name, status, wom]);
 
-  // Fetch the channel list when entering the Channels step.
+  // Fetch the channel list when entering the Channels step, then keep
+  // re-reading while it comes back empty. Every read also asks the bot to
+  // refresh the cache server-side, so an empty answer is almost always "not
+  // yet" — the bot joined a minute ago and the first sweep hasn't run — and
+  // the pickers switch from raw-id entry to the list on their own once it
+  // lands. The first read is immediate; re-reads are spaced out.
   useEffect(() => {
-    if (step.key !== "channels" || channelsLoaded || createdGroupId == null) return;
+    if (step.key !== "channels" || createdGroupId == null) return;
+    if (channelsLoaded && !channelsPolling) return;
     let alive = true;
-    client
-      .listChannels(createdGroupId)
-      .then((res) => {
-        if (!alive) return;
-        setChannels(res.channels);
-        setChannelsCached(res.cached);
-        setChannelsLoaded(true);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setChannels([]);
-        setChannelsCached(false);
-        setChannelsLoaded(true);
-      });
+    const timer = setTimeout(
+      () => {
+        client
+          .listChannels(createdGroupId)
+          .then((res) => {
+            if (!alive) return;
+            setChannels(res.channels);
+            setChannelsCached(res.cached);
+            setChannelsLoaded(true);
+            const again = shouldKeepPollingChannels(res.channels.length, channelsPolls);
+            setChannelsPolling(again);
+            if (again) setChannelsPolls((n) => n + 1);
+          })
+          .catch(() => {
+            if (!alive) return;
+            setChannels([]);
+            setChannelsCached(false);
+            setChannelsLoaded(true);
+            setChannelsPolling(false);
+          });
+      },
+      channelsLoaded ? CHANNELS_POLL_INTERVAL_MS : 0,
+    );
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
-  }, [step.key, channelsLoaded, createdGroupId, client]);
+  }, [step.key, createdGroupId, client, channelsLoaded, channelsPolling, channelsPolls]);
+
+  const retryChannels = useCallback(() => {
+    setChannelsPolls(0);
+    setChannelsPolling(true);
+  }, []);
 
   const onSaveChannels = useCallback(async () => {
     if (createdGroupId == null) return;
@@ -669,7 +695,26 @@ export function GroupSetupWizard({
                   placeholder="Where drop embeds post"
                 />
               </div>
-              {!channelsCached && <ChannelListDelayHint />}
+              {channelsPolling && (
+                <p className="text-osrs-parchment-dark/60 text-xs" role="status">
+                  Fetching your server&apos;s channel list from Discord… this takes a few seconds
+                  right after the bot joins. You can also paste a channel id meanwhile.
+                </p>
+              )}
+              {!channelsPolling && channels.length === 0 && (
+                <div className="space-y-2">
+                  <p className="text-osrs-parchment-dark/70 text-sm">
+                    We couldn&apos;t list this server&apos;s channels yet.
+                  </p>
+                  <button type="button" className={ghostBtn} onClick={retryChannels}>
+                    Refresh channel list
+                  </button>
+                  <ChannelListDelayHint />
+                </div>
+              )}
+              {!channelsPolling && channels.length > 0 && !channelsCached && (
+                <ChannelListDelayHint />
+              )}
             </>
           )}
           <div className="flex justify-between">

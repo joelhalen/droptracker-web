@@ -13,6 +13,7 @@ import {
   type PlayerProfile,
 } from "@droptracker/api-types";
 import {
+  mockPersonalBestLoadout,
   mockPlayerLoot,
   mockPlayerProfile,
 } from "../mock-data";
@@ -61,10 +62,14 @@ export const playersApi = {
     );
   },
 
-  /** Gear and inventory a personal best was set with, when it was captured. */
+  /** Gear, inventory and character model a personal best was set with, when captured. */
   async personalBestLoadout(pbId: number): Promise<PersonalBestLoadout> {
-    return PersonalBestLoadoutSchema.parse(
-      await apiGet(`/personal-bests/${pbId}/loadout`, { revalidate: 300 }),
+    return withFallback(
+      async () =>
+        PersonalBestLoadoutSchema.parse(
+          await apiGet(`/personal-bests/${pbId}/loadout`, { revalidate: 300 }),
+        ),
+      () => mockPersonalBestLoadout(pbId),
     );
   },
 };

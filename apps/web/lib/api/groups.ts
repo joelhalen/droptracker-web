@@ -453,13 +453,14 @@ export const groupsApi = {
   },
 
 
-  async diagnostics(groupId: number): Promise<GroupDiagnostics> {
+  async diagnostics(groupId: number, days?: number): Promise<GroupDiagnostics> {
+    const suffix = days ? `?days=${days}` : "";
     return withFallback(
       async () =>
         GroupDiagnosticsSchema.parse(
-          await apiGet(`/groups/${groupId}/diagnostics`, { authed: true }),
+          await apiGet(`/groups/${groupId}/diagnostics${suffix}`, { authed: true }),
         ),
-      () => mockDiagnostics(),
+      () => mockDiagnostics(days),
     );
   },
 

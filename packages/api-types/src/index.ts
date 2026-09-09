@@ -452,12 +452,31 @@ export const LoadoutEntrySchema = z.object({
 });
 export type LoadoutEntry = z.infer<typeof LoadoutEntrySchema>;
 
+/** The character model a personal best was set in, when something is still renderable. */
+export const PersonalBestModelSchema = z.object({
+  player_id: z.number().int(),
+  /** Outfit fingerprint the model is filed under (see /api/models/[playerId]/[fingerprint]). */
+  fingerprint: z.string(),
+  /** `kill`: the plugin sent the outfit with the kill itself. `recent`: an older
+   * client sent none, so this is the outfit the server most recently held for
+   * the player at the time — a stand-in, and labelled as one. */
+  source: z.string(),
+  /** The interactive model is still stored (models are pruned; stills are not). */
+  has_model: z.boolean(),
+  has_pet: z.boolean(),
+  /** Pre-rendered still of the outfit, when one exists. */
+  image_url: z.string().nullable().optional(),
+});
+export type PersonalBestModel = z.infer<typeof PersonalBestModelSchema>;
+
 export const PersonalBestLoadoutSchema = z.object({
   pb_id: z.number().int(),
   has_loadout: z.boolean(),
   boss: z.string().nullable().optional(),
   equipment: z.array(LoadoutEntrySchema),
   inventory: z.array(LoadoutEntrySchema),
+  /** Absent/null when no model is known for the time, or none survives. */
+  model: PersonalBestModelSchema.nullable().optional(),
 });
 export type PersonalBestLoadout = z.infer<typeof PersonalBestLoadoutSchema>;
 
@@ -515,6 +534,11 @@ export const PbBoardEntrySchema = z.object({
   image_url: z.string().optional(),
   /** Present on group-scoped boards: the entry's global standing. */
   global_rank: z.number().int().optional(),
+  /** Row id of the time — what /api/personal-bests/[pbId]/loadout is keyed by. */
+  pb_id: z.number().int().optional(),
+  /** Gear, inventory and character model were captured for this time. Most
+   * older times have none; the site offers "gear" only where this is true. */
+  has_loadout: z.boolean().optional(),
 });
 export type PbBoardEntry = z.infer<typeof PbBoardEntrySchema>;
 
@@ -555,6 +579,10 @@ export const PbBossSummarySchema = z.object({
       team_size: z.string(),
       player_id: z.number().int(),
       player_name: z.string(),
+      /** Same pair as a board entry: lets the index open the record holder's
+       * gear in place (see /api/personal-bests/[pbId]/loadout). */
+      pb_id: z.number().int().optional(),
+      has_loadout: z.boolean().optional(),
     })
     .nullable(),
 });
@@ -1349,15 +1377,106 @@ export const EventManagersResponseSchema = z.object({
 });
 export type EventManagersResponse = z.infer<typeof EventManagersResponseSchema>;
 
-/** Pipeline heartbeat for the admin diagnostics panel (FRONTEND_PLAN.md §9). */
+/** Pipeline heartbeat + clan activity for the admin diagnostics panel.
+ *
+ * Every field added by web111a carries a `.default()`. The backend and this app
+ * deploy independently, so the page has to keep rendering against a Web API
+ * that has not shipped the richer payload yet — without the defaults the whole
+ * panel would throw on `parse` for the length of a staggered deploy. */
 export const GroupDiagnosticsSchema = z.object({
   intake_healthy: z.boolean(),
   last_submission_ts: z.number().int().nullable(),
   members_synced_ts: z.number().int().nullable(),
+  /** Discord announcements per day. Not "submissions": `notified` only gets a
+   *  row when a drop clears the group's announce threshold and posts. */
   activity_7d: z.array(z.object({ date: z.string(), submissions: z.number().int() })),
   warnings: z.array(z.string()).default([]),
+
+  range_days: z.number().int().default(7),
+  generated_ts: z.number().int().nullable().default(null),
+  last_announcement_ts: z.number().int().nullable().default(null),
+  /** True when the roster is too large to summarise (the all-players group). */
+  oversized: z.boolean().default(false),
+  totals: z
+    .object({
+      drops: z.number().int(),
+      gp: z.number(),
+      announcements: z.number().int(),
+      active_players: z.number().int(),
+    })
+    .nullable()
+    .default(null),
+  /** Same-length window immediately before this one, for the trend arrows. */
+  previous_totals: z
+    .object({
+      drops: z.number().int(),
+      gp: z.number(),
+      active_players: z.number().int(),
+    })
+    .nullable()
+    .default(null),
+  daily: z
+    .array(
+      z.object({
+        date: z.string(),
+        drops: z.number().int(),
+        gp: z.number(),
+        players: z.number().int(),
+        announcements: z.number().int().default(0),
+      }),
+    )
+    .default([]),
+  /** 7x24 drop counts, `[weekday][hour]`, weekday 0 = Monday, hours in UTC. */
+  hour_matrix: z.array(z.array(z.number().int())).default([]),
+  coverage: z
+    .object({
+      roster: z.number().int(),
+      active_7d: z.number().int(),
+      active_30d: z.number().int(),
+      active_window: z.number().int(),
+      tracked_ever: z.number().int(),
+      hidden: z.number().int().default(0),
+      ignored: z.number().int().default(0),
+    })
+    .nullable()
+    .default(null),
+  kinds: z
+    .array(
+      z.object({
+        key: z.string(),
+        label: z.string(),
+        count: z.number().int(),
+        last_ts: z.number().int().nullable(),
+      }),
+    )
+    .default([]),
+  top_players: z
+    .array(
+      z.object({
+        player_id: z.number().int(),
+        player_name: z.string(),
+        gp: z.number(),
+        drops: z.number().int(),
+      }),
+    )
+    .default([]),
+  top_npcs: z
+    .array(
+      z.object({
+        npc_id: z.number().int(),
+        npc_name: z.string(),
+        gp: z.number(),
+        drops: z.number().int(),
+      }),
+    )
+    .default([]),
 });
 export type GroupDiagnostics = z.infer<typeof GroupDiagnosticsSchema>;
+
+/** Windows the diagnostics panel offers. Mirrors `DIAG_RANGE_DAYS` in the
+ *  backend route; anything else is coerced to 30 there. */
+export const GROUP_DIAGNOSTICS_RANGES = [7, 30, 90] as const;
+export type GroupDiagnosticsRange = (typeof GROUP_DIAGNOSTICS_RANGES)[number];
 
 /** Group-creation wizard payloads (FRONTEND_PLAN.md §6.3, §7.1). */
 export const WomGroupPreviewSchema = z.object({

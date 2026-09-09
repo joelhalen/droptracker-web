@@ -2,14 +2,22 @@
 
 /**
  * The gear and inventory a personal best was set with, drawn the way the game
- * draws them: a 4x7 inventory grid and the equipment silhouette.
+ * draws them: a 4x7 inventory grid and the equipment silhouette — and, when
+ * the player's character model for that outfit is known, the character
+ * itself beside them.
  *
  * Fetched on expand rather than with the page — most PB entries are never
  * opened, and pre-fetching every loadout on a profile with 90 personal bests
- * would be dozens of reads nobody looks at.
+ * would be dozens of reads nobody looks at. The same panel serves the profile
+ * grid and the leaderboards, so a time reads identically wherever it appears.
  */
 import { useEffect, useState } from "react";
-import type { LoadoutEntry, PersonalBestLoadout } from "@droptracker/api-types";
+import type {
+  LoadoutEntry,
+  PersonalBestLoadout,
+  PersonalBestModel,
+} from "@droptracker/api-types";
+import { CHARACTER_ASPECT, CharacterViewer } from "@/components/character-viewer";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { HoverCard } from "@/components/hover-card";
 import { EmptyState, Skeleton } from "@/components/ui";
@@ -173,6 +181,50 @@ function InventorySlot({ entry }: { entry?: LoadoutEntry }) {
   );
 }
 
+/** Width of the character column; a portrait at this size sits level with the worn-gear panel. */
+const CHARACTER_WIDTH_PX = 150;
+
+/**
+ * The character as it looked for this time: the interactive model while its
+ * file is still stored, else the still the notification path rendered (models
+ * are pruned as outfits churn; renders are not). Captioned by provenance — a
+ * client that sent its outfit with the kill is exact, an older one leaves the
+ * server's most recent outfit standing in, and the two must not read the same.
+ */
+function CharacterPanel({ model }: { model: PersonalBestModel }) {
+  const exact = model.source === "kill";
+  const caption = exact ? "As worn for this kill" : "Most recent outfit at the time";
+  const hint = exact
+    ? "The plugin recorded this outfit at the moment of the kill."
+    : "This client did not send its outfit with the kill, so this is the last outfit the server had received for the player before it.";
+  return (
+    <div className="flex flex-col items-center" style={{ width: CHARACTER_WIDTH_PX }}>
+      {model.has_model ? (
+        <CharacterViewer
+          playerId={model.player_id}
+          fingerprint={model.fingerprint}
+          hasPet={model.has_pet}
+          maxWidth={CHARACTER_WIDTH_PX}
+        />
+      ) : model.image_url ? (
+        <img
+          src={model.image_url}
+          alt="Character as worn for this time"
+          className="w-full object-contain"
+          style={{ aspectRatio: String(CHARACTER_ASPECT) }}
+          loading="lazy"
+        />
+      ) : null}
+      <span
+        className="text-osrs-parchment-dark/50 mt-1 cursor-help text-center text-[11px] leading-tight"
+        title={hint}
+      >
+        {caption}
+      </span>
+    </div>
+  );
+}
+
 function bySlot(entries: LoadoutEntry[]): Map<number, LoadoutEntry> {
   return new Map(entries.map((e) => [e.slot, e]));
 }
@@ -252,6 +304,14 @@ export function PbLoadout({ pbId }: { pbId: number }) {
 
   return (
     <div className="flex flex-wrap gap-6">
+      {data.model && (
+        <div>
+          <h4 className="text-osrs-parchment-dark/60 mb-2 text-xs tracking-wide uppercase">
+            Character
+          </h4>
+          <CharacterPanel model={data.model} />
+        </div>
+      )}
       <div>
         <h4 className="text-osrs-parchment-dark/60 mb-2 text-xs tracking-wide uppercase">Worn</h4>
         <EquipmentPanel entries={data.equipment} />
