@@ -10,6 +10,10 @@ import { Card } from "@/components/ui";
 /**
  * Renders children when the group has an entitlement; otherwise an upgrade card.
  * Superadmins always pass through.
+ *
+ * `canUpgrade` is false for viewers who can't open the subscription page — an
+ * event manager on the Events pages (web64a). The card then tells them who can
+ * upgrade instead of linking to a page that would 403 them.
  */
 export function FeatureGate({
   entitlement,
@@ -17,6 +21,7 @@ export function FeatureGate({
   tiers,
   groupId,
   isSuperadmin = false,
+  canUpgrade = true,
   children,
 }: {
   entitlement: EntitlementKey;
@@ -24,6 +29,7 @@ export function FeatureGate({
   tiers: SubscriptionTier[];
   groupId: number;
   isSuperadmin?: boolean;
+  canUpgrade?: boolean;
   children: React.ReactNode;
 }) {
   if (hasEntitlement(subscription, entitlement, { isSuperadmin })) {
@@ -47,12 +53,19 @@ export function FeatureGate({
           plan and above.
         </p>
       )}
-      <Link
-        href={`/groups/${groupId}/subscription` as Route}
-        className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-4 inline-block rounded px-4 py-2 text-sm font-medium"
-      >
-        View subscription options
-      </Link>
+      {canUpgrade ? (
+        <Link
+          href={`/groups/${groupId}/subscription` as Route}
+          className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark mt-4 inline-block rounded px-4 py-2 text-sm font-medium"
+        >
+          View subscription options
+        </Link>
+      ) : (
+        <p className="text-osrs-parchment-dark/70 mt-4 text-sm">
+          Only the group&apos;s owner or an admin can change its plan — ask one of them to
+          upgrade.
+        </p>
+      )}
     </Card>
   );
 }

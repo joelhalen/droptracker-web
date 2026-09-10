@@ -4,41 +4,18 @@
  * 403 interrupt boundary (web57a): rendered when a server guard calls
  * `forbidden()` — a signed-in user without the role a subtree requires.
  * Client component so the copy can be tailored to the requested path
- * (staff area vs a specific group's admin panel).
+ * (staff area vs a specific group's admin panel) and to the viewer's own
+ * roles once `/me` arrives (an event manager is pointed at Events).
  */
 import { usePathname } from "next/navigation";
 import { AccessDenied } from "@/components/access-denied";
-
-function forbiddenCopy(pathname: string): {
-  title: string;
-  message: string;
-  back?: { href: string; label: string };
-} {
-  if (pathname.startsWith("/admin")) {
-    return {
-      title: "Staff only",
-      message:
-        "The admin control panel is restricted to DropTracker site staff (superadmins, and developers for the diagnostic pages), and your account doesn't have the required access. If you're looking for your clan's settings, head to your group's admin panel instead.",
-    };
-  }
-  const groupAdmin = pathname.match(/^\/groups\/(\d+)\//);
-  if (groupAdmin) {
-    return {
-      title: "Group admins only",
-      message:
-        "Managing this group requires an owner or admin role in it, and your account doesn't have one. If you should have access, ask the group's owner to add you under Authorized users — or, if you administer the clan's Discord server, sign out and back in so your roles refresh.",
-      back: { href: `/groups/${groupAdmin[1]}`, label: "View the group's public page" },
-    };
-  }
-  return {
-    title: "Access denied",
-    message: "Your account doesn't have permission to view this page.",
-  };
-}
+import { forbiddenCopy } from "@/lib/forbidden-copy";
+import { useMe } from "@/lib/use-me";
 
 export default function Forbidden() {
   const pathname = usePathname() ?? "/";
-  const copy = forbiddenCopy(pathname);
+  const me = useMe();
+  const copy = forbiddenCopy(pathname, me);
   return (
     <AccessDenied title={copy.title} message={copy.message} back={copy.back} icon="⛔" />
   );

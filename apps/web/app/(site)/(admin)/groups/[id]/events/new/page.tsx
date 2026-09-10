@@ -1,7 +1,7 @@
 import type { Metadata, Route } from "next";
 import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { canAdminGroup, getUser } from "@/lib/auth";
 import { orAccessDenied } from "@/lib/fetch";
 import { EventCreateEntry } from "@/components/event-create-entry";
 import { FeatureGate } from "@/components/feature-gate";
@@ -49,6 +49,7 @@ export default async function NewEventPage({
       tiers={tiers}
       groupId={groupId}
       isSuperadmin={user?.is_superadmin}
+      canUpgrade={user != null && canAdminGroup(user, groupId)}
     >
       <div className="max-w-3xl space-y-4">
         <h2 className="heading-rule text-osrs-gold pb-1 text-lg font-semibold">

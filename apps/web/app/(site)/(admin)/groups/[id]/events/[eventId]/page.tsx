@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { getUser } from "@/lib/auth";
+import { canAdminGroup, getUser } from "@/lib/auth";
 import { orAccessDenied } from "@/lib/fetch";
 import { EventManager } from "@/components/event-manager";
 import { FeatureGate } from "@/components/feature-gate";
@@ -43,6 +43,7 @@ export default async function ManageEventPage({ params }: { params: Params }) {
       tiers={tiers}
       groupId={groupId}
       isSuperadmin={user?.is_superadmin}
+      canUpgrade={user != null && canAdminGroup(user, groupId)}
     >
       {manager}
     </FeatureGate>
