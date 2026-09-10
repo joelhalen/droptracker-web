@@ -144,6 +144,7 @@ import { Alert, Button } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { HoverCard } from "@/components/hover-card";
 import { TaskDetailSheet, useCoarsePointer } from "@/components/task-detail";
+import { BoardLinksOverlay } from "@/components/board-links-overlay";
 
 export function EventBoardView({
   event,
@@ -281,9 +282,27 @@ export function EventBoardView({
       try {
         const res = await actions.roll(event.id, teamId);
         setLastDice(res.dice);
-        if (res.frozen) setRollNote("❄️ Frozen — the piece didn't move!");
-        else if (res.roadblock)
-          setRollNote(`🚧 Stopped short by a roadblock on tile ${res.roadblock.tile_idx}!`);
+        const notes: string[] = [];
+        if (res.frozen) notes.push("❄️ Frozen — the piece didn't move!");
+        if (res.roadblock) notes.push(`🚧 Stopped short by a roadblock on tile ${res.roadblock.tile_idx}!`);
+        if (res.required_stop)
+          notes.push(
+            `⛔ Stopped at required tile ${res.required_stop.tile_idx} — complete it to move on.`,
+          );
+        if (res.jump)
+          notes.push(
+            res.jump.kind === "ladder"
+              ? `🪜 Ladder! ${res.jump.from} → ${res.jump.to}`
+              : `🕳️ Chute! ${res.jump.from} → ${res.jump.to}`,
+          );
+        if (res.overshoot)
+          notes.push(
+            res.overshoot.mode === "stay"
+              ? "↩️ Overshot the finish — the move is lost, roll again."
+              : `↩️ Overshot the finish and bounced back to tile ${res.overshoot.to}.`,
+          );
+        if (res.finish_task) notes.push("🏁 On the finish tile — complete its task to win!");
+        setRollNote(notes.length ? notes.join("  ") : null);
         refetch();
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't roll."));
@@ -306,7 +325,9 @@ export function EventBoardView({
 
       <div className="flex items-center justify-between gap-2">
         <p className="text-osrs-parchment-dark/60 text-[11px]">
-          Complete your task → earn coins → roll → move. First to the finish wins.
+          {board.settings.style === "chutes_ladders"
+            ? "Complete your task → roll → move. Ladders lift you, chutes drop you. First to the finish wins."
+            : "Complete your task → earn coins → roll → move. First to the finish wins."}
         </p>
         <LiveStatusBadge state={streamState} />
         <a
@@ -332,10 +353,20 @@ export function EventBoardView({
           />
         )}
 
+        {/* Chute / ladder arrows (2026-09) — under the tiles and pieces. */}
+        <BoardLinksOverlay
+          tiles={board.tiles}
+          width={board.bg_width ?? 1600}
+          height={board.bg_height ?? 1000}
+        />
+
         {/* Tiles */}
         {board.tiles.map((t) => {
           const isEndpoint = t.tile_kind === "start" || t.tile_kind === "finish";
-          if (render.mode === "invisible" && !isEndpoint) return null;
+          const isRequired = t.tile_kind === "required";
+          // Required stops stay visible even when the art draws the tiles —
+          // a checkpoint nobody can see is a trap, not a rule.
+          if (render.mode === "invisible" && !isEndpoint && !isRequired) return null;
           // The rune-icon tiles grow with the configured icon size; every
           // other tile keeps the fixed 28px circle.
           const showsRune = render.mode === "rune" && !!t.difficulty;
@@ -354,6 +385,10 @@ export function EventBoardView({
             circleStyle.border = `${render.outline_width}px solid ${
               isEndpoint ? "#ffd700" : render.outline_color
             }`;
+          }
+          if (isRequired) {
+            circleStyle.border = `${Math.max(2, render.outline_width)}px solid #e05c4d`;
+            circleStyle.boxShadow = "0 0 0 2px rgba(0,0,0,0.5)";
           }
           const circle = (
             <div
@@ -623,6 +658,15 @@ export function EventBoardView({
                       {p.current_task.progress} / {p.current_task.target} · turn{" "}
                       {p.turns_completed}
                     </p>
+                    {board.finish_idx != null && p.tile_idx >= board.finish_idx ? (
+                      <p className="text-osrs-gold mt-1 text-[11px]">
+                        🏁 Final task — complete it to win.
+                      </p>
+                    ) : tileAt.get(p.tile_idx)?.tile_kind === "required" ? (
+                      <p className="text-osrs-parchment-dark/70 mt-1 text-[11px]">
+                        ⛔ Required tile — complete it before moving on.
+                      </p>
+                    ) : null}
                   </div>
                 ) : p.status === "awaiting_roll" ? (
                   <p className="text-osrs-parchment-dark/70 mt-2 text-xs">
@@ -770,8 +814,12 @@ function TileCard({
       ? "Start"
       : tile.tile_kind === "finish"
         ? "Finish"
-        : `Tile ${tile.idx}`);
+        : tile.tile_kind === "required"
+          ? `Tile ${tile.idx} · required stop`
+          : `Tile ${tile.idx}`);
   const diff = tile.difficulty ?? null;
+  const link = tile.jump_to != null ? tile.jump_to : null;
+  const ladder = link != null && link > tile.idx;
 
   return (
     <div className="p-3 text-sm">
@@ -782,6 +830,36 @@ function TileCard({
           {finishIdx != null ? ` / ${finishIdx}` : ""}
         </span>
       </div>
+
+      {/* Chute / ladder + checkpoint rules (2026-09) */}
+      {link != null && (
+        <p
+          className={`mt-2 text-xs ${ladder ? "text-emerald-300/90" : "text-red-300/90"}`}
+        >
+          {ladder ? `🪜 Ladder to tile ${link}` : `🕳️ Chute to tile ${link}`}
+          <span className="text-osrs-parchment-dark/55 block text-[11px]">
+            {ladder && tile.jump_when === "complete"
+              ? "Climbs once this tile's task is completed."
+              : ladder
+                ? "Lifts a team the moment it lands here."
+                : "Drops a team the moment it lands here."}
+          </span>
+        </p>
+      )}
+      {tile.tile_kind === "required" && (
+        <p className="mt-2 text-xs text-red-300/90">
+          ⛔ Required stop
+          <span className="text-osrs-parchment-dark/55 block text-[11px]">
+            A move that would pass this tile stops here — the task must be completed before
+            moving on. Teams that already cleared it pass freely.
+          </span>
+        </p>
+      )}
+      {tile.tile_kind === "finish" && (diff || tile.task_id != null) && (
+        <p className="text-osrs-gold mt-2 text-xs">
+          🏁 Reaching the finish assigns this task — complete it to win.
+        </p>
+      )}
 
       {/* Rune / difficulty tier */}
       {diff ? (

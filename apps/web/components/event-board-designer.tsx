@@ -21,12 +21,13 @@ import type {
   BoardDetail,
   BoardInput,
   BoardSettings,
+  BoardStyle,
   BoardTile,
   EventDetail,
   EventTask,
   EventTaskDifficulty,
 } from "@droptracker/api-types";
-import { EVENT_TASK_DIFFICULTIES } from "@droptracker/api-types";
+import { BOARD_STYLES, EVENT_TASK_DIFFICULTIES } from "@droptracker/api-types";
 import {
   fetchEventBoard,
   generateEventBoard,
@@ -41,6 +42,9 @@ import { Alert } from "@/components/ui";
 import { BoundTaskPanel, EventTaskCombobox } from "@/components/event-task-search";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { QuantityInput } from "@/components/quantity-input";
+import { BoardLinksOverlay } from "@/components/board-links-overlay";
+import { relinkAfterDelete, suggestLinks, validateBoardLinks } from "@/lib/board-links";
+import type { LinkTile } from "@/lib/board-links";
 
 /** Elemental rune item ids — the tile icons in "rune" render mode. */
 export const RUNE_ITEM_IDS: Record<EventTaskDifficulty, number> = {
@@ -67,8 +71,28 @@ type DesignerTile = {
   label: string;
   difficulty: EventTaskDifficulty | null;
   taskId: number | null;
-  tileKind: "start" | "normal" | "special" | "finish";
+  tileKind: "start" | "normal" | "required" | "finish";
+  /** Chute / ladder target (2026-09); null = no link. */
+  jumpTo: number | null;
+  /** Ladders only: climb on landing, or once the tile's task is completed. */
+  jumpWhen: "land" | "complete";
 };
+
+const STYLE_LABELS: Record<BoardStyle, string> = {
+  race: "Race",
+  chutes_ladders: "Chutes & Ladders",
+};
+
+/** The pure-rules view of the layout (lib/board-links). */
+function linkTiles(list: DesignerTile[]): LinkTile[] {
+  return list.map((t, i) => ({
+    idx: i,
+    tileKind: t.tileKind,
+    jumpTo: t.jumpTo,
+    jumpWhen: t.jumpWhen,
+    hasTask: t.taskId != null || t.difficulty != null,
+  }));
+}
 
 const cycleDifficulty = (i: number): EventTaskDifficulty =>
   EVENT_TASK_DIFFICULTIES[i % EVENT_TASK_DIFFICULTIES.length] ?? "air";
@@ -89,6 +113,8 @@ function zigzagTiles(count: number): DesignerTile[] {
       difficulty: cycleDifficulty(i),
       taskId: null,
       tileKind: i === 0 ? "start" : i === count - 1 ? "finish" : "normal",
+      jumpTo: null,
+      jumpWhen: "land",
     });
   }
   return tiles;
@@ -102,6 +128,8 @@ function tilesFromBoard(board: BoardDetail): DesignerTile[] {
     difficulty: (t.difficulty as EventTaskDifficulty | null) ?? null,
     taskId: t.task_id ?? null,
     tileKind: t.tile_kind,
+    jumpTo: t.jump_to ?? null,
+    jumpWhen: t.jump_when === "complete" ? "complete" : "land",
   }));
 }
 
@@ -143,8 +171,14 @@ export function EventBoardDesigner({
     seed: string;
     regions: number;
     tiles: number;
-    style: "path" | "filled";
+    style: "path" | "filled" | "grid";
   }>({ seed: "", regions: 8, tiles: 60, style: "path" });
+  // --- Chutes & ladders (2026-09) -------------------------------------------
+  // Pick-on-board: the tile whose link target the next tile click sets.
+  const [linkPickFor, setLinkPickFor] = useState<number | null>(null);
+  const [linksOpen, setLinksOpen] = useState(false);
+  const [linkGen, setLinkGen] = useState({ ladders: 5, chutes: 5, minSpan: 8 });
+  const [styleBusy, setStyleBusy] = useState(false);
 
   // --- Autosave plumbing (the bingo designer's block, verbatim pattern) ----
   const revRef = useRef(0);
@@ -240,18 +274,35 @@ export function EventBoardDesigner({
           ? { difficulty: t.difficulty }
           : {}),
       tile_kind: t.tileKind,
+      ...(t.jumpTo != null
+        ? {
+            jump_to: t.jumpTo,
+            ...(t.jumpWhen === "complete" && t.jumpTo > idx
+              ? { jump_when: "complete" as const }
+              : {}),
+          }
+        : {}),
     })),
   });
 
   const flush = async () => {
     if (!editable || savingRef.current) return;
     if (revRef.current === savedRevRef.current) return;
+    // The backend refuses an invalid link set (422); surface the same rule
+    // here, next to the board, instead of a bare "Autosave failed".
+    const problems = validateBoardLinks(linkTiles(tilesRef.current));
+    if (problems.length > 0) {
+      setError(`Fix the links before the board can save: ${problems[0]}`);
+      setSaveState("error");
+      return;
+    }
     savingRef.current = true;
     setSaveState("saving");
     const rev = revRef.current;
     try {
       const detail = await saveEventBoard(groupId, event.id, buildInput());
       savedRevRef.current = rev;
+      setError(null);
       if (revRef.current === rev && selectedRef.current == null) {
         setBoard(detail);
         setTiles(tilesFromBoard(detail));
@@ -320,6 +371,11 @@ export function EventBoardDesigner({
   const onBoardClick = (e: React.MouseEvent) => {
     if (!editable) return;
     if (dragIdx.current != null) return; // drag end, not a place
+    if (linkPickFor != null) {
+      // Clicking empty board while picking a link target = cancel the pick.
+      setLinkPickFor(null);
+      return;
+    }
     const pos = fractionAt(e);
     if (!pos) return;
     pushHistory();
@@ -332,6 +388,8 @@ export function EventBoardDesigner({
           difficulty: cycleDifficulty(prev.length),
           taskId: null,
           tileKind: prev.length === 0 ? ("start" as const) : ("normal" as const),
+          jumpTo: null,
+          jumpWhen: "land" as const,
         },
       ];
       return next;
@@ -382,8 +440,63 @@ export function EventBoardDesigner({
 
   const deleteTile = (idx: number) => {
     pushHistory();
-    setTiles((prev) => prev.filter((_, i) => i !== idx));
+    // The track re-indexes, so every link past the removed tile shifts down
+    // and a link INTO it dies.
+    setTiles((prev) => relinkAfterDelete(prev.filter((_, i) => i !== idx), idx));
     setSelected(null);
+    setLinkPickFor(null);
+    markDirty();
+  };
+
+  // --- Chutes & ladders tools (2026-09) --------------------------------------
+  const linkProblems = useMemo(() => validateBoardLinks(linkTiles(tiles)), [tiles]);
+  const linkCount = tiles.filter((t) => t.jumpTo != null).length;
+  const isChutes = board?.settings.style === "chutes_ladders";
+
+  const setStyle = async (style: BoardStyle) => {
+    if (!board || style === board.settings.style) return;
+    setStyleBusy(true);
+    setError(null);
+    try {
+      const settings = await saveEventBoardSettings(groupId, event.id, { style });
+      setBoard((prev) => (prev ? { ...prev, settings } : prev));
+    } catch (err) {
+      setError(getErrorMessage(err, "Couldn't change the board style."));
+    } finally {
+      setStyleBusy(false);
+    }
+  };
+
+  const placeLinks = () => {
+    const placed = suggestLinks(linkTiles(tiles), {
+      ladders: linkGen.ladders,
+      chutes: linkGen.chutes,
+      minSpan: linkGen.minSpan,
+    });
+    if (placed.size === 0) {
+      setError(
+        "No room for more links with those settings — lower the minimum span, add tiles, or clear some links.",
+      );
+      return;
+    }
+    setError(null);
+    pushHistory();
+    setTiles((prev) =>
+      prev.map((t, i) =>
+        placed.has(i) ? { ...t, jumpTo: placed.get(i)!, jumpWhen: "land" as const } : t,
+      ),
+    );
+    markDirty();
+  };
+
+  const clearLinks = () => {
+    if (linkCount === 0) return;
+    if (!window.confirm(`Remove all ${linkCount} chute(s) and ladder(s) from this board?`)) return;
+    pushHistory();
+    setTiles((prev) =>
+      prev.map((t) => (t.jumpTo != null ? { ...t, jumpTo: null, jumpWhen: "land" as const } : t)),
+    );
+    setLinkPickFor(null);
     markDirty();
   };
 
@@ -511,16 +624,54 @@ export function EventBoardDesigner({
         regions: gen.regions,
         tiles: gen.tiles,
         style: gen.style,
+        ...(gen.style === "grid" ? { title: "Chutes & Ladders", subtitle: event.name } : {}),
       });
-      setBoard(detail);
-      setTiles(tilesFromBoard(detail));
-      setSelected(null);
-      clearHistory(); // a freshly generated board is a clean slate for undo
-      savedRevRef.current = revRef.current; // generation already saved server-side
-      setSaveState("saved");
-      setLastGenSeed(trimmedGenSeed); // remember what we rolled with ("" = random)
       // Panel intentionally stays open so the admin can re-roll until happy.
-      onSaved?.(detail);
+      adoptGenerated(detail, trimmedGenSeed); // remember what we rolled with ("" = random)
+    } catch (err) {
+      setError(getErrorMessage(err, "Board generation failed."));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  /** A server-generated board is already persisted: adopt it and sync the
+   * autosave revision so nothing re-PUTs it; a fresh board is a clean slate
+   * for undo and any half-made link pick. */
+  const adoptGenerated = (detail: BoardDetail, seedUsed: string) => {
+    setBoard(detail);
+    setTiles(tilesFromBoard(detail));
+    setSelected(null);
+    setLinkPickFor(null);
+    clearHistory();
+    savedRevRef.current = revRef.current;
+    setSaveState("saved");
+    setLastGenSeed(seedUsed);
+    onSaved?.(detail);
+  };
+
+  // The Chutes & Ladders preset: the classic 10×10 numbered grid (art +
+  // 100 tiles reading bottom-left to top), ready for links.
+  const generateGrid = async () => {
+    if (
+      tiles.length > 0 &&
+      !window.confirm(
+        `Replace the current ${tiles.length} tile(s) and background with a fresh 10×10 numbered grid?`,
+      )
+    ) {
+      return;
+    }
+    setGenerating(true);
+    setError(null);
+    try {
+      const detail = await generateEventBoard(groupId, event.id, {
+        seed: null,
+        tiles: 100,
+        style: "grid",
+        title: "Chutes & Ladders",
+        subtitle: event.name,
+      });
+      adoptGenerated(detail, "");
     } catch (err) {
       setError(getErrorMessage(err, "Board generation failed."));
     } finally {
@@ -567,6 +718,8 @@ export function EventBoardDesigner({
         </p>
       )}
 
+      <BoardStylePicker value={board.settings.style} busy={styleBusy} onChange={setStyle} />
+
       <div className="flex flex-wrap items-center gap-2">
         <label className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark cursor-pointer rounded px-3 py-1.5 text-sm font-medium">
           {uploading ? "Uploading…" : board.background_url ? "Replace image" : "Upload board image"}
@@ -592,6 +745,37 @@ export function EventBoardDesigner({
         >
           ✨ Generate board
         </button>
+        {isChutes && (
+          <>
+            <button
+              type="button"
+              onClick={generateGrid}
+              disabled={!editable || generating}
+              className="border-osrs-gold/60 text-osrs-gold hover:bg-osrs-gold/10 rounded border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+              title="Generate the classic 10×10 numbered grid — art and 100 tiles"
+            >
+              🪜 10×10 grid
+            </button>
+            <button
+              type="button"
+              onClick={() => setLinksOpen((v) => !v)}
+              disabled={!editable || tiles.length < 10}
+              className="border-osrs-bronze/40 hover:border-osrs-gold rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+              aria-expanded={linksOpen}
+              title="Place a set of chutes and ladders at random (needs at least 10 tiles)"
+            >
+              Add ladders &amp; chutes
+            </button>
+            <button
+              type="button"
+              onClick={clearLinks}
+              disabled={!editable || linkCount === 0}
+              className="border-osrs-bronze/40 hover:border-osrs-gold rounded border px-3 py-1.5 text-sm disabled:opacity-50"
+            >
+              Clear links
+            </button>
+          </>
+        )}
         <button
           type="button"
           onClick={seedZigzag}
@@ -673,25 +857,30 @@ export function EventBoardDesigner({
                 className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
               />
             </label>
-            <label className="block text-sm">
-              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Regions (2–11)</span>
-              <QuantityInput
-                min={2}
-                max={11}
-                value={gen.regions}
-                onChange={(regions) => setGen((g) => ({ ...g, regions }))}
-                className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
-              />
-            </label>
+            {gen.style !== "grid" && (
+              <label className="block text-sm">
+                <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Regions (2–11)</span>
+                <QuantityInput
+                  min={2}
+                  max={11}
+                  value={gen.regions}
+                  onChange={(regions) => setGen((g) => ({ ...g, regions }))}
+                  className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
+                />
+              </label>
+            )}
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Style</span>
               <select
                 value={gen.style}
-                onChange={(e) => setGen((g) => ({ ...g, style: e.target.value as "path" | "filled" }))}
+                onChange={(e) =>
+                  setGen((g) => ({ ...g, style: e.target.value as "path" | "filled" | "grid" }))
+                }
                 className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
               >
                 <option value="path">Path (winding track)</option>
                 <option value="filled">Filled (dense map)</option>
+                <option value="grid">Numbered grid (Chutes &amp; Ladders)</option>
               </select>
             </label>
           </div>
@@ -732,6 +921,79 @@ export function EventBoardDesigner({
         </div>
       )}
 
+      {linksOpen && editable && isChutes && (
+        <div className="border-osrs-gold/30 bg-osrs-brown-dark/40 space-y-3 rounded border p-3">
+          <h4 className="text-osrs-gold text-sm font-semibold">Add ladders &amp; chutes</h4>
+          <p className="text-osrs-parchment-dark/60 text-xs">
+            Places new links at random on normal tiles — never on the start, the finish or a
+            required tile — and keeps the ones you already have. Links never chain, and a ladder
+            never skips a required tile. Every link stays editable from its tile afterward.
+          </p>
+          <div className="grid max-w-md grid-cols-3 gap-3">
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Ladders</span>
+              <QuantityInput
+                min={0}
+                max={50}
+                value={linkGen.ladders}
+                onChange={(ladders) => setLinkGen((g) => ({ ...g, ladders }))}
+                className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Chutes</span>
+              <QuantityInput
+                min={0}
+                max={50}
+                value={linkGen.chutes}
+                onChange={(chutes) => setLinkGen((g) => ({ ...g, chutes }))}
+                className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Min. span (tiles)</span>
+              <QuantityInput
+                min={1}
+                max={99}
+                value={linkGen.minSpan}
+                onChange={(minSpan) => setLinkGen((g) => ({ ...g, minSpan }))}
+                className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={placeLinks}
+              className="bg-osrs-gold text-osrs-brown-dark hover:bg-osrs-gold/90 rounded px-3 py-1.5 text-sm font-semibold"
+            >
+              Place links
+            </button>
+            <button
+              type="button"
+              onClick={() => setLinksOpen(false)}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-gold text-xs"
+            >
+              Close
+            </button>
+            <span className="text-osrs-parchment-dark/50 text-xs">
+              {linkCount} link{linkCount === 1 ? "" : "s"} on the board
+            </span>
+          </div>
+        </div>
+      )}
+
+      {linkProblems.length > 0 && (
+        <Alert variant="error">
+          <span className="block text-xs font-semibold">Fix these before the board can save:</span>
+          <ul className="mt-1 list-disc pl-4 text-xs">
+            {linkProblems.slice(0, 5).map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        </Alert>
+      )}
+
       {/* The board surface */}
       <div
         ref={imgRef}
@@ -739,7 +1001,11 @@ export function EventBoardDesigner({
         className="border-osrs-bronze/30 relative w-full overflow-hidden rounded border bg-black/30 select-none"
         style={{ aspectRatio: `${aspect}` }}
         role="application"
-        aria-label="Board designer — click to place a tile"
+        aria-label={
+          linkPickFor != null
+            ? `Board designer — click the tile that tile ${linkPickFor} should link to`
+            : "Board designer — click to place a tile"
+        }
       >
         {board.background_url ? (
           <img
@@ -751,6 +1017,23 @@ export function EventBoardDesigner({
         ) : (
           <div className="text-osrs-parchment-dark/40 pointer-events-none absolute inset-0 flex items-center justify-center text-sm">
             Upload a board image, or use the zig-zag layout on a plain background.
+          </div>
+        )}
+        <BoardLinksOverlay
+          tiles={tiles.map((t, i) => ({
+            idx: i,
+            x: t.x,
+            y: t.y,
+            jump_to: t.jumpTo,
+            jump_when: t.jumpWhen,
+          }))}
+          width={board.bg_width ?? 1600}
+          height={board.bg_height ?? 1000}
+          highlight={selected}
+        />
+        {linkPickFor != null && (
+          <div className="text-osrs-gold pointer-events-none absolute inset-x-0 top-0 z-30 bg-black/75 px-3 py-1.5 text-center text-xs">
+            Click the tile that tile {linkPickFor} should link to — click the board to cancel.
           </div>
         )}
         {tiles.map((t, i) => (
@@ -768,6 +1051,11 @@ export function EventBoardDesigner({
             onClick={(e) => {
               e.stopPropagation();
               if (dragIdx.current != null) return;
+              if (linkPickFor != null) {
+                if (i !== linkPickFor) updateTile(linkPickFor, { jumpTo: i });
+                setLinkPickFor(null);
+                return;
+              }
               setSelected((prev) => (prev === i ? null : i));
             }}
           />
@@ -795,6 +1083,8 @@ export function EventBoardDesigner({
           onTaskUpdated={onTaskUpdated}
           onDelete={() => deleteTile(selected)}
           onClose={closeEditor}
+          picking={linkPickFor === selected}
+          onPickOnBoard={() => setLinkPickFor((cur) => (cur === selected ? null : selected))}
         />
       )}
 
@@ -859,6 +1149,7 @@ function TileMarker({
   onClick: (e: React.MouseEvent) => void;
 }) {
   const isEndpoint = tile.tileKind === "start" || tile.tileKind === "finish";
+  const isRequired = tile.tileKind === "required";
   // Only difficulty tiles in "rune" mode actually render a rune icon; the
   // circle grows with the icon so the ring stays proportional. Everything
   // else (endpoints, invisible/outline hotspots) keeps the fixed 32px circle.
@@ -880,7 +1171,16 @@ function TileMarker({
   } else if (renderMode === "invisible") {
     style.border = "1px dashed rgba(255,255,255,0.25)";
   }
+  // A required stop wears a red ring in every render mode — the checkpoint
+  // has to be visible to be fair.
+  if (isRequired) style.border = `${Math.max(2, outlineWidth)}px solid #e05c4d`;
   if (selected) style.boxShadow = "0 0 0 3px rgba(255, 215, 0, 0.7)";
+  const linkNote =
+    tile.jumpTo != null
+      ? tile.jumpTo > idx
+        ? ` — ladder to ${tile.jumpTo}`
+        : ` — chute to ${tile.jumpTo}`
+      : "";
 
   return (
     <button
@@ -889,7 +1189,9 @@ function TileMarker({
       style={style}
       onMouseDown={onMouseDown}
       onClick={onClick}
-      title={`Tile ${idx}${tile.label ? ` — ${tile.label}` : ""}`}
+      title={`Tile ${idx}${isRequired ? " (required stop)" : ""}${linkNote}${
+        tile.label ? ` — ${tile.label}` : ""
+      }`}
     >
       {showsRune ? (
         <ItemDbIcon itemId={RUNE_ITEM_IDS[tile.difficulty!]} size={iconSize} />
@@ -915,6 +1217,8 @@ function TileEditor({
   onTaskUpdated,
   onDelete,
   onClose,
+  picking,
+  onPickOnBoard,
 }: {
   groupId: number | null;
   eventId: number;
@@ -932,10 +1236,15 @@ function TileEditor({
   onTaskUpdated?: (task: EventTask) => void;
   onDelete: () => void;
   onClose: () => void;
+  /** Pick-on-board mode for this tile's link target (2026-09). */
+  picking: boolean;
+  onPickOnBoard: () => void;
 }) {
   const field =
     "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-2 py-1.5 text-sm outline-none";
   const pinned = tile.taskId != null ? taskById.get(tile.taskId) : undefined;
+  const canLink = tile.tileKind !== "start" && tile.tileKind !== "finish";
+  const isLadder = tile.jumpTo != null && tile.jumpTo > idx;
   return (
     <div className="border-osrs-bronze/30 bg-osrs-brown-dark/50 space-y-3 rounded border p-3">
       <div className="flex items-center justify-between">
@@ -1038,6 +1347,89 @@ function TileEditor({
         )}
       </div>
 
+      {canLink && (
+        <div className="border-osrs-bronze/25 space-y-2 rounded border p-2 text-sm">
+          <span className="text-osrs-parchment-dark/70 block text-xs">
+            Chute or ladder — the tile a landing here sends the piece to (lower = chute, higher =
+            ladder)
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="number"
+              min={0}
+              max={count - 1}
+              value={tile.jumpTo ?? ""}
+              placeholder="tile #"
+              disabled={!editable}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                if (raw === "") {
+                  onChange({ jumpTo: null, jumpWhen: "land" });
+                  return;
+                }
+                const n = Number(raw);
+                if (Number.isInteger(n) && n >= 0 && n < count && n !== idx) {
+                  onChange({ jumpTo: n, ...(n < idx ? { jumpWhen: "land" as const } : {}) });
+                }
+              }}
+              className={`${field} w-24`}
+            />
+            <button
+              type="button"
+              onClick={onPickOnBoard}
+              disabled={!editable}
+              className={`rounded border px-2 py-1 text-xs disabled:opacity-50 ${
+                picking
+                  ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold"
+                  : "border-osrs-bronze/40 hover:border-osrs-gold"
+              }`}
+            >
+              {picking ? "Click a tile on the board…" : "Pick on board"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange({ jumpTo: null, jumpWhen: "land" })}
+              disabled={!editable || tile.jumpTo == null}
+              className="border-osrs-bronze/40 hover:border-osrs-gold rounded border px-2 py-1 text-xs disabled:opacity-50"
+            >
+              Clear
+            </button>
+            {tile.jumpTo != null && (
+              <span className={`text-xs ${isLadder ? "text-emerald-300" : "text-red-300"}`}>
+                {isLadder ? `🪜 Ladder to tile ${tile.jumpTo}` : `🕳️ Chute to tile ${tile.jumpTo}`}
+              </span>
+            )}
+          </div>
+          {isLadder && (
+            <label className="block text-sm">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Climb when</span>
+              <select
+                value={tile.jumpWhen}
+                disabled={!editable}
+                onChange={(e) => onChange({ jumpWhen: e.target.value as "land" | "complete" })}
+                className={field}
+              >
+                <option value="land">A team lands here (classic)</option>
+                <option value="complete">A team completes this tile&apos;s task (earn the climb)</option>
+              </select>
+              {tile.jumpWhen === "complete" && tile.taskId == null && tile.difficulty == null && (
+                <span className="text-osrs-red block text-xs">
+                  An earned ladder needs a task — give this tile a difficulty or pin a task.
+                </span>
+              )}
+            </label>
+          )}
+          {tile.jumpTo != null &&
+            tile.jumpWhen === "land" &&
+            (tile.taskId != null || tile.difficulty) && (
+              <span className="text-osrs-parchment-dark/50 block text-xs">
+                A landing-triggered link moves the piece straight on, so this tile&apos;s own task
+                is never drawn — the destination&apos;s is.
+              </span>
+            )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <label className="block text-sm">
           <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Label (optional)</span>
@@ -1059,11 +1451,66 @@ function TileEditor({
           >
             <option value="start">Start</option>
             <option value="normal">Normal</option>
-            <option value="special">Special</option>
+            <option value="required">Required stop</option>
             <option value="finish">Finish</option>
           </select>
+          {tile.tileKind === "required" && (
+            <span className="text-osrs-parchment-dark/60 mt-1 block text-xs">
+              A team whose roll would pass this tile stops on it and must complete its task
+              before moving on. Cleared once per team.
+            </span>
+          )}
+          {tile.tileKind === "finish" && (
+            <span className="text-osrs-parchment-dark/60 mt-1 block text-xs">
+              {tile.difficulty || tile.taskId != null
+                ? "Reaching the finish assigns this task — completing it wins."
+                : "Reaching the finish wins. Give it a difficulty or a pinned task to make teams complete one first."}
+            </span>
+          )}
         </label>
       </div>
+    </div>
+  );
+}
+
+/** The board style (settings.style): a preset the designer's tools and the
+ * player copy key off. Saved immediately, like the other settings. */
+function BoardStylePicker({
+  value,
+  busy,
+  onChange,
+}: {
+  value: BoardStyle;
+  busy: boolean;
+  onChange: (style: BoardStyle) => void;
+}) {
+  return (
+    <div className="border-osrs-bronze/20 flex flex-wrap items-center gap-3 rounded border p-3">
+      <span className="text-osrs-gold text-sm font-semibold">Board style</span>
+      <div className="flex gap-1" role="radiogroup" aria-label="Board style">
+        {BOARD_STYLES.map((style) => (
+          <button
+            key={style}
+            type="button"
+            role="radio"
+            aria-checked={value === style}
+            disabled={busy}
+            onClick={() => onChange(style)}
+            className={`rounded border px-3 py-1 text-sm disabled:opacity-50 ${
+              value === style
+                ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold font-semibold"
+                : "border-osrs-bronze/40 hover:border-osrs-gold"
+            }`}
+          >
+            {STYLE_LABELS[style]}
+          </button>
+        ))}
+      </div>
+      <span className="text-osrs-parchment-dark/60 text-xs">
+        {value === "chutes_ladders"
+          ? "A numbered grid with chutes and ladders. Generate the 10×10 grid, then place links — or add one to any tile by hand. For the classic feel, turn coins and the shop off in the settings below."
+          : "The winding dice track: every tile draws a task, the first team to the finish wins."}
+      </span>
     </div>
   );
 }
@@ -1189,6 +1636,18 @@ function BoardSettingsSection({
             </select>
           </label>
         )}
+        <label className="block text-sm">
+          <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Exact finish</span>
+          <select
+            value={settings.win.exact_finish ?? "off"}
+            onChange={(e) => patch({ win: { exact_finish: e.target.value } })}
+            className={`${field} w-full`}
+          >
+            <option value="off">Off — an overshoot lands on the finish</option>
+            <option value="stay">Stay — an overshoot loses the move (roll again)</option>
+            <option value="bounce">Bounce — an overshoot bounces back from the finish</option>
+          </select>
+        </label>
         <label className="block text-sm">
           <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Tile rendering</span>
           <select

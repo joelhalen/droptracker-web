@@ -777,7 +777,7 @@ export const eventsApi = {
       seed?: number | null;
       regions?: number;
       tiles?: number;
-      style?: "path" | "filled";
+      style?: "path" | "filled" | "grid";
       title?: string;
       subtitle?: string;
       watermark?: string | null;

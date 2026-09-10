@@ -3267,12 +3267,35 @@ export type BingoBoard = z.infer<typeof BingoBoardSchema>;
 // --------------------------------------------------------------------------
 // Board game (web44a)
 // --------------------------------------------------------------------------
-export const EVENT_BOARD_TILE_KINDS = ["start", "normal", "special", "finish"] as const;
+/** Tile roles. `required` (2026-09, replaces the semantics-free `special`) is a
+ * checkpoint: a team whose move would carry it past the tile stops on it and
+ * must complete its task before rolling on. */
+export const EVENT_BOARD_TILE_KINDS = ["start", "normal", "required", "finish"] as const;
+export type EventBoardTileKind = (typeof EVENT_BOARD_TILE_KINDS)[number];
+/** Pre-rename rows still say "special" until the web115a migration runs —
+ * read them as "required" so an unmigrated board still parses. */
+const BoardTileKindSchema = z.preprocess(
+  (v) => (v === "special" ? "required" : v),
+  z.enum(EVENT_BOARD_TILE_KINDS),
+);
 export const BOARD_TILE_RENDER_MODES = ["rune", "invisible", "outline"] as const;
+/** Board styles (settings.style): a designer/copy preset — the engine reads
+ * tiles. `chutes_ladders` = the numbered grid with tile links. */
+export const BOARD_STYLES = ["race", "chutes_ladders"] as const;
+export type BoardStyle = (typeof BOARD_STYLES)[number];
+/** When a tile link fires: on landing (classic) or, ladders only, once the
+ * tile's task is completed (an earned climb). */
+export const BOARD_JUMP_TRIGGERS = ["land", "complete"] as const;
+export type BoardJumpTrigger = (typeof BOARD_JUMP_TRIGGERS)[number];
+/** settings.win.exact_finish: what an overshooting roll does. */
+export const BOARD_EXACT_FINISH_MODES = ["off", "stay", "bounce"] as const;
+export type BoardExactFinishMode = (typeof BOARD_EXACT_FINISH_MODES)[number];
 
 /** The §2.5 board settings document — the backend always returns it fully
  * defaulted, so every key is present on reads. */
 export const BoardSettingsSchema = z.object({
+  /** Board style preset (2026-09). Defaulted so older payloads still parse. */
+  style: z.enum(BOARD_STYLES).default("race"),
   movement: z.object({
     mode: z.enum(["dice", "fixed_step"]),
     dice_count: z.number().int(),
@@ -3325,7 +3348,14 @@ export const BoardSettingsSchema = z.object({
     base_hours: z.number(),
     step_hours: z.number(),
   }),
-  win: z.object({ rule: z.string() }).passthrough(),
+  win: z
+    .object({
+      rule: z.string(),
+      /** Overshooting rolls: land on the finish anyway (off), lose the move
+       * (stay) or bounce back by the excess (bounce). */
+      exact_finish: z.enum(BOARD_EXACT_FINISH_MODES).default("off"),
+    })
+    .passthrough(),
 });
 export type BoardSettings = z.infer<typeof BoardSettingsSchema>;
 
@@ -3340,7 +3370,13 @@ export const BoardTileSchema = z.object({
   /** Pinned tile: one specific event task. */
   task_id: z.number().int().nullable().optional(),
   task_label: z.string().nullable().optional(),
-  tile_kind: z.enum(EVENT_BOARD_TILE_KINDS).default("normal"),
+  tile_kind: BoardTileKindSchema.default("normal"),
+  /** Chute / ladder (2026-09): the tile a landing here sends the piece to —
+   * lower = chute, higher = ladder. Links never chain. */
+  jump_to: z.number().int().nullable().optional(),
+  /** "land" (the moment a piece lands) or "complete" (ladders only: after the
+   * tile's task is done). */
+  jump_when: z.enum(BOARD_JUMP_TRIGGERS).nullable().optional(),
 });
 export type BoardTile = z.infer<typeof BoardTileSchema>;
 
@@ -3643,7 +3679,9 @@ export const BoardTileInputSchema = z.object({
   difficulty: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
   task_id: z.number().int().nullable().optional(),
   library_item_id: z.number().int().nullable().optional(),
-  tile_kind: z.enum(EVENT_BOARD_TILE_KINDS).optional(),
+  tile_kind: BoardTileKindSchema.optional(),
+  jump_to: z.number().int().nonnegative().nullable().optional(),
+  jump_when: z.enum(BOARD_JUMP_TRIGGERS).nullable().optional(),
 });
 export const BoardInputSchema = z.object({
   background_url: z.string().max(255).nullable().optional(),
@@ -3800,6 +3838,31 @@ export const BoardRollResultSchema = z.object({
   task_id: z.number().int().optional(),
   task_label: z.string().optional(),
   task_difficulty: z.string().nullable().optional(),
+  /** A chute or ladder the landing triggered (2026-09). */
+  jump: z
+    .object({
+      kind: z.enum(["ladder", "chute"]),
+      from: z.number().int(),
+      to: z.number().int(),
+    })
+    .nullable()
+    .optional(),
+  /** The move stopped short on a required tile the team hasn't cleared. */
+  required_stop: z
+    .object({ tile_idx: z.number().int(), short_by: z.number().int().optional() })
+    .nullable()
+    .optional(),
+  /** The exact-finish rule caught an overshooting roll. */
+  overshoot: z
+    .object({
+      mode: z.enum(["stay", "bounce"]),
+      by: z.number().int(),
+      to: z.number().int().optional(),
+    })
+    .nullable()
+    .optional(),
+  /** Reached a finish tile that carries a task — complete it to win. */
+  finish_task: z.boolean().optional(),
 });
 export type BoardRollResult = z.infer<typeof BoardRollResultSchema>;
 
