@@ -26,6 +26,7 @@ import {
   type EventMetaEntry,
   type EventCaCatalog,
   type EventPetCategory,
+  type EventSlayerCatalog,
   type EventTask,
   type EventTaskInput,
 } from "@droptracker/api-types";
@@ -33,17 +34,22 @@ import {
   OSRS_SKILLS,
   PET_CATEGORY_KEYS,
   PET_CATEGORY_LABELS,
+  SLAYER_RESET_MASTER_IDS,
   TASK_DIFFICULTY_LABELS,
   TASK_TYPE_HELP,
   TASK_TYPE_LABELS,
   formatSeconds,
   parseTimeToSeconds,
+  isDefaultSlayerExclusion,
   pbRequirement,
+  slayerRequirement,
+  slayerRequirementSummary,
   taskConfig,
   taskConfigItems,
   taskConfigPetNames,
   taskSourceNpcs,
   type PbRequirementMode,
+  type SlayerRequirement,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Button } from "@/components/ui";
@@ -68,6 +74,7 @@ import {
   addEventTask,
   fetchEventCaCatalog,
   fetchEventPetCategories,
+  fetchEventSlayerCatalog,
   fetchItemSources,
   fetchNpcDropItems,
   resolveEventMetaNames,
@@ -108,6 +115,9 @@ const ITEM_MODE_HELP: Record<ItemMode, string> = {
 
 /** How a pet_collection task is scoped. */
 type PetMode = "specific" | "category" | "custom" | "any";
+/** Which slayer masters a slayer_target counts. "default" is the server's own
+ * exclusion (the streak-reset masters) and sends no master keys at all. */
+type SlayerMasterMode = "default" | "only" | "exclude" | "all";
 
 const PET_MODE_LABELS: Record<PetMode, string> = {
   specific: "A specific pet",
@@ -723,6 +733,77 @@ export function EventTaskForm({
   );
   const [petCategories, setPetCategories] = useState<string[]>(initialPetCategories);
 
+  // ---- slayer_target ------------------------------------------------------
+  // The task stores master IDS — an allow-list or a deny-list — and the
+  // names come from the catalog, so a registry correction on the server
+  // never invalidates a saved task. Leaving the masters alone sends NO master
+  // keys: the server writes its own default exclusion.
+  const initialSlayer = slayerRequirement({
+    config: initial?.type === "slayer_target" ? (initial.config ?? null) : null,
+  });
+  const [slayerCount, setSlayerCount] = useState<number>(
+    initial?.type === "slayer_target" ? (initial.target_value ?? 1) : 1,
+  );
+  const [slayerMasterMode, setSlayerMasterMode] = useState<SlayerMasterMode>(() => {
+    if (initial?.type !== "slayer_target") return "default";
+    if (initialSlayer.masters) return "only";
+    if (initialSlayer.excludeMasters.length === 0) return "all";
+    return isDefaultSlayerExclusion(initialSlayer.excludeMasters) ? "default" : "exclude";
+  });
+  const [slayerMasters, setSlayerMasters] = useState<number[]>(
+    initialSlayer.masters ?? initialSlayer.excludeMasters,
+  );
+  const [slayerTasks, setSlayerTasks] = useState<string[]>(initialSlayer.tasks);
+  const [slayerBossOnly, setSlayerBossOnly] = useState<boolean>(initialSlayer.bossOnly);
+  const [slayerCatalog, setSlayerCatalog] = useState<EventSlayerCatalog>({
+    masters: [],
+    default_excluded: [],
+    tasks: [],
+  });
+  const [slayerTaskQuery, setSlayerTaskQuery] = useState("");
+  useEffect(() => {
+    if (type !== "slayer_target") return;
+    let cancelled = false;
+    fetchEventSlayerCatalog(groupId)
+      .then((c) => !cancelled && setSlayerCatalog(c))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [type, groupId]);
+  const slayerMasterNames = (): Record<number, string> =>
+    Object.fromEntries(
+      slayerCatalog.masters.map((m) => [
+        m.id,
+        m.aliases.length ? `${m.name}/${m.aliases[0]}` : m.name,
+      ]),
+    );
+  /** The criteria as the summary line reads them (mirrors what is saved). */
+  const slayerDraft = (): SlayerRequirement => ({
+    masters: slayerMasterMode === "only" ? slayerMasters : null,
+    excludeMasters:
+      slayerMasterMode === "exclude"
+        ? slayerMasters
+        : slayerMasterMode === "default"
+          ? slayerCatalog.default_excluded.length
+            ? slayerCatalog.default_excluded
+            : [...SLAYER_RESET_MASTER_IDS]
+          : [],
+    tasks: slayerTasks,
+    bossOnly: slayerBossOnly,
+  });
+  /** What the API stores. "default" sends no master keys — the server writes
+   * its own exclusion, so the client never needs to know those ids. */
+  const slayerConfig = (): Record<string, unknown> => {
+    const cfg: Record<string, unknown> = {};
+    if (slayerMasterMode === "only") cfg.masters = slayerMasters;
+    else if (slayerMasterMode === "exclude") cfg.exclude_masters = slayerMasters;
+    else if (slayerMasterMode === "all") cfg.exclude_masters = [];
+    if (slayerTasks.length) cfg.tasks = slayerTasks;
+    if (slayerBossOnly) cfg.boss_only = true;
+    return cfg;
+  };
+
   // ---- ca_target ----------------------------------------------------------
   // The task stores a resolved allow-list of achievement NAMES (the CA
   // envelope carries no NPC, so scoping is only possible by resolving up
@@ -939,6 +1020,13 @@ export function EventTaskForm({
         if (caCount > caMatchCount)
           return `Only ${caMatchCount} achievement${caMatchCount === 1 ? "" : "s"} match — lower the goal or widen the tiers.`;
         break;
+      case "slayer_target":
+        if (slayerCount < 1) return "Number of tasks must be at least 1.";
+        if (slayerMasterMode === "only" && slayerMasters.length === 0)
+          return "Pick at least one slayer master.";
+        if (slayerMasterMode === "exclude" && slayerMasters.length === 0)
+          return "Pick the masters that shouldn't count, or choose another option.";
+        break;
       case "loot_sweep":
         if (lootSweep.groups.length < 1) return "Add at least one group.";
         for (const g of lootSweep.groups) {
@@ -1015,6 +1103,8 @@ export function EventTaskForm({
             : `${n}Any of ${petList.length} pets`;
         return petCount > 1 ? `Any ${petCount} pets` : "Any pet";
       }
+      case "slayer_target":
+        return slayerRequirementSummary(slayerDraft(), slayerCount, slayerMasterNames());
       case "loot_sweep": {
         const items = lootSweep.groups.reduce((n, g) => n + g.items.length, 0);
         if (lootSweep.groups.length === 1 && lootSweep.groups[0]?.label.trim())
@@ -1200,6 +1290,14 @@ export function EventTaskForm({
             ...(caTiers.length ? { tiers: caTiers } : {}),
           }),
         };
+      case "slayer_target": {
+        const cfg = slayerConfig();
+        return {
+          ...base,
+          target_value: slayerCount,
+          ...(Object.keys(cfg).length ? { config: JSON.stringify(cfg) } : {}),
+        };
+      }
       case "loot_sweep":
         // One task = one boss "set"; params + items live in config. The task
         // never "completes", so target/target_value are unused.
@@ -2012,6 +2110,128 @@ export function EventTaskForm({
       {(type === "ehp_target" || type === "ehb_target") &&
         goalField(type === "ehp_target" ? "Target EHP" : "Target EHB", "e.g. 25")}
 
+      {type === "slayer_target" && (
+        <div className="grid gap-3">
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            Counted from the plugin&apos;s slayer task completions. Turael, Aya and Spria reset
+            the streak and are how players skip tasks, so they don&apos;t count unless you say
+            so.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-sm">
+              <span className="text-osrs-parchment-dark/80">Tasks to complete</span>
+              <QuantityInput min={1} value={slayerCount} onChange={setSlayerCount} />
+            </label>
+            <label className="grid gap-1 text-sm">
+              <span className="text-osrs-parchment-dark/80">Which masters count</span>
+              <select
+                value={slayerMasterMode}
+                onChange={(e) => {
+                  setSlayerMasterMode(e.target.value as SlayerMasterMode);
+                  setSlayerMasters([]);
+                }}
+                className={field}
+              >
+                <option value="default">Any master except Turael, Aya and Spria</option>
+                <option value="only">Only the masters I pick</option>
+                <option value="exclude">Any master except the ones I pick</option>
+                <option value="all">Every master, Turael, Aya and Spria included</option>
+              </select>
+            </label>
+          </div>
+          {(slayerMasterMode === "only" || slayerMasterMode === "exclude") && (
+            <div className="grid gap-1 text-sm">
+              <span className="text-osrs-parchment-dark/80">
+                {slayerMasterMode === "only" ? "Masters that count" : "Masters that don't count"}
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {slayerCatalog.masters.map((m) => {
+                  const on = slayerMasters.includes(m.id);
+                  const caption = m.aliases.length ? `${m.name} / ${m.aliases.join(" / ")}` : m.name;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() =>
+                        setSlayerMasters(
+                          on ? slayerMasters.filter((id) => id !== m.id) : [...slayerMasters, m.id],
+                        )
+                      }
+                      className={`rounded border px-2.5 py-1 text-xs ${
+                        on
+                          ? "border-osrs-gold bg-osrs-brown-dark text-osrs-gold"
+                          : "border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:border-osrs-gold/60"
+                      }`}
+                    >
+                      {caption}
+                    </button>
+                  );
+                })}
+                {slayerCatalog.masters.length === 0 && (
+                  <span className="text-osrs-parchment-dark/50 text-xs">Loading masters…</span>
+                )}
+              </div>
+            </div>
+          )}
+          <label className="grid gap-1 text-sm">
+            <span className="text-osrs-parchment-dark/80">
+              Specific assignments (optional — any assignment counts if none picked)
+            </span>
+            <input
+              type="text"
+              list="slayer-task-options"
+              value={slayerTaskQuery}
+              placeholder="Abyssal demons, Cave kraken…"
+              onChange={(e) => {
+                const next = e.target.value;
+                const match = slayerCatalog.tasks.find((t) => t === next);
+                if (match) {
+                  if (!slayerTasks.includes(match)) setSlayerTasks([...slayerTasks, match]);
+                  setSlayerTaskQuery("");
+                } else {
+                  setSlayerTaskQuery(next);
+                }
+              }}
+              className={field}
+            />
+            <datalist id="slayer-task-options">
+              {slayerCatalog.tasks
+                .filter((t) => !slayerTasks.includes(t))
+                .map((t) => (
+                  <option key={t} value={t} />
+                ))}
+            </datalist>
+          </label>
+          {slayerTasks.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5">
+              {slayerTasks.map((name) => (
+                <li
+                  key={name}
+                  className="border-osrs-bronze/40 bg-osrs-brown-dark/50 flex items-center gap-1.5 rounded border px-2 py-1 text-xs"
+                >
+                  <span className="text-osrs-parchment">{name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSlayerTasks(slayerTasks.filter((n) => n !== name))}
+                    className="text-osrs-parchment-dark/60 hover:text-osrs-red"
+                    aria-label={`Remove ${name}`}
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={slayerBossOnly}
+              onChange={(e) => setSlayerBossOnly(e.target.checked)}
+            />
+            Boss tasks only
+          </label>
+        </div>
+      )}
       {type === "custom" && (
         <label className="grid gap-1 text-sm">
           <span className="text-osrs-parchment-dark/80">Goal description (optional)</span>

@@ -101,6 +101,7 @@ export const TASK_TYPE_LABELS: Record<EventTask["type"], string> = {
   loot_value: "Loot value",
   pet_collection: "Pet",
   ca_target: "Combat achievement",
+  slayer_target: "Slayer tasks",
   loot_sweep: "Loot Sweep set",
   competition: "Competition race",
   custom: "Custom (manual)",
@@ -124,6 +125,8 @@ export const TASK_TYPE_HELP: Record<EventTask["type"], string> = {
     "Obtain a pet — a specific one, any pet from a category (boss / skilling / raids), or any pet at all. Credited from pet submissions.",
   ca_target:
     "Complete combat achievements — name one, or pick the bosses (and optionally the tiers) and every achievement at them counts. The achievement list is resolved when you save, so it can't drift.",
+  slayer_target:
+    "Complete slayer tasks. Turael, Aya and Spria don't count unless you say so — they reset the streak and are how players skip tasks — or name exactly which masters count, pin specific assignments, or keep it to boss tasks. Credited from the plugin's slayer task completions.",
   loot_sweep:
     "One boss/“set” worth of items (Loot Sweep events only). Each item scores points that decay on every repeat receipt (capped per item); collecting the whole set awards a bonus. Never “completes” — it accrues points until the event ends.",
   competition:
@@ -345,6 +348,79 @@ export function pbRequirement(
       : "times";
   const need = typeof cfg.need === "number" && cfg.need >= 1 ? Math.floor(cfg.need) : 1;
   return { mode, need };
+}
+
+/** Mirrors `RESET_MASTER_IDS` / the names in the backend's
+ * `utils/slayer_masters.py`: Turael (whose slot Aya shares) is 1, Spria is 9.
+ * Used only to RECOGNISE a stored default (so the form shows "the default"
+ * rather than two ticked boxes) and to label it before the catalog has
+ * loaded; what a task saves comes from the server. */
+export const SLAYER_RESET_MASTER_IDS: readonly number[] = [1, 9];
+export const SLAYER_RESET_MASTER_NAMES: Record<number, string> = { 1: "Turael/Aya", 9: "Spria" };
+
+export type SlayerRequirement = {
+  /** Allow-list of master ids, or null when the task is a deny-list. */
+  masters: number[] | null;
+  /** Deny-list of master ids; empty means every master counts. Ignored when
+   * `masters` is set. */
+  excludeMasters: number[];
+  /** Assignment names the task is pinned to; empty means any. */
+  tasks: string[];
+  bossOnly: boolean;
+};
+
+function masterIdList(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  const out: number[] = [];
+  for (const v of raw) {
+    const n = typeof v === "number" ? v : Number(v);
+    if (Number.isInteger(n) && n > 0 && !out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+/** A slayer_target's stored criteria. A config with no master key at all is
+ * the server's default (the reset masters excluded), which is what a task
+ * saved through the form without touching the masters looks like. */
+export function slayerRequirement(task: Pick<EventTask, "config">): SlayerRequirement {
+  const cfg = taskConfig(task);
+  const masters = masterIdList(cfg.masters);
+  const exclude =
+    "exclude_masters" in cfg ? masterIdList(cfg.exclude_masters) : [...SLAYER_RESET_MASTER_IDS];
+  return {
+    masters: masters.length ? masters : null,
+    excludeMasters: masters.length ? [] : exclude,
+    tasks: Array.isArray(cfg.tasks)
+      ? cfg.tasks.filter((t): t is string => typeof t === "string" && t.trim() !== "")
+      : [],
+    bossOnly: cfg.boss_only === true,
+  };
+}
+
+/** True when a deny-list is exactly the server's default exclusion. */
+export function isDefaultSlayerExclusion(ids: readonly number[]): boolean {
+  if (ids.length !== SLAYER_RESET_MASTER_IDS.length) return false;
+  const sorted = [...ids].sort((a, b) => a - b);
+  return sorted.every((v, i) => v === SLAYER_RESET_MASTER_IDS[i]);
+}
+
+/** One line for a slayer_target — "25 slayer tasks — any master except
+ * Turael/Aya, Spria — boss tasks only". `names` is the catalog's id → name
+ * map; an id nobody knows prints as "#id" rather than vanishing. */
+export function slayerRequirementSummary(
+  req: SlayerRequirement,
+  count: number,
+  names: Record<number, string> = {},
+): string {
+  const name = (id: number) => names[id] ?? SLAYER_RESET_MASTER_NAMES[id] ?? `#${id}`;
+  const parts = [`${count} slayer task${count === 1 ? "" : "s"}`];
+  if (req.masters) parts.push(`from ${req.masters.map(name).join(" / ")}`);
+  else if (req.excludeMasters.length === 0) parts.push("any master");
+  else parts.push(`any master except ${req.excludeMasters.map(name).join(", ")}`);
+  if (req.tasks.length)
+    parts.push(req.tasks.length <= 3 ? req.tasks.join(" / ") : `${req.tasks.length} assignments`);
+  if (req.bossOnly) parts.push("boss tasks only");
+  return parts.join(" — ");
 }
 
 /** Items in an item-list config, for display chips (groups and either-or

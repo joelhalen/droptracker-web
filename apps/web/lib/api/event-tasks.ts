@@ -4,8 +4,10 @@ import {
   AiTaskQuotaSchema,
   type AiTaskQuota,
   EventCaCatalogSchema,
+  EventSlayerCatalogSchema,
   EventPetCategorySchema,
   type EventCaCatalog,
+  type EventSlayerCatalog,
   type EventPetCategory,
   EventItemSourcesSchema,
   type EventItemSources,
@@ -334,6 +336,18 @@ export const eventTasksApi = {
           await apiGet(`/events/meta/ca-monsters`, { authed: true }),
         ),
       () => ({ tiers: [], monsters: [] }),
+    );
+  },
+
+  /** Slayer master registry + assignment names — the slayer_target task
+   * builder's picker. */
+  async eventSlayerCatalog(): Promise<EventSlayerCatalog> {
+    return withFallback(
+      async () =>
+        EventSlayerCatalogSchema.parse(
+          await apiGet(`/events/meta/slayer-masters`, { authed: true }),
+        ),
+      () => ({ masters: [], default_excluded: [], tasks: [] }),
     );
   },
 

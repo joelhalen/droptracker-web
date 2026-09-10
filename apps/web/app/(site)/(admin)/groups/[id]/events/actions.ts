@@ -813,6 +813,13 @@ export async function fetchEventCaCatalog(groupId: EventGroupId) {
   return api.eventCaCatalog();
 }
 
+/** Slayer master registry + assignment names — the slayer_target task
+ * form's master picker. */
+export async function fetchEventSlayerCatalog(groupId: EventGroupId) {
+  await assertCanUseEventMeta(groupId);
+  return api.eventSlayerCatalog();
+}
+
 /** Batch exact-name → game-id lookup — icon hydration for the task form's
  * selection chips when editing a task that only stores names. */
 export async function resolveEventMetaNames(

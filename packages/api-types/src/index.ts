@@ -2381,6 +2381,15 @@ export const EVENT_TASK_TYPES = [
    * registry's monster/tier fields — the CA envelope carries no NPC, so
    * scoping one to a boss is only possible by resolving names up front. */
   "ca_target",
+  /** Slayer task completions. `target_value` = how many tasks. `config`
+   * carries either `masters` (an allow-list of slayer master ids) or
+   * `exclude_masters` (a deny-list — the server defaults it to the
+   * streak-reset masters Turael/Aya and Spria so "Turael skipping" can't
+   * farm a task count; `[]` = every master), plus optional `tasks`
+   * (assignment names) and `boss_only`. Ids and names come from
+   * GET /events/meta/slayer-masters; credited from the plugin's slayer
+   * task completions. */
+  "slayer_target",
   /** Loot Sweep (loot_sweep kind): one task per boss "set". Each config item
    * awards points that decay per successive team receipt (capped per item);
    * collecting a full set awards a bonus (capped). Scored continuously off the
@@ -5213,6 +5222,27 @@ export const EventCaCatalogSchema = z.object({
     .array(),
 });
 export type EventCaCatalog = z.infer<typeof EventCaCatalogSchema>;
+
+/** GET /events/meta/slayer-masters — the slayer masters a slayer_target task
+ * can name (ids are what the task stores; alternates like Aya share Turael's
+ * id) and the assignment names it can pin. `default_excluded` is what a task
+ * gets when the builder leaves the masters alone: the streak-reset masters. */
+export const EventSlayerCatalogSchema = z.object({
+  masters: z
+    .object({
+      id: z.number().int(),
+      name: z.string(),
+      aliases: z.array(z.string()),
+      awards_points: z.boolean(),
+      resets_streak: z.boolean(),
+      /** False until the id has been confirmed against live completions. */
+      verified: z.boolean(),
+    })
+    .array(),
+  default_excluded: z.array(z.number().int()),
+  tasks: z.array(z.string()),
+});
+export type EventSlayerCatalog = z.infer<typeof EventSlayerCatalogSchema>;
 
 /** One NPC that drops an item, from the ingested OSRS Wiki drop table
  * (`xenforo.dt_npc_loot`). `tracked` = we've observed real drops from this NPC
