@@ -3229,6 +3229,168 @@ export const EventPrizePotSummarySchema = z.object({
 });
 export type EventPrizePotSummary = z.infer<typeof EventPrizePotSummarySchema>;
 
+/* --- Clan-point awards (web114a) -------------------------------------------
+ * An event paying out a clan's custom points for placement and EHE
+ * participation. One payout ("scope") per clan: a standard event's own group,
+ * or each accepted clan of a clan-vs-clan event. Backend:
+ * services/event_point_awards.py + web_api/routes/event_points.py. */
+
+/** "auto" awards as the event ends; "review" waits for an admin to confirm. */
+export const EVENT_POINT_AWARD_MODES = ["auto", "review"] as const;
+export type EventPointAwardMode = (typeof EVENT_POINT_AWARD_MODES)[number];
+
+/** pending → (deferred) → awarded → (revoked). "deferred" = an auto award
+ * that couldn't price EHE at the end and is being retried. */
+export const EVENT_POINT_STATUSES = ["pending", "deferred", "awarded", "revoked"] as const;
+export type EventPointStatus = (typeof EVENT_POINT_STATUSES)[number];
+
+/** Input ceilings — mirror services/event_point_awards.py. */
+export const EVENT_CLAN_POINTS_LIMITS = {
+  places: 10,
+  points: 1_000_000,
+  perHour: 10_000,
+  minHours: 1_000,
+} as const;
+
+export const EventClanPointsConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  award_mode: z.enum(EVENT_POINT_AWARD_MODES).default("auto"),
+  /** Points each member of the team (player, on SOTW/BOTW) finishing 1st,
+   * 2nd, … receives. */
+  placement: z.array(z.number().int()).default([]),
+  /** Placement pays only members who took part. */
+  placement_active_only: z.boolean().default(true),
+  participation: z
+    .object({
+      /** For everyone who took part (and met min_hours). */
+      flat: z.number().int().default(0),
+      /** Per EHE hour, rounded half-up per player. */
+      per_hour: z.number().default(0),
+      /** EHE floor below which nothing is paid (0 = none). */
+      min_hours: z.number().default(0),
+      /** Per-player participation cap (0 = uncapped). */
+      max: z.number().int().default(0),
+    })
+    .default({ flat: 0, per_hour: 0, min_hours: 0, max: 0 }),
+});
+export type EventClanPointsConfig = z.infer<typeof EventClanPointsConfigSchema>;
+
+/** One player's award (placement + participation folded). On a public read
+ * of an event that keeps EHE to its admins, `participation`/`hours` are null
+ * (the amount is the hours with a multiplier) and a hidden player's
+ * `player_id` is null. */
+export const EventClanPointsRowSchema = z.object({
+  player_id: z.number().int().nullable(),
+  player_name: z.string().nullable().optional(),
+  team_id: z.number().int().nullable().optional(),
+  team_name: z.string().nullable().optional(),
+  place: z.number().int().nullable().optional(),
+  placement: z.number().int().default(0),
+  participation: z.number().int().nullable().optional(),
+  hours: z.number().nullable().optional(),
+  total: z.number().int().default(0),
+});
+export type EventClanPointsRow = z.infer<typeof EventClanPointsRowSchema>;
+
+/** A roster player the payout can't reach: `not_member` (the clan pays only
+ * its own members) or `inactive` (on a placed team but took no part). */
+export const EventClanPointsSkippedSchema = z.object({
+  player_id: z.number().int(),
+  player_name: z.string().nullable().optional(),
+  team_id: z.number().int().nullable().optional(),
+  team_name: z.string().nullable().optional(),
+  reason: z.string(),
+});
+export type EventClanPointsSkipped = z.infer<typeof EventClanPointsSkippedSchema>;
+
+/** A paid place: a team (or, on SOTW/BOTW, a player) and what each earns. */
+export const EventClanPointsPlacementSchema = z.object({
+  place: z.number().int(),
+  team_id: z.number().int().nullable().optional(),
+  player_id: z.number().int().nullable().optional(),
+  label: z.string().default(""),
+  amount: z.number().int(),
+  /** Players actually paid for this place. */
+  players: z.number().int().default(0),
+  team: z.boolean().default(true),
+});
+export type EventClanPointsPlacement = z.infer<typeof EventClanPointsPlacementSchema>;
+
+const ClanPointsTotalsShape = {
+  total_points: z.number().int().default(0),
+  players: z.number().int().default(0),
+  placement_points: z.number().int().default(0),
+  participation_points: z.number().int().default(0),
+  participation_players: z.number().int().default(0),
+};
+
+export const EventClanPointsAwardedSchema = z.object({
+  ...ClanPointsTotalsShape,
+  rows: z.array(EventClanPointsRowSchema).default([]),
+});
+export type EventClanPointsAwarded = z.infer<typeof EventClanPointsAwardedSchema>;
+
+/** Admin-only: what the event would pay right now. */
+export const EventClanPointsPreviewSchema = z.object({
+  ...ClanPointsTotalsShape,
+  rows: z.array(EventClanPointsRowSchema).default([]),
+  skipped: z.array(EventClanPointsSkippedSchema).default([]),
+  placements: z.array(EventClanPointsPlacementSchema).default([]),
+  competition: z.boolean().default(false),
+  /** False on SOTW/BOTW — no EHE is recorded there (flat participation only). */
+  ehe_supported: z.boolean().default(true),
+  /** False = the WOM rate table is cold; hours read low, awarding refuses. */
+  rates_known: z.boolean().default(true),
+  roster_size: z.number().int().default(0),
+  /** Why it can't be awarded right now (null = it can). */
+  blocker: z.string().nullable().optional(),
+  /** Drift between an award and the current standings (awarded only). */
+  changes: z
+    .object({
+      insert: z.number().int(),
+      update: z.number().int(),
+      remove: z.number().int(),
+      reset: z.number().int(),
+    })
+    .nullable()
+    .optional(),
+  out_of_sync: z.boolean().default(false),
+});
+export type EventClanPointsPreview = z.infer<typeof EventClanPointsPreviewSchema>;
+
+export const EventClanPointsScopeSchema = z.object({
+  group_id: z.number().int(),
+  group_name: z.string().nullable().optional(),
+  /** The clan's points system (Clan Points entitlement) is live. */
+  available: z.boolean().default(false),
+  can_manage: z.boolean().default(false),
+  config: EventClanPointsConfigSchema,
+  status: z.enum(EVENT_POINT_STATUSES).default("pending"),
+  awarded_at: z.number().int().nullable().optional(),
+  last_error: z.string().nullable().optional(),
+  awarded: EventClanPointsAwardedSchema.nullable().optional(),
+  preview: EventClanPointsPreviewSchema.optional(),
+});
+export type EventClanPointsScope = z.infer<typeof EventClanPointsScopeSchema>;
+
+/** GET /events/{id}/clan-points (+ the award/revoke responses, which add a
+ * `summary`). */
+export const EventClanPointsSchema = z.object({
+  event_id: z.number().int(),
+  status: z.string(),
+  kind: z.string().default("standard"),
+  scopes: z.array(EventClanPointsScopeSchema).default([]),
+  summary: z.record(z.string(), z.unknown()).optional(),
+});
+export type EventClanPoints = z.infer<typeof EventClanPointsSchema>;
+
+/** PUT /events/{id}/clan-points body — any subset of the config. */
+export type EventClanPointsConfigInput = Partial<
+  Omit<EventClanPointsConfig, "participation"> & {
+    participation: Partial<EventClanPointsConfig["participation"]>;
+  }
+>;
+
 /** One team's (or player's) completion of a cell, with enough context for the
  * public board's popover (who + when). `completed_at` comes from the task's
  * progress rollup; free cells have none. */
@@ -6394,6 +6556,10 @@ export const PointsHistoryEntrySchema = z.object({
   amount: z.number().int(),
   reason: z.string(),
   manual: z.boolean(),
+  /** Paid by an event's clan-point awards (web114a): which event, and for
+   * placement or participation. Null/absent for every other award. */
+  event_id: z.number().int().nullable().optional(),
+  event_award: z.enum(["placement", "participation"]).nullable().optional(),
   date: z.string().nullable(),
 });
 export type PointsHistoryEntry = z.infer<typeof PointsHistoryEntrySchema>;

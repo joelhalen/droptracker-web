@@ -57,6 +57,7 @@ import { EventBoardDesigner } from "@/components/event-board-designer";
 import { EventBoardShopConfig } from "@/components/event-board-shop-config";
 import { EventDiscordSettings } from "@/components/event-discord";
 import { PrizePotManager } from "@/components/prize-pot-manager";
+import { EventClanPointsManager } from "@/components/event-clan-points-manager";
 import { EventMemberList } from "@/components/event-member-list";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
@@ -119,6 +120,7 @@ const MANAGER_TABS = [
   { key: "teams", label: "Teams" },
   { key: "board", label: "Board" },
   { key: "prizes", label: "Prize Pot" },
+  { key: "points", label: "Clan Points" },
   { key: "discord", label: "Discord" },
   { key: "review", label: "Review" },
   { key: "audit", label: "Audit" },
@@ -1363,6 +1365,9 @@ export function EventManager({
             // kind hides the Competition tab instead.
             (t) =>
               !(t.key === "board" && event.kind === "loot_sweep") &&
+              // Clan points are paid into a clan's own points — a global
+              // event (no group) has no clan to pay.
+              !(t.key === "points" && groupId == null) &&
               (isCompetitionKind(event.kind)
                 ? !["tasks", "teams", "board"].includes(t.key)
                 : t.key !== "competition"),
@@ -1933,6 +1938,17 @@ export function EventManager({
           onEventUpdated={applyDetail}
         />
       </section>
+
+      {/* Clan-point awards (web114a): this clan's payout for placement + EHE
+          participation, with the live preview and award controls. */}
+      {groupId != null && (
+        <section className={tab === "points" ? "" : "hidden"}>
+          <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
+            Clan Points
+          </h3>
+          <EventClanPointsManager groupId={groupId} event={event} />
+        </section>
+      )}
 
       {/* Per-event Discord config, inline (web48a — used to be its own page;
           the standalone /discord route still works for old links). */}

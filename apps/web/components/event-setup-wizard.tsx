@@ -33,6 +33,7 @@ import {
   type EventKind,
   type EventKindMeta,
   type EventParticipant,
+  type EventPointAwardMode,
   type EventPrizeDistribution,
   type EventReadiness,
   type EventScheduleInput,
@@ -58,6 +59,11 @@ import {
   updateGroupEvent,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import { fetchDiscordRoles } from "@/app/(site)/(admin)/groups/[id]/announcements/actions";
+import {
+  fetchEventClanPoints,
+  saveEventClanPoints,
+} from "@/app/(site)/(admin)/groups/[id]/events/clan-points-actions";
+import { ordinal, placeBadge, trimPlacement } from "@/lib/clan-points";
 import { getErrorMessage } from "@/lib/errors";
 import {
   EVENT_MODE_LABELS,
@@ -92,6 +98,7 @@ import { HelpTip } from "@/components/help-tip";
 import { LocalTime, TimezoneNote } from "@/components/local-time";
 import { PlayerAddInput } from "@/components/player-add-input";
 import { GpInput } from "@/components/gp-input";
+import { QuantityInput } from "@/components/quantity-input";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
@@ -279,6 +286,20 @@ export function EventSetupWizard({
   );
   const [potAdvertise, setPotAdvertise] = useState(initialEvent?.prize_pot?.advertise ?? false);
 
+  // Clan points (web114a): the essentials of the manager's Clan Points tab —
+  // on/off, 1st–3rd place and EHE participation. Loaded when the rules step
+  // opens (it needs the draft, and whether the clan's points system is live).
+  const [cpLoaded, setCpLoaded] = useState(false);
+  const [cpAvailable, setCpAvailable] = useState(false);
+  const [cpWasEnabled, setCpWasEnabled] = useState(false);
+  const [cpEnabled, setCpEnabled] = useState(false);
+  const [cpMode, setCpMode] = useState<EventPointAwardMode>("auto");
+  // The full stored list — the wizard edits 1st–3rd and keeps any further
+  // places set in the manager intact.
+  const [cpPlacement, setCpPlacement] = useState<number[]>([100, 50, 25]);
+  const [cpPerHour, setCpPerHour] = useState(0);
+  const [cpFlat, setCpFlat] = useState(0);
+
   // Reported by the Discord step's own form (it saves separately, on its own
   // button) so step navigation can warn before unmounting unsaved edits.
   const [discordDirty, setDiscordDirty] = useState(false);
@@ -380,6 +401,33 @@ export function EventSetupWizard({
       cancelled = true;
     };
   }, [step.key, detail?.id]);
+
+  // Clan points: read this clan's payout (and whether it can pay at all) the
+  // first time the rules step opens. A failed read just hides the block.
+  const draftId = detail?.id ?? null;
+  useEffect(() => {
+    if (step.key !== "rules" || draftId == null || groupId == null || cpLoaded) return;
+    let cancelled = false;
+    fetchEventClanPoints(groupId, draftId)
+      .then((res) => {
+        if (cancelled || !res.ok) return;
+        const scope = res.data.scopes.find((sc) => sc.group_id === groupId);
+        if (!scope) return;
+        const c = scope.config;
+        setCpAvailable(scope.available);
+        setCpWasEnabled(c.enabled);
+        setCpEnabled(c.enabled);
+        setCpMode(c.award_mode);
+        if (c.placement.length) setCpPlacement(c.placement);
+        setCpPerHour(c.participation.per_hour);
+        setCpFlat(c.participation.flat);
+        setCpLoaded(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [step.key, draftId, groupId, cpLoaded]);
 
   /** The Discord step saves through its own button — everything else here
    * commits on Continue, so this is the one step that can lose work. */
@@ -525,6 +573,22 @@ export function EventSetupWizard({
                   requires_confirmation: requiresConfirmation,
                 },
           );
+          // Clan points (web114a) — only written when switched on, or when
+          // switching an existing payout off (no empty rows for every draft).
+          if (groupId != null && cpLoaded && (cpEnabled || cpWasEnabled)) {
+            const cpRes = await saveEventClanPoints(groupId, detail.id, {
+              enabled: cpEnabled,
+              award_mode: cpMode,
+              placement: trimPlacement(cpPlacement),
+              participation: { per_hour: cpPerHour, flat: cpFlat },
+            });
+            if (!cpRes.ok) {
+              // Currency-facing, like the pot: never advance past a failed save.
+              setError(`The clan points couldn't be saved: ${cpRes.message}`);
+              return;
+            }
+            setCpWasEnabled(cpEnabled);
+          }
         }
         setStepIdx((i) => Math.min(i + 1, steps.length - 1));
       } catch (err) {
@@ -1214,6 +1278,103 @@ export function EventSetupWizard({
               </div>
             )}
           </div>
+
+          {/* Clan points (web114a): paid in this clan's own points. The
+              finer rules (more places, EHE floor/cap, active-only) live in the
+              manager's Clan Points tab once the event exists. */}
+          {groupId != null && cpLoaded && (
+            <div className="border-osrs-bronze/20 space-y-3 rounded border border-dashed p-3">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={cpEnabled}
+                  disabled={!cpAvailable && !cpEnabled}
+                  onChange={(e) => setCpEnabled(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span>
+                  {"\u{1FA99}"} Award clan points
+                  <span className="text-osrs-parchment-dark/50 block text-xs">
+                    {cpAvailable
+                      ? "Pay members clan points for where their team finishes and for the effort they put in (EHE — Efficient Hours towards Event). Fine-tune it later in the event's Clan Points tab."
+                      : "Needs the Clan Points feature on this group's subscription."}
+                  </span>
+                </span>
+              </label>
+              {cpEnabled && (
+                <div className="space-y-3 pl-6">
+                  <div className="flex flex-wrap items-end gap-3">
+                    {[0, 1, 2].map((i) => (
+                      <label key={i} className="text-sm">
+                        <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                          {placeBadge(i + 1)} {ordinal(i + 1)} place
+                          {isCompetitionKind(detail.kind) ? "" : " · each member"}
+                        </span>
+                        <QuantityInput
+                          min={0}
+                          max={1_000_000}
+                          value={cpPlacement[i] ?? 0}
+                          onChange={(v) =>
+                            setCpPlacement((p) => {
+                              const next = [...p];
+                              while (next.length <= i) next.push(0);
+                              next[i] = v;
+                              return next;
+                            })
+                          }
+                          className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-28 rounded border px-3 py-2 text-sm outline-none"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap items-end gap-3">
+                    {!isCompetitionKind(detail.kind) && (
+                      <label className="text-sm">
+                        <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                          Points per EHE hour
+                        </span>
+                        <QuantityInput
+                          min={0}
+                          max={10_000}
+                          step={0.5}
+                          integer={false}
+                          value={cpPerHour}
+                          onChange={setCpPerHour}
+                          className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-28 rounded border px-3 py-2 text-sm outline-none"
+                        />
+                      </label>
+                    )}
+                    <label className="text-sm">
+                      <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                        Flat points for taking part
+                      </span>
+                      <QuantityInput
+                        min={0}
+                        max={1_000_000}
+                        value={cpFlat}
+                        onChange={setCpFlat}
+                        className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-28 rounded border px-3 py-2 text-sm outline-none"
+                      />
+                    </label>
+                  </div>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={cpMode === "review"}
+                      onChange={(e) => setCpMode(e.target.checked ? "review" : "auto")}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Let me review the results before paying
+                      <span className="text-osrs-parchment-dark/50 block text-xs">
+                        Otherwise points are paid automatically the moment the event ends.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

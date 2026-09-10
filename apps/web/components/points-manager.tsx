@@ -1866,6 +1866,15 @@ function HistorySection({
                         Manual
                       </span>
                     )}
+                    {/* Paid by an event's clan-point awards (web114a). */}
+                    {e.event_id != null && (
+                      <Link
+                        href={`/events/${e.event_id}` as Route}
+                        className="ml-2 rounded bg-sky-400/15 px-1.5 py-0.5 text-xs text-sky-400 hover:underline"
+                      >
+                        Event
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}

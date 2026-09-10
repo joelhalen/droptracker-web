@@ -29,6 +29,7 @@ const CATEGORIES: ReadonlyArray<readonly [string, string]> = [
   ["board", "Board"],
   ["prize", "Prize pot"],
   ["discord", "Discord"],
+  ["clan_points", "Clan points"],
 ];
 
 const CATEGORY_TINT: Record<string, string> = {
@@ -37,6 +38,7 @@ const CATEGORY_TINT: Record<string, string> = {
   approval: "text-osrs-green",
   manual_award: "text-osrs-gold",
   revoke: "text-osrs-red",
+  clan_points: "text-osrs-gold-bright",
 };
 
 function prettyValue(raw: string | null): string {

@@ -39,6 +39,7 @@ import {
   eventDetail,
   eventPendingCompletions,
   eventPot,
+  eventClanPoints,
   joinEvent,
   leaveEvent,
   lootSweepBoard,
@@ -51,7 +52,9 @@ import {
   taskRequirements,
 } from "@/lib/activity/api";
 import { PrizePotPanel, type PrizePotActions } from "@/components/prize-pot-panel";
-import type { EventPrizePot } from "@droptracker/api-types";
+import { EventClanPointsCard } from "@/components/event-clan-points-card";
+import { isCompetitionKind } from "@/lib/competition";
+import type { EventClanPoints, EventPrizePot } from "@droptracker/api-types";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "text-osrs-parchment-dark/60",
@@ -173,6 +176,23 @@ export function EventView({
   useEffect(() => {
     void loadPot();
   }, [loadPot, refreshKey]);
+
+  // Clan-point awards (web114a): the same public card as the site — the offer,
+  // then who got paid. Re-read with each refresh so an award at the end shows.
+  const [clanPoints, setClanPoints] = useState<EventClanPoints | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    eventClanPoints(eventId, sessionToken)
+      .then((d) => {
+        if (!cancelled) setClanPoints(d);
+      })
+      .catch(() => {
+        /* leave the last-known card in place */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, sessionToken, refreshKey]);
   const potActions: PrizePotActions | null =
     event?.can_manage && sessionToken
       ? {
@@ -396,6 +416,11 @@ export function EventView({
       {pot && pot.enabled && (
         <PrizePotPanel pot={pot} actions={potActions} onChanged={loadPot} />
       )}
+
+      <EventClanPointsCard
+        data={clanPoints}
+        competition={isCompetitionKind(event.kind)}
+      />
 
       {canManage && pendingCount > 0 && (
         <button

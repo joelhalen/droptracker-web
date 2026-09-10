@@ -25,6 +25,7 @@ import {
   EventPlayerDetailSchema,
   EventPlayersResponseSchema,
   EventPrizePotSchema,
+  EventClanPointsSchema,
   EventSummarySchema,
   EventTeamContributionsSchema,
   EventTeamDetailSchema,
@@ -49,6 +50,7 @@ import {
   type EventPlayerDetail,
   type EventPlayersResponse,
   type EventPrizePot,
+  type EventClanPoints,
   type EventTeamContributions,
   type EventTeamDetail,
   type EventTeamsResponse,
@@ -283,6 +285,18 @@ async function sendMethod(
 
 function send(path: string, sessionToken: string, body: unknown): Promise<unknown> {
   return sendMethod("POST", path, sessionToken, body);
+}
+
+// --- Clan-point awards (web114a) — read-only twin of api.eventClanPoints ----
+
+/** What the event pays in clan points and, once paid, who got what. */
+export async function eventClanPoints(
+  eventId: number,
+  sessionToken: string | null,
+): Promise<EventClanPoints> {
+  return EventClanPointsSchema.parse(
+    await get(`/api/activity/events/${eventId}/clan-points`, sessionToken),
+  );
 }
 
 // --- Prize pot (web52a) — bearer twins of the site pot methods ---------------

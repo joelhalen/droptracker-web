@@ -12,6 +12,7 @@ import { EventCompletionHistory } from "@/components/event-completion-history";
 import { EventTeamsPanel } from "@/components/event-teams-panel";
 import { HiddenBoardNotice } from "@/components/hidden-board-notice";
 import { PrizePotPanel } from "@/components/prize-pot-panel";
+import { EventClanPointsCard } from "@/components/event-clan-points-card";
 import { CompetitionBonusRulesCard } from "@/components/competition-bonus-rules-card";
 import { CompetitionStandings, CompetitionTopStrip } from "@/components/competition-standings";
 import { isCompetitionKind } from "@/lib/competition";
@@ -63,6 +64,13 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   // Prize pot (web52a): the "Who's bought in" panel — only when the event runs
   // a pot. Read-only on the public page (no actions).
   const pot = event.prize_pot?.enabled ? await api.eventPot(eventId).catch(() => null) : null;
+
+  // Clan-point awards (web114a): what the event pays in clan points, and once
+  // paid, who got what. The card renders nothing when no clan offers any.
+  const clanPoints = await api.eventClanPoints(eventId).catch(() => null);
+  const clanPointsPanel = (
+    <EventClanPointsCard data={clanPoints} competition={isCompetitionKind(event.kind)} />
+  );
 
   const players = user ? user.players.map((p) => ({ id: p.id, name: p.name })) : null;
 
@@ -149,6 +157,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
           )}
           <CompetitionBonusRulesCard board={competition} />
           {potPanel}
+          {clanPointsPanel}
         </div>
         <div>
           <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
@@ -202,6 +211,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
             {participatePanel}
             {teamsPanel}
             {potPanel}
+            {clanPointsPanel}
           </div>
           {lootSweepBoard}
         </div>
@@ -272,6 +282,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
             {participatePanel}
             {teamsPanel}
             {potPanel}
+            {clanPointsPanel}
           </aside>
         </div>
       )}
