@@ -48,7 +48,7 @@ export default async function EventTeamsIndexPage({ params }: { params: Params }
         eventId={eventId}
         kind={event.kind}
         data={teamsData}
-        taskCount={event.tasks.length}
+        taskCount={event.tasks_hidden ? null : event.tasks.length}
         potEnabled={event.prize_pot?.enabled}
         viewerTeamId={event.viewer?.team_id ?? null}
       />

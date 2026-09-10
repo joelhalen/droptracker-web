@@ -386,7 +386,9 @@ function PlayerDetail({ detail }: { detail: EventPlayerDetail }) {
               <li key={a.id} className="text-osrs-parchment-dark/70 flex items-center gap-2 text-xs">
                 <span className="min-w-0 flex-1 truncate">
                   <span className="text-osrs-parchment">
-                    {a.matched_target ?? a.task_label ?? `Task ${a.task_id}`}
+                    {a.matched_target ??
+                      a.task_label ??
+                      (detail.tasks_hidden ? "Hidden task" : `Task ${a.task_id}`)}
                   </span>
                   {a.quantity > 1 && <span className="ml-1">×{num(a.quantity)}</span>}
                 </span>

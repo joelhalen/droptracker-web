@@ -84,7 +84,9 @@ export function EventTeamsBoard({
   eventId: number;
   kind?: string;
   data: EventTeamsResponse | null;
-  taskCount: number;
+  /** Null when the board is hidden from the viewer (web112a): the meter's
+   * total would be the one number the organisers are withholding. */
+  taskCount: number | null;
   potEnabled?: boolean;
   viewerTeamId?: number | null;
   /** Discord Activity swaps links (which would 404 in the iframe) for in-app
@@ -190,9 +192,11 @@ export function EventTeamsBoard({
                 </div>
               </div>
 
-              <div className="mt-3 pl-2">
-                <TasksMeter done={team.tasks_done} total={taskCount} color={color} />
-              </div>
+              {taskCount != null && (
+                <div className="mt-3 pl-2">
+                  <TasksMeter done={team.tasks_done} total={taskCount} color={color} />
+                </div>
+              )}
 
               <TeamItemStrip items={team.items} />
 

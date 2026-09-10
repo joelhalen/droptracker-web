@@ -54,6 +54,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { LocalTime } from "@/components/local-time";
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { EmptyState } from "@/components/ui";
+import { HiddenBoardNotice } from "@/components/hidden-board-notice";
 import { EventMemberList } from "@/components/event-member-list";
 import { EheChip, EheValue } from "@/components/event-ehe";
 import { TeamNotificationsButton } from "@/components/event-teams-panel";
@@ -480,7 +481,8 @@ export function EventTeamView({
               <span className="text-osrs-parchment/90">{contributionSummary(last)}</span>
               <span className="text-osrs-parchment-dark/40"> on </span>
               <span className="text-osrs-parchment-dark/80">
-                {last.task_label ?? `task ${last.task_id}`}
+                {last.task_label ??
+                  (detail.tasks_hidden ? "a hidden task" : `task ${last.task_id}`)}
               </span>
               <span className="text-osrs-parchment-dark/40">
                 {" · "}
@@ -792,6 +794,8 @@ export function EventTeamView({
               );
             })}
           </ul>
+        ) : detail.tasks_hidden ? (
+          <HiddenBoardNotice />
         ) : (
           <EmptyState title="No tasks yet" />
         )}

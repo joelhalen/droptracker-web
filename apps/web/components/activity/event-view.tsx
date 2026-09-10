@@ -17,6 +17,7 @@ import { EventBoardView, type BoardActions } from "@/components/event-board-view
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventStandingsStrip } from "@/components/event-standings-strip";
 import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
+import { HiddenBoardNotice } from "@/components/hidden-board-notice";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import { clearTaskBreakdownCache, type BreakdownFetcher } from "@/components/task-detail";
 import {
@@ -208,9 +209,12 @@ export function EventView({
     };
   }, [isBoardGame, eventId, sessionToken, refreshKey]);
 
-  // Same for the Loot Sweep matrix's initial board.
+  // Same for the Loot Sweep matrix's initial board — unless the board is
+  // hidden from this viewer (web112a): the API would refuse it, and the
+  // notice below stands in for the matrix.
+  const tasksHidden = event?.tasks_hidden === true;
   useEffect(() => {
-    if (!isLootSweep) return;
+    if (!isLootSweep || tasksHidden) return;
     let cancelled = false;
     lootSweepBoard(eventId, sessionToken)
       .then((b) => {
@@ -220,7 +224,7 @@ export function EventView({
     return () => {
       cancelled = true;
     };
-  }, [isLootSweep, eventId, sessionToken, refreshKey]);
+  }, [isLootSweep, tasksHidden, eventId, sessionToken, refreshKey]);
 
   useEffect(() => {
     void load(false);
@@ -484,6 +488,9 @@ export function EventView({
           fetchRequirements={fetchRequirements}
         />
       )}
+
+      {/* The organisers keep the tasks to themselves (web112a). */}
+      {event.tasks_hidden && <HiddenBoardNotice compact />}
 
       {/* Loot Sweep sets are shown by the matrix above, not as flat tasks. */}
       {!isLootSweep && event.tasks.length > 0 && (

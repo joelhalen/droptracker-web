@@ -344,6 +344,7 @@ export function EventManager({
     requiresConfirmation: event.requires_confirmation,
     allowLiveEdits: event.allow_live_edits,
     effortVisibility: event.effort_visibility,
+    tasksVisibility: event.tasks_visibility,
     allowLateSignups: event.allow_late_signups,
     submissionPolicy: event.submission_policy,
     leadershipEnabled: event.leadership.enabled,
@@ -365,6 +366,7 @@ export function EventManager({
       requiresConfirmation: event.requires_confirmation,
       allowLiveEdits: event.allow_live_edits,
       effortVisibility: event.effort_visibility,
+      tasksVisibility: event.tasks_visibility,
       allowLateSignups: event.allow_late_signups,
       submissionPolicy: event.submission_policy,
       leadershipEnabled: event.leadership.enabled,
@@ -405,6 +407,7 @@ export function EventManager({
           requires_confirmation: eventDraft.requiresConfirmation,
           allow_live_edits: eventDraft.allowLiveEdits,
           effort_visibility: eventDraft.effortVisibility,
+          tasks_visibility: eventDraft.tasksVisibility,
           allow_late_signups: eventDraft.allowLateSignups,
           submission_policy: eventDraft.submissionPolicy,
           leadership: {
@@ -876,6 +879,29 @@ export function EventManager({
                 prefer since a public per-member effort column can read as
                 &ldquo;here&apos;s who did the least&rdquo;. Effort is recorded either way, so
                 you can un-tick it later and the full history appears.
+              </span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={eventDraft.tasksVisibility === "admins"}
+              onChange={(e) =>
+                setEventDraft((d) => ({
+                  ...d,
+                  tasksVisibility: e.target.checked ? "admins" : "public",
+                }))
+              }
+              className="mt-0.5 size-4"
+            />
+            <span>
+              Hide the board and tasks from participants
+              <span className="text-osrs-parchment-dark/60 block text-xs">
+                Only event admins and event managers see the task list, the bingo board or
+                game-board tiles, and the board images posted to Discord and shown in-game.
+                Everyone else still sees the event, its teams and standings, and is told what
+                they completed as it happens. Use it to play blind, or to keep a board under
+                wraps until you un-tick it and reveal it.
               </span>
             </span>
           </label>

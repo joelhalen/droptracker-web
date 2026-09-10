@@ -2405,6 +2405,14 @@ export const EVENT_TASK_VISIBILITIES = ["public", "private"] as const;
 export const EVENT_EFFORT_VISIBILITIES = ["public", "admins"] as const;
 export type EventEffortVisibility = (typeof EVENT_EFFORT_VISIBILITIES)[number];
 
+/** Board/task visibility (web112a): "public" shows the task list, bingo
+ * cells, board-game tiles and board images to everyone who can see the
+ * event; "admins" keeps them to event admins and event managers — for an
+ * event played blind, or a board held back until the organisers reveal it.
+ * Scoring, standings and completion notifications carry on either way. */
+export const EVENT_TASKS_VISIBILITIES = ["public", "admins"] as const;
+export type EventTasksVisibility = (typeof EVENT_TASKS_VISIBILITIES)[number];
+
 /** How players get onto teams (events-prd.md D4). All but `admin_assign` let
  * players self-sign-up from the event page / a Discord button. `signup_pool`
  * collects opt-ins with no team; admins sort/randomize them later. */
@@ -3953,6 +3961,10 @@ export const EventSummarySchema = z.object({
    * report. When "admins" and the viewer isn't one, the API omits the effort
    * fields entirely rather than sending zeroes. */
   effort_visibility: z.enum(EVENT_EFFORT_VISIBILITIES).default("public"),
+  /** Board/task visibility (web112a): the setting itself, so the manager form
+   * can render it. When "admins" and the viewer isn't one, the detail payload
+   * omits `tasks`, `bingo` and `progress` entirely and sets `tasks_hidden`. */
+  tasks_visibility: z.enum(EVENT_TASKS_VISIBILITIES).default("public"),
   /** Late sign-ups (web70a): OFF (the default) means self sign-ups close the
    * moment the event begins — the Discord prompt drops its button and the
    * join panel stops offering to enter. ON keeps them open to the end. */
@@ -4011,6 +4023,11 @@ export type EventProgress = z.infer<typeof EventProgressSchema>;
 
 export const EventDetailSchema = EventSummarySchema.extend({
   tasks: z.array(EventTaskSchema).default([]),
+  /** True when the organisers keep the tasks to themselves (web112a) and the
+   * viewer isn't one: `tasks` is empty, `bingo` null and `progress` absent by
+   * omission, not because the event has none. Pages show why instead of an
+   * empty board, and skip the board/loot-sweep reads that would be refused. */
+  tasks_hidden: z.boolean().default(false),
   teams: z.array(EventTeamSchema).default([]),
   /** Per-team per-task rollups — powers 35/50-style public progress bars.
    * Absent on payloads from before the participant-UI pass. */
@@ -4290,6 +4307,9 @@ export const EventTeamDetailSchema = z.object({
   /** Everything the team pulled to earn points (applied ledger, capped). */
   items: z.array(EventPlayerItemSchema).default([]),
   tasks: z.array(EventTeamTaskSchema).default([]),
+  /** Tasks withheld from this viewer (web112a) — `tasks` is empty and the
+   * activity rows carry no task names by omission, not for lack of any. */
+  tasks_hidden: z.boolean().default(false),
   activity: z.array(EventTeamActivitySchema).default([]),
   /** Signed-in roster context (web48a): the viewer's player on THIS team,
    * their leadership role, their live election vote, and admin standing. */
@@ -4470,6 +4490,9 @@ export const EventPlayerDetailSchema = z.object({
   }),
   items: z.array(EventPlayerItemSchema).default([]),
   tasks: z.array(EventPlayerTaskSchema).default([]),
+  /** Tasks withheld from this viewer (web112a) — `tasks` is empty and the
+   * activity rows carry no task names by omission, not for lack of any. */
+  tasks_hidden: z.boolean().default(false),
   activity: z
     .array(
       z.object({
@@ -4702,6 +4725,9 @@ export const EventInputSchema = z.object({
   allow_live_edits: z.boolean().optional(),
   /** EHE visibility (web74a): "public" or "admins". */
   effort_visibility: z.enum(EVENT_EFFORT_VISIBILITIES).optional(),
+  /** Board/task visibility (web112a): "public" or "admins". Flippable at any
+   * status — turn it off to reveal a board built in private. */
+  tasks_visibility: z.enum(EVENT_TASKS_VISIBILITIES).optional(),
   /** Late sign-ups (web70a): keep self sign-ups open after the event begins.
    * Off by default — sign-ups close at the start and the posted Discord
    * prompt retires its button then. */

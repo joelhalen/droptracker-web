@@ -10,6 +10,7 @@ import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
 import { EventTaskBoard } from "@/components/event-task-progress";
 import { EventCompletionHistory } from "@/components/event-completion-history";
 import { EventTeamsPanel } from "@/components/event-teams-panel";
+import { HiddenBoardNotice } from "@/components/hidden-board-notice";
 import { PrizePotPanel } from "@/components/prize-pot-panel";
 import { CompetitionBonusRulesCard } from "@/components/competition-bonus-rules-card";
 import { CompetitionStandings, CompetitionTopStrip } from "@/components/competition-standings";
@@ -45,8 +46,14 @@ export default async function EventDetailPage({ params }: { params: Params }) {
     event.kind === "board_game" ? await api.eventBoard(eventId).catch(() => null) : null;
 
   // Loot Sweep events: the icon-grid collection race replaces the task list.
+  // Not read when the board is hidden from this viewer (web112a) — the API
+  // would refuse it, and the notice below stands in for it. (The board-game
+  // read above stays: it comes back with its tiles blanked, so the track and
+  // the pieces still draw.)
   const lootSweep =
-    event.kind === "loot_sweep" ? await api.eventLootSweep(eventId).catch(() => null) : null;
+    event.kind === "loot_sweep" && !event.tasks_hidden
+      ? await api.eventLootSweep(eventId).catch(() => null)
+      : null;
 
   // SOTW/BOTW (web105a): the individual leaderboard replaces teams + tasks.
   const competition = isCompetitionKind(event.kind)
@@ -233,8 +240,12 @@ export default async function EventDetailPage({ params }: { params: Params }) {
               </div>
             )}
 
+            {/* The organisers keep the tasks to themselves (web112a): no
+                bingo/task panels arrived, so say why instead of "No tasks yet". */}
+            {event.tasks_hidden && <HiddenBoardNotice />}
+
             {/* Loot Sweep sets are shown by the board above, not as flat tasks. */}
-            {event.kind !== "loot_sweep" && (
+            {event.kind !== "loot_sweep" && !event.tasks_hidden && (
               <div>
                 <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
                   Tasks

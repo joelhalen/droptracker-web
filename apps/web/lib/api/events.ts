@@ -431,6 +431,7 @@ export const eventsApi = {
         | "requires_confirmation"
         | "allow_live_edits"
         | "effort_visibility"
+        | "tasks_visibility"
         | "allow_late_signups"
         | "submission_policy"
         | "bonus_line_points"

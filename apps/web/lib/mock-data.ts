@@ -1969,6 +1969,7 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
     requires_confirmation: false,
     allow_live_edits: false,
     effort_visibility: "public" as const,
+    tasks_visibility: "public" as const,
     // web70a: mock events keep sign-ups open so the join panel stays
     // exercisable in mock mode (a started event closes them otherwise).
     allow_late_signups: true,
@@ -2085,6 +2086,7 @@ export function mockEvent(id: number): EventDetail {
       ...summary,
       id,
       tasks: [],
+      tasks_hidden: false,
       teams: board.teams.map((t) => ({
         id: t.id,
         name: t.name,
@@ -2107,6 +2109,7 @@ export function mockEvent(id: number): EventDetail {
     return {
       ...summary,
       id,
+      tasks_hidden: false,
       tasks: [
         {
           id: 901,
@@ -2166,6 +2169,7 @@ export function mockEvent(id: number): EventDetail {
   return {
     ...summary,
     id,
+    tasks_hidden: false,
     tasks: [
       {
         id: 11,
@@ -2588,6 +2592,7 @@ export function mockEventTeam(eventId: number, teamId: number): EventTeamDetail 
     [...event.teams].sort((a, b) => b.score - a.score).findIndex((t) => t.id === team.id) + 1;
   return {
     event: mockEvents().find((e) => e.id === eventId) ?? mockEvents()[0]!,
+    tasks_hidden: false,
     team: {
       id: team.id,
       name: team.name,
@@ -2965,6 +2970,7 @@ export function mockEventPlayerDetail(eventId: number, playerId: number): EventP
   const p = roster.find((x) => x.player_id === playerId) ?? roster[0]!;
   return {
     event,
+    tasks_hidden: false,
     player: {
       player_id: p.player_id ?? playerId,
       player_name: p.player_name,
