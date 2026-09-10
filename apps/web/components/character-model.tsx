@@ -13,6 +13,9 @@
  */
 import { useEffect, useRef, useState } from "react";
 
+/** Space between the player and their pet, as a fraction of the player's height. */
+const PET_GAP = 0.1;
+
 export type CharacterModelProps = {
   /** Public URL of the binary glTF to draw. */
   src: string;
@@ -155,10 +158,20 @@ export function CharacterModel({
       root.add(playerScene);
 
       if (petScene) {
+        // Both models are exported standing on their own origin, so as loaded
+        // the pet is inside the player. Stand it just clear of the player's
+        // side, measured from the two boxes rather than by a fixed distance:
+        // the exporter scales each model's node to tiles (1/128), so a constant
+        // is in the wrong unit. A fixed 20 here put every pet twenty tiles
+        // away, and framing both shrank the player to a speck.
+        const playerBox = new THREE.Box3().setFromObject(playerScene);
         const petBox = new THREE.Box3().setFromObject(petScene);
-        const petSize = petBox.getSize(new THREE.Vector3());
-        // Stand the pet to one side rather than inside the player.
-        petScene.position.x += petSize.x + 20;
+        const gap = (playerBox.max.y - playerBox.min.y) * PET_GAP;
+        const offset = playerBox.max.x - petBox.min.x + gap;
+        // Either side of root's origin, which is what the model turns about:
+        // the pair revolves together instead of the pet orbiting the player.
+        playerScene.position.x = -offset / 2;
+        petScene.position.x = offset / 2;
         root.add(petScene);
       }
 
@@ -169,9 +182,21 @@ export function CharacterModel({
       const center = box.getCenter(new THREE.Vector3());
       root.position.sub(center);
 
+      const tanHalfFov = Math.tan((camera.fov * Math.PI) / 360);
       const radius = Math.max(size.x, size.y, size.z) || 1;
-      const distance = (radius / 2) / Math.tan((camera.fov * Math.PI) / 360);
-      camera.position.set(0, 0, distance * 1.9);
+      const fitHeight = ((radius / 2) / tanHalfFov) * 1.9;
+      // Turning sweeps the model round root's origin, and the portrait frame is
+      // narrow: a player with a pet is wide enough to clip at the edges
+      // mid-turn. Back off until the whole swept circle fits the width at any
+      // angle (seen from the camera it is widest along the tangent). A lone
+      // character practically always fits by height already, so this is what
+      // makes room for a pet rather than a change to the usual framing.
+      const reach =
+        Math.hypot(center.x, center.z) +
+        Math.hypot(Math.max(-box.min.x, box.max.x), Math.max(-box.min.z, box.max.z));
+      const tanHalfWidth = tanHalfFov * camera.aspect;
+      const fitSweep = reach * Math.sqrt(1 + 1 / (tanHalfWidth * tanHalfWidth));
+      camera.position.set(0, 0, Math.max(fitHeight, fitSweep));
       camera.lookAt(0, 0, 0);
 
       // Three-quarter view: straight on hides the weapon, side-on hides the face.
