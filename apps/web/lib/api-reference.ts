@@ -68,7 +68,8 @@ export const SECTIONS: ApiSection[] = [
     key: "combat_achievements",
     cost: 1,
     category: "Progress",
-    summary: "Combat achievement tasks completed and points earned.",
+    summary:
+      "Combat achievement points, the tier they reach, and the next tier with the points still needed and progress towards it. Points refresh every time the player completes a task; tasks completed comes from account sync.",
   },
   {
     key: "quests",
