@@ -19,7 +19,8 @@ import { resolveRef } from "@/lib/entity-ref";
 import { EmptyState } from "@/components/ui";
 import { OsrsWindow, completionTone } from "@/components/osrs-panel";
 import { CombatAchievementsBrowser } from "@/components/combat-achievements-browser";
-import { stateSyncEmpty } from "@/lib/plugin-features";
+import { SyncSettings } from "@/components/sync-settings";
+import { PLUGIN_SETTINGS, stateSyncEmpty } from "@/lib/plugin-features";
 
 export const revalidate = 60;
 
@@ -60,8 +61,9 @@ export default async function AchievementsPage({ params }: { params: Promise<{ i
         <EmptyState
           {...stateSyncEmpty(
             "Achievements",
-            `${player.name} has not synced their account progress, so there is nothing to show here yet. It fills in once they are on DropTracker plugin v6 — "Sync account progress" is on by default, under Advanced.`,
+            `${player.name} has not synced their account progress, so there is nothing to show here yet. It fills in from DropTracker plugin v6, with both of these settings on:`,
           )}
+          action={<SyncSettings setting={PLUGIN_SETTINGS.syncProgress} />}
         />
       </div>
     );

@@ -25,7 +25,8 @@ import { resolveRef } from "@/lib/entity-ref";
 import { EmptyState } from "@/components/ui";
 import { OsrsWindow, completionTone } from "@/components/osrs-panel";
 import { CollectionLogBrowser } from "@/components/collection-log-browser";
-import { stateSyncEmpty } from "@/lib/plugin-features";
+import { SyncSettings } from "@/components/sync-settings";
+import { PLUGIN_SETTINGS, stateSyncEmpty } from "@/lib/plugin-features";
 
 export const revalidate = 60;
 
@@ -64,8 +65,9 @@ export default async function CollectionLogPage({ params }: { params: Promise<{ 
         <EmptyState
           {...stateSyncEmpty(
             "Collection log",
-            `${player.name} has not synced their account progress. It records here once they are on DropTracker plugin v6 and open the collection log in game — "Sync account progress" is on by default, under Advanced.`,
+            `${player.name} has not synced their account progress. It records here from DropTracker plugin v6 once they open the collection log in game, with both of these settings on:`,
           )}
+          action={<SyncSettings setting={PLUGIN_SETTINGS.syncProgress} />}
         />
       </div>
     );

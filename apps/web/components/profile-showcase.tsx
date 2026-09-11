@@ -25,7 +25,14 @@ import { CollectionLogBrowser } from "@/components/collection-log-browser";
 import { CombatAchievementsBrowser } from "@/components/combat-achievements-browser";
 import { EmptyState } from "@/components/ui";
 import { OsrsWindow, completionTone } from "@/components/osrs-panel";
-import { SOON_BADGE, SOON_TITLE, STATE_SYNC_RELEASED, stateSyncEmpty } from "@/lib/plugin-features";
+import { SyncSettings } from "@/components/sync-settings";
+import {
+  PLUGIN_SETTINGS,
+  SOON_BADGE,
+  SOON_TITLE,
+  STATE_SYNC_RELEASED,
+  stateSyncEmpty,
+} from "@/lib/plugin-features";
 
 type TabKey = "loot" | "submissions" | "collection" | "combat" | "diaries";
 
@@ -187,8 +194,9 @@ export function ProfileShowcase({
                     <EmptyState
                       {...stateSyncEmpty(
                         "Character model",
-                        "Enable “Send character model & gear” under Advanced in the DropTracker plugin to show your character here.",
+                        "To show your character here, the DropTracker plugin needs both of these settings on:",
                       )}
+                      action={<SyncSettings setting={PLUGIN_SETTINGS.sendModel} />}
                     />
                   )}
                 </div>
@@ -259,7 +267,7 @@ export function ProfileShowcase({
               ) : (
                 <Empty
                   label="Collection log"
-                  hint="Update to DropTracker plugin v6, then open the collection log in game. “Sync account progress” is on by default, under Advanced."
+                  hint="Update to DropTracker plugin v6 and open the collection log in game, with both of these settings on:"
                 />
               ))}
 
@@ -269,7 +277,7 @@ export function ProfileShowcase({
               ) : (
                 <Empty
                   label="Combat achievements"
-                  hint="Update to DropTracker plugin v6 to show this. “Sync account progress” is on by default, under Advanced."
+                  hint="Update to DropTracker plugin v6, with both of these settings on:"
                 />
               ))}
 
@@ -320,7 +328,7 @@ export function ProfileShowcase({
               ) : (
                 <Empty
                   label="Achievement diaries"
-                  hint="Update to DropTracker plugin v6 to show this. “Sync account progress” is on by default, under Advanced."
+                  hint="Update to DropTracker plugin v6, with both of these settings on:"
                 />
               ))}
           </div>
@@ -334,7 +342,10 @@ export function ProfileShowcase({
 function Empty({ label, hint }: { label: string; hint: string }) {
   return (
     <div className="p-4">
-      <EmptyState {...stateSyncEmpty(label, hint)} />
+      <EmptyState
+        {...stateSyncEmpty(label, hint)}
+        action={<SyncSettings setting={PLUGIN_SETTINGS.syncProgress} />}
+      />
     </div>
   );
 }

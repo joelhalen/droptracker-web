@@ -28,6 +28,27 @@ export const STATE_SYNC_RELEASED = true;
 /** The plugin release that turns account progress sync on. */
 export const STATE_SYNC_PLUGIN_VERSION = "v6";
 
+/**
+ * The plugin settings account progress sync depends on, named exactly as the
+ * plugin's config panel shows them. Copy that paraphrases a setting sends
+ * people looking for one that does not exist. All three live in the plugin's
+ * "Advanced" section, which starts collapsed.
+ *
+ * `useApi` is the one people are missing. It is off by default, because
+ * RuneLite makes connections to third-party servers opt-in, and without it the
+ * plugin sends no progress and no model at all: it only posts its submissions
+ * through Discord. The other two are on by default. On 2026-09-10 about a third
+ * of active players (1,264 of 3,796 with drops that week) had the API off, and
+ * about 1% of them had ever synced.
+ */
+export const PLUGIN_SETTINGS = {
+  useApi: "Use API",
+  /** Collection log, combat achievements, diaries and quests. */
+  syncProgress: "Sync account progress",
+  /** The 3D character model. PB gear rides the PB submission and needs no API. */
+  sendModel: "Send character model & gear",
+} as const;
+
 /** Pill text for a tab or link whose panel cannot have data yet. */
 export const SOON_BADGE = "Soon";
 
