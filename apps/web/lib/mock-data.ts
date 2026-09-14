@@ -101,6 +101,8 @@ import type {
   TicketSummary,
   WomGroupPreview,
   WomSyncResult,
+  MyDeathMessages,
+  GroupMemberDeathMessages,
 } from "@droptracker/api-types";
 import { EMBED_TYPES, GROUP_CONFIG_FIELDS, LOOT_ALL_TIME } from "@droptracker/api-types";
 import { defaultMaxAwards, itemTotal } from "./loot-sweep";
@@ -1198,6 +1200,69 @@ export function mockNotificationBlacklist(): NotificationBlacklist {
       },
     ],
     limit: 250,
+  };
+}
+
+/** Members' own death messages (GET /me/death-messages): one account with
+ * messages that one group posts and another has not switched on, and one with
+ * nothing written yet — so every editor state shows in mock mode. */
+export function mockMyDeathMessages(): MyDeathMessages {
+  return {
+    max_messages: 5,
+    max_length: 150,
+    tokens: [
+      { token: "{player_name}", help: "Your name", sample: "Zezima" },
+      { token: "{killer}", help: "What killed you", sample: "Vorkath" },
+      { token: "{location}", help: "Where you died", sample: "Ungael" },
+      { token: "{value_lost}", help: "GP value of the items you lost", sample: "4.2M" },
+      { token: "{value_kept}", help: "GP value of the items you kept", sample: "18.9M" },
+      { token: "{killer_combat_level}", help: "Your killer's combat level", sample: "392" },
+    ],
+    players: [
+      {
+        id: 1,
+        name: "RuneLite Ron",
+        messages: ["{player_name} forgot to pray against {killer}", "{player_name} planked at {location}"],
+        updated_at: "2026-09-14T12:00:00",
+        groups: [
+          { id: 101, name: "Clan 1", allowed: true, blocked: false },
+          { id: 102, name: "Clan 2", allowed: false, blocked: false },
+        ],
+      },
+      {
+        id: 2,
+        name: "Iron Ron",
+        messages: [],
+        updated_at: null,
+        groups: [{ id: 101, name: "Clan 1", allowed: true, blocked: false }],
+      },
+    ],
+  };
+}
+
+/** A group's review of members' own death messages: one member writing, one
+ * blocked. */
+export function mockGroupMemberDeathMessages(): GroupMemberDeathMessages {
+  return {
+    enabled: true,
+    members: [
+      {
+        id: 1,
+        name: "RuneLite Ron",
+        messages: ["{player_name} forgot to pray against {killer}"],
+        updated_at: "2026-09-14T12:00:00",
+        blocked: false,
+        blocked_at: null,
+      },
+      {
+        id: 3,
+        name: "Troll Tom",
+        messages: ["{player_name} is bad at the game"],
+        updated_at: "2026-09-13T20:00:00",
+        blocked: true,
+        blocked_at: "2026-09-14T09:30:00",
+      },
+    ],
   };
 }
 

@@ -32,6 +32,8 @@ import {
   NotificationBlacklistMutationSchema,
   NOTIFICATION_BLACKLIST_LIMIT,
   type AlwaysListEntryType,
+  type GroupMemberDeathMessages,
+  GroupMemberDeathMessagesSchema,
   type RegionList,
   RegionListSchema,
   type WomGroupPreview,
@@ -46,6 +48,7 @@ import {
   mockAuthorizedUsers,
   mockEventManagers,
   mockNotificationBlacklist,
+  mockGroupMemberDeathMessages,
   mockBotInvite,
   mockManageableGuilds,
   mockWomLookup,
@@ -440,6 +443,46 @@ export const groupsApi = {
           await apiSend("DELETE", `/groups/${groupId}/notification-always-list/${entryId}`, {}),
         ),
       () => ({ entries: [], limit: NOTIFICATION_BLACKLIST_LIMIT }),
+    );
+  },
+
+
+  /** Members' own death messages as this group sees them: everyone who wrote
+   * one, everyone the group blocked, and whether the group posts them at all. */
+  async groupMemberDeathMessages(groupId: number): Promise<GroupMemberDeathMessages> {
+    return withFallback(
+      async () =>
+        GroupMemberDeathMessagesSchema.parse(
+          await apiGet(`/groups/${groupId}/member-death-messages`, { authed: true }),
+        ),
+      () => mockGroupMemberDeathMessages(),
+    );
+  },
+
+
+  /** Block (or unblock) one member's own messages in this group's channels.
+   * Idempotent both ways; returns the whole review payload. */
+  async setGroupMemberDeathMessageBlock(
+    groupId: number,
+    playerId: number,
+    blocked: boolean,
+  ): Promise<GroupMemberDeathMessages> {
+    return withFallback(
+      async () =>
+        GroupMemberDeathMessagesSchema.parse(
+          await apiSend(
+            blocked ? "PUT" : "DELETE",
+            `/groups/${groupId}/member-death-messages/${playerId}/block`,
+            {},
+          ),
+        ),
+      () => {
+        const mock = mockGroupMemberDeathMessages();
+        return {
+          ...mock,
+          members: mock.members.map((m) => (m.id === playerId ? { ...m, blocked } : m)),
+        };
+      },
     );
   },
 

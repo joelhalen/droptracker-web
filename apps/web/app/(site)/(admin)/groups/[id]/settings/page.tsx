@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import type { NotificationBlacklist } from "@droptracker/api-types";
+import type { GroupMemberDeathMessages, NotificationBlacklist } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser, requireGroupAdminPage } from "@/lib/auth";
 import { ConfigEditor } from "@/components/config-editor";
 import { GroupIconPanel } from "@/components/group-icon-card";
+import { MemberDeathMessagesReview } from "@/components/member-death-messages-review";
 import {
   NotificationAlwaysListPanel,
   NotificationBlacklistPanel,
@@ -22,7 +23,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
   if (!Number.isFinite(groupId)) notFound();
   await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
 
-  const [config, subscription, tiers, user, group, seasonal, blacklist, alwaysList] = await Promise.all([
+  const [config, subscription, tiers, user, group, seasonal, blacklist, alwaysList, memberDeathMessages] = await Promise.all([
     api.groupConfig(groupId),
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
@@ -38,6 +39,9 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
     api
       .groupNotificationAlwaysList(groupId)
       .catch((): NotificationBlacklist => ({ entries: [], limit: 250 })),
+    api
+      .groupMemberDeathMessages(groupId)
+      .catch((): GroupMemberDeathMessages => ({ enabled: false, members: [] })),
   ]);
 
   // One page, one column of sections: the editor lays out every section —
@@ -63,6 +67,9 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
           blacklist: <NotificationBlacklistPanel groupId={groupId} initial={blacklist} />,
           always: <NotificationAlwaysListPanel groupId={groupId} initial={alwaysList} />,
           timeframeBoard: <TimeframeBoardPanel groupId={groupId} />,
+          memberDeathMessages: (
+            <MemberDeathMessagesReview groupId={groupId} initial={memberDeathMessages} />
+          ),
         }}
       />
     </div>

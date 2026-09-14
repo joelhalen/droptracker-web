@@ -8,6 +8,7 @@ import {
   type BlacklistEntryType,
   type EventMetaEntry,
   type GroupConfigPatch,
+  type GroupMemberDeathMessages,
   type NotificationBlacklist,
 } from "@droptracker/api-types";
 import { api, ApiError, type DiscordChannelList, type LootboardStyleList, type PbBossList } from "@/lib/api";
@@ -243,6 +244,27 @@ export async function removeAlwaysListEntry(
   }
   try {
     const result = await api.removeGroupNotificationAlwaysListEntry(groupId, entryId);
+    revalidatePath(`/groups/${groupId}/settings`);
+    return result;
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
+}
+
+/** Server Action: block or unblock one member's own death messages in this
+ * group's channels. Returns the whole review list. */
+export async function setMemberDeathMessageBlock(
+  groupId: number,
+  playerId: number,
+  blocked: boolean,
+): Promise<GroupMemberDeathMessages> {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  try {
+    const result = await api.setGroupMemberDeathMessageBlock(groupId, playerId, blocked);
     revalidatePath(`/groups/${groupId}/settings`);
     return result;
   } catch (err) {

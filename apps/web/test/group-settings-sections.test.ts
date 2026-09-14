@@ -65,6 +65,7 @@ test("inserts point at registry sections and read as part of them", () => {
   }
   assert.equal(SETTINGS_INSERTS.find((i) => i.id === "groupIcon")?.section, "profile");
   assert.equal(SETTINGS_INSERTS.find((i) => i.id === "timeframeBoard")?.section, "board");
+  assert.equal(SETTINGS_INSERTS.find((i) => i.id === "memberDeathMessages")?.section, "deaths");
 });
 
 // The reorganisation the page was rebuilt around: name/description at the top,

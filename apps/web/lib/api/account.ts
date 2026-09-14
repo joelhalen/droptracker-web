@@ -7,6 +7,8 @@ import {
   ClaimPreviewSchema,
   ClaimResultSchema,
   MeSchema,
+  MyDeathMessagesSchema,
+  type MyDeathMessages,
   type ClaimPreview,
   type ClaimResult,
   type AccountSettings,
@@ -17,6 +19,7 @@ import {
 } from "@droptracker/api-types";
 import {
   mockAccountSettings,
+  mockMyDeathMessages,
   mockMe,
   mockClaimPreview,
   mockClaimResult,
@@ -123,6 +126,35 @@ export const accountApi = {
           await apiSend("PUT", `/me/players/${playerId}/notification-prefs`, { prefs }),
         ),
       () => ({ types: [], players: [] }),
+    );
+  },
+
+
+  /** Your own death messages for every linked account, with the limits, the
+   * placeholders, and per group whether each account's message is posted. */
+  async myDeathMessages(): Promise<MyDeathMessages> {
+    return withFallback(
+      async () => MyDeathMessagesSchema.parse(await apiGet(`/me/death-messages`, { authed: true })),
+      () => mockMyDeathMessages(),
+    );
+  },
+
+
+  /** Replace one linked account's death messages ([] clears them). A message
+   * the backend refuses is an ApiError(422) whose message says why. */
+  async setMyDeathMessages(playerId: number, messages: string[]): Promise<MyDeathMessages> {
+    return withFallback(
+      async () =>
+        MyDeathMessagesSchema.parse(
+          await apiSend("PUT", `/me/players/${playerId}/death-messages`, { messages }),
+        ),
+      () => {
+        const mock = mockMyDeathMessages();
+        return {
+          ...mock,
+          players: mock.players.map((p) => (p.id === playerId ? { ...p, messages } : p)),
+        };
+      },
     );
   },
 

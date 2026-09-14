@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { SettingsForm } from "@/components/settings-form";
 import { EventNotificationPrefs } from "@/components/event-notification-prefs";
+import { MemberDeathMessages } from "@/components/member-death-messages";
 import { NitroBoostCard } from "@/components/nitro-boost-card";
 import { ThemePicker } from "@/components/theme";
 
@@ -11,10 +12,12 @@ export const metadata: Metadata = { title: "Settings" };
 export default async function SettingsPage() {
   // requireUser guarantees a non-null session even though the layout also gates.
   await requireUser("/settings");
-  const [settings, nitro, notificationPrefs] = await Promise.all([
+  const [settings, nitro, notificationPrefs, deathMessages] = await Promise.all([
     api.settings(),
     api.myNitroBoost(),
     api.notificationPrefs(),
+    // Best-effort: the rest of the page must still render if this read fails.
+    api.myDeathMessages().catch(() => null),
   ]);
 
   return (
@@ -33,6 +36,12 @@ export default async function SettingsPage() {
       <section className="max-w-xl">
         <SettingsForm initial={settings} />
       </section>
+
+      {deathMessages && deathMessages.players.length > 0 && (
+        <section className="max-w-xl">
+          <MemberDeathMessages initial={deathMessages} />
+        </section>
+      )}
 
       <section className="max-w-xl">
         <EventNotificationPrefs initial={notificationPrefs} />

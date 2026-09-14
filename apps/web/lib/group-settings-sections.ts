@@ -67,7 +67,8 @@ const CATEGORY_META: Record<ConfigCategory, { nav: SettingsNav; blurb: string }>
   },
   deaths: {
     nav: "Notifications",
-    blurb: "Announce members' deaths, with your own randomized messages if you like.",
+    blurb:
+      "Announce members' deaths, with your own randomized messages if you like — or let members write their own.",
   },
   levels: {
     nav: "Notifications",
@@ -166,7 +167,7 @@ export const sectionAnchor = (id: SettingsSectionId) => `cfg-${id}`;
 /* --- Inserts -------------------------------------------------------------- */
 
 /** Editors that are not registry fields but belong inside a registry section. */
-export type SettingsInsertId = "groupIcon" | "timeframeBoard";
+export type SettingsInsertId = "groupIcon" | "timeframeBoard" | "memberDeathMessages";
 
 export interface SettingsInsert {
   id: SettingsInsertId;
@@ -191,6 +192,13 @@ export const SETTINGS_INSERTS: readonly SettingsInsert[] = [
     position: "bottom",
     label: "Custom timeframe lootboard",
     keywords: ["timeframe", "date range", "custom board", "generate", "png", "image", "event", "competition"],
+  },
+  {
+    id: "memberDeathMessages",
+    section: "deaths",
+    position: "bottom",
+    label: "Members' death messages",
+    keywords: ["member", "own message", "custom message", "block", "moderation", "review"],
   },
 ];
 

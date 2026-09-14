@@ -22,7 +22,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/embeds/actions";
 import { flattenTitleMarkdown, sampleIconFor, tidyTitle } from "@/lib/embeds";
 import { getErrorMessage } from "@/lib/errors";
-import { DEATH_PLACEHOLDERS } from "@/lib/death-placeholders";
+import { DEATH_EMBED_PLACEHOLDERS } from "@/lib/death-placeholders";
 import { Alert, Button, Card, Checkbox, Input, Textarea } from "@/components/ui";
 
 /* ------------------------------------------------------------------ */
@@ -158,8 +158,9 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
-  // Shared with the Deaths config section's message-list editor.
-  death: DEATH_PLACEHOLDERS,
+  // Shared with the Deaths config section's message-list editor, plus
+  // {death_message}, which only makes sense outside a death message.
+  death: DEATH_EMBED_PLACEHOLDERS,
   diary: [
     { token: "{player_name}", help: "Player who completed the diary (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who completed the diary, with no profile link", sample: "RuneLite Ron" },

@@ -7084,6 +7084,7 @@ export const ClanLogPeriodsSchema = z.object({ periods: z.array(z.string()) });
 export type ClanLogPeriods = z.infer<typeof ClanLogPeriodsSchema>;
 
 export * from "./group-config";
+export * from "./member-messages";
 export * from "./entitlements";
 export * from "./tier-flair";
 

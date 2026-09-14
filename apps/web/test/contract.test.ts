@@ -47,6 +47,8 @@ import {
   AuthorizedUsersResponseSchema,
   EventManagersResponseSchema,
   NotificationBlacklistSchema,
+  MyDeathMessagesSchema,
+  GroupMemberDeathMessagesSchema,
   EventPlayersResponseSchema,
   EventPlayerDetailSchema,
   NpcDetailSchema,
@@ -113,6 +115,8 @@ import {
   mockAuthorizedUsers,
   mockEventManagers,
   mockNotificationBlacklist,
+  mockMyDeathMessages,
+  mockGroupMemberDeathMessages,
   mockEventPlayers,
   mockEventPlayerDetail,
   mockPbBoard,
@@ -163,6 +167,8 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => AuthorizedUsersResponseSchema.parse(mockAuthorizedUsers()));
   assert.doesNotThrow(() => EventManagersResponseSchema.parse(mockEventManagers()));
   assert.doesNotThrow(() => NotificationBlacklistSchema.parse(mockNotificationBlacklist()));
+  assert.doesNotThrow(() => MyDeathMessagesSchema.parse(mockMyDeathMessages()));
+  assert.doesNotThrow(() => GroupMemberDeathMessagesSchema.parse(mockGroupMemberDeathMessages()));
   assert.doesNotThrow(() => EventPlayersResponseSchema.parse(mockEventPlayers(1)));
   assert.doesNotThrow(() => EventPlayerDetailSchema.parse(mockEventPlayerDetail(1, 2001)));
   assert.doesNotThrow(() => ServiceStatusSchema.array().parse(mockServices()));

@@ -5,10 +5,11 @@ import {
   AccountSettingsPatchSchema,
   type AccountSettings,
   type AccountSettingsPatch,
+  type MyDeathMessages,
   type MyNitroBoost,
   type NotificationPrefs,
 } from "@droptracker/api-types";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 /** Server Action: validate and persist account-settings changes. */
 export async function saveSettings(patch: AccountSettingsPatch) {
@@ -44,4 +45,25 @@ export async function savePlayerNotificationPrefs(
   const next = await api.setPlayerNotificationPrefs(playerId, prefs);
   revalidatePath("/settings");
   return next;
+}
+
+/** Server Action: replace one linked account's own death messages.
+ *
+ * Returns the refusal instead of throwing it: production redacts a thrown
+ * Server Action message, and "Messages can't contain links." is exactly the
+ * text the member needs to see. */
+export async function saveMyDeathMessages(
+  playerId: number,
+  messages: string[],
+): Promise<{ ok: true; data: MyDeathMessages } | { ok: false; error: string }> {
+  try {
+    const data = await api.setMyDeathMessages(playerId, messages);
+    revalidatePath("/settings");
+    return { ok: true, data };
+  } catch (err) {
+    if (err instanceof ApiError && (err.status === 422 || err.status === 404)) {
+      return { ok: false, error: err.message };
+    }
+    throw err;
+  }
 }
