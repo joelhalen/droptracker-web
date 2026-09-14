@@ -7,6 +7,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { Alert, Button, EmptyState, Input, Select } from "@/components/ui";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { formatGp, formatRelativeTime } from "@/lib/format";
+import { rsnIncludes } from "@/lib/rsn";
 import {
   assignEventSignup,
   listEventSignups,
@@ -303,7 +304,7 @@ export function EventSignupTools({
       if (clanVsClan && clanFilter !== "all" && r.group_id !== clanFilter) return false;
       if (
         q &&
-        !r.player_name.toLowerCase().includes(q) &&
+        !rsnIncludes(r.player_name, q) &&
         !(r.group_name ?? "").toLowerCase().includes(q)
       )
         return false;

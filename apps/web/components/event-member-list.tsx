@@ -9,6 +9,7 @@
  * page roster, and the admin team editor.
  */
 import { useMemo, useState, type ReactNode } from "react";
+import { rsnIncludes } from "@/lib/rsn";
 
 type BaseMember = { player_id: number; player_name: string };
 
@@ -121,10 +122,10 @@ export function EventMemberList<M extends BaseMember>({
 }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const q = query.trim().toLowerCase();
+  const q = query.trim();
 
   const filtered = useMemo(
-    () => (q ? members.filter((m) => m.player_name.toLowerCase().includes(q)) : members),
+    () => (q ? members.filter((m) => rsnIncludes(m.player_name, q)) : members),
     [members, q],
   );
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
