@@ -55,6 +55,10 @@ export async function GET(req: NextRequest) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ discord_profile: profile, discord_access_token: token.access_token }),
     });
+    if (sessionRes.status === 403) {
+      // The dev instance lets only the team and Bug Testers sign in.
+      return NextResponse.redirect(new URL("/?auth=dev_access_denied", env.siteUrl));
+    }
     if (!sessionRes.ok) throw new Error(`Web API session mint failed: ${sessionRes.status}`);
     const { session_token } = (await sessionRes.json()) as { session_token: string };
 
