@@ -2,10 +2,16 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { setEdgeMirror } from "@/app/(site)/(admin)/admin/services/actions";
-import type { EdgeMirrorState } from "@/lib/api/admin";
+import type { EdgeMirrorMode, EdgeMirrorState } from "@/lib/api/admin";
 import { Alert, Card } from "@/components/ui";
 
-/** Offered durations. `null` is deliberately last and deliberately unusual. */
+const MODES: { value: EdgeMirrorMode; label: string }[] = [
+  { value: "off", label: "Off" },
+  { value: "testers", label: "Bug testers" },
+  { value: "all", label: "Everyone" },
+];
+
+/** Offered durations for "Everyone". `null` is deliberately last and deliberately unusual. */
 const DURATIONS: { label: string; value: number | null }[] = [
   { label: "1 hour", value: 3600 },
   { label: "4 hours", value: 4 * 3600 },
@@ -26,14 +32,18 @@ function formatRemaining(ms: number): string {
   return `${s}s`;
 }
 
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
 /**
  * Superadmin switch for mirroring live production submissions at the dev
  * instance.
  *
- * The Cloudflare Worker that already fronts POST /webhook starts sending a
- * second, fire-and-forget copy of each submission to the dev box. Production is
- * unaffected either way: the mirror runs in waitUntil and nothing reads its
- * result.
+ * The Cloudflare Worker that already fronts POST /webhook sends a second,
+ * fire-and-forget copy of the chosen submissions to the dev box — the Bug
+ * Testers' only, or everyone's. Production is unaffected either way: the
+ * mirror runs in waitUntil and nothing reads its result.
  */
 export function EdgeMirrorPanel({ initial }: { initial: EdgeMirrorState }) {
   const [state, setState] = useState<EdgeMirrorState>(initial);
@@ -46,60 +56,78 @@ export function EdgeMirrorPanel({ initial }: { initial: EdgeMirrorState }) {
   const expiresAt = state.expires_at ? Date.parse(state.expires_at) : null;
 
   useEffect(() => {
-    if (!state.enabled || expiresAt === null) {
+    if (state.mode === "off" || expiresAt === null) {
       setNow(null);
       return;
     }
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [state.enabled, expiresAt]);
+  }, [state.mode, expiresAt]);
 
   // The key lapsing in Redis is what actually stops the mirror; reflect that
-  // here rather than leaving a stale "on" on screen until someone reloads.
+  // here rather than leaving a stale mode on screen until someone reloads.
   const lapsed = now !== null && expiresAt !== null && now >= expiresAt;
-  const on = state.enabled && !lapsed;
+  const mode: EdgeMirrorMode = lapsed ? "off" : state.mode;
+  const testers = state.testers;
 
-  const apply = (enabled: boolean) => {
+  const apply = (next: EdgeMirrorMode) => {
+    if (next === mode) return;
     setError(null);
     startTransition(async () => {
-      const res = await setEdgeMirror(enabled, enabled ? duration : null);
+      const res = await setEdgeMirror(next, next === "all" ? duration : null);
       if (res.ok) setState(res.state);
       else setError(res.error);
     });
   };
 
+  let status: string;
+  if (mode === "off") {
+    status = "Off — production only.";
+  } else {
+    const who = mode === "testers" ? "Mirroring Bug Testers" : "Mirroring everyone";
+    const until =
+      now !== null && expiresAt !== null
+        ? ` — stops in ${formatRemaining(expiresAt - now)}`
+        : " — no expiry set";
+    status = who + until;
+  }
+
   return (
     <Card padding="p-6" className="mb-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-osrs-gold text-lg font-semibold">Mirror submissions to dev</h2>
-          <p className="text-osrs-parchment-dark/60 mt-1 text-sm">
-            Sends a second copy of every live submission to the dev instance, from the edge
-            Worker that already fronts the intake API. Production is not affected — the copy is
-            fire-and-forget and its result is never read. On dev, mirrored submissions are
-            rerouted to the dev sink group, so no real group&rsquo;s Discord is touched.
-          </p>
-          <p
-            className={`mt-2 text-sm font-medium ${
-              on ? "text-osrs-green" : "text-osrs-parchment-dark/70"
-            }`}
-          >
-            {on ? (
-              <>
-                Mirroring to dev
-                {now !== null && expiresAt !== null
-                  ? ` — stops in ${formatRemaining(expiresAt - now)}`
-                  : " — no expiry set"}
-              </>
-            ) : (
-              "Off — production only."
-            )}
-          </p>
-          {!on && (
-            <label className="mt-3 flex items-center gap-2 text-sm">
-              <span className="text-osrs-parchment-dark/70">Run for</span>
+      <div className="min-w-0">
+        <h2 className="text-osrs-gold text-lg font-semibold">Mirror submissions to dev</h2>
+        <p className="text-osrs-parchment-dark/60 mt-1 max-w-3xl text-sm">
+          Sends a second copy of live submissions to the dev instance, from the edge Worker that
+          already fronts the intake API. Production is not affected — the copy is fire-and-forget
+          and its result is never read.
+        </p>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="flex gap-1" role="radiogroup" aria-label="Who is mirrored to dev">
+            {MODES.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                role="radio"
+                aria-checked={mode === m.value}
+                disabled={pending}
+                onClick={() => apply(m.value)}
+                className={`rounded border px-3 py-1.5 text-sm disabled:opacity-50 ${
+                  mode === m.value
+                    ? "border-osrs-gold bg-osrs-gold/15 text-osrs-gold font-semibold"
+                    : "border-osrs-bronze/40 hover:border-osrs-gold"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {mode !== "all" && (
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-osrs-parchment-dark/70">Everyone runs for</span>
               <select
+                id="edge-mirror-duration"
                 value={duration === null ? "none" : String(duration)}
                 disabled={pending}
                 onChange={(e) =>
@@ -115,28 +143,44 @@ export function EdgeMirrorPanel({ initial }: { initial: EdgeMirrorState }) {
               </select>
             </label>
           )}
-          <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
-            Takes effect within ~60s — the Worker polls for this, it is not pushed.
-          </p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={on}
-          aria-label="Mirror submissions to dev"
-          disabled={pending}
-          onClick={() => apply(!on)}
-          className={`relative mt-1 inline-flex h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-            on ? "bg-osrs-gold" : "bg-osrs-stone/50"
+
+        <p
+          className={`mt-3 text-sm font-medium ${
+            mode === "off" ? "text-osrs-parchment-dark/70" : "text-osrs-green"
           }`}
+          aria-live="polite"
         >
-          <span
-            className={`absolute top-0.5 left-0.5 size-5 transform rounded-full bg-white shadow transition-transform ${
-              on ? "translate-x-5" : "translate-x-0"
-            }`}
-          />
-        </button>
+          {status}
+        </p>
+
+        <ul className="text-osrs-parchment-dark/60 mt-2 max-w-3xl list-disc space-y-1 pl-5 text-xs">
+          <li>
+            <span className="text-osrs-parchment-dark/80 font-medium">Bug testers</span> copies
+            every account of anyone holding the Bug Tester badge
+            {testers
+              ? ` — ${plural(testers.accounts, "account")} across ${plural(testers.users, "tester")} right now`
+              : ""}
+            . Dev processes their copies like its own traffic: their groups, events, points and
+            notifications, all inside the dev guild. Meant to stay on.
+          </li>
+          <li>
+            <span className="text-osrs-parchment-dark/80 font-medium">Everyone</span> copies all
+            traffic for a soak test; dev reroutes it to its firehose group. Testers&rsquo; copies
+            are still handled as theirs.
+          </li>
+          <li>Takes effect within ~30s — the Worker polls for this, it is not pushed.</li>
+        </ul>
       </div>
+
+      {testers && !testers.key_configured && mode !== "off" && (
+        <div className="mt-3">
+          <Alert variant="error">
+            EDGE_TESTER_KEY isn&rsquo;t set on the backend, so no Bug Tester can be recognised and
+            none of their submissions are mirrored.
+          </Alert>
+        </div>
+      )}
       {error && (
         <div className="mt-3">
           <Alert variant="error">{error}</Alert>

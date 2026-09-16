@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ServiceActionSchema, type ServiceAction } from "@droptracker/api-types";
 import { api } from "@/lib/api";
-import type { EdgeMirrorState } from "@/lib/api/admin";
+import { EDGE_MIRROR_MODES, type EdgeMirrorMode, type EdgeMirrorState } from "@/lib/api/admin";
 import { requireDeveloper, requireSuperadmin } from "@/lib/auth";
 
 /** Server Action: start/stop/restart a backend service unit. Superadmin only. */
@@ -50,18 +50,23 @@ export async function setSeasonalActive(
 }
 
 /**
- * Server Action: mirror production submissions at the dev instance, or stop.
+ * Server Action: choose who is mirrored to the dev instance — nobody, the Bug
+ * Testers, or everyone.
  *
  * Superadmin only, re-asserted here rather than relying on the page guard — a
- * Server Action is an independently addressable POST endpoint.
+ * Server Action is an independently addressable POST endpoint, so its
+ * arguments are checked here too.
  */
 export async function setEdgeMirror(
-  enabled: boolean,
+  mode: EdgeMirrorMode,
   ttlSeconds: number | null,
 ): Promise<{ ok: true; state: EdgeMirrorState } | { ok: false; error: string }> {
   await requireSuperadmin("/admin/services");
+  if (!(EDGE_MIRROR_MODES as readonly string[]).includes(mode)) {
+    return { ok: false, error: "Choose Off, Bug testers or Everyone." };
+  }
   try {
-    const state = await api.adminSetEdgeMirror(Boolean(enabled), ttlSeconds);
+    const state = await api.adminSetEdgeMirror(mode, ttlSeconds);
     revalidatePath("/admin/services");
     return { ok: true as const, state };
   } catch (e) {

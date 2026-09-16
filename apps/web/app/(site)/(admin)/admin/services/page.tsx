@@ -16,7 +16,13 @@ export default async function AdminServicesPage() {
     canControl
       ? api
           .adminEdgeMirror()
-          .catch(() => ({ enabled: false, sample: 1, expires_at: null }))
+          .catch(() => ({
+            mode: "off" as const,
+            enabled: false,
+            sample: 1,
+            expires_at: null,
+            testers: null,
+          }))
       : Promise.resolve(null),
   ]);
 

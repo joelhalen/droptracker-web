@@ -46,16 +46,37 @@ import {
   mockServices,
 } from "../mock-data";
 
+/** Who the edge Worker copies to the dev instance. */
+export const EDGE_MIRROR_MODES = ["off", "testers", "all"] as const;
+export type EdgeMirrorMode = (typeof EDGE_MIRROR_MODES)[number];
+
 /**
  * State of the edge Worker's dev-mirror switch. `expires_at` is the auto-expiry:
- * null means it runs until someone turns it off.
+ * null means it runs until someone turns it off. `testers` counts who "Bug
+ * testers" mode would copy (null when the backend could not read it).
  */
-const EdgeMirrorStateSchema = z.object({
-  enabled: z.boolean(),
-  sample: z.number(),
-  expires_at: z.string().nullable(),
-});
-export type EdgeMirrorState = z.infer<typeof EdgeMirrorStateSchema>;
+const EdgeMirrorStateSchema = z
+  .object({
+    // Absent from a backend that predates modes, where `enabled` meant everyone.
+    mode: z.enum(EDGE_MIRROR_MODES).optional(),
+    enabled: z.boolean(),
+    sample: z.number(),
+    expires_at: z.string().nullable(),
+    testers: z
+      .object({
+        users: z.number(),
+        accounts: z.number(),
+        key_configured: z.boolean(),
+      })
+      .nullable()
+      .optional(),
+  })
+  .transform((s) => ({
+    ...s,
+    mode: s.mode ?? (s.enabled ? ("all" as const) : ("off" as const)),
+    testers: s.testers ?? null,
+  }));
+export type EdgeMirrorState = z.output<typeof EdgeMirrorStateSchema>;
 
 export const adminApi = {
 
@@ -100,22 +121,37 @@ export const adminApi = {
     return withFallback(
       async () =>
         EdgeMirrorStateSchema.parse(await apiGet(`/admin/edge-mirror`, { authed: true })),
-      () => ({ enabled: false, sample: 1, expires_at: null }),
+      () => ({
+        mode: "testers" as const,
+        enabled: false,
+        sample: 1,
+        expires_at: null,
+        testers: { users: 4, accounts: 7, key_configured: true },
+      }),
     );
   },
 
 
   /**
-   * Start or stop mirroring. `ttlSeconds` null means no expiry — everything
-   * else self-disables, which is the point.
+   * Choose who is mirrored. `ttlSeconds` null means no expiry — "Everyone" is
+   * offered only with one, since it self-disables by design.
    */
-  async adminSetEdgeMirror(enabled: boolean, ttlSeconds: number | null): Promise<EdgeMirrorState> {
+  async adminSetEdgeMirror(
+    mode: EdgeMirrorMode,
+    ttlSeconds: number | null,
+  ): Promise<EdgeMirrorState> {
     return withFallback(
       async () =>
         EdgeMirrorStateSchema.parse(
-          await apiSend("POST", `/admin/edge-mirror`, { enabled, ttl_seconds: ttlSeconds }),
+          await apiSend("POST", `/admin/edge-mirror`, { mode, ttl_seconds: ttlSeconds }),
         ),
-      () => ({ enabled, sample: 1, expires_at: null }),
+      () => ({
+        mode,
+        enabled: mode === "all",
+        sample: 1,
+        expires_at: null,
+        testers: { users: 4, accounts: 7, key_configured: true },
+      }),
     );
   },
 
