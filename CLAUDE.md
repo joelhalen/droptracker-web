@@ -58,7 +58,7 @@ scripts/deploy.sh     Blue-green production deploy
   logs, lookup, file-transfers, services status, status, projects, task-library,
   item-values, personal-bests — while superadmins additionally get events, event-limits,
   event-types, groups, users, announcements, docs, discord, tiers, badges,
-  backups, b2, subscriptions, tickets, redirects, boardgame-shop, plus
+  backups, b2, subscriptions, tickets, redirects, boardgame-shop, embeds, plus
   service control and data editing)
 - `app/middleware.ts` — Edge middleware resolving **DB-backed redirects** ahead
   of routing, via the cached `/api/redirects` handler (it cannot import

@@ -429,11 +429,11 @@ function DiscordPreview({
             <span className="text-xs text-[#949ba4]">{timeText}</span>
           </div>
           <div
-            className="mt-1 grid max-w-[520px] rounded border-l-4 bg-[#2b2d31] py-3 pr-4 pl-3"
+            className="mt-1 grid max-w-[520px] grid-cols-1 rounded border-l-4 bg-[#2b2d31] py-3 pr-4 pl-3"
             style={{ borderLeftColor: stripColor }}
           >
             <div className="flex gap-4">
-              <div className="min-w-0 grow">
+              <div className="min-w-0 grow break-words">
                 {draft.title.trim() && (
                   <div className="text-[15px] font-semibold text-white">
                     <PreviewTitle text={sub(draft.title)} url={draft.url} useSamples={useSamples} />
@@ -675,7 +675,7 @@ export function EmbedEditor({
 
       {message && <Alert variant={message.tone}>{message.text}</Alert>}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Form */}
         <Card padding="p-5" className="space-y-4">
           <div>

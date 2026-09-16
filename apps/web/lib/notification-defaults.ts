@@ -37,7 +37,10 @@ export function embedEditorEntries(resp: EmbedDefaultsResponse): GroupEmbedsResp
 
 export function embedUsage(resp: EmbedDefaultsResponse): Partial<Record<EmbedType, DefaultUsage>> {
   return Object.fromEntries(
-    resp.embeds.map((e) => [e.embed_type, { custom: e.custom_count, overriding: e.override_count }]),
+    resp.embeds.map((e) => [
+      e.embed_type,
+      { custom: e.custom_count, overriding: e.override_count },
+    ]),
   );
 }
 
@@ -54,7 +57,10 @@ export function eventLayoutEditorEntries(
 
 export function eventLayoutUsage(resp: EventLayoutDefaultsResponse): Record<string, DefaultUsage> {
   return Object.fromEntries(
-    resp.layouts.map((l) => [l.message_type, { custom: l.custom_count, overriding: l.override_count }]),
+    resp.layouts.map((l) => [
+      l.message_type,
+      { custom: l.custom_count, overriding: l.override_count },
+    ]),
   );
 }
 

@@ -580,7 +580,8 @@ export function EventLayoutEditor({
           text: {
             group: "Layout saved — it now applies to all of your events.",
             event: "Override saved — it applies to this event only.",
-            defaults: "Default saved — groups without their own layout get it from the next message.",
+            defaults:
+              "Default saved — groups without their own layout get it from the next message.",
           }[scope.kind],
         });
       } catch (err) {
@@ -677,7 +678,7 @@ export function EventLayoutEditor({
 
       {message && <Alert variant={message.tone}>{message.text}</Alert>}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Blocks form */}
         <Card padding="p-5" className="space-y-4">
           <div>

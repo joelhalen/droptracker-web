@@ -166,7 +166,7 @@ export function MessageStyleExplainer() {
       </div>
 
       {open && (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="text-osrs-parchment text-sm font-semibold">Embed</span>

@@ -87,16 +87,16 @@ export default async function AdminDefaultEmbedsPage({
       <p className={`text-osrs-parchment-dark/70 text-sm ${componentsTab ? "mb-6" : "mb-3"}`}>
         {componentsTab ? (
           <>
-            The blocks a group starts from when it switches a notification type to components on
-            its own Message style tab. Starting layouts are never sent themselves, and changing
-            one leaves every layout a group has already saved as it is.
+            The blocks a group starts from when it switches a notification type to components on its
+            own Message style tab. Starting layouts are never sent themselves, and changing one
+            leaves every layout a group has already saved as it is.
           </>
         ) : eventsTab ? (
           <>
             The Discord messages the bot posts for events — start and end announcements, task
-            completions, live standings and more — for every group without its own layouts, and
-            for global events. Groups override these on their own Event messages tab, and single
-            events from their Discord settings. Tokens like{" "}
+            completions, live standings and more — for every group without its own layouts, and for
+            global events. Groups override these on their own Event messages tab, and single events
+            from their Discord settings. Tokens like{" "}
             <code className="text-osrs-gold-bright">{"{team_name}"}</code> are filled in when each
             message is sent.
           </>
@@ -105,16 +105,16 @@ export default async function AdminDefaultEmbedsPage({
             The embeds the bot posts for every group that hasn&apos;t designed its own, or whose
             plan doesn&apos;t include custom notification designs. A group&apos;s own editor starts
             from these too. Placeholders like{" "}
-            <code className="text-osrs-gold-bright">{"{player_name}"}</code> are filled in when
-            each notification is sent.
+            <code className="text-osrs-gold-bright">{"{player_name}"}</code> are filled in when each
+            notification is sent.
           </>
         )}
       </p>
       {!componentsTab && (
         <Alert variant="info" className="mb-6">
           Saving here changes what most groups are sent, starting with their next{" "}
-          {eventsTab ? "event message" : "notification"} — check the preview first. Every change
-          is recorded in the{" "}
+          {eventsTab ? "event message" : "notification"} — check the preview first. Every change is
+          recorded in the{" "}
           <Link
             href="/admin/audit?action=notification_defaults"
             className="text-osrs-gold-bright hover:underline"
