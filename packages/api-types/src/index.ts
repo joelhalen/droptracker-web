@@ -1852,22 +1852,54 @@ export const GroupEmbedsResponseSchema = z.object({
 });
 export type GroupEmbedsResponse = z.infer<typeof GroupEmbedsResponseSchema>;
 
-/** PUT body for saving a group's template for one embed type. */
-export const GroupEmbedInputSchema = z.object({
-  title: z.string().min(1).max(255),
-  url: z.string().max(200).nullable().optional(),
-  description: z.string().max(1000).default(""),
-  color: z
-    .string()
-    .regex(/^#[0-9a-fA-F]{6}$/)
-    .nullable()
-    .optional(),
-  thumbnail: z.string().max(200).nullable().optional(),
-  image: z.string().max(200).nullable().optional(),
-  timestamp: z.boolean().default(false),
-  fields: z.array(EmbedFieldSchema).max(25).default([]),
-});
+/**
+ * PUT body for saving a group's template for one embed type. The title may be
+ * blank — Discord sends an embed without one, and the shipped combat
+ * achievement default has none — but the embed must say something.
+ */
+export const GroupEmbedInputSchema = z
+  .object({
+    title: z.string().max(255),
+    url: z.string().max(200).nullable().optional(),
+    description: z.string().max(1000).default(""),
+    color: z
+      .string()
+      .regex(/^#[0-9a-fA-F]{6}$/)
+      .nullable()
+      .optional(),
+    thumbnail: z.string().max(200).nullable().optional(),
+    image: z.string().max(200).nullable().optional(),
+    timestamp: z.boolean().default(false),
+    fields: z.array(EmbedFieldSchema).max(25).default([]),
+  })
+  .refine((e) => e.title.trim() !== "" || e.description.trim() !== "" || e.fields.length > 0, {
+    message: "An embed needs a title, a description or at least one field.",
+    path: ["title"],
+  });
 export type GroupEmbedInput = z.infer<typeof GroupEmbedInputSchema>;
+
+/**
+ * Staff: the site-wide embed defaults (template group 1) behind the ACP's
+ * Default embeds page. `template` is the stored default. `builtin` is the embed
+ * the sender builds in code for the types that have no stored default
+ * (quest/death/diary), written as a template — close rather than exact, since a
+ * template cannot branch. The counts say who an edit does not reach: groups
+ * with their own template, and how many of those are sent theirs because
+ * their plan includes custom designs.
+ */
+export const EmbedDefaultEntrySchema = z.object({
+  embed_type: z.enum(EMBED_TYPES),
+  template: GroupEmbedSchema.nullable(),
+  builtin: GroupEmbedSchema.nullable(),
+  custom_count: z.number().int(),
+  override_count: z.number().int(),
+});
+export type EmbedDefaultEntry = z.infer<typeof EmbedDefaultEntrySchema>;
+
+export const EmbedDefaultsResponseSchema = z.object({
+  embeds: z.array(EmbedDefaultEntrySchema),
+});
+export type EmbedDefaultsResponse = z.infer<typeof EmbedDefaultsResponseSchema>;
 
 /**
  * Superadmin: backend service control (FRONTEND_PLAN.md §9, §14.1
@@ -6717,6 +6749,24 @@ export const EventLayoutMetaSchema = z.object({
 });
 export type EventLayoutMeta = z.infer<typeof EventLayoutMetaSchema>;
 
+/** Staff: the site-wide event message layouts (template group 1). `builtin` is
+ * the code default the resolver falls back to when no row is stored. */
+export const EventLayoutDefaultEntrySchema = z.object({
+  message_type: z.string(),
+  template: EventMessageLayoutSchema.nullable(),
+  builtin: EventMessageLayoutSchema,
+  /** Groups with their own layout for this type. */
+  custom_count: z.number().int(),
+  /** …of which are sent theirs instead of the default (plan includes it). */
+  override_count: z.number().int(),
+});
+export type EventLayoutDefaultEntry = z.infer<typeof EventLayoutDefaultEntrySchema>;
+
+export const EventLayoutDefaultsResponseSchema = z.object({
+  layouts: z.array(EventLayoutDefaultEntrySchema),
+});
+export type EventLayoutDefaultsResponse = z.infer<typeof EventLayoutDefaultsResponseSchema>;
+
 /* ---------------------------------------------------------------------------
  * Notification Components-V2 layouts (backend services/component_layout.py).
  *
@@ -6839,6 +6889,27 @@ export const SavedNotificationLayoutSchema = z.object({
   active: z.boolean(),
 });
 export type SavedNotificationLayout = z.infer<typeof SavedNotificationLayoutSchema>;
+
+/** Staff: the site-wide starting layouts (template group 1) a group's builder
+ * copies when it switches a type to components. Never sent themselves. */
+export const NotificationLayoutDefaultEntrySchema = z.object({
+  notification_type: z.string(),
+  template: NotificationLayoutSchema.nullable(),
+  /** The code default, used while no template is stored. */
+  builtin: NotificationLayoutSchema,
+  /** Groups that already saved their own layout — a new default misses them. */
+  custom_count: z.number().int(),
+  /** Groups sending this type as components right now. */
+  live_count: z.number().int(),
+});
+export type NotificationLayoutDefaultEntry = z.infer<typeof NotificationLayoutDefaultEntrySchema>;
+
+export const NotificationLayoutDefaultsResponseSchema = z.object({
+  layouts: z.array(NotificationLayoutDefaultEntrySchema),
+});
+export type NotificationLayoutDefaultsResponse = z.infer<
+  typeof NotificationLayoutDefaultsResponseSchema
+>;
 
 /* ---------------------------------------------------------------------------
  * Recaps ("Wrapped") — monthly and annual cards.

@@ -6,6 +6,13 @@
  * placeholders substituted by sample data. Saving goes through the
  * `saveGroupEmbedAction` Server Action (auth + entitlement re-checked there
  * and again in the Web API).
+ *
+ * Two scopes share it:
+ *  - group:     a group's own templates, falling back to the site defaults.
+ *  - defaults:  the site-wide templates themselves (staff, /admin/embeds).
+ *    "Custom" is then the stored default and "default" the embed built in
+ *    code behind it — which only quest, death and diary have, so only those
+ *    can be reverted.
  */
 import { useMemo, useState, useTransition } from "react";
 import {
@@ -20,10 +27,19 @@ import {
   resetGroupEmbedAction,
   saveGroupEmbedAction,
 } from "@/app/(site)/(admin)/groups/[id]/embeds/actions";
+import {
+  resetEmbedDefaultAction,
+  saveEmbedDefaultAction,
+} from "@/app/(site)/(admin)/admin/embeds/actions";
 import { flattenTitleMarkdown, sampleIconFor, tidyTitle } from "@/lib/embeds";
 import { getErrorMessage } from "@/lib/errors";
 import { DEATH_EMBED_PLACEHOLDERS } from "@/lib/death-placeholders";
+import { defaultReach, type DefaultUsage } from "@/lib/notification-defaults";
 import { Alert, Button, Card, Checkbox, Input, Textarea } from "@/components/ui";
+
+export type EmbedEditorScope =
+  | { kind: "group"; groupId: number }
+  | { kind: "defaults"; usage: Partial<Record<EmbedType, DefaultUsage>> };
 
 /* ------------------------------------------------------------------ */
 /* Placeholder documentation — mirrors what the notification service    */
@@ -186,7 +202,7 @@ const TYPE_HELP: Record<EmbedType, string> = {
   quest: "Posted when a member completes a quest.",
   death: "Posted when a tracked member dies in-game.",
   diary: "Posted when a member completes an achievement diary.",
-  lb: "The message that accompanies your group's lootboard image.",
+  lb: "The message that accompanies the group's lootboard image.",
 };
 
 /* ------------------------------------------------------------------ */
@@ -471,12 +487,13 @@ function DiscordPreview({
 /* Editor                                                               */
 /* ------------------------------------------------------------------ */
 export function EmbedEditor({
-  groupId,
+  scope,
   initial,
 }: {
-  groupId: number;
+  scope: EmbedEditorScope;
   initial: GroupEmbedsResponse;
 }) {
+  const staff = scope.kind === "defaults";
   const byType = useMemo(() => {
     const map = new Map(initial.embeds.map((e) => [e.embed_type, e]));
     return map;
@@ -496,13 +513,37 @@ export function EmbedEditor({
 
   const entry = byType.get(selected);
   const hasCustom = Boolean(customByType[selected]);
+  // A group can always fall back to the site default. A site default can only
+  // fall back to a built-in embed, and most types have none.
+  const canReset = hasCustom && (!staff || Boolean(entry?.default));
   const docs = PLACEHOLDERS[selected];
+  const typeNoun = `${EMBED_TYPE_LABELS[selected].toLowerCase()} template`;
+
+  let status: string;
+  if (scope.kind === "group") {
+    status = hasCustom
+      ? "This type uses your custom embed."
+      : "This type currently uses the default embed.";
+  } else if (hasCustom) {
+    status = defaultReach(typeNoun, scope.usage[selected]);
+  } else if (entry?.default) {
+    status =
+      "No default template is stored for this type, so groups are sent DropTracker's built-in " +
+      "embed — shown below as a template. Saving stores your version in its place.";
+  } else {
+    status =
+      "No default template is stored for this type, so groups without their own can't be sent " +
+      "this notification. Save one to fix that.";
+  }
 
   const selectType = (t: EmbedType) => {
     if (dirty && !window.confirm("Discard unsaved changes to this embed?")) return;
     setSelected(t);
     const e = byType.get(t);
-    setDraft(draftFrom(customByType[t] ?? e?.custom ?? e?.default));
+    // customByType holds every type (null once reset), so it alone says
+    // whether a template is still stored — `e.custom` is the page-load copy.
+    const stored = t in customByType ? customByType[t] : e?.custom;
+    setDraft(draftFrom(stored ?? e?.default));
     setDirty(false);
     setMessage(null);
   };
@@ -521,13 +562,33 @@ export function EmbedEditor({
   };
 
   const save = () => {
-    if (!draft.title.trim()) {
-      setMessage({ tone: "error", text: "The embed needs a title." });
+    // toInput drops half-filled fields, so only complete ones count here.
+    const saysSomething =
+      draft.title.trim() ||
+      draft.description.trim() ||
+      draft.fields.some((f) => f.name.trim() && f.value.trim());
+    if (!saysSomething) {
+      setMessage({
+        tone: "error",
+        text: "The embed needs a title, a description or at least one field.",
+      });
       return;
     }
+    if (
+      staff &&
+      !window.confirm(
+        `Save this as the default ${typeNoun}? Every group without its own is sent it from ` +
+          "the next notification.",
+      )
+    )
+      return;
     startTransition(async () => {
       try {
-        const res = await saveGroupEmbedAction(groupId, selected, toInput(draft));
+        const input = toInput(draft);
+        const res =
+          scope.kind === "defaults"
+            ? await saveEmbedDefaultAction(selected, input)
+            : await saveGroupEmbedAction(scope.groupId, selected, input);
         if (!res.ok) {
           setMessage({ tone: "error", text: res.error });
           return;
@@ -535,7 +596,12 @@ export function EmbedEditor({
         setCustomByType((m) => ({ ...m, [selected]: res.data }));
         setDraft(draftFrom(res.data));
         setDirty(false);
-        setMessage({ tone: "success", text: "Embed saved — new notifications will use it." });
+        setMessage({
+          tone: "success",
+          text: staff
+            ? "Default saved — groups without their own template get it from the next notification."
+            : "Embed saved — new notifications will use it.",
+        });
       } catch (err) {
         setMessage({ tone: "error", text: getErrorMessage(err) });
       }
@@ -543,10 +609,16 @@ export function EmbedEditor({
   };
 
   const reset = () => {
-    if (!window.confirm("Remove your custom embed and revert to the DropTracker default?")) return;
+    const prompt = staff
+      ? "Delete the stored default? Groups without their own template go back to DropTracker's built-in embed."
+      : "Remove your custom embed and revert to the DropTracker default?";
+    if (!window.confirm(prompt)) return;
     startTransition(async () => {
       try {
-        const res = await resetGroupEmbedAction(groupId, selected);
+        const res =
+          scope.kind === "defaults"
+            ? await resetEmbedDefaultAction(selected)
+            : await resetGroupEmbedAction(scope.groupId, selected);
         if (!res.ok) {
           setMessage({ tone: "error", text: res.error });
           return;
@@ -554,7 +626,12 @@ export function EmbedEditor({
         setCustomByType((m) => ({ ...m, [selected]: null }));
         setDraft(draftFrom(entry?.default));
         setDirty(false);
-        setMessage({ tone: "success", text: "Reverted to the default embed." });
+        setMessage({
+          tone: "success",
+          text: staff
+            ? "Deleted — groups without their own template get the built-in embed again."
+            : "Reverted to the default embed.",
+        });
       } catch (err) {
         setMessage({ tone: "error", text: getErrorMessage(err) });
       }
@@ -587,9 +664,14 @@ export function EmbedEditor({
       </div>
 
       <p className="text-osrs-parchment-dark/60 text-xs">
-        {TYPE_HELP[selected]}{" "}
-        {hasCustom ? "This type uses your custom embed." : "This type currently uses the default embed."}
+        {TYPE_HELP[selected]} {status}
       </p>
+      {staff && (
+        <p className="text-osrs-parchment-dark/50 text-xs">
+          A gold • marks a type with a stored default; the others are sent DropTracker&apos;s
+          built-in embed.
+        </p>
+      )}
 
       {message && <Alert variant={message.tone}>{message.text}</Alert>}
 
@@ -598,7 +680,7 @@ export function EmbedEditor({
         <Card padding="p-5" className="space-y-4">
           <div>
             <label className="text-osrs-parchment mb-1 block text-sm font-medium">
-              Title <span className="text-osrs-red">*</span>
+              Title
               <span className="text-osrs-parchment-dark/50 ml-2 text-xs font-normal">
                 {draft.title.length}/255
               </span>
@@ -614,7 +696,7 @@ export function EmbedEditor({
             <p className="text-osrs-parchment-dark/50 mt-1 text-xs">
               Discord shows titles as <strong>plain text</strong> — markdown does not render here.
               Use the link field below to make the title clickable, and put bold, code and links in
-              the description or a field instead.
+              the description or a field instead. Leave it blank for an embed without a title.
             </p>
           </div>
 
@@ -790,11 +872,11 @@ export function EmbedEditor({
 
           <div className="border-osrs-bronze/25 flex items-center gap-3 border-t pt-4">
             <Button variant="secondary" type="button" onClick={save} disabled={pending || !dirty}>
-              {pending ? "Saving…" : "Save embed"}
+              {pending ? "Saving…" : staff ? "Save default" : "Save embed"}
             </Button>
-            {hasCustom && (
+            {canReset && (
               <Button variant="ghost" type="button" onClick={reset} disabled={pending}>
-                Reset to default
+                {staff ? "Use the built-in embed" : "Reset to default"}
               </Button>
             )}
             {dirty && <span className="text-osrs-parchment-dark/60 text-xs">Unsaved changes</span>}

@@ -35,12 +35,15 @@ import type {
   EventTemplateDetail,
   GroupDiagnostics,
   GroupEmbedsResponse,
+  EmbedDefaultsResponse,
   EventLayoutMeta,
   EventLayoutsResponse,
+  EventLayoutDefaultsResponse,
   EventMessageLayout,
   GroupEventLayoutsResponse,
   GroupNotificationLayoutsResponse,
   NotificationLayout,
+  NotificationLayoutDefaultsResponse,
   NotificationLayoutMeta,
   GroupMembersPage,
   GroupProfile,
@@ -1659,6 +1662,50 @@ export function mockGroupNotificationLayouts(): GroupNotificationLayoutsResponse
       active: notification_type === "pb",
       default: mockNotificationLayout(),
       updated_at: notification_type === "pb" ? "2026-08-14T12:00:00" : null,
+    })),
+  };
+}
+
+/* Staff defaults (mirrors web_api/routes/notification_defaults.py). */
+const MOCK_BUILTIN_EMBED_TYPES: readonly string[] = ["quest", "death", "diary"];
+
+export function mockEmbedDefaults(): EmbedDefaultsResponse {
+  return {
+    embeds: mockGroupEmbeds().embeds.map(({ embed_type, default: embed }) => {
+      // The row-less types are sent an embed built in code; the rest have a
+      // stored default and nothing behind it.
+      const builtin = MOCK_BUILTIN_EMBED_TYPES.includes(embed_type);
+      return {
+        embed_type,
+        template: builtin ? null : embed,
+        builtin: builtin ? embed : null,
+        custom_count: embed_type === "drop" ? 3 : 0,
+        override_count: embed_type === "drop" ? 1 : 0,
+      };
+    }),
+  };
+}
+
+export function mockEventLayoutDefaults(): EventLayoutDefaultsResponse {
+  return {
+    layouts: MOCK_LAYOUT_TYPES.map((message_type) => ({
+      message_type,
+      template: message_type === "event_started" ? mockLayoutBlocks(message_type) : null,
+      builtin: mockLayoutBlocks(message_type),
+      custom_count: message_type === "event_started" ? 2 : 0,
+      override_count: message_type === "event_started" ? 1 : 0,
+    })),
+  };
+}
+
+export function mockNotificationLayoutDefaults(): NotificationLayoutDefaultsResponse {
+  return {
+    layouts: MOCK_NOTIFICATION_TYPES.map((notification_type) => ({
+      notification_type,
+      template: notification_type === "drop" ? mockNotificationLayout() : null,
+      builtin: mockNotificationLayout(),
+      custom_count: notification_type === "pb" ? 1 : 0,
+      live_count: notification_type === "pb" ? 1 : 0,
     })),
   };
 }

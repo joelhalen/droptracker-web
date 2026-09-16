@@ -114,7 +114,7 @@ export default async function GroupEmbedsPage({
             <div className="space-y-4">
               <MessageStyleExplainer />
               <NotificationLayoutEditor
-                groupId={groupId}
+                scope={{ kind: "group", groupId }}
                 entries={notificationLayouts.layouts}
                 meta={notificationMeta}
               />
@@ -141,7 +141,7 @@ export default async function GroupEmbedsPage({
             </p>
           )
         ) : embeds ? (
-          <EmbedEditor groupId={groupId} initial={embeds} />
+          <EmbedEditor scope={{ kind: "group", groupId }} initial={embeds} />
         ) : (
           <p className="text-osrs-parchment-dark/70 text-sm">
             Embed templates are unavailable right now — try again shortly.

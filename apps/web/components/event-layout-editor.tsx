@@ -7,11 +7,13 @@
  * services/event_message_layouts.py): text / section / separator /
  * standings / buttons blocks with `{token}` substitution.
  *
- * Two scopes share this editor:
+ * Three scopes share this editor:
  *  - group:  the group's default layouts (groups/[id]/embeds, Event
  *    messages tab) — saved rows apply to every event the group runs.
  *  - event:  one event's overrides (Discord settings, "Message layouts")
  *    — seeded from the group's effective layout, reverting returns to it.
+ *  - defaults:  the site-wide layouts (staff, /admin/embeds) every group
+ *    without its own is sent — reverting returns to the code default.
  *
  * The preview mirrors the renderer's per-line token-drop rule: with sample
  * data on, a line whose token has no sample vanishes exactly like a line
@@ -34,7 +36,12 @@ import {
   saveEventLayoutAction,
   saveGroupEventLayoutAction,
 } from "@/app/(site)/(admin)/groups/[id]/embeds/event-layout-actions";
+import {
+  resetEventLayoutDefaultAction,
+  saveEventLayoutDefaultAction,
+} from "@/app/(site)/(admin)/admin/embeds/actions";
 import { getErrorMessage } from "@/lib/errors";
+import { defaultReach, type DefaultUsage } from "@/lib/notification-defaults";
 import {
   DiscordMessageFrame,
   EVENT_TOKEN_RE,
@@ -50,7 +57,8 @@ import { Alert, Button, Card, fieldInputClass } from "@/components/ui";
 /* ------------------------------------------------------------------ */
 export type LayoutScope =
   | { kind: "group"; groupId: number }
-  | { kind: "event"; groupId: number | null; eventId: number };
+  | { kind: "event"; groupId: number | null; eventId: number }
+  | { kind: "defaults"; usage: Record<string, DefaultUsage> };
 
 /** One message type's state: the saved custom layout (group row or event
  * override) and the base it falls back to (system default / group layout). */
@@ -489,8 +497,17 @@ export function EventLayoutEditor({
   const maxBlocks = meta.limits.max_blocks ?? 15;
   const maxTextLen = meta.limits.max_text_len ?? 2000;
 
-  const savedNoun = scope.kind === "group" ? "custom layout" : "event override";
-  const baseNoun = scope.kind === "group" ? "system default" : "group layout";
+  const savedNoun = {
+    group: "custom layout",
+    event: "event override",
+    defaults: "edited default",
+  }[scope.kind];
+  const baseNoun = {
+    group: "system default",
+    event: "group layout",
+    defaults: "built-in layout",
+  }[scope.kind];
+  const typeLabel = typeMeta?.label.toLowerCase() ?? selected;
 
   const selectType = (key: string) => {
     if (dirty && !window.confirm("Discard unsaved changes to this layout?")) return;
@@ -529,13 +546,23 @@ export function EventLayoutEditor({
       setMessage({ tone: "error", text: "The layout needs at least one block." });
       return;
     }
+    if (
+      scope.kind === "defaults" &&
+      !window.confirm(
+        `Save this as the default ${typeLabel} layout? Every group without its own is sent it ` +
+          "from the next message.",
+      )
+    )
+      return;
     startTransition(async () => {
       try {
         const input = toInput(draft);
         const res =
           scope.kind === "group"
             ? await saveGroupEventLayoutAction(scope.groupId, selected, input)
-            : await saveEventLayoutAction(scope.groupId, scope.eventId, selected, input);
+            : scope.kind === "event"
+              ? await saveEventLayoutAction(scope.groupId, scope.eventId, selected, input)
+              : await saveEventLayoutDefaultAction(selected, input);
         if (!res.ok) {
           setMessage({ tone: "error", text: res.error });
           return;
@@ -550,10 +577,11 @@ export function EventLayoutEditor({
         setDirty(false);
         setMessage({
           tone: "success",
-          text:
-            scope.kind === "group"
-              ? "Layout saved — it now applies to all of your events."
-              : "Override saved — it applies to this event only.",
+          text: {
+            group: "Layout saved — it now applies to all of your events.",
+            event: "Override saved — it applies to this event only.",
+            defaults: "Default saved — groups without their own layout get it from the next message.",
+          }[scope.kind],
         });
       } catch (err) {
         setMessage({ tone: "error", text: getErrorMessage(err) });
@@ -568,7 +596,9 @@ export function EventLayoutEditor({
         const res =
           scope.kind === "group"
             ? await resetGroupEventLayoutAction(scope.groupId, selected)
-            : await resetEventLayoutAction(scope.groupId, scope.eventId, selected);
+            : scope.kind === "event"
+              ? await resetEventLayoutAction(scope.groupId, scope.eventId, selected)
+              : await resetEventLayoutDefaultAction(selected);
         if (!res.ok) {
           setMessage({ tone: "error", text: res.error });
           return;
@@ -635,7 +665,15 @@ export function EventLayoutEditor({
         {hasSaved
           ? `This type uses your ${savedNoun}.`
           : `This type currently follows the ${baseNoun}.`}
+        {scope.kind === "defaults" &&
+          ` ${defaultReach(`${typeLabel} layout`, scope.usage[selected])}`}
       </p>
+      {scope.kind === "defaults" && (
+        <p className="text-osrs-parchment-dark/50 text-xs">
+          A gold • marks a type whose default was edited here; the others are sent the built-in
+          layout.
+        </p>
+      )}
 
       {message && <Alert variant={message.tone}>{message.text}</Alert>}
 
@@ -709,7 +747,11 @@ export function EventLayoutEditor({
 
           <div className="border-osrs-bronze/25 flex items-center gap-3 border-t pt-4">
             <Button variant="secondary" onClick={save} disabled={pending || !dirty}>
-              {pending ? "Saving…" : scope.kind === "group" ? "Save layout" : "Save override"}
+              {pending
+                ? "Saving…"
+                : { group: "Save layout", event: "Save override", defaults: "Save default" }[
+                    scope.kind
+                  ]}
             </Button>
             {hasSaved && (
               <button

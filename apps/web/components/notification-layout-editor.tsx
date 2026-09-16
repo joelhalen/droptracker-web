@@ -12,6 +12,10 @@
  * from saving — an author can build and preview for as long as they like
  * without anyone seeing it.
  *
+ * Staff reuse it over the site-wide starting layouts (scope `defaults`,
+ * /admin/embeds): what a group's blocks start as before it has saved any. Those
+ * are never sent themselves, so that scope has no embed/components switch.
+ *
  * The preview reproduces the renderer's dropping rules, not just its markdown:
  * a line whose token has no value disappears, a thumbnail or image whose URL
  * did not resolve is left out, and a layout with nothing left to say falls back
@@ -31,11 +35,20 @@ import {
   resetGroupNotificationLayoutAction,
   saveGroupNotificationLayoutAction,
 } from "@/app/(site)/(admin)/groups/[id]/embeds/notification-layout-actions";
+import {
+  resetNotificationLayoutDefaultAction,
+  saveNotificationLayoutDefaultAction,
+} from "@/app/(site)/(admin)/admin/embeds/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { DiscordMessageFrame, HiddenOnError, PreviewLines } from "@/components/components-v2-preview";
 import { renderNotificationPreview, sampleMap } from "@/lib/components-v2";
+import { startingPointReach, type StartingPointUsage } from "@/lib/notification-defaults";
 import { Alert, Card, fieldInputClass } from "@/components/ui";
 import { MessageStyleChooser } from "@/components/message-style";
+
+export type NotificationLayoutScope =
+  | { kind: "group"; groupId: number }
+  | { kind: "defaults"; usage: Record<string, StartingPointUsage> };
 
 /* ------------------------------------------------------------------ */
 /* Draft model                                                          */
@@ -447,14 +460,15 @@ function BlockForm({
 /* Editor                                                               */
 /* ------------------------------------------------------------------ */
 export function NotificationLayoutEditor({
-  groupId,
+  scope,
   entries: initialEntries,
   meta,
 }: {
-  groupId: number;
+  scope: NotificationLayoutScope;
   entries: NotificationLayoutEntry[];
   meta: NotificationLayoutMeta;
 }) {
+  const staff = scope.kind === "defaults";
   const orderedTypes = useMemo(
     () => meta.types.filter((t) => initialEntries.some((e) => e.notification_type === t.key)),
     [meta, initialEntries],
@@ -528,11 +542,14 @@ export function NotificationLayoutEditor({
     }
     startTransition(async () => {
       try {
-        const res = await saveGroupNotificationLayoutAction(
-          groupId,
-          selected,
-          toInput(draft, active),
-        );
+        const res =
+          scope.kind === "defaults"
+            ? await saveNotificationLayoutDefaultAction(selected, toInput(draft, false))
+            : await saveGroupNotificationLayoutAction(
+                scope.groupId,
+                selected,
+                toInput(draft, active),
+              );
         if (!res.ok) {
           setMessage({ tone: "error", text: res.error });
           return;
@@ -552,7 +569,15 @@ export function NotificationLayoutEditor({
     });
   };
 
-  const save = () => persist(isLive, isLive ? "Saved — members are seeing this now." : "Saved as a draft. Nothing has changed for your members yet.");
+  const save = () =>
+    persist(
+      isLive,
+      staff
+        ? "Saved — groups start from this layout when they switch this type to components."
+        : isLive
+          ? "Saved — members are seeing this now."
+          : "Saved as a draft. Nothing has changed for your members yet.",
+    );
 
   const goLive = () => {
     if (
@@ -569,10 +594,16 @@ export function NotificationLayoutEditor({
   const goDraft = () => persist(false, "Switched back to the embed. Your layout is kept.");
 
   const revert = () => {
-    if (!window.confirm("Delete this layout and go back to the embed template?")) return;
+    const prompt = staff
+      ? "Delete this starting layout? Groups start from the built-in one again."
+      : "Delete this layout and go back to the embed template?";
+    if (!window.confirm(prompt)) return;
     startTransition(async () => {
       try {
-        const res = await resetGroupNotificationLayoutAction(groupId, selected);
+        const res =
+          scope.kind === "defaults"
+            ? await resetNotificationLayoutDefaultAction(selected)
+            : await resetGroupNotificationLayoutAction(scope.groupId, selected);
         if (!res.ok) {
           setMessage({ tone: "error", text: res.error });
           return;
@@ -585,7 +616,12 @@ export function NotificationLayoutEditor({
         });
         setDraft(draftFrom(entry?.default ?? null));
         setDirty(false);
-        setMessage({ tone: "success", text: "Deleted — this type sends its embed again." });
+        setMessage({
+          tone: "success",
+          text: staff
+            ? "Deleted — groups start from the built-in layout again."
+            : "Deleted — this type sends its embed again.",
+        });
       } catch (err) {
         setMessage({ tone: "error", text: getErrorMessage(err) });
       }
@@ -621,7 +657,13 @@ export function NotificationLayoutEditor({
                   }`}
                 >
                   {t.label}
-                  {e?.active ? (
+                  {staff ? (
+                    e?.custom ? (
+                      <span className="text-osrs-gold-bright ml-1" title="Starting layout edited">
+                        •
+                      </span>
+                    ) : null
+                  ) : e?.active ? (
                     <span className="text-osrs-green ml-1" title="Sending as components">
                       ●
                     </span>
@@ -640,18 +682,35 @@ export function NotificationLayoutEditor({
         ))}
       </div>
 
-      <p className="text-osrs-parchment-dark/60 text-xs">
-        {typeMeta?.description}{" "}
-        {isLive
-          ? "Currently sent as components."
-          : hasSaved
-            ? "Currently sent as an embed; the layout saved here is not in use."
-            : "Currently sent as an embed. The blocks below start as a copy of that embed, so you can switch over and adjust from there."}
-      </p>
-      <p className="text-osrs-parchment-dark/50 text-xs">
-        A green ● marks a type sent as components; a gold ○ marks one with a saved layout that
-        is not in use.
-      </p>
+      {scope.kind === "defaults" ? (
+        <>
+          <p className="text-osrs-parchment-dark/60 text-xs">
+            {typeMeta?.description}{" "}
+            {hasSaved
+              ? "The blocks below are an edited starting layout."
+              : "The blocks below are the built-in starting layout, a copy of the default embed."}{" "}
+            {startingPointReach(scope.usage[selected])}
+          </p>
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            A gold • marks a type whose starting layout was edited here.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-osrs-parchment-dark/60 text-xs">
+            {typeMeta?.description}{" "}
+            {isLive
+              ? "Currently sent as components."
+              : hasSaved
+                ? "Currently sent as an embed; the layout saved here is not in use."
+                : "Currently sent as an embed. The blocks below start as a copy of that embed, so you can switch over and adjust from there."}
+          </p>
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            A green ● marks a type sent as components; a gold ○ marks one with a saved layout that
+            is not in use.
+          </p>
+        </>
+      )}
 
       {message && <Alert variant={message.tone}>{message.text}</Alert>}
 
@@ -725,13 +784,15 @@ export function NotificationLayoutEditor({
             </div>
           </div>
 
-          <MessageStyleChooser
-            typeLabel={typeMeta?.label ?? selected}
-            isComponents={isLive}
-            disabled={pending}
-            canUseComponents={draft.blocks.length > 0}
-            onChoose={(components) => (components ? goLive() : goDraft())}
-          />
+          {!staff && (
+            <MessageStyleChooser
+              typeLabel={typeMeta?.label ?? selected}
+              isComponents={isLive}
+              disabled={pending}
+              canUseComponents={draft.blocks.length > 0}
+              onChoose={(components) => (components ? goLive() : goDraft())}
+            />
+          )}
 
           <div className="border-osrs-bronze/25 space-y-3 border-t pt-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -741,7 +802,7 @@ export function NotificationLayoutEditor({
                 disabled={pending || !dirty}
                 className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
-                {pending ? "Saving…" : "Save"}
+                {pending ? "Saving…" : staff ? "Save starting layout" : "Save"}
               </button>
               {hasSaved && (
                 <button
@@ -750,7 +811,7 @@ export function NotificationLayoutEditor({
                   disabled={pending}
                   className="text-osrs-red/80 hover:text-osrs-red px-2 py-2 text-sm disabled:opacity-50"
                 >
-                  Delete layout
+                  {staff ? "Use the built-in layout" : "Delete layout"}
                 </button>
               )}
               {dirty && <span className="text-osrs-parchment-dark/60 text-xs">Unsaved changes</span>}
