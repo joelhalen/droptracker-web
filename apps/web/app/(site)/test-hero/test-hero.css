@@ -1,2268 +1,1805 @@
 /*
  * /test-hero — page-scoped stylesheet.
  *
- * Every rule in this file is namespaced under `.th-page` or a `.th-*` class so
- * it can never leak into the rest of the site. The page imports the global
- * theme (app/globals.css, via the root layout) for the font tokens and the
- * design-system variables, and then *overrides* what it needs here rather than
- * touching globals.css — the same contract the page-local JS follows.
+ * Every rule is namespaced under `.hp-page` or a `.hp-*` class, so nothing here
+ * can leak into the rest of the site.
  *
- * Deliberate override: the page pins its own dark palette instead of inheriting
- * `data-theme`. A hero that flips to the light parchment theme mid-scroll would
- * wreck every scrim, glow and blend mode below, and all of the artwork it sits
- * on (lootboards, in-game screenshots, event boards) is dark-on-dark art. The
- * scoping stops at `.th-page`, so the site header, ticker and footer around it
- * keep following the visitor's chosen theme.
+ * THEME-AWARE, unlike the prototype this replaced: there is no page-local
+ * palette. Every colour resolves from the site's `--dt-*` tokens
+ * (@droptracker/ui/theme.css), so the page follows the visitor's chosen theme
+ * — dusk, parchment or wilderness — the way a homepage has to. The exceptions
+ * are deliberate and fixed for the same reason `RankMedal` and tier flair are:
+ *   - the loot-value tier colours, which mean the same thing on every surface
+ *     (parchment gets darker variants so they still read on a light ground);
+ *   - the Discord card, which imitates another product's UI.
+ *
+ * Visual language: a ledger. Hairline rules instead of glows, squared panels,
+ * and every figure set in the game's own UI face (`--font-osrs`).
  */
 
-.th-page {
-  /* --- page-local palette ------------------------------------------------ */
-  --th-ink: #f4ecda;
-  --th-ink-dim: #b9ac91;
-  --th-ink-faint: #7d7360;
-  --th-gold: #ffb83f;
-  --th-gold-bright: #ffd966;
-  --th-ember: #ff8c42;
-  --th-blood: #e05c4d;
-  --th-bronze: #7a5a32;
+.hp-page {
+  --hp-line: color-mix(in srgb, var(--dt-bronze) 36%, transparent);
+  --hp-line-soft: color-mix(in srgb, var(--dt-bronze) 18%, transparent);
+  --hp-ink-dim: color-mix(in srgb, var(--dt-text-muted) 84%, transparent);
+  --hp-ink-faint: color-mix(in srgb, var(--dt-text-muted) 58%, transparent);
 
-  --th-bg: #0b0906;
-  --th-bg-2: #120e09;
-  --th-panel: rgba(33, 26, 18, 0.72);
-  --th-panel-solid: #1a140e;
-  --th-line: rgba(122, 90, 50, 0.32);
-  --th-line-strong: rgba(255, 184, 63, 0.4);
-
-  /* Rarity ramp — mirrors lib/format.ts `lootValueClass` thresholds. */
-  --th-tier-b: #ffd966;
-  --th-tier-100m: #c084fc;
-  --th-tier-10m: #56b6f0;
-  --th-tier-1m: #6fbf73;
-
-  --th-shadow: 0 2px 4px rgb(0 0 0 / 0.4), 0 18px 50px rgb(0 0 0 / 0.55);
-  --th-radius: 14px;
-
-  position: relative;
-  color: var(--th-ink);
-  font-family: var(--font-sans);
-  /* The page paints its own background; the html-level radial from globals.css
-     would otherwise show through the transparent sections. */
-  isolation: isolate;
+  /* Loot value tiers — same thresholds as lib/format.ts `lootValueClass`. */
+  --hp-tier-1m: #6fbf73;
+  --hp-tier-10m: #56b6f0;
+  --hp-tier-100m: #c084fc;
+  --hp-tier-1b: #ffd966;
 
   /*
-   * The page lives inside the site's `<main class="mx-auto max-w-6xl px-4
-   * py-10">` gutter. Cancel the top padding so the hero meets the sticky
-   * header, and paint the page background full-bleed behind everything —
-   * without this the dark canvas would stop at the 72rem column.
+   * Read by the rain canvas (rain-engine.ts) through getComputedStyle. Plain
+   * var() references on purpose: they compute to hex strings a 2D context can
+   * always parse, which is not yet true of color-mix() everywhere.
+   */
+  --hp-rain-dust: var(--dt-gold);
+  --hp-rain-common: var(--dt-gold-bright);
+  --hp-tag-bg: var(--dt-surface-2);
+  --hp-tag-text: var(--dt-text);
+
+  position: relative;
+  color: var(--dt-text);
+  font-family: var(--font-sans);
+  /*
+   * The page sits inside the site's `<main class="mx-auto max-w-6xl px-4
+   * py-10">`. Cancel the top padding so the rain starts right under the sticky
+   * header instead of after a band of empty canvas.
    */
   margin-top: -2.5rem;
 }
 
+:root[data-theme="parchment"] .hp-page {
+  --hp-tier-1m: #2f7d32;
+  --hp-tier-10m: #1769aa;
+  --hp-tier-100m: #7b3fb8;
+  --hp-tier-1b: #8a5f04;
+}
+
 /*
- * Escape the site gutter for full-bleed sections (the hero).
- *
- * `margin-inline` pulls the box out to the viewport edges and the matching
- * `padding-inline` puts the content back where it was, so children still line
- * up with the rest of the page. Safe against horizontal overflow because
- * globals.css sets `overflow-x: clip` on html/body — the same guard the site's
- * wide tables rely on.
+ * Escape the site gutter. Safe against horizontal overflow because globals.css
+ * sets `overflow-x: clip` on html/body — the same guard the site's wide tables
+ * rely on. Content inside comes back onto the site's column with `.hp-shell`,
+ * which reproduces <main>'s own box (72rem including its 1rem side padding).
  */
-.th-bleed {
+.hp-bleed {
   margin-inline: calc(50% - 50vw);
-  padding-inline: calc(50vw - 50%);
   width: 100vw;
   max-width: 100vw;
 }
 
-/*
- * Page canvas: the dark background, the warm ambient light and a fine film
- * grain, all painted by two fixed pseudo-elements.
- *
- * Fixed rather than a wide element so nothing can widen the layout, and
- * `z-index: -1` inside the `isolation: isolate` stacking context above puts
- * them behind every section without escaping the page (the site header, ticker
- * and footer are outside `.th-page` and keep their own theming).
- */
-.th-page::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(1200px 620px at 12% -6%, rgb(255 140 66 / 0.14), transparent 62%),
-    radial-gradient(1000px 700px at 92% 18%, rgb(255 184 63 / 0.09), transparent 60%),
-    radial-gradient(900px 900px at 50% 108%, rgb(122 90 50 / 0.16), transparent 62%),
-    var(--th-bg);
-}
-
-.th-page::after {
-  content: "";
-  position: fixed;
-  inset: -50%;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-  animation: th-grain 900ms steps(4) infinite;
-}
-
-@keyframes th-grain {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(-2%, 1%);
-  }
-  50% {
-    transform: translate(1%, -2%);
-  }
-  75% {
-    transform: translate(2%, 2%);
-  }
-}
-
-.th-page ::selection {
-  background: rgb(255 184 63 / 0.28);
-  color: #fff;
-}
-
-/* --- typography ---------------------------------------------------------- */
-
-.th-display {
-  font-family: var(--font-display);
-  font-weight: 700;
-  line-height: 0.98;
-  letter-spacing: 0.005em;
-  text-wrap: balance;
-}
-
-.th-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--th-gold);
-}
-
-.th-eyebrow::before {
-  content: "";
-  width: 1.75rem;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--th-gold));
-}
-
-.th-lede {
-  color: var(--th-ink-dim);
-  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.15rem);
-  line-height: 1.65;
-  text-wrap: pretty;
-}
-
-/* Gold foil sweep for the hero word. Pure decoration — the text stays
-   selectable and the fallback color is set before the clip applies. */
-.th-foil {
-  background: linear-gradient(96deg, #b57c25 8%, #ffd966 34%, #fff4cf 46%, #ffb83f 62%, #8a5a1e 92%);
-  background-size: 260% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: th-foil 7s ease-in-out infinite;
-}
-
-@keyframes th-foil {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-/* --- layout -------------------------------------------------------------- */
-
-/* Inside a `.th-bleed` section, put content back on the site's own 72rem
-   column so the hero lines up with everything below it. */
-.th-shell {
+.hp-shell {
+  box-sizing: border-box;
   width: 100%;
   max-width: 72rem;
   margin-inline: auto;
+  padding-inline: 1rem;
 }
 
-/* Inline link inside body copy — the page's own accent, not the site's. */
-.th-inline-link {
-  color: var(--th-gold-bright);
+.hp-page ::selection {
+  background: color-mix(in srgb, var(--dt-gold) 30%, transparent);
+}
+
+.hp-page :focus-visible {
+  outline: 2px solid var(--dt-gold);
+  outline-offset: 2px;
+}
+
+/* --- shared type ----------------------------------------------------------- */
+
+.hp-kicker {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dt-gold);
+}
+
+.hp-link {
+  color: inherit;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+.hp-link:hover {
+  color: var(--dt-gold-bright);
+  text-decoration: underline;
+}
+
+/* Inside running copy a link has to look like one; in a list row (feed, boards)
+   the row itself is the affordance and the name stays in the text colour. */
+.hp-section-head p .hp-link,
+.hp-panel-note .hp-link {
+  color: var(--dt-gold-bright);
+  font-weight: 600;
+}
+
+.hp-more {
+  color: var(--dt-gold-bright);
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.hp-more:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
-.th-inline-link:hover {
-  color: #fff;
+/* A GP amount, in the game's UI face and coloured by value tier. */
+.hp-gp {
+  font-family: var(--font-osrs);
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
 }
 
-.th-section {
-  position: relative;
-  padding-block: clamp(3.5rem, 6.5vw, 6.5rem);
+.hp-gp[data-tier="1m"] {
+  color: var(--hp-tier-1m);
+}
+.hp-gp[data-tier="10m"] {
+  color: var(--hp-tier-10m);
+}
+.hp-gp[data-tier="100m"] {
+  color: var(--hp-tier-100m);
+}
+.hp-gp[data-tier="1b"] {
+  color: var(--hp-tier-1b);
 }
 
-.th-section + .th-section {
-  border-top: 1px solid rgb(122 90 50 / 0.16);
+.hp-empty {
+  padding: 1.5rem 1.15rem;
+  font-size: 0.9rem;
+  color: var(--hp-ink-faint);
 }
 
-.th-section-head {
-  max-width: 46rem;
-  margin-bottom: clamp(2rem, 4vw, 3.25rem);
-}
+/* --- buttons --------------------------------------------------------------- */
 
-.th-section-head h2 {
-  margin-top: 0.85rem;
-  font-size: clamp(1.9rem, 1.2rem + 2.4vw, 3.1rem);
-}
-
-.th-section-head p {
-  margin-top: 1rem;
-}
-
-/* --- buttons ------------------------------------------------------------- */
-
-.th-btn {
+.hp-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.5rem;
-  padding: 0.72rem 1.35rem;
-  border-radius: 999px;
-  border: 1px solid transparent;
+  padding: 0.7rem 1.3rem;
+  border: 1px solid var(--hp-line);
+  border-radius: 6px;
+  background: var(--dt-surface-1);
+  color: var(--dt-text);
   font-size: 0.9rem;
   font-weight: 600;
   white-space: nowrap;
-  cursor: pointer;
   transition:
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 200ms ease,
-    background 200ms ease,
-    border-color 200ms ease,
-    color 200ms ease;
+    transform 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease;
 }
 
-.th-btn-primary {
-  background: linear-gradient(140deg, #ffd071, #f0a02c 55%, #c8791b);
-  color: #24170a;
-  box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.35) inset,
-    0 10px 28px rgb(255 152 45 / 0.28);
+.hp-btn:hover {
+  transform: translateY(-1px);
+  border-color: var(--dt-gold);
+  color: var(--dt-gold-bright);
 }
 
-.th-btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 1px 0 rgb(255 255 255 / 0.45) inset,
-    0 16px 38px rgb(255 152 45 / 0.4);
+/* surface-0 as the label colour: it is the one token that is always the far
+   end of the scale from gold — dark in dusk/wilderness, light in parchment. */
+.hp-btn-primary {
+  border-color: var(--dt-gold);
+  background: var(--dt-gold);
+  color: var(--dt-surface-0);
 }
 
-.th-btn-ghost {
-  border-color: var(--th-line);
-  color: var(--th-ink);
-  background: rgb(255 255 255 / 0.02);
+.hp-btn-primary:hover {
+  background: var(--dt-gold-bright);
+  border-color: var(--dt-gold-bright);
+  color: var(--dt-surface-0);
 }
 
-.th-btn-ghost:hover {
-  transform: translateY(-2px);
-  border-color: var(--th-line-strong);
-  background: rgb(255 184 63 / 0.07);
-  color: var(--th-gold-bright);
+.hp-btn-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--hp-ink-dim);
+  padding-inline: 0.5rem;
 }
 
-.th-btn-sm {
-  padding: 0.45rem 0.9rem;
-  font-size: 0.8rem;
+.hp-btn-quiet:hover {
+  border-color: transparent;
 }
 
-/* --- hero ---------------------------------------------------------------- */
-
-.th-hero {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: min(100svh, 54rem);
-  padding-block: clamp(3rem, 6vw, 5.5rem) clamp(3rem, 6vw, 5rem);
-  /*
-   * Deliberately NOT overflow-clipped: the search dropdown must be able to
-   * extend past the hero's bottom edge when the result list is long. The only
-   * thing that ever overflowed — the oversized rotated media wall — clips
-   * itself inside `.th-wall-clip` instead.
-   */
-}
-
-/*
- * Media wall: four columns of real drop screenshots drifting vertically at
- * different speeds. Heavily darkened and blurred so it reads as texture, not
- * content — the copy sits on top of it.
- *
- * `.th-wall-clip` spans the hero exactly and does the clipping that used to
- * live on `.th-hero` itself (which also guillotined the search dropdown).
- */
-.th-wall-clip {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.th-wall {
-  position: absolute;
-  inset: -8% -4%;
-  z-index: 0;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
-  transform: rotate(-8deg) scale(1.28);
-  opacity: 0.72;
-  filter: blur(0.5px) saturate(0.85);
-  pointer-events: none;
-  mask-image: radial-gradient(115% 95% at 72% 45%, #000 26%, transparent 76%);
-}
-
-@media (min-width: 1024px) {
-  .th-wall {
-    grid-template-columns: repeat(4, 1fr);
-    inset: -8% -4% -8% 34%;
-  }
-}
-
-/*
- * Seamless vertical marquee.
- *
- * The track holds the image list exactly twice (see `wallColumns` in hero.tsx)
- * and animates to -50%, so the end state is pixel-identical to the start.
- *
- * The spacing MUST come from a per-item `margin-bottom`, not the flex `gap`:
- * with `gap`, a track of N items is `N*h + (N-1)*g` tall, so -50% lands half a
- * gap short of one full copy and the loop visibly jumps every cycle. With a
- * trailing margin every item contributes exactly `h + g`, the track is
- * `N*(h+g)`, and -50% is precisely one copy. That half-gap was the jitter.
- */
-.th-wall-col {
-  display: flex;
-  flex-direction: column;
-  animation: th-wall-scroll linear infinite;
-  will-change: transform;
-  /* Own compositor layer, so the loop can't hitch on repaint. */
-  backface-visibility: hidden;
-}
-
-/*
- * Alternating direction — the thing that makes the wall feel alive rather than
- * like one sliding sheet. This is safe against the jitter above: reversing just
- * plays the same 0 → -50% track backwards, and because the track holds exactly
- * two copies, both ends of the animation show identical content either way.
- * (The jitter was never about direction; it was the half-gap arithmetic.)
- */
-.th-wall-col:nth-child(even) {
-  animation-direction: reverse;
-}
-
-.th-wall-col img {
-  width: 100%;
-  aspect-ratio: 16 / 10;
-  object-fit: cover;
-  border-radius: 10px;
-  border: 1px solid rgb(122 90 50 / 0.35);
-  /* Spacing lives here, not in a flex `gap` — see the marquee note above. */
-  margin-bottom: 1rem;
-  flex: none;
-}
-
-@keyframes th-wall-scroll {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-50%);
-  }
-}
-
-/* Scrim that lifts the copy off the wall. */
-.th-hero-scrim {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    linear-gradient(100deg, var(--th-bg) 4%, rgb(11 9 6 / 0.88) 30%, rgb(11 9 6 / 0.4) 60%, rgb(11 9 6 / 0.62) 100%),
-    linear-gradient(to top, var(--th-bg) 2%, transparent 26%);
-}
-
-/* Pointer-tracked warm spotlight (set via --th-mx/--th-my in hero.tsx). */
-.th-spotlight {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  background: radial-gradient(
-    380px 380px at var(--th-mx, 50%) var(--th-my, 40%),
-    rgb(255 184 63 / 0.13),
-    transparent 70%
-  );
-  transition: opacity 400ms ease;
-}
-
-.th-hero-inner {
-  position: relative;
-  /* Above the scrim/spotlight, and — now that the hero doesn't clip — above
-     the sections below it, so an open search dropdown overlaps them instead
-     of sliding underneath. */
-  z-index: 10;
-  display: grid;
-  gap: clamp(2.5rem, 5vw, 4rem);
-  align-items: center;
-}
-
-@media (min-width: 1024px) {
-  .th-hero-inner {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  }
-}
-
-/* Smaller than the standalone landing version — the search field is the
-   primary call to action here, so the headline yields room to it. */
-.th-hero h1 {
-  margin-top: 0.9rem;
-  font-size: clamp(2.2rem, 1.2rem + 3.4vw, 4rem);
-}
-
-.th-hero h1 span {
-  display: block;
-}
-
-.th-hero-lede {
-  margin-top: 1rem;
-  max-width: 32rem;
-  font-size: clamp(0.95rem, 0.9rem + 0.2vw, 1.05rem);
-}
-
-/*
- * The site's own `HeroSearch`, dropped into a much darker surround. It styles
- * itself with the global theme tokens, so the only page-local override needed
- * is a little more contrast against the media wall behind it.
- */
-.th-hero-search {
-  margin-top: 1.5rem;
-  max-width: 34rem;
-}
-
-.th-hero-search input {
-  background: rgb(9 7 5 / 0.82) !important;
-  border-color: rgb(255 184 63 / 0.28) !important;
-}
-
-.th-hero-search input:focus {
-  border-color: var(--th-gold) !important;
-}
-
-.th-hero-cta {
+.hp-cta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
   gap: 0.75rem;
-  margin-top: 1.5rem;
 }
 
-.th-hero-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 1.75rem;
+/* --- hero ------------------------------------------------------------------ */
+
+.hp-hero {
+  position: relative;
+  padding-bottom: clamp(2.75rem, 5vw, 4.5rem);
+  border-bottom: 1px solid var(--hp-line-soft);
 }
 
-/* "Latest notable drop: <item> <value> from <boss>, received by <player>" */
-.th-latest {
+/*
+ * The stage the rain falls through. Ledger columns — hairlines every 4.5rem —
+ * are the page's one piece of background texture; the canvas paints over them.
+ */
+.hp-stage {
+  position: relative;
+  height: clamp(8.5rem, 23vh, 14.5rem);
+  overflow: hidden;
+  background:
+    /* light coming up off the counter the rain lands on */
+    radial-gradient(
+      58% 115% at 50% 100%,
+      color-mix(in srgb, var(--dt-gold) 11%, transparent),
+      transparent 72%
+    ),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 calc(4.5rem - 1px),
+      var(--hp-line-soft) calc(4.5rem - 1px) 4.5rem
+    ),
+    linear-gradient(180deg, transparent 10%, color-mix(in srgb, var(--dt-surface-1) 75%, transparent));
+}
+
+.hp-rain {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Not for the canvas itself — rain-engine.ts reads this back to set ctx.font. */
+  font-family: var(--font-osrs);
+}
+
+.hp-stage-meta {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  margin-top: 0.9rem;
-  padding: 0.5rem 0.85rem 0.5rem 0.6rem;
-  max-width: 36rem;
-  border: 1px solid var(--th-line);
-  border-radius: 10px;
-  background: rgb(9 7 5 / 0.55);
-  backdrop-filter: blur(6px);
-  font-size: 0.8rem;
-  line-height: 1.45;
-  color: var(--th-ink-dim);
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.85rem;
 }
 
-.th-latest img {
-  width: 26px;
-  height: 26px;
-  flex: none;
-  object-fit: contain;
-}
-
-.th-latest em {
-  font-style: normal;
-  font-weight: 600;
-  color: var(--th-ink-faint);
-}
-
-.th-latest b {
-  color: var(--th-ink);
-}
-
-.th-latest-gp {
-  color: var(--th-gold-bright);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.th-pill {
+.hp-live,
+.hp-stage-stat {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.35rem 0.75rem 0.35rem 0.55rem;
-  border: 1px solid var(--th-line);
-  border-radius: 999px;
-  background: rgb(255 255 255 / 0.025);
-  font-size: 0.76rem;
-  color: var(--th-ink-dim);
-  backdrop-filter: blur(6px);
-}
-
-.th-pill b {
-  color: var(--th-gold-bright);
-  font-variant-numeric: tabular-nums;
-}
-
-.th-pill img {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-}
-
-/* Live dot. */
-.th-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--th-tier-1m);
-  box-shadow: 0 0 0 0 rgb(111 191 115 / 0.6);
-  animation: th-ping 2.4s ease-out infinite;
-}
-
-.th-dot[data-state="connecting"] {
-  background: var(--th-gold);
-  box-shadow: 0 0 0 0 rgb(255 184 63 / 0.6);
-}
-
-.th-dot[data-state="closed"] {
-  background: var(--th-ink-faint);
-  animation: none;
-}
-
-@keyframes th-ping {
-  0% {
-    box-shadow: 0 0 0 0 currentcolor;
-  }
-  70% {
-    box-shadow: 0 0 0 7px rgb(0 0 0 / 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgb(0 0 0 / 0);
-  }
-}
-
-/* --- notable-drops dial --------------------------------------------------- */
-
-/*
- * Two counter-rotating rings around a stat hub, with a pop-up card anchored at
- * whichever entry is hovered.
- *
- * Ring radii are expressed as carrier insets here and mirrored as percentages
- * in dial.tsx (`radius` in HoverCard) so the card lands exactly on its entry —
- * if you move a ring, move both.
- *   outer carrier inset 3%   -> radius 47% of the dial
- *   inner carrier inset 24%  -> radius 26% of the dial
- *
- * Everything decorative is pointer-transparent. Ten full-size rotated slots
- * stack on top of each other, and a transparent box still hit-tests — that is
- * what previously let the last slot swallow the hover for every other entry.
- */
-.th-dial {
-  position: relative;
-  display: none;
-  aspect-ratio: 1;
-  width: min(100%, 32rem);
-  margin-inline: auto;
-  /* Query container so hub text caps can scale with the dial (cqw units) —
-     at 1024px viewports the dial is ~447px, not the full 512px, and fixed
-     rem caps would cross the hub circle's chord there. */
-  container-type: inline-size;
-}
-
-@media (min-width: 1024px) {
-  .th-dial {
-    display: block;
-  }
-}
-
-.th-dial-track {
-  position: absolute;
-  border-radius: 999px;
-  border: 1px dashed rgb(122 90 50 / 0.38);
-  pointer-events: none;
-  transition: border-color 300ms ease;
-}
-
-.th-dial-track[data-ring="outer"] {
-  inset: 3%;
-}
-
-.th-dial-track[data-ring="inner"] {
-  inset: 24%;
-  border-style: solid;
-  border-color: rgb(122 90 50 / 0.26);
-}
-
-.th-dial[data-paused="true"] .th-dial-track {
-  border-color: rgb(255 184 63 / 0.2);
-}
-
-.th-dial-carrier {
-  position: absolute;
-  pointer-events: none;
-}
-
-.th-dial-carrier[data-ring="outer"] {
-  inset: 3%;
-  animation: th-spin 72s linear infinite;
-}
-
-/* Counter-rotating, and faster, so the two rings never read as one disc. */
-.th-dial-carrier[data-ring="inner"] {
-  inset: 24%;
-  animation: th-spin 48s linear infinite reverse;
-}
-
-.th-dial-slot {
-  position: absolute;
-  inset: 0;
-  transform: rotate(var(--th-a, 0deg));
-  pointer-events: none;
-}
-
-.th-dial-item {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  pointer-events: auto;
-  border-radius: 14px;
-  border: 1px solid rgb(255 184 63 / 0.28);
-  background: rgb(30 23 15 / 0.94);
-  box-shadow:
-    var(--th-shadow),
-    0 0 22px rgb(255 184 63 / 0.12);
-  backdrop-filter: blur(4px);
-  /* Centre on the ring, then undo the slot's angle so the tile stays level. */
-  transform: translate(-50%, -50%) rotate(calc(var(--th-a, 0deg) * -1));
-  transition:
-    border-color 220ms ease,
-    box-shadow 220ms ease,
-    opacity 220ms ease,
-    scale 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.th-dial-item[data-ring="outer"] {
-  width: 54px;
-  height: 54px;
-}
-
-.th-dial-item[data-ring="inner"] {
-  width: 46px;
-  height: 46px;
-  border-radius: 999px;
-  border-color: rgb(122 90 50 / 0.55);
-  overflow: hidden;
-}
-
-.th-dial-item img {
-  width: 34px;
-  height: 34px;
-  object-fit: contain;
-  /* Cancels the carrier's rotation so icons never appear upside down. */
-  animation: th-spin-back 72s linear infinite;
-}
-
-.th-dial-item[data-ring="inner"] img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  animation: th-spin-back 48s linear infinite reverse;
-}
-
-/* Clan monogram, used when a clan has no icon or its icon fails to load. */
-.th-dial-mono {
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--th-gold-bright);
-  animation: th-spin-back 48s linear infinite reverse;
-}
-
-/* Rank pip on a clan tile. */
-.th-dial-rank {
-  position: absolute;
-  right: -4px;
-  bottom: -4px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 3px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  border: 1px solid rgb(255 184 63 / 0.5);
-  background: rgb(14 11 7 / 0.96);
-  font-size: 0.58rem;
-  font-weight: 700;
-  color: var(--th-gold-bright);
-  font-variant-numeric: tabular-nums;
-  animation: th-spin-back 48s linear infinite reverse;
-}
-
-.th-dial-item[data-state="active"] {
-  scale: 1.18;
-  border-color: var(--th-gold);
-  background: rgb(56 40 20 / 0.97);
-  box-shadow:
-    var(--th-shadow),
-    0 0 30px rgb(255 184 63 / 0.5);
-  z-index: 2;
-}
-
-.th-dial-item[data-state="dimmed"] {
-  opacity: 0.34;
-}
-
-.th-dial-item:hover,
-.th-dial-item:focus-visible {
-  border-color: var(--th-gold);
-}
-
-/*
- * Pause both rings while an entry is selected. Explicit selectors rather than
- * a descendant wildcard: a blanket `*` also froze the card's own entrance
- * animation on its opacity-0 first frame, leaving an invisible card.
- */
-.th-dial[data-paused="true"] .th-dial-carrier,
-.th-dial[data-paused="true"] .th-dial-item img,
-.th-dial[data-paused="true"] .th-dial-mono,
-.th-dial[data-paused="true"] .th-dial-rank {
-  animation-play-state: paused;
-}
-
-@keyframes th-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes th-spin-back {
-  to {
-    transform: rotate(-360deg);
-  }
-}
-
-/* --- hub ------------------------------------------------------------------ */
-
-/*
- * Sits well inside the inner ring (radius 26% vs. this at 15.5% resting,
- * 19% in entity mode) and never hit-tests, so it can't intercept a hover
- * meant for a ring entry.
- */
-.th-dial-hub {
-  position: absolute;
-  inset: 34.5%;
-  display: grid;
-  place-content: center;
-  text-align: center;
-  pointer-events: none;
-  border-radius: 999px;
-  border: 1px solid var(--th-line-strong);
-  background:
-    radial-gradient(circle at 50% 30%, rgb(255 184 63 / 0.16), transparent 68%),
-    rgb(18 14 9 / 0.96);
-  box-shadow:
-    0 0 60px rgb(255 140 66 / 0.18),
-    inset 0 0 40px rgb(255 184 63 / 0.06);
-  /* `inset` is transitioned too: entity mode grows the hub, and without it
-     the hub would snap back to resting size in a single frame on hover-out
-     (the swap animation only covers entry). */
-  transition:
-    border-color 250ms ease,
-    inset 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/*
- * Entity mode carries a taller read-out (name + value + two dl rows), which
- * used to spill over the circle's edge at the top and bottom. The hub grows
- * into the free space inside the inner ring (radius 19% vs. the ring items'
- * inner edge at ~20%) and the value scales down a notch, so the whole block
- * stays inside the circle's chord.
- */
-.th-dial-hub[data-mode="entity"] {
-  inset: 31%;
-  border-color: var(--th-gold);
-  animation: th-hub-swap 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.th-dial-hub[data-mode="entity"] b {
-  font-size: clamp(1.05rem, 0.8rem + 0.8vw, 1.35rem);
-}
-
-.th-dial-hub[data-mode="entity"] dl {
-  gap: 0.25rem;
-  margin-top: 0.45rem;
-  padding-top: 0.4rem;
-}
-
-@keyframes th-hub-swap {
-  from {
-    opacity: 0;
-    scale: 0.95;
-  }
-}
-
-.th-dial-hub b {
-  display: block;
-  font-family: var(--font-display);
-  font-size: clamp(1.2rem, 0.9rem + 1.1vw, 1.65rem);
-  color: var(--th-gold-bright);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.05;
-}
-
-.th-dial-hub small {
-  display: block;
-  margin-top: 0.2rem;
-  font-size: 0.55rem;
-  line-height: 1.2;
+  gap: 0.5rem;
+  padding: 0.32rem 0.7rem;
+  border: 1px solid var(--hp-line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--dt-surface-1) 88%, transparent);
+  font-size: 0.7rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--th-ink-faint);
-}
-
-.th-dial-hub em {
-  display: block;
-  margin-top: 0.4rem;
-  font-style: normal;
-  font-size: 0.68rem;
-  color: var(--th-ink-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Whose stats these are. Width-capped tighter than the hub itself: this is
-   the topmost row, where the circle has narrowed to ~75% of its diameter.
-   The cqw cap keeps that true when the dial (and so the hub) is smaller than
-   full size; the rem line above it is the fallback for old browsers. */
-.th-dial-hub-name {
-  display: block;
-  margin-bottom: 0.3rem;
-  max-width: 8rem;
-  max-width: min(8rem, 25cqw);
-  margin-inline: auto;
-  font-size: 0.74rem;
-  line-height: 1.25;
-  font-weight: 600;
-  color: var(--th-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: var(--hp-ink-dim);
   white-space: nowrap;
 }
 
-.th-dial-hub dl {
-  display: grid;
-  gap: 0.3rem;
-  margin-top: 0.65rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid rgb(122 90 50 / 0.3);
+.hp-live b,
+.hp-stage-stat b {
+  color: var(--dt-text);
 }
 
-.th-dial-hub dt {
-  font-size: 0.53rem;
-  line-height: 1.2;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--th-ink-faint);
-}
-
-.th-dial-hub dd {
-  margin: 0.05rem 0 0;
-  /* Bottom rows sit low in the circle, where it has narrowed — see -name. */
-  max-width: 7.5rem;
-  max-width: min(7.5rem, 25cqw);
-  margin-inline: auto;
-  font-size: 0.75rem;
-  line-height: 1.25;
-  color: var(--th-ink-dim);
-  font-variant-numeric: tabular-nums;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* --- hover card ----------------------------------------------------------- */
-
-/*
- * Anchored at the hovered entry (left/top set inline from its ring angle) and
- * flipped to whichever side faces the middle of the dial.
- *
- * `pointer-events: none` is load-bearing: the card sits right on top of the
- * entry, and if it could take the pointer the browser would hand it the hover,
- * unmounting the card, handing the hover back, forever — the original flicker.
- * Pinning (click) is the only state where it becomes interactive, and by then
- * the selection no longer depends on hover at all.
- */
-.th-dial-card {
-  position: absolute;
-  z-index: 5;
-  display: flex;
+/* The rain's key. Only where there is room for it between the two pills. */
+.hp-legend {
+  display: none;
   align-items: center;
-  gap: 0.6rem;
-  width: max-content;
-  max-width: 18rem;
-  padding: 0.5rem 0.65rem;
-  pointer-events: none;
-  border: 1px solid var(--th-gold);
-  border-radius: 12px;
-  background: rgb(12 9 6 / 0.97);
-  box-shadow:
-    0 0 0 1px rgb(255 184 63 / 0.12),
-    0 18px 44px rgb(0 0 0 / 0.7);
-  animation: th-card-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  gap: 0.9rem;
+  padding: 0.32rem 0.7rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--dt-surface-0) 72%, transparent);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--hp-ink-faint);
 }
 
-@keyframes th-card-in {
-  from {
-    opacity: 0;
-    scale: 0.94;
+.hp-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--font-osrs);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.hp-legend i {
+  width: 2px;
+  height: 0.85rem;
+  margin-left: 0.45rem;
+  border-radius: 1px;
+}
+
+.hp-legend i[data-tier="1m"] {
+  background: var(--hp-tier-1m);
+}
+.hp-legend i[data-tier="10m"] {
+  background: var(--hp-tier-10m);
+}
+.hp-legend i[data-tier="100m"] {
+  background: var(--hp-tier-100m);
+}
+
+@media (min-width: 1000px) {
+  .hp-legend {
+    display: inline-flex;
   }
 }
 
-/* Offset past the tile so the icon underneath stays visible. Lateral sides
-   for entries at 3/9 o'clock; above/below for entries near 12/6, where a
-   side-mounted card would run past the dial (see HoverCard in dial.tsx). */
-.th-dial-card[data-side="left"] {
-  transform: translate(calc(-100% - 2rem), -50%);
+.hp-live span,
+.hp-stage-stat b {
+  font-family: var(--font-osrs);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
 }
 
-.th-dial-card[data-side="right"] {
-  transform: translate(2rem, -50%);
+.hp-live em {
+  font-style: normal;
+  color: var(--hp-ink-faint);
 }
 
-.th-dial-card[data-side="above"] {
-  transform: translate(-50%, calc(-100% - 2rem));
+.hp-live-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--dt-stone);
 }
 
-.th-dial-card[data-side="below"] {
-  transform: translate(-50%, 2rem);
+.hp-live[data-state="open"] .hp-live-dot {
+  background: var(--dt-ember);
+  animation: hp-ping 1.8s ease-out infinite;
 }
 
-.th-dial-card[data-pinned="true"] {
-  pointer-events: auto;
-  box-shadow:
-    0 0 0 2px rgb(255 184 63 / 0.35),
-    0 18px 44px rgb(0 0 0 / 0.75);
+@keyframes hp-ping {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dt-ember) 65%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0.55rem transparent;
+  }
 }
 
-.th-dial-card-shot {
-  flex: none;
-  width: 4.25rem;
-  height: 3.25rem;
+/* The ledger line: the rain lands on it, the odometer hangs from it. */
+.hp-ledger {
+  position: relative;
+}
+
+.hp-ledger::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    var(--hp-line-soft),
+    var(--dt-bronze) 22%,
+    var(--dt-gold) 50%,
+    var(--dt-bronze) 78%,
+    var(--hp-line-soft)
+  );
+}
+
+/* --- odometer -------------------------------------------------------------- */
+
+.hp-odo-block {
+  padding-top: 1.15rem;
+  text-align: center;
+}
+
+.hp-odo {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.35em;
+  font-family: var(--font-osrs);
+  /*
+   * Sized from the digit count (hero.tsx sets --hp-odo-n) so the row always
+   * fits the viewport: a tile is .74em plus its .09em gap, and the separators,
+   * the unit and their gaps come to about 2.6em. 4.25rem is the desktop cap.
+   */
+  font-size: min(4.25rem, calc((100vw - 2.5rem) / (var(--hp-odo-n, 12) * 0.85 + 2.6)));
+  line-height: 1;
+}
+
+.hp-odo-cells {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.09em;
+}
+
+.hp-odo-cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 0.74em;
+  height: 1.2em;
   overflow: hidden;
-  border-radius: 7px;
-  border: 1px solid var(--th-line);
-  background: #000;
+  border: 1px solid var(--hp-line);
+  border-radius: 0.09em;
+  background: var(--dt-surface-2);
+  color: var(--dt-gold);
+  box-shadow: inset 0 -0.55em 0.6em -0.55em color-mix(in srgb, var(--dt-brown-dark) 80%, transparent);
 }
 
-.th-dial-card-shot img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 55%;
+/* The split of a mechanical counter's flap. */
+.hp-odo-cell::after {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 1px;
+  background: color-mix(in srgb, var(--dt-surface-0) 65%, transparent);
+  pointer-events: none;
 }
 
-.th-dial-card-body {
-  min-width: 0;
-  display: grid;
-  gap: 0.1rem;
+.hp-odo-digit {
+  display: block;
+  animation: hp-roll 420ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
-.th-dial-card-kicker {
-  font-size: 0.58rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--th-gold);
+/* The digit being replaced: rolls up and out over the one rolling in. */
+.hp-odo-digit-out {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: hp-roll-out 420ms cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
 }
 
-.th-dial-card-body b {
-  font-size: 0.82rem;
-  color: var(--th-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
+@keyframes hp-roll-out {
+  to {
+    transform: translateY(-58%);
+    opacity: 0;
+  }
+}
+
+@keyframes hp-roll {
+  from {
+    transform: translateY(58%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* The OSRS face draws "," as a tall block that reads as a stray digit stroke
+   between the tiles, so the separator is a drawn pip and the glyph is hidden. */
+.hp-odo-sep {
+  position: relative;
+  width: 0.26em;
+  color: transparent;
+}
+
+.hp-odo-sep::after {
+  content: "";
+  position: absolute;
+  bottom: 0.14em;
+  left: 50%;
+  width: 0.11em;
+  height: 0.11em;
+  border-radius: 1px;
+  background: var(--hp-ink-faint);
+  transform: translateX(-50%);
+}
+
+.hp-odo-unit {
+  padding-bottom: 0.3em;
+  font-size: 0.42em;
+  letter-spacing: 0.06em;
+  color: var(--hp-ink-dim);
+}
+
+.hp-odo[data-pending="true"] .hp-odo-cell {
+  animation: hp-pending 1.3s ease-in-out infinite;
+}
+
+@keyframes hp-pending {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.hp-odo-caption {
+  margin-top: 0.85rem;
+  font-size: 0.95rem;
+  color: var(--hp-ink-dim);
+  text-wrap: balance;
+}
+
+.hp-odo-caption b {
+  font-weight: 600;
+  color: var(--dt-text);
+}
+
+.hp-odo-since {
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--hp-line);
   white-space: nowrap;
 }
 
-.th-dial-card-gp {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--th-gold-bright);
-  font-variant-numeric: tabular-nums;
+.hp-odo-since b {
+  font-family: var(--font-osrs);
+  font-size: 1.05rem;
+  font-weight: 400;
+  color: var(--dt-green);
+}
+
+/* --- pitch ----------------------------------------------------------------- */
+
+.hp-pitch {
+  /* Above the sections that follow, so the search dropdown can overlap them. */
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: clamp(2rem, 4vw, 3.25rem);
+  text-align: center;
+}
+
+.hp-pitch h1 {
+  margin-top: 0.85rem;
+  font-size: clamp(2.05rem, 1.15rem + 3.7vw, 4rem);
+  font-weight: 700;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.hp-lede {
+  max-width: 44rem;
+  margin-top: 1.1rem;
+  font-size: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  line-height: 1.65;
+  color: var(--hp-ink-dim);
+  text-wrap: pretty;
+}
+
+.hp-search {
+  width: 100%;
+  max-width: 36rem;
+  margin-top: 1.75rem;
+  text-align: left;
+}
+
+.hp-search > * {
+  width: 100%;
 }
 
 /*
- * The source + age line. This must never truncate — it wraps instead. (It used
- * to be nowrap + ellipsis, but `text-overflow` on a flex container does not
- * apply to its anonymous text item, so "Chambers of Xeric · 4 days ago"
- * hard-clipped mid-word with no ellipsis at all.)
+ * The shared hero search field is styled for sitting on dark hero art
+ * (`bg-osrs-brown-dark/60`), which in the parchment theme is a dark slab on a
+ * light page. Here it sits on the page canvas, so give it a themed surface.
  */
-.th-dial-card-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  min-width: 0;
-  font-size: 0.68rem;
-  line-height: 1.35;
-  color: var(--th-ink-faint);
+.hp-search input {
+  background: var(--dt-surface-2);
 }
 
-.th-dial-card-meta span {
-  min-width: 0;
+.hp-pitch .hp-cta {
+  margin-top: 1.25rem;
 }
 
-.th-dial-card-meta img {
-  width: 15px;
-  height: 15px;
-  flex: none;
-  object-fit: contain;
+/* --- sections -------------------------------------------------------------- */
+
+.hp-section {
+  padding-top: clamp(3rem, 6vw, 5.5rem);
 }
 
-.th-dial-dismiss {
-  position: absolute;
-  top: -0.5rem;
-  right: -0.5rem;
-  width: 1.4rem;
-  height: 1.4rem;
+.hp-section-head {
+  max-width: 44rem;
+  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.hp-section-head h2 {
+  margin-top: 0.6rem;
+  font-size: clamp(1.6rem, 1.1rem + 1.9vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.hp-section-head h2 + p {
+  margin-top: 0.9rem;
+  line-height: 1.65;
+  color: var(--hp-ink-dim);
+  text-wrap: pretty;
+}
+
+/*
+ * `min-width: 0` on every grid child: a grid item defaults to
+ * `min-width: auto`, so one long unbroken name would push the whole page wider
+ * than a phone's viewport (the site has been bitten by exactly this before).
+ */
+.hp-grid {
   display: grid;
-  place-items: center;
-  cursor: pointer;
-  border-radius: 999px;
-  border: 1px solid var(--th-line-strong);
-  background: rgb(6 5 3 / 0.95);
-  color: var(--th-ink-dim);
-  font-size: 0.65rem;
+  gap: 1.25rem;
 }
 
-.th-dial-dismiss:hover {
-  border-color: var(--th-gold);
-  color: var(--th-gold-bright);
+.hp-grid > *,
+.hp-stack > * {
+  min-width: 0;
 }
 
-/* Links only exist once a card is pinned, so they are never a hover trap. */
-.th-dial-links {
-  position: absolute;
-  inset: auto 0 -2.25rem 0;
-  z-index: 5;
+.hp-stack {
   display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  animation: th-card-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.th-dial-links a {
-  padding: 0.25rem 0.7rem;
-  border-radius: 999px;
-  border: 1px solid var(--th-line);
-  background: rgb(12 9 6 / 0.9);
-  font-size: 0.7rem;
-  color: var(--th-ink-dim);
-}
-
-.th-dial-links a:hover {
-  border-color: var(--th-gold);
-  color: var(--th-gold-bright);
-}
-
-/* --- reveal-on-scroll ---------------------------------------------------- */
-
-.th-reveal {
-  opacity: 0;
-  transform: translateY(22px);
-  transition:
-    opacity 700ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
-  transition-delay: var(--th-delay, 0ms);
-}
-
-.th-reveal[data-shown="true"] {
-  opacity: 1;
-  transform: none;
-}
-
-/* Section head that carries a supporting screenshot on the right. */
-.th-split-head {
-  display: grid;
-  gap: clamp(1.5rem, 4vw, 3rem);
-  align-items: center;
-  margin-bottom: clamp(2rem, 4vw, 3.25rem);
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 @media (min-width: 900px) {
-  .th-split-head {
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  .hp-grid-now {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+
+  .hp-grid-month,
+  .hp-grid-product {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    align-items: start;
   }
 }
 
-/* The plugin panel art is only 344px wide — never upscale it into mush. */
-.th-panel-shot {
-  margin: 0;
-  max-width: 24rem;
-  justify-self: center;
-}
+/* --- panels ---------------------------------------------------------------- */
 
-.th-panel-shot img {
-  image-rendering: pixelated;
-}
-
-.th-real-embed {
-  margin: 1.5rem 0 0;
-  max-width: 24rem;
-}
-
-.th-real-embed img {
-  image-rendering: pixelated;
-}
-
-/* --- pipeline (capture section) ------------------------------------------ */
-
-.th-pipeline {
-  display: grid;
-  gap: 1.25rem;
-  counter-reset: th-step;
-}
-
-@media (min-width: 860px) {
-  .th-pipeline {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-.th-step {
-  position: relative;
-  padding: 1.5rem 1.4rem 1.4rem;
-  border: 1px solid var(--th-line);
-  border-radius: var(--th-radius);
-  background: linear-gradient(165deg, rgb(37 29 20 / 0.75), rgb(18 14 9 / 0.75));
-  overflow: hidden;
-}
-
-.th-step::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--th-line-strong), transparent);
-  opacity: 0;
-  transition: opacity 400ms ease;
-}
-
-.th-step:hover::after {
-  opacity: 1;
-}
-
-.th-step-n {
-  counter-increment: th-step;
-  display: grid;
-  place-items: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 8px;
-  border: 1px solid var(--th-line-strong);
-  background: rgb(255 184 63 / 0.08);
-  color: var(--th-gold-bright);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.95rem;
-}
-
-.th-step-n::before {
-  content: "0" counter(th-step);
-}
-
-.th-step h3 {
-  margin-top: 1rem;
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: var(--th-ink);
-}
-
-.th-step p {
-  margin-top: 0.5rem;
-  font-size: 0.88rem;
-  line-height: 1.6;
-  color: var(--th-ink-dim);
-}
-
-.th-step ul {
-  margin-top: 0.9rem;
+.hp-panel {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.th-step li {
-  padding: 0.2rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid rgb(122 90 50 / 0.35);
-  font-size: 0.68rem;
-  color: var(--th-ink-faint);
-}
-
-/* --- screenshot gallery -------------------------------------------------- */
-
-/*
- * Uniform tiles rather than a ragged masonry: the screenshots are 16:9 and
- * 16:10 game captures, so a fixed 16:10 crop loses almost nothing and the
- * section stops ending on a 300px void where the shortest column ran out. The
- * lightbox always shows the uncropped original.
- */
-.th-gallery {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
-}
-
-@media (min-width: 1100px) {
-  .th-gallery {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  /* The two headline drops lead, at double size. */
-  .th-shot:nth-child(-n + 2) {
-    grid-column: span 2;
-    grid-row: span 2;
-  }
-}
-
-.th-shot {
-  position: relative;
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: 1px solid var(--th-line);
-  border-radius: var(--th-radius);
-  background: var(--th-panel-solid);
-  overflow: hidden;
-  cursor: zoom-in;
-  text-align: left;
-  transition:
-    transform 350ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 250ms ease;
-}
-
-.th-shot:hover {
-  transform: translateY(-4px);
-  border-color: var(--th-line-strong);
-}
-
-.th-shot img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  aspect-ratio: 16 / 10;
-  object-fit: cover;
-  transition: transform 700ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.th-shot:hover img {
-  transform: scale(1.035);
-}
-
-.th-shot-meta {
-  position: absolute;
-  inset: auto 0 0 0;
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 2.75rem 0.85rem 0.8rem;
-  background: linear-gradient(to top, rgb(6 5 3 / 0.96) 30%, transparent);
-  transform: translateY(0);
-}
-
-.th-shot-meta > img {
-  width: 28px;
-  height: 28px;
-  flex: none;
-  object-fit: contain;
-}
-
-/* Caption text block inside a gallery tile. */
-.th-shot-text {
+  flex-direction: column;
   min-width: 0;
-  flex: 1;
-}
-
-.th-shot-text b {
-  display: block;
-  font-size: 0.86rem;
-  color: var(--th-ink);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.th-shot-text span {
-  display: block;
-  margin-top: 0.1rem;
-  font-size: 0.72rem;
-  color: var(--th-ink-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* "Full leaderboards →" link under a board panel. */
-.th-lb-more {
-  display: block;
-  padding: 0.7rem 1rem;
-  border-top: 1px solid var(--th-line);
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--th-gold-bright);
-}
-
-.th-lb-more:hover {
-  background: rgb(255 184 63 / 0.06);
-}
-
-/* --- lightbox ------------------------------------------------------------ */
-
-.th-lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: grid;
-  grid-template-rows: 1fr auto;
-  gap: 1rem;
-  padding: clamp(1rem, 3vw, 2.5rem);
-  background: rgb(4 3 2 / 0.94);
-  backdrop-filter: blur(10px);
-  animation: th-fade 220ms ease-out;
-}
-
-@keyframes th-fade {
-  from {
-    opacity: 0;
-  }
-}
-
-.th-lightbox img {
-  place-self: center;
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+  border: 1px solid var(--hp-line);
   border-radius: 10px;
-  border: 1px solid var(--th-line);
-  box-shadow: 0 30px 90px rgb(0 0 0 / 0.7);
-  animation: th-pop 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  background: var(--dt-surface-1);
+  box-shadow: var(--dt-shadow-card);
 }
 
-@keyframes th-pop {
-  from {
-    opacity: 0;
-    transform: scale(0.965);
-  }
-}
-
-.th-lightbox-bar {
+.hp-panel-head {
   display: flex;
-  align-items: center;
-  gap: 1rem;
-  justify-content: center;
   flex-wrap: wrap;
-  color: var(--th-ink-dim);
-  font-size: 0.85rem;
-}
-
-.th-lightbox-bar b {
-  color: var(--th-ink);
-}
-
-.th-close {
-  position: absolute;
-  top: clamp(1rem, 3vw, 2.5rem);
-  right: clamp(1rem, 3vw, 2.5rem);
-  width: 2.4rem;
-  height: 2.4rem;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-  border: 1px solid var(--th-line);
-  background: rgb(18 14 9 / 0.8);
-  color: var(--th-ink);
-  font-size: 1.1rem;
-  cursor: pointer;
-}
-
-.th-close:hover {
-  border-color: var(--th-line-strong);
-  color: var(--th-gold-bright);
-}
-
-/* --- board showcase ------------------------------------------------------ */
-
-.th-board-layout {
-  display: grid;
-  gap: clamp(1.5rem, 3vw, 2.75rem);
-  align-items: start;
-}
-
-@media (min-width: 1024px) {
-  .th-board-layout {
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-  }
-}
-
-.th-frame {
-  position: relative;
-  border-radius: var(--th-radius);
-  border: 1px solid var(--th-line);
-  background: #0d0a07;
-  overflow: hidden;
-  box-shadow: var(--th-shadow);
-}
-
-/* Thin gold bevel, echoing the OSRS interface chrome the boards are drawn in. */
-.th-frame::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgb(255 184 63 / 0.1);
-}
-
-.th-frame img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.th-frame-bar {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.6rem 0.85rem;
-  border-bottom: 1px solid var(--th-line);
-  background: rgb(26 20 14 / 0.8);
-  font-size: 0.72rem;
-  color: var(--th-ink-faint);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.th-frame-bar i {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: rgb(122 90 50 / 0.7);
-}
-
-.th-frame-bar i:nth-of-type(2) {
-  background: rgb(255 184 63 / 0.55);
-}
-
-.th-frame-bar i:nth-of-type(3) {
-  background: rgb(111 191 115 / 0.55);
-}
-
-.th-frame-bar span {
-  margin-left: auto;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-/* Cross-fading stack of real clan boards. */
-.th-board-stack {
-  position: relative;
-}
-
-.th-board-stack img {
-  transition: opacity 900ms ease;
-}
-
-.th-board-stack img[data-active="false"] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-}
-
-/* --- leaderboard --------------------------------------------------------- */
-
-.th-lb {
-  border: 1px solid var(--th-line);
-  border-radius: var(--th-radius);
-  background: var(--th-panel);
-  overflow: hidden;
-  backdrop-filter: blur(6px);
-}
-
-.th-lb-head {
-  display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid var(--th-line);
-  font-size: 0.72rem;
+  gap: 0.3rem 1rem;
+  padding: 0.9rem 1.15rem;
+  border-bottom: 1px solid var(--hp-line-soft);
+}
+
+.hp-panel-head h3 {
+  font-size: 0.8rem;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--th-ink-faint);
+  color: var(--dt-gold);
 }
 
-.th-lb-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr) auto;
+.hp-stream {
+  display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.62rem 1rem;
-  font-size: 0.88rem;
-  isolation: isolate;
-}
-
-.th-lb-row + .th-lb-row {
-  border-top: 1px solid rgb(122 90 50 / 0.14);
-}
-
-/* Value bar behind each row, grown on reveal. */
-.th-lb-bar {
-  position: absolute;
-  inset: 0 auto 0 0;
-  z-index: -1;
-  width: var(--th-w, 0%);
-  background: linear-gradient(90deg, rgb(255 184 63 / 0.16), rgb(255 184 63 / 0.02));
-  transform-origin: left;
-  transform: scaleX(0);
-  transition: transform 1100ms cubic-bezier(0.22, 1, 0.36, 1) var(--th-delay, 0ms);
-}
-
-[data-shown="true"] .th-lb-bar {
-  transform: scaleX(1);
-}
-
-.th-lb-rank {
-  font-family: var(--font-display);
-  font-weight: 700;
-  color: var(--th-ink-faint);
-  font-variant-numeric: tabular-nums;
-}
-
-.th-lb-row[data-top="true"] .th-lb-rank {
-  color: var(--th-gold-bright);
-}
-
-.th-lb-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--th-ink);
-}
-
-.th-lb-name a:hover {
-  color: var(--th-gold-bright);
-}
-
-.th-lb-val {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--th-gold);
-}
-
-/* --- discord section ----------------------------------------------------- */
-
-.th-discord {
-  display: grid;
-  gap: clamp(1.75rem, 4vw, 3.25rem);
-  align-items: start;
-}
-
-@media (min-width: 1024px) {
-  .th-discord {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-  }
-}
-
-/* Faux Discord channel — the messages animate in on scroll, then loop. */
-.th-chat {
-  border: 1px solid var(--th-line);
-  border-radius: var(--th-radius);
-  background: linear-gradient(180deg, #1c1712, #14100b);
-  box-shadow: var(--th-shadow);
-  overflow: hidden;
-}
-
-.th-chat-head {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.7rem 0.9rem;
-  border-bottom: 1px solid var(--th-line);
-  font-size: 0.82rem;
-  color: var(--th-ink-dim);
-}
-
-.th-chat-head b {
-  color: var(--th-ink);
-}
-
-.th-chat-head em {
-  margin-left: auto;
-  font-style: normal;
-  font-size: 0.68rem;
-  color: var(--th-ink-faint);
-}
-
-.th-chat-body {
-  padding: 0.9rem;
-  display: grid;
-  gap: 0.85rem;
-  min-height: 20rem;
-  align-content: start;
-}
-
-.th-msg {
-  display: grid;
-  grid-template-columns: 2.2rem minmax(0, 1fr);
-  gap: 0.65rem;
-  opacity: 0;
-  transform: translateY(10px);
-  animation: th-msg-in 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-
-@keyframes th-msg-in {
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.th-avatar {
-  width: 2.2rem;
-  height: 2.2rem;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  background: linear-gradient(140deg, #3a2d1c, #241b12);
-  border: 1px solid var(--th-line);
-  overflow: hidden;
-}
-
-.th-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.th-msg-body b {
-  font-size: 0.85rem;
-  color: var(--th-ink);
-}
-
-.th-msg-body time {
-  margin-left: 0.45rem;
+  gap: 0.45rem;
   font-size: 0.66rem;
-  color: var(--th-ink-faint);
-}
-
-/* Discord's left-accent-bar embed. */
-.th-embed {
-  margin-top: 0.4rem;
-  padding: 0.7rem 0.85rem;
-  border-left: 3px solid var(--th-gold);
-  border-radius: 5px;
-  background: rgb(255 255 255 / 0.035);
-  font-size: 0.82rem;
-}
-
-.th-embed strong {
-  display: block;
-  color: var(--th-gold-bright);
-  font-size: 0.9rem;
-}
-
-.th-embed dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem 0.9rem;
-  margin-top: 0.6rem;
-}
-
-.th-embed dt {
-  font-size: 0.66rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--th-ink-faint);
+  white-space: nowrap;
+  color: var(--hp-ink-faint);
 }
 
-.th-embed dd {
-  margin: 0.1rem 0 0;
-  font-size: 0.85rem;
-  color: var(--th-ink);
-  font-variant-numeric: tabular-nums;
+.hp-stream i {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--dt-stone);
 }
 
-.th-embed figure {
-  margin: 0.7rem 0 0;
+.hp-stream[data-state="open"] i {
+  background: var(--dt-ember);
+  animation: hp-blink 1.7s ease-in-out infinite;
 }
 
-/* Discord crops tall attachments in the client too — capping it here keeps a
-   message the height of a message instead of the height of a 1080p capture. */
-.th-embed img {
-  display: block;
-  width: 100%;
-  max-height: 200px;
-  object-fit: cover;
-  object-position: center 60%;
-  border-radius: 6px;
-  border: 1px solid var(--th-line);
+@keyframes hp-blink {
+  50% {
+    opacity: 0.35;
+  }
 }
 
-.th-embed footer {
-  margin-top: 0.6rem;
-  font-size: 0.68rem;
-  color: var(--th-ink-faint);
+.hp-panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin-top: auto;
+  padding: 0.75rem 1.15rem;
+  border-top: 1px solid var(--hp-line-soft);
+  font-size: 0.8rem;
+  color: var(--hp-ink-faint);
 }
 
-/* Feature list beside the chat. */
-.th-features {
+.hp-panel-foot b {
+  font-family: var(--font-osrs);
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--dt-text);
+}
+
+.hp-panel-note {
+  padding: 1rem 1.15rem 1.15rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--hp-ink-dim);
+}
+
+/* --- live feed ------------------------------------------------------------- */
+
+.hp-feed-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hp-feed-row {
   display: grid;
-  gap: 0.15rem;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.6rem 1.15rem;
+  border-bottom: 1px solid var(--hp-line-soft);
 }
 
-.th-feature {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.9rem;
-  padding: 0.9rem 0.25rem;
-  border-bottom: 1px solid rgb(122 90 50 / 0.16);
-}
-
-.th-feature:last-child {
+.hp-feed-row:last-child {
   border-bottom: 0;
 }
 
-.th-feature-mark {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 8px;
-  border: 1px solid var(--th-line);
-  background: rgb(255 184 63 / 0.06);
-  color: var(--th-gold);
-  font-size: 0.9rem;
+.hp-feed-row[data-fresh="true"] {
+  animation: hp-arrive 4s ease-out;
 }
 
-.th-feature b {
-  font-size: 0.92rem;
-  color: var(--th-ink);
-}
-
-.th-feature p {
-  margin-top: 0.25rem;
-  font-size: 0.83rem;
-  line-height: 1.55;
-  color: var(--th-ink-dim);
-}
-
-/* --- events -------------------------------------------------------------- */
-
-.th-event-panel {
-  display: grid;
-  gap: clamp(1.5rem, 3vw, 2.5rem);
-  align-items: start;
-}
-
-@media (min-width: 1024px) {
-  .th-event-panel {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  }
-}
-
-/*
- * Live bingo board.
- *
- * Cells render the project's own `BingoTile` (components/bingo-tile.tsx) — the
- * same React tile art the event page and the Discord board use — fed by a real
- * public event's `task.tile` data. Nothing here is a pre-rendered PNG.
- */
-.th-bingo {
-  display: grid;
-  grid-template-columns: repeat(var(--th-cols, 5), minmax(0, 1fr));
-  gap: 4px;
-  padding: 8px;
-  background: #100c08;
-}
-
-.th-bingo-cell {
-  position: relative;
-  aspect-ratio: 1;
-  padding: 4px;
-  border: 1px solid rgb(122 90 50 / 0.35);
-  border-radius: 6px;
-  background: rgb(0 0 0 / 0.35);
-  /* Diagonal sweep on reveal — delay is set per cell in showcase.tsx. */
-  opacity: 0;
-  transform: scale(0.9);
-  transition:
-    opacity 420ms ease,
-    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 300ms ease;
-}
-
-.th-bingo[data-shown="true"] .th-bingo-cell {
-  opacity: 1;
-  transform: none;
-}
-
-.th-bingo-cell[data-done="true"] {
-  border-color: rgb(111 191 115 / 0.6);
-  background: rgb(111 191 115 / 0.08);
-}
-
-.th-bingo-done {
-  position: absolute;
-  top: 2px;
-  right: 4px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--th-tier-1m);
-  text-shadow: 0 1px 2px #000;
-}
-
-/* Tile labels are sized for a full-width board; this preview is narrower. */
-.th-bingo-cell :is(span, div) {
-  font-size: 0.58rem;
-  line-height: 1.15;
-}
-
-.th-event-panel h3 {
-  font-family: var(--font-display);
-  font-size: clamp(1.4rem, 1rem + 1.4vw, 2rem);
-  color: var(--th-gold-bright);
-}
-
-.th-event-panel > div > p {
-  margin-top: 0.9rem;
-}
-
-.th-checks {
-  margin-top: 1.4rem;
-  display: grid;
-  gap: 0.6rem;
-}
-
-.th-checks li {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.6rem;
-  font-size: 0.87rem;
-  color: var(--th-ink-dim);
-  line-height: 1.5;
-}
-
-.th-checks li::before {
-  content: "◆";
-  color: var(--th-gold);
-  font-size: 0.65rem;
-  line-height: 1.9;
-}
-
-.th-event-panel .th-btn {
-  margin-top: 1.4rem;
-}
-
-/* --- supporters ----------------------------------------------------------- */
-
-.th-supporters {
-  display: grid;
-  gap: clamp(1.75rem, 3vw, 2.5rem);
-}
-
-.th-sup-heading {
-  margin-bottom: 0.9rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--th-ink-faint);
-}
-
-.th-sup-grid {
-  display: grid;
-  gap: 0.6rem;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
-}
-
-.th-sup-grid[data-dense="true"] {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr));
-}
-
-.th-sup-card {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  min-width: 0;
-  padding: 0.7rem 0.85rem;
-  border: 1px solid var(--th-line);
-  border-radius: 12px;
-  background: linear-gradient(150deg, rgb(38 29 19 / 0.7), rgb(18 14 9 / 0.7));
-  /* Staggered reveal — delay is set per card in showcase.tsx. */
-  opacity: 0;
-  transform: translateY(12px);
-  transition:
-    opacity 500ms ease,
-    transform 500ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 220ms ease,
-    background 220ms ease;
-}
-
-.th-supporters[data-shown="true"] .th-sup-card {
-  opacity: 1;
-  transform: none;
-}
-
-.th-sup-card:hover {
-  border-color: var(--th-line-strong);
-  background: linear-gradient(150deg, rgb(52 39 24 / 0.85), rgb(24 18 12 / 0.85));
-}
-
-.th-sup-card[data-compact="true"] {
-  padding: 0.5rem 0.7rem;
-}
-
-/* Monogram plate for clans — no clan icon is guaranteed, and a letter plate
-   reads better than a broken image. */
-.th-sup-mark {
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  flex: none;
-  border-radius: 9px;
-  border: 1px solid rgb(255 184 63 / 0.3);
-  background: rgb(255 184 63 / 0.09);
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--th-gold-bright);
-}
-
-.th-sup-star {
-  flex: none;
-  color: var(--th-gold);
-  font-size: 0.85rem;
-}
-
-.th-sup-body {
-  min-width: 0;
-}
-
-.th-sup-body b {
-  display: block;
-  font-size: 0.87rem;
-  color: var(--th-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.th-sup-body span {
-  display: block;
-  margin-top: 0.1rem;
-  font-size: 0.72rem;
-  color: var(--th-ink-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.th-sup-card:hover .th-sup-body b {
-  color: var(--th-gold-bright);
-}
-
-/* --- live feed ----------------------------------------------------------- */
-
-.th-live {
-  display: grid;
-  gap: clamp(1.5rem, 3vw, 2.5rem);
-  align-items: start;
-}
-
-@media (min-width: 1024px) {
-  .th-live {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-  }
-}
-
-.th-feed {
-  border: 1px solid var(--th-line);
-  border-radius: var(--th-radius);
-  background: var(--th-panel);
-  backdrop-filter: blur(8px);
-  overflow: hidden;
-}
-
-.th-feed-head {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--th-line);
-  font-size: 0.72rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--th-ink-faint);
-}
-
-.th-feed-head span {
-  margin-left: auto;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.th-feed-list {
-  max-height: 27rem;
-  overflow: hidden;
-}
-
-.th-feed-item {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.7rem;
-  padding: 0.6rem 1rem;
-  border-bottom: 1px solid rgb(122 90 50 / 0.12);
-  font-size: 0.83rem;
-}
-
-/* Freshly-arrived SSE rows flash gold once, then settle. */
-.th-feed-item[data-fresh="true"] {
-  animation: th-flash 1.8s ease-out;
-}
-
-@keyframes th-flash {
+@keyframes hp-arrive {
   0% {
-    background: rgb(255 184 63 / 0.16);
-    transform: translateX(-6px);
-    opacity: 0;
-  }
-  12% {
-    opacity: 1;
-    transform: none;
+    background: color-mix(in srgb, var(--dt-gold) 26%, transparent);
   }
   100% {
     background: transparent;
   }
 }
 
-.th-feed-icon {
+.hp-feed-icon {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--hp-line-soft);
   border-radius: 8px;
-  border: 1px solid rgb(122 90 50 / 0.3);
-  background: rgb(18 14 9 / 0.7);
+  background: var(--dt-surface-2);
+  color: var(--dt-gold);
+  font-size: 1rem;
 }
 
-.th-feed-icon img {
-  width: 24px;
-  height: 24px;
+.hp-feed-icon img {
+  max-width: 86%;
+  max-height: 86%;
   object-fit: contain;
 }
 
-.th-feed-text {
+.hp-feed-body {
   min-width: 0;
 }
 
-.th-feed-text b {
-  color: var(--th-ink);
-  font-weight: 600;
-}
-
-.th-feed-text em {
-  font-style: normal;
-  color: var(--th-gold-bright);
-}
-
-.th-feed-text span {
+.hp-feed-line {
   display: block;
-  margin-top: 0.1rem;
-  font-size: 0.72rem;
-  color: var(--th-ink-faint);
+  font-size: 0.92rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  color: var(--hp-ink-dim);
+}
+
+.hp-feed-line b {
+  font-weight: 600;
+  color: var(--dt-text);
+}
+
+.hp-feed-what {
+  color: var(--dt-gold-bright);
+}
+
+.hp-feed-sub {
+  display: block;
   overflow: hidden;
+  margin-top: 0.1rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
   text-overflow: ellipsis;
+  color: var(--hp-ink-faint);
+}
+
+.hp-feed-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  font-size: 0.74rem;
+  white-space: nowrap;
+  color: var(--hp-ink-faint);
+}
+
+/* --- leaderboard ----------------------------------------------------------- */
+
+.hp-lb-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.8rem 1.15rem;
+  border-bottom: 1px solid var(--hp-line-soft);
+}
+
+.hp-seg {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--hp-line);
+  border-radius: 6px;
+}
+
+.hp-seg button {
+  padding: 0.38rem 0.8rem;
+  border: 0;
+  background: transparent;
+  color: var(--hp-ink-dim);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.hp-seg button + button {
+  border-left: 1px solid var(--hp-line);
+}
+
+.hp-seg button:hover {
+  color: var(--dt-gold-bright);
+}
+
+/* Same pairing the site's own tab pills use (bg-osrs-bronze text-osrs-parchment). */
+.hp-seg button[aria-pressed="true"] {
+  background: var(--dt-bronze);
+  color: var(--dt-text);
+}
+
+/* Rows are absolutely placed (live-board.tsx) so a change of rank is a
+   transform the browser can animate, not a re-ordering it cannot. */
+.hp-lb-rows {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hp-lb-row {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  box-sizing: border-box;
+  padding-inline: 1.15rem;
+  border-bottom: 1px solid var(--hp-line-soft);
+  transition:
+    transform 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 500ms ease;
+}
+
+.hp-lb-row[data-hit="true"] {
+  background: color-mix(in srgb, var(--dt-green) 13%, transparent);
+}
+
+.hp-lb-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--dt-gold) 15%, transparent),
+    color-mix(in srgb, var(--dt-gold) 3%, transparent)
+  );
+  pointer-events: none;
+  transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hp-lb-rank {
+  position: relative;
+  flex: none;
+}
+
+.hp-lb-name {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.hp-lb-value {
+  position: relative;
+  flex: none;
+  font-family: var(--font-osrs);
+  font-size: 1.1rem;
   white-space: nowrap;
 }
 
-/* --- stat grid ----------------------------------------------------------- */
+.hp-lb-delta {
+  position: absolute;
+  top: -0.95rem;
+  right: 0;
+  font-size: 0.85rem;
+  font-style: normal;
+  color: var(--dt-green);
+  animation: hp-delta 2.6s ease-out forwards;
+}
 
-.th-stats {
+@keyframes hp-delta {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  12%,
+  70% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+/* --- since you arrived ----------------------------------------------------- */
+
+.hp-session-stats {
   display: grid;
-  gap: 1px;
-  border: 1px solid var(--th-line);
-  border-radius: var(--th-radius);
-  background: var(--th-line);
-  overflow: hidden;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.hp-session-stats > div {
+  min-width: 0;
+  padding: 0.8rem 1.15rem;
+  border-bottom: 1px solid var(--hp-line-soft);
+}
+
+.hp-session-stats > div:nth-child(odd) {
+  border-right: 1px solid var(--hp-line-soft);
+}
+
+.hp-session-stats dt {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hp-ink-faint);
+}
+
+.hp-session-stats dd {
+  overflow: hidden;
+  margin: 0.2rem 0 0;
+  font-family: var(--font-osrs);
+  font-size: 1.5rem;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hp-session-stats dd .hp-gp {
+  font-size: inherit;
+}
+
+.hp-session-stats dd small {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  color: var(--hp-ink-faint);
+}
+
+.hp-spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 3rem;
+  padding: 0.9rem 1.15rem 0;
+}
+
+.hp-spark i {
+  flex: 1;
+  min-width: 0;
+  border-radius: 1px 1px 0 0;
+  background: var(--dt-ember);
+  opacity: 0.8;
+  transition: height 300ms ease;
+}
+
+.hp-spark-label {
+  padding: 0.45rem 1.15rem 0.9rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--hp-ink-faint);
+}
+
+/* --- by the numbers -------------------------------------------------------- */
+
+.hp-band {
+  margin-top: clamp(3rem, 6vw, 5rem);
+  border-block: 1px solid var(--hp-line);
+}
+
+.hp-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+/* dt precedes dd in the markup (as a <dl> requires); the figure still leads
+   visually. */
+.hp-figures > div {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  min-width: 0;
+  padding: 1.5rem 1.15rem;
+  border-left: 1px solid var(--hp-line-soft);
+}
+
+.hp-figures > div:nth-child(odd) {
+  border-left: 0;
+}
+
+.hp-figures > div:nth-child(n + 3) {
+  border-top: 1px solid var(--hp-line-soft);
+}
+
+.hp-figures dd {
+  margin: 0;
+  font-family: var(--font-osrs);
+  font-size: clamp(1.7rem, 1.2rem + 1.8vw, 2.6rem);
+  line-height: 1;
+  color: var(--dt-gold);
+}
+
+.hp-figures dt {
+  margin-top: 0.6rem;
+  font-size: 0.88rem;
+  color: var(--hp-ink-dim);
+}
+
+.hp-figures dt span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--hp-ink-faint);
 }
 
 @media (min-width: 900px) {
-  .th-stats {
+  .hp-figures {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .hp-figures > div:nth-child(odd) {
+    border-left: 1px solid var(--hp-line-soft);
+  }
+
+  .hp-figures > div:first-child {
+    border-left: 0;
+  }
+
+  .hp-figures > div:nth-child(n + 3) {
+    border-top: 0;
   }
 }
 
-.th-stat {
-  padding: 1.4rem 1.2rem;
-  background: linear-gradient(165deg, rgb(30 24 16 / 0.96), rgb(15 12 8 / 0.96));
+/* --- boss heat ------------------------------------------------------------- */
+
+.hp-heat {
+  margin: 0;
+  padding: 0.35rem 0;
+  list-style: none;
 }
 
-.th-stat b {
-  display: block;
-  font-family: var(--font-display);
-  font-size: clamp(1.6rem, 1.1rem + 1.6vw, 2.4rem);
-  color: var(--th-gold-bright);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.1;
-}
-
-.th-stat small {
-  display: block;
-  margin-top: 0.45rem;
-  font-size: 0.7rem;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  color: var(--th-ink-faint);
-}
-
-.th-stat i {
-  display: block;
-  margin-top: 0.35rem;
-  font-style: normal;
-  font-size: 0.72rem;
-  color: var(--th-ink-dim);
-}
-
-/* --- closing CTA --------------------------------------------------------- */
-
-.th-cta {
-  position: relative;
-  padding: clamp(2.5rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4rem);
-  border: 1px solid var(--th-line-strong);
-  border-radius: 22px;
-  text-align: center;
-  overflow: hidden;
-  background:
-    radial-gradient(700px 320px at 50% -10%, rgb(255 140 66 / 0.18), transparent 70%),
-    linear-gradient(165deg, rgb(38 29 19 / 0.9), rgb(14 11 7 / 0.9));
-}
-
-/* Slow icon drift behind the CTA copy. */
-.th-cta-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.14;
-  display: flex;
+.hp-heat-row {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
   align-items: center;
-  gap: 2.5rem;
-  width: max-content;
-  animation: th-drift 40s linear infinite;
+  gap: 0.9rem;
+  padding: 0.55rem 1.15rem;
 }
 
-.th-cta-bg img {
-  width: 56px;
-  height: 56px;
+.hp-heat-row img,
+.hp-heat-ghost {
+  width: 3.5rem;
+  height: 3.5rem;
   object-fit: contain;
 }
 
-@keyframes th-drift {
-  to {
-    transform: translateX(-50%);
+.hp-heat-row img {
+  filter: drop-shadow(0 2px 3px color-mix(in srgb, var(--dt-brown-dark) 55%, transparent));
+}
+
+.hp-heat-ghost {
+  display: block;
+  border-radius: 8px;
+  background: var(--dt-surface-2);
+}
+
+.hp-heat-row[data-pending="true"] {
+  animation: hp-pending 1.3s ease-in-out infinite;
+}
+
+.hp-heat-body {
+  min-width: 0;
+}
+
+.hp-heat-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.92rem;
+}
+
+.hp-heat-line b {
+  font-weight: 600;
+}
+
+.hp-heat-value {
+  flex: none;
+  font-family: var(--font-osrs);
+  font-size: 1.1rem;
+  color: var(--dt-gold);
+}
+
+.hp-heat-track {
+  overflow: hidden;
+  height: 6px;
+  margin-top: 0.4rem;
+  border-radius: 3px;
+  background: var(--dt-surface-2);
+}
+
+.hp-heat-track i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--dt-bronze), var(--dt-gold));
+  transform-origin: left;
+  animation: hp-grow 900ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes hp-grow {
+  from {
+    transform: scaleX(0);
   }
 }
 
-.th-cta > div {
-  position: relative;
-  z-index: 1;
+.hp-heat-sub {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.75rem;
+  color: var(--hp-ink-faint);
 }
 
-.th-cta h2 {
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 1.2rem + 3vw, 3.4rem);
-  line-height: 1.02;
+/* --- lootboards ------------------------------------------------------------ */
+
+.hp-board {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
 }
 
-.th-cta p {
-  margin: 1.1rem auto 0;
-  max-width: 40rem;
-}
-
-.th-cta-row {
+.hp-board-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
-  justify-content: center;
-  margin-top: 2rem;
+  gap: 0.4rem;
+  padding: 0.8rem 1.15rem;
 }
 
-/* --- motion + a11y ------------------------------------------------------- */
+.hp-board-tabs button {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0.36rem 0.75rem;
+  border: 1px solid var(--hp-line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--hp-ink-dim);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    color 140ms ease,
+    background 140ms ease;
+}
 
-.th-page :focus-visible {
-  outline: 2px solid var(--th-gold-bright);
-  outline-offset: 3px;
+.hp-board-tabs button:hover {
+  border-color: var(--dt-gold);
+  color: var(--dt-gold-bright);
+}
+
+.hp-board-tabs button[aria-pressed="true"] {
+  border-color: var(--dt-gold);
+  background: color-mix(in srgb, var(--dt-gold) 14%, transparent);
+  color: var(--dt-text);
+}
+
+/* The board PNG paints its own dark ground; match it so the letterbox during
+   load is not a flash of panel colour. (A <div> for the platform board, an <a>
+   for a clan's — see BoardFrame in showcase.tsx.) */
+.hp-board-frame {
+  display: block;
+  border-block: 1px solid var(--hp-line-soft);
+  background: #1b1b1b;
+}
+
+a.hp-board-frame img {
+  transition: opacity 160ms ease;
+}
+
+a.hp-board-frame:hover img {
+  opacity: 0.9;
+}
+
+.hp-board-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.hp-board figcaption {
+  padding: 0.7rem 1.15rem 0;
+  font-size: 0.82rem;
+  color: var(--hp-ink-dim);
+}
+
+.hp-board figcaption b {
+  font-weight: 600;
+  color: var(--dt-text);
+}
+
+/* --- Discord announcement -------------------------------------------------- */
+
+/* Discord's own dark palette, fixed: this imitates another product's UI and
+   should look like a screenshot of it in every site theme. */
+.hp-dc-figure {
+  margin: 0;
+}
+
+.hp-dc {
+  overflow: hidden;
+  border: 1px solid #1e1f22;
+  border-radius: 10px;
+  background: #313338;
+  box-shadow: var(--dt-shadow-card);
+  color: #dbdee1;
+  font-family: "gg sans", "Noto Sans", var(--font-sans);
+}
+
+.hp-dc[data-empty="true"] .hp-empty {
+  color: #949ba4;
+}
+
+.hp-dc-chan {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid #26272b;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f2f3f5;
+}
+
+.hp-dc-chan span {
+  margin-right: 0.15rem;
+  color: #80848e;
+}
+
+.hp-dc-msg {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.hp-dc-msg[data-live="true"] {
+  animation: hp-msg-in 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes hp-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.hp-dc-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: #1e1f22;
+}
+
+.hp-dc-main {
+  min-width: 0;
+}
+
+.hp-dc-author {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+}
+
+.hp-dc-author b {
+  font-weight: 600;
+  color: #f2f3f5;
+}
+
+.hp-dc-author time {
+  font-size: 0.72rem;
+  color: #949ba4;
+}
+
+.hp-dc-app {
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background: #5865f2;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.hp-dc-embed {
+  position: relative;
+  box-sizing: border-box;
+  max-width: 27rem;
+  margin-top: 0.4rem;
+  padding: 0.75rem 5rem 0.8rem 0.85rem;
+  border-left: 4px solid #00ff00;
   border-radius: 4px;
+  background: #2b2d31;
+  font-size: 0.875rem;
+  line-height: 1.4;
 }
 
+.hp-dc-embed p {
+  margin: 0.3rem 0 0;
+}
+
+.hp-dc-embed code {
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background: #1e1f22;
+  color: #dbdee1;
+  font-family: ui-monospace, Consolas, "Liberation Mono", monospace;
+  font-size: 0.82rem;
+}
+
+.hp-dc-embed-author {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f2f3f5;
+}
+
+.hp-dc-embed-author img {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+}
+
+.hp-dc-embed-title {
+  margin-top: 0.4rem;
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  color: #00a8fc;
+}
+
+.hp-dc-embed-thumb {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  width: 3.375rem;
+  height: 3rem;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.hp-dc-embed-from {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.hp-dc-embed-from img {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+}
+
+.hp-dc-embed-from b {
+  color: #f2f3f5;
+}
+
+.hp-dc-embed .hp-dc-embed-head {
+  margin-top: 0.65rem;
+  font-weight: 700;
+  color: #f2f3f5;
+}
+
+.hp-dc-embed .hp-dc-embed-foot {
+  margin-top: 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  color: #b5bac1;
+}
+
+.hp-dc-figure figcaption {
+  margin-top: 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--hp-ink-dim);
+}
+
+.hp-dc-figure figcaption .hp-gp {
+  font-size: 0.7rem;
+}
+
+.hp-dc-figure figcaption .hp-link {
+  color: var(--dt-text);
+  font-weight: 600;
+}
+
+/* Three short claims under the Discord card — a ruled list, not more panels. */
+.hp-points {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--hp-line);
+  list-style: none;
+}
+
+.hp-points li {
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--hp-line-soft);
+}
+
+.hp-points b {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.hp-points span {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--hp-ink-dim);
+}
+
+/* --- tracked types + events ------------------------------------------------ */
+
+.hp-tracked {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hp-tracked li {
+  min-width: 0;
+  padding: 0.7rem 1.15rem;
+  border-bottom: 1px solid var(--hp-line-soft);
+}
+
+.hp-tracked b {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.hp-tracked span {
+  font-size: 0.8rem;
+  color: var(--hp-ink-faint);
+}
+
+@media (min-width: 560px) {
+  .hp-tracked {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hp-tracked li:nth-child(odd) {
+    border-right: 1px solid var(--hp-line-soft);
+  }
+}
+
+.hp-events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hp-events li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 1rem;
+  padding: 0.7rem 1.15rem;
+  border-bottom: 1px solid var(--hp-line-soft);
+  font-size: 0.92rem;
+}
+
+.hp-events b {
+  font-weight: 600;
+}
+
+.hp-events span {
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: var(--hp-ink-faint);
+}
+
+/* --- get started ----------------------------------------------------------- */
+
+.hp-steps {
+  display: grid;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--hp-line);
+  border-radius: 10px;
+  background: var(--dt-surface-1);
+  box-shadow: var(--dt-shadow-card);
+  list-style: none;
+}
+
+.hp-steps li {
+  min-width: 0;
+  padding: 1.5rem 1.35rem 1.6rem;
+  border-top: 1px solid var(--hp-line-soft);
+}
+
+.hp-steps li:first-child {
+  border-top: 0;
+}
+
+.hp-step-n {
+  display: block;
+  font-family: var(--font-osrs);
+  font-size: 2.1rem;
+  line-height: 1;
+  color: var(--dt-gold);
+}
+
+.hp-steps h3 {
+  margin-top: 0.7rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.hp-steps p {
+  margin-top: 0.4rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--hp-ink-dim);
+}
+
+.hp-steps .hp-more {
+  display: inline-block;
+  margin-top: 0.8rem;
+}
+
+@media (min-width: 800px) {
+  .hp-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hp-steps li {
+    border-top: 0;
+    border-left: 1px solid var(--hp-line-soft);
+  }
+
+  .hp-steps li:first-child {
+    border-left: 0;
+  }
+}
+
+/* --- supporters ------------------------------------------------------------ */
+
+.hp-supporters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hp-supporters[data-compact="true"] {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
+  margin-top: 0.9rem;
+}
+
+.hp-supporters li {
+  min-width: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--hp-line-soft);
+  border-radius: 8px;
+  background: var(--dt-surface-1);
+  transition: border-color 160ms ease;
+}
+
+.hp-supporters li:hover {
+  border-color: var(--hp-line);
+}
+
+/* --- close ----------------------------------------------------------------- */
+
+.hp-close {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: clamp(3rem, 6vw, 5.5rem);
+  padding: clamp(1.75rem, 4vw, 3rem);
+  border: 1px solid var(--hp-line);
+  border-radius: 12px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--dt-gold) 10%, var(--dt-surface-1)),
+    var(--dt-surface-1) 62%
+  );
+  box-shadow: var(--dt-shadow-card);
+}
+
+.hp-close h2 {
+  font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.3rem);
+  font-weight: 700;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.hp-close h2 + p {
+  max-width: 38rem;
+  margin-top: 0.7rem;
+  line-height: 1.65;
+  color: var(--hp-ink-dim);
+}
+
+.hp-close .hp-cta {
+  justify-content: flex-start;
+  margin-top: 1.4rem;
+}
+
+.hp-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.7rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--hp-line-soft);
+  font-size: 0.85rem;
+  color: var(--hp-ink-dim);
+}
+
+.hp-status b {
+  font-weight: 600;
+  color: var(--dt-text);
+}
+
+.hp-status i {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: var(--dt-green);
+}
+
+.hp-status[data-state="degraded"] i {
+  background: var(--dt-gold);
+}
+
+.hp-status[data-state="offline"] i {
+  background: var(--dt-red);
+}
+
+/* --- small screens --------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .hp-stage-stat {
+    display: none;
+  }
+
+  .hp-odo-since {
+    display: block;
+    margin: 0.35rem 0 0;
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .hp-cta .hp-btn:not(.hp-btn-quiet) {
+    flex: 1 1 9rem;
+  }
+
+  .hp-feed-row {
+    grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+    gap: 0.65rem;
+    padding-inline: 0.9rem;
+  }
+
+  .hp-feed-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+
+  /* Six rows is a screenful on a phone; the rest is one tap away. */
+  .hp-feed-row:nth-child(n + 7) {
+    display: none;
+  }
+
+  .hp-feed-row:nth-child(6) {
+    border-bottom: 0;
+  }
+
+  .hp-dc-embed {
+    padding-right: 4.25rem;
+  }
+
+  /* Two dozen supporter cards in one column is a very long scroll: go two-up
+     and let the name carry it. */
+  .hp-supporters,
+  .hp-supporters[data-compact="true"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+  }
+
+  .hp-supporters li {
+    padding: 0.5rem 0.6rem;
+  }
+}
+
+/* --- reduced motion -------------------------------------------------------- */
+
+/*
+ * The rain never starts under reduced motion (hero.tsx skips the engine); this
+ * stills everything else. Values keep updating — they just stop animating.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .th-page *,
-  .th-page *::before,
-  .th-page *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+  .hp-page *,
+  .hp-page *::before,
+  .hp-page *::after {
+    animation: none !important;
+    transition: none !important;
   }
 
-  .th-reveal {
-    opacity: 1;
-    transform: none;
+  /* With no rain to fall through it, the stage only needs to hold its pills —
+     and a key to streaks that are not there would be a riddle. */
+  .hp-stage {
+    height: 4.25rem;
   }
 
-  .th-lb-bar {
-    transform: scaleX(1);
+  .hp-legend {
+    display: none;
   }
 
-  /* Keep the wall as a still backdrop rather than a frozen mid-scroll frame. */
-  .th-wall-col {
-    animation: none;
+  /* Its roll-out never runs, so the outgoing digit must not sit on the new one. */
+  .hp-odo-digit-out {
+    display: none;
   }
 }

@@ -15,9 +15,18 @@ import {
 export const statusApi = {
 
   // --- Service status + known issues (drives the #status Discord cards) --
-  async statusSummary(): Promise<StatusSummary> {
+  /**
+   * Uncached by default: the staff status page wants the counters as they are
+   * now. A public surface that renders per visitor should pass `revalidate` —
+   * the backend computes this from ~2,900 Redis minute-buckets plus an HTTP
+   * probe of the intake API, and declares it cacheable for 30s itself.
+   */
+  async statusSummary(opts: { revalidate?: number } = {}): Promise<StatusSummary> {
     return withFallback(
-      async () => StatusSummarySchema.parse(await apiGet(`/status`)),
+      async () =>
+        StatusSummarySchema.parse(
+          await apiGet(`/status`, opts.revalidate != null ? { revalidate: opts.revalidate } : {}),
+        ),
       () => EMPTY_STATUS_SUMMARY,
     );
   },

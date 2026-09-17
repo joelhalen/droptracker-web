@@ -1,510 +1,307 @@
 "use client";
 
 /**
- * Showcase sections for /test-hero: the notable-drops gallery + lightbox, the
- * lootboard/leaderboard split, the Discord panel, the live bingo board, and the
- * supporters wall.
+ * Product showcase islands for /test-hero. Both demonstrate a feature with the
+ * platform's own live output rather than a canned screenshot:
  *
- * Every image comes from ./showcase-data.ts (real submissions and real
- * generated DropTracker artwork) or straight from the API. Nothing is
- * placeholder art, and there is no video anywhere — replay-buffer capture is
- * out of the plugin pending core RuneLite client changes.
+ *  - `DiscordPreview` re-creates the announcement the bot posts, from whichever
+ *    notable drop landed most recently — and swaps to the next one the moment
+ *    it arrives over SSE.
+ *  - `LiveLootboard` shows the actual PNGs the board generator writes every few
+ *    minutes, for the whole platform and for the clans currently topping the
+ *    month.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { Route } from "next";
 import Link from "next/link";
-import type {
-  BingoBoard,
-  EventTask,
-  LeaderboardEntry,
-  Supporters,
-} from "@droptracker/api-types";
+import type { PlayerCard } from "@/lib/entity-card";
 import { formatGp } from "@/lib/format";
 import { entityPath } from "@/lib/slug";
-import { BingoTile } from "@/components/bingo-tile";
-import { Reveal, useInView } from "./motion";
-import { ARTWORK, DROP_SHOTS, itemIcon, npcIcon, type ShowcaseDrop } from "./showcase-data";
+import { useEventStream } from "@/lib/use-event-stream";
+import {
+  GLOBAL_GROUP_ID,
+  LOOTBOARD_BUCKET_SECONDS,
+  formatCount,
+  itemIcon,
+  lootboardUrl,
+  npcIcon,
+  toNotableDrop,
+  valueTier,
+  type NotableDrop,
+} from "./home-data";
 
-/** Rarity bucket for the value colour — same thresholds as `lootValueClass`. */
-function valueTier(value: number): "1m" | "10m" | "100m" | "b" {
-  if (value >= 1_000_000_000) return "b";
-  if (value >= 100_000_000) return "100m";
-  if (value >= 10_000_000) return "10m";
-  return "1m";
+/* -------------------------------------------------------------------------- */
+/* Discord announcement, live                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The announced player's month total and global rank, via the BFF hover-card
+ * route the rest of the site already uses. The first drop's card is resolved on
+ * the server and passed in, so nothing is fetched until a new drop arrives.
+ */
+function usePlayerCard(playerId: number | null, seed: PlayerCard | null): PlayerCard | null {
+  const cache = useRef(new Map<number, PlayerCard>(seed ? [[seed.id, seed]] : []));
+  const [, bump] = useState(0);
+
+  useEffect(() => {
+    if (playerId === null || cache.current.has(playerId)) return;
+    let cancelled = false;
+    fetch(`/api/players/${playerId}/card`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((card: PlayerCard | null) => {
+        if (cancelled || !card || card.kind !== "player") return;
+        cache.current.set(playerId, card);
+        bump((n) => n + 1);
+      })
+      .catch(() => {
+        /* best-effort: the embed simply shows fewer lines */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [playerId]);
+
+  return playerId === null ? null : (cache.current.get(playerId) ?? null);
+}
+
+export function DiscordPreview({
+  seed,
+  seedCard,
+  month,
+}: {
+  seed: NotableDrop | null;
+  seedCard: PlayerCard | null;
+  month: string;
+}) {
+  const [drop, setDrop] = useState<NotableDrop | null>(seed);
+  const [arrivedLive, setArrivedLive] = useState(false);
+  const [clock, setClock] = useState<string | null>(null);
+
+  useEventStream(["feed"], (event) => {
+    const next = toNotableDrop(event.type, event.data, event.ts);
+    // Only ever move forward in time — the stream can interleave slightly.
+    if (next && (!drop || next.ts >= drop.ts)) {
+      setDrop(next);
+      setArrivedLive(true);
+    }
+  });
+
+  // A fresher seed from the server re-sync (e.g. after the tab slept).
+  useEffect(() => {
+    if (seed && (!drop || seed.ts > drop.ts)) setDrop(seed);
+  }, [seed, drop]);
+
+  // Wall-clock time is locale-formatted, so it is rendered after mount only —
+  // the server cannot know the visitor's timezone and would mismatch.
+  useEffect(() => {
+    if (!drop) return;
+    setClock(
+      new Date(drop.ts * 1000).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    );
+  }, [drop]);
+
+  const card = usePlayerCard(drop?.playerId ?? null, seedCard);
+
+  if (!drop) {
+    return (
+      <div className="hp-dc" data-empty="true">
+        <p className="hp-empty">The next 10M+ drop will be announced here as it lands.</p>
+      </div>
+    );
+  }
+
+  return (
+    <figure className="hp-dc-figure">
+      <div className="hp-dc">
+        <div className="hp-dc-chan">
+          <span aria-hidden>#</span> drops
+        </div>
+        {/* Keyed by drop so a new announcement animates in as a new message. */}
+        <div className="hp-dc-msg" key={drop.key} data-live={arrivedLive}>
+          <img className="hp-dc-avatar" src="/img/droptracker-small.gif" alt="" />
+          <div className="hp-dc-main">
+            <div className="hp-dc-author">
+              <b>DropTracker</b>
+              <span className="hp-dc-app">APP</span>
+              {clock && <time>{clock}</time>}
+            </div>
+
+            {/* Field for field the default drop announcement (utils/embeds.py
+                `get_global_drop_embed` in the backend repo): player as author,
+                item as title, item sprite as thumbnail, value, then the
+                player's month total and global rank. */}
+            <div className="hp-dc-embed">
+              <div className="hp-dc-embed-author">
+                <img src="/img/droptracker-small.gif" alt="" />
+                <span>{drop.playerName}</span>
+              </div>
+              <div className="hp-dc-embed-title">{drop.itemName}</div>
+              <img className="hp-dc-embed-thumb" src={itemIcon(drop.itemId)} alt="" />
+
+              <p>
+                G/E Value: <code>{formatGp(drop.value)}</code>
+              </p>
+              {drop.npcName && (
+                <p className="hp-dc-embed-from">
+                  {drop.npcId !== null && <img src={npcIcon(drop.npcId)} alt="" loading="lazy" />}
+                  from <b>{drop.npcName}</b>
+                </p>
+              )}
+
+              {card && (card.total_loot || card.global_rank) && (
+                <>
+                  <p className="hp-dc-embed-head">Player Stats</p>
+                  {card.total_loot && (
+                    <p>
+                      {month} Total: <code>{card.total_loot.value_formatted}</code>
+                    </p>
+                  )}
+                  {card.global_rank !== undefined && (
+                    <p>
+                      Global Rank: <code>{formatCount(card.global_rank)}</code>
+                      {card.ranked_players !== undefined && (
+                        <>
+                          {" / "}
+                          <code>{formatCount(card.ranked_players)}</code>
+                        </>
+                      )}
+                    </p>
+                  )}
+                </>
+              )}
+
+              <p className="hp-dc-embed-foot">
+                Powered by the DropTracker | https://www.droptracker.io/
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <figcaption>
+        <span className="hp-gp" data-tier={valueTier(drop.value)}>
+          ●
+        </span>{" "}
+        Not a mock-up of a made-up drop: this is the newest 10M+ drop on the platform,{" "}
+        {drop.playerId !== null ? (
+          <Link
+            href={entityPath("players", drop.playerId, drop.playerName)}
+            className="hp-link"
+          >
+            {drop.playerName}
+          </Link>
+        ) : (
+          drop.playerName
+        )}
+        &rsquo;s {drop.itemName}, laid out the way the bot announces it. It is replaced the moment
+        the next one lands.
+      </figcaption>
+    </figure>
+  );
 }
 
 /* -------------------------------------------------------------------------- */
-/* Notable-drops gallery + lightbox                                           */
+/* Lootboards, live                                                           */
 /* -------------------------------------------------------------------------- */
 
-export function Gallery() {
-  const [open, setOpen] = useState<number | null>(null);
-  const shots = DROP_SHOTS;
-
-  const step = useCallback(
-    (delta: number) =>
-      setOpen((current) =>
-        current === null ? null : (current + delta + shots.length) % shots.length,
-      ),
-    [shots.length],
+/**
+ * The board PNG is drawn at 1074px and shown narrower here, so a clan's board
+ * links through to its interactive lootboard page. The platform-wide board
+ * deliberately does not: that page aggregates ~26k members per uncached view
+ * (seconds of backend time), which is not something to put one click away from
+ * the homepage.
+ */
+function BoardFrame({ groupId, children }: { groupId: number; children: React.ReactNode }) {
+  if (groupId === GLOBAL_GROUP_ID) return <div className="hp-board-frame">{children}</div>;
+  return (
+    <Link
+      href={`/groups/${groupId}/lootboard` as Route}
+      className="hp-board-frame"
+      title="Open this clan's interactive lootboard"
+    >
+      {children}
+    </Link>
   );
+}
 
-  // Keyboard: Escape closes, arrows page through. Also locks background scroll
-  // so the page behind doesn't drift while the lightbox is up.
+export interface LootboardChoice {
+  groupId: number;
+  label: string;
+  /** Short context shown under the board — rank and month total. */
+  detail: string;
+}
+
+export function LiveLootboard({
+  choices,
+  renderedAt,
+}: {
+  /** The global board first, then the clans leading the month. */
+  choices: LootboardChoice[];
+  renderedAt: number;
+}) {
+  const [active, setActive] = useState(0);
+  const [failed, setFailed] = useState<ReadonlySet<number>>(new Set());
+  const [bucket, setBucket] = useState(Math.floor(renderedAt / LOOTBOARD_BUCKET_SECONDS));
+
+  // Step the cache-busting bucket at the cadence the generator rewrites the
+  // file, so a visitor who lingers sees the board change under them.
   useEffect(() => {
-    if (open === null) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(null);
-      if (e.key === "ArrowRight") step(1);
-      if (e.key === "ArrowLeft") step(-1);
-    };
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previous;
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [open, step]);
+    const tick = () => setBucket(Math.floor(Date.now() / 1000 / LOOTBOARD_BUCKET_SECONDS));
+    tick();
+    const timer = setInterval(tick, 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
-  const active = open === null ? null : shots[open]!;
+  const usable = choices.filter((c) => !failed.has(c.groupId));
+  const current = usable[Math.min(active, usable.length - 1)];
+  if (!current) return null;
 
   return (
-    <>
-      <div className="th-gallery">
-        {shots.map((shot, i) => (
+    <figure className="hp-board">
+      <div className="hp-board-tabs" role="group" aria-label="Choose a lootboard">
+        {usable.map((choice, i) => (
           <button
-            key={shot.dropId}
+            key={choice.groupId}
             type="button"
-            className="th-shot"
-            onClick={() => setOpen(i)}
-            aria-label={`Open ${shot.itemName} from ${shot.npcName} — ${formatGp(shot.value)} gp`}
+            aria-pressed={choice.groupId === current.groupId}
+            onClick={() => setActive(i)}
           >
-            <img
-              src={shot.src}
-              alt=""
-              width={shot.width}
-              height={shot.height}
-              loading="lazy"
-              decoding="async"
-            />
-            <span className="th-shot-meta">
-              <img src={itemIcon(shot.itemId)} alt="" loading="lazy" />
-              <span className="th-shot-text">
-                <b>{shot.itemName}</b>
-                <span>
-                  {shot.playerName} · {shot.npcName}
-                </span>
-              </span>
-              <span className="th-value" data-tier={valueTier(shot.value)}>
-                {formatGp(shot.value)}
-              </span>
-            </span>
+            {choice.label}
           </button>
         ))}
       </div>
 
-      {active && (
-        <div
-          className="th-lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${active.itemName} from ${active.npcName}`}
-          onClick={() => setOpen(null)}
-        >
-          <img
-            src={active.src}
-            alt={`${active.playerName}'s ${active.itemName} from ${active.npcName}`}
-            onClick={(e) => e.stopPropagation()}
-          />
-          <div className="th-lightbox-bar">
-            <img src={itemIcon(active.itemId)} alt="" width={26} height={26} />
-            <span>
-              <b>{active.itemName}</b> · {active.npcName}
-            </span>
-            <span>
-              submitted by <b>{active.playerName}</b>
-            </span>
-            <span className="th-value" data-tier={valueTier(active.value)}>
-              {formatGp(active.value)} gp
-            </span>
-            <span style={{ opacity: 0.55 }}>← → to browse · Esc to close</span>
-          </div>
-          <button
-            type="button"
-            className="th-close"
-            onClick={() => setOpen(null)}
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-    </>
-  );
-}
+      <BoardFrame groupId={current.groupId}>
+        <img
+          src={lootboardUrl(current.groupId, bucket)}
+          alt={`${current.label} — this month's lootboard, generated from live submissions`}
+          width={1074}
+          height={795}
+          loading="lazy"
+          decoding="async"
+          // A clan whose board has never rendered has no file yet: drop its tab
+          // rather than show a broken image.
+          onError={() => setFailed((prev) => new Set(prev).add(current.groupId))}
+        />
+      </BoardFrame>
 
-/* -------------------------------------------------------------------------- */
-/* Lootboards + leaderboard                                                   */
-/* -------------------------------------------------------------------------- */
-
-const BOARDS = [
-  { src: ARTWORK.lootboardLive, label: "Pegasus PvM — live monthly board" },
-  { src: ARTWORK.lootboardAlt, label: "Realists — live monthly board" },
-  { src: ARTWORK.lootboardClassic, label: "Realists — September archive" },
-] as const;
-
-export function BoardShowcase({
-  players,
-  totalPlayers,
-}: {
-  players: LeaderboardEntry[];
-  totalPlayers: number;
-}) {
-  const [index, setIndex] = useState(0);
-  const [ref, inView] = useInView<HTMLDivElement>({ once: false, threshold: 0.2 });
-
-  // Cross-fade through the real clan boards, but only while the section is on
-  // screen — no background timer churn for content nobody is looking at.
-  useEffect(() => {
-    if (!inView) return;
-    const timer = setInterval(() => setIndex((i) => (i + 1) % BOARDS.length), 6000);
-    return () => clearInterval(timer);
-  }, [inView]);
-
-  const max = players[0]?.loot.value ?? 1;
-
-  return (
-    <div className="th-board-layout" ref={ref}>
-      <Reveal>
-        <div className="th-frame">
-          <div className="th-frame-bar">
-            <i />
-            <i />
-            <i />
-            Lootboard
-            <span>{BOARDS[index]!.label}</span>
-          </div>
-          <div className="th-board-stack">
-            {BOARDS.map((board, i) => (
-              <img
-                key={board.src}
-                src={board.src}
-                alt={board.label}
-                data-active={i === index}
-                loading="lazy"
-                decoding="async"
-              />
-            ))}
-          </div>
-        </div>
-      </Reveal>
-
-      <Reveal delay={120}>
-        <div className="th-lb">
-          <div className="th-lb-head">
-            <span>Global top players</span>
-            <span>{totalPlayers.toLocaleString()} ranked</span>
-          </div>
-          {players.map((entry, i) => (
-            <div key={entry.id} className="th-lb-row" data-top={i === 0}>
-              <span
-                className="th-lb-bar"
-                style={{
-                  ["--th-w" as string]: `${Math.max(6, (entry.loot.value / max) * 100)}%`,
-                  ["--th-delay" as string]: `${i * 70}ms`,
-                }}
-              />
-              <span className="th-lb-rank">{entry.rank}</span>
-              <span className="th-lb-name">
-                <Link href={entityPath("players", entry.id, entry.name)}>{entry.name}</Link>
-              </span>
-              <span className="th-lb-val">{entry.loot.value_formatted}</span>
-            </div>
-          ))}
-          <Link className="th-lb-more" href="/leaderboards">
-            Full leaderboards →
-          </Link>
-        </div>
-      </Reveal>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Discord                                                                    */
-/* -------------------------------------------------------------------------- */
-
-const CHAT_FEATURES = [
-  {
-    mark: "#",
-    title: "A channel per submission type",
-    body: "Route drops, personal bests, collection log slots, combat achievements, pets, levels, quests, deaths and diaries wherever you want them — or all to one channel.",
-  },
-  {
-    mark: "◈",
-    title: "Your own value threshold",
-    body: "Announce everything, or only the drops worth shouting about. Optionally require a screenshot before anything is posted.",
-  },
-  {
-    mark: "◎",
-    title: "Boards that edit themselves",
-    body: "Lootboards and live event standings are posted once and edited in place, so your channel history stays readable.",
-  },
-];
-
-/** One synthetic Discord message built from a real submission. */
-function ChatMessage({ drop }: { drop: ShowcaseDrop }) {
-  return (
-    <div className="th-msg">
-      <span className="th-avatar">
-        <img src={npcIcon(drop.npcId)} alt="" loading="lazy" />
-      </span>
-      <div className="th-msg-body">
-        <b>DropTracker</b>
-        <time>today</time>
-        <div className="th-embed">
-          <strong>{drop.itemName}</strong>
-          <dl>
-            <div>
-              <dt>Player</dt>
-              <dd>{drop.playerName}</dd>
-            </div>
-            <div>
-              <dt>Source</dt>
-              <dd>{drop.npcName}</dd>
-            </div>
-            <div>
-              <dt>G/E value</dt>
-              <dd>{formatGp(drop.value)}</dd>
-            </div>
-            <div>
-              <dt>Proof</dt>
-              <dd>attached</dd>
-            </div>
-          </dl>
-          <figure>
-            <img src={drop.src} alt="" loading="lazy" decoding="async" />
-          </figure>
-          <footer>Powered by the DropTracker | https://www.droptracker.io</footer>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function DiscordDemo() {
-  return (
-    <div className="th-discord">
-      <Reveal>
-        <div className="th-chat">
-          <div className="th-chat-head">
-            <span style={{ color: "var(--th-ink-faint)" }}>#</span>
-            <b>loot-drops</b>
-          </div>
-          <div className="th-chat-body">
-            <ChatMessage drop={DROP_SHOTS[0]!} />
-          </div>
-        </div>
-      </Reveal>
-
-      <Reveal delay={100}>
-        <div className="th-features">
-          {CHAT_FEATURES.map((f) => (
-            <div key={f.title} className="th-feature">
-              <span className="th-feature-mark" aria-hidden>
-                {f.mark}
-              </span>
-              <div>
-                <b>{f.title}</b>
-                <p>{f.body}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* The panel to the left is a faithful re-creation; this is a straight
-            screenshot of a real announcement, so the claim is checkable. */}
-        <figure className="th-frame th-real-embed">
-          <div className="th-frame-bar">
-            <i />
-            <i />
-            <i />
-            Discord
-            <span>an actual announcement</span>
-          </div>
-          <img
-            src={ARTWORK.discordEmbed}
-            alt="A real DropTracker Discord announcement for a Bandos chestplate, showing G/E value, monthly totals and global and group rank"
-            loading="lazy"
-          />
-        </figure>
-      </Reveal>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Events — a real, live bingo board                                          */
-/* -------------------------------------------------------------------------- */
-
-const EVENT_POINTS = [
-  "Tiles accept any item, a full set, a KC target, an XP goal, a total-loot target or a points threshold",
-  "Submissions match tiles automatically — nobody screenshots anything into a spreadsheet",
-  "Teams, sign-up windows, buy-ins and a prize pot are built in",
-  "Live standings posted to Discord and edited in place every two minutes",
-];
-
-/**
- * Read-only preview of a REAL public bingo board.
- *
- * Boards are composed in React from the backend's `task.tile` icon data, so
- * this renders the project's own `BingoTile` against a live event rather than
- * shipping a stale server-rendered PNG. Tiles reveal in a diagonal sweep the
- * first time the board scrolls into view.
- */
-export function EventsShowcase({
-  board,
-  tasks,
-  eventId,
-  eventName,
-}: {
-  board: BingoBoard;
-  tasks: EventTask[];
-  eventId: number;
-  eventName: string;
-}) {
-  const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.15 });
-  const taskById = new Map(tasks.map((t) => [t.id, t]));
-
-  return (
-    <div className="th-event-panel">
-      <div className="th-frame">
-        <div className="th-frame-bar">
-          <i />
-          <i />
-          <i />
-          Live board
-          <span>{eventName}</span>
-        </div>
-        <div
-          className="th-bingo"
-          ref={ref}
-          data-shown={inView}
-          style={{ ["--th-cols" as string]: board.size }}
-        >
-          {board.cells.map((cell) => {
-            const task = cell.task_id != null ? taskById.get(cell.task_id) : undefined;
-            const done = cell.completed_by.length > 0;
-            return (
-              <div
-                key={cell.index}
-                className="th-bingo-cell"
-                data-done={done}
-                // Diagonal sweep: cells further from the top-left arrive later.
-                style={{
-                  transitionDelay: `${(Math.floor(cell.index / board.size) + (cell.index % board.size)) * 60}ms`,
-                }}
-                title={cell.label}
-              >
-                <BingoTile label={cell.label} task={task} />
-                {done && (
-                  <span className="th-bingo-done" aria-hidden>
-                    ✓
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div>
-        <h3>Run a bingo without running a spreadsheet</h3>
-        <p className="th-lede">
-          That board is live — it is <strong>{eventName}</strong>, rendered from the same tile data
-          the event page and the Discord board use. Bingo, board-game races and loot sweeps are all
-          scored by the submission pipeline that powers everything else.
-        </p>
-        <ul className="th-checks">
-          {EVENT_POINTS.map((p) => (
-            <li key={p}>{p}</li>
-          ))}
-        </ul>
-        <Link className="th-btn th-btn-ghost th-btn-sm" href={`/events/${eventId}`}>
-          Open this event →
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Supporters                                                                 */
-/* -------------------------------------------------------------------------- */
-
-/**
- * The supporters wall, reworked for this page's motion language: clans and
- * players with a live paid subscription, revealed in a stagger. Same data as
- * the current homepage's `SupportersSection` (`api.supporters()`), presented in
- * the panel/tile style the rest of this page uses.
- */
-export function SupportersWall({ supporters }: { supporters: Supporters }) {
-  const { groups, players } = supporters;
-  const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.1 });
-  if (groups.length === 0 && players.length === 0) return null;
-
-  return (
-    <div className="th-supporters" ref={ref} data-shown={inView}>
-      {groups.length > 0 && (
-        <div>
-          <h3 className="th-sup-heading">Supporter clans</h3>
-          <div className="th-sup-grid">
-            {groups.map((g, i) => (
-              <Link
-                key={g.id}
-                href={entityPath("groups", g.id, g.name)}
-                className="th-sup-card"
-                style={{ transitionDelay: `${i * 45}ms` }}
-              >
-                <span className="th-sup-mark" aria-hidden>
-                  {g.name.slice(0, 1).toUpperCase()}
-                </span>
-                <span className="th-sup-body">
-                  <b>{g.name}</b>
-                  <span>
-                    {g.tier_name} · {g.member_count.toLocaleString()}{" "}
-                    {g.member_count === 1 ? "member" : "members"}
-                  </span>
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {players.length > 0 && (
-        <div>
-          <h3 className="th-sup-heading">Individual supporters</h3>
-          <div className="th-sup-grid" data-dense="true">
-            {players.map((p, i) => (
-              <Link
-                key={p.user_id}
-                href={entityPath("players", p.player_id, p.name)}
-                className="th-sup-card"
-                data-compact="true"
-                style={{ transitionDelay: `${i * 35}ms` }}
-              >
-                <span className="th-sup-star" aria-hidden>
-                  ★
-                </span>
-                <span className="th-sup-body">
-                  <b>{p.name}</b>
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+      <figcaption>
+        <b>{current.label}</b> · {current.detail}
+        {current.groupId !== GLOBAL_GROUP_ID && (
+          <>
+            {" · "}
+            <Link
+              href={entityPath("groups", current.groupId, current.label)}
+              className="hp-link"
+            >
+              open clan page
+            </Link>
+          </>
+        )}
+      </figcaption>
+    </figure>
   );
 }

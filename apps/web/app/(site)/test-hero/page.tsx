@@ -1,365 +1,659 @@
+import { Suspense, cache } from "react";
+import type { Route } from "next";
 import Link from "next/link";
-import type { EventDetail } from "@droptracker/api-types";
 import { api } from "@/lib/api";
-import { DEFAULT_PERIOD, resolvePeriod } from "@/lib/period";
-import { type DialGroup } from "./dial";
-import { toNotableDrop, toRow, type FeedRow, type NotableDrop } from "./feed-rows";
-import { Hero } from "./hero";
-import { LiveFeed, StatGrid } from "./live-feed";
-import { Reveal } from "./motion";
+import { HeroSearch } from "@/components/hero-search";
+import { EntityChip } from "@/components/ui";
+import { toPlayerCard } from "@/lib/entity-card";
+import { resolvePeriod } from "@/lib/period";
+import { entityPath } from "@/lib/slug";
+import { HeroRain, LivePill, Odometer, OdometerSkeleton } from "./hero";
 import {
-  BoardShowcase,
-  DiscordDemo,
-  EventsShowcase,
-  Gallery,
-  SupportersWall,
-} from "./showcase";
-import { ARTWORK, DROP_SHOTS, GLOBAL_GROUP_ID } from "./showcase-data";
+  EVENT_KIND_LABEL,
+  GLOBAL_GROUP_ID,
+  formatCount,
+  formatCountdown,
+  liveEvents,
+  monthName,
+  notableDrops,
+  npcIcon,
+  toBoard,
+  toFeedItem,
+  toPlatformPulse,
+  type BoardSet,
+  type FeedItem,
+} from "./home-data";
+import { Leaderboard, LiveFeed, ServerResync, SessionPulse } from "./live-board";
+import { DiscordPreview, LiveLootboard, type LootboardChoice } from "./showcase";
 
 /**
- * /test-hero — prototype homepage. Signed-in visitors only (see ./layout.tsx),
- * rendered inside the real site chrome.
+ * /test-hero — homepage candidate. Signed-in visitors only while it is being
+ * evaluated (see ./layout.tsx), rendered inside the real site chrome.
  *
- * Two kinds of content, on purpose:
- *  - LIVE, fetched here on every render: monthly totals and account count from
- *    the global group, leaderboards, the recent drop feed (which the client
- *    then keeps updating over SSE), supporters, and a real public bingo board.
- *  - CURATED, in ./showcase-data.ts: the drop screenshots and the generated
- *    DropTracker artwork (lootboards, the Discord embed, the plugin panel).
- *    Real submissions, mined from the production `drops` table.
+ * The rule for this page: every number, name and image on it is LIVE. Nothing
+ * is curated, measured once and pasted in, or mocked up —
+ *
+ *   server render   leaderboards (day / week / month × players / clans), the
+ *                   notable-drop feed history, intake counters from /status,
+ *                   public events, supporters, and the global group's month
+ *                   total, account count and top bosses
+ *   SSE `global`    one frame per credited drop platform-wide (~7/s): drives
+ *                   the rain, the odometer, live overtakes on the player
+ *                   boards and the since-you-arrived counters
+ *   SSE `feed`      notable happenings: the feed list, the highlight tags in
+ *                   the rain and the Discord announcement preview
+ *   image server    lootboard PNGs the generator rewrites every few minutes
+ *
+ * The only static content is the explanatory copy.
  *
  * No `revalidate` export: the layout's guard reads cookies, so this route is
  * always dynamically rendered and a segment revalidate would be dead config.
- * Freshness comes from the per-fetch `revalidate` hints inside lib/api.ts.
+ * Freshness comes from the per-fetch `revalidate` hints inside lib/api/.
+ *
+ * If this replaces `app/(site)/page.tsx`: drop the layout guard + noindex, add
+ * `export const revalidate = 15`, and render `<AuthErrorBanner />` first —
+ * failed Discord sign-ins redirect to `/?auth=<code>` and only the homepage
+ * surfaces them.
  */
 
-const PIPELINE = [
+/** How often open tabs re-run this server component (see `useServerResync`). */
+const RESYNC_SECONDS = 120;
+
+/** Rows per leaderboard: a top ten, which also stands level with the feed beside it. */
+const BOARD_ROWS = 10;
+
+/**
+ * Resolve within `ms`, else null. The underlying request is left to finish —
+ * it still lands in Next's data cache, so the NEXT render gets it instantly.
+ */
+function within<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(null);
+      },
+    );
+  });
+}
+
+/**
+ * The global group's profile: month total, account count, top bosses.
+ *
+ * This is the one slow read on the page. The backend sums ~26k members to
+ * build it — about 3s warm and 20s from a cold start — so it is (a) memoised
+ * per render with `cache`, (b) capped, and (c) only ever awaited inside a
+ * <Suspense> boundary, so the rest of the page streams without it. Next serves
+ * it stale-while-revalidate (30s) after the first request, which is why a
+ * visitor practically never waits on it.
+ */
+const getGlobalGroup = cache(() => within(api.group(GLOBAL_GROUP_ID), 8_000));
+
+/* -------------------------------------------------------------------------- */
+/* Suspended sections (the ones fed by the slow global-group read)            */
+/* -------------------------------------------------------------------------- */
+
+async function HeroOdometer({ month }: { month: string }) {
+  const group = await getGlobalGroup();
+  return (
+    <Odometer
+      seed={group?.monthly_loot?.value ?? null}
+      month={month}
+      accounts={group?.member_count ?? null}
+    />
+  );
+}
+
+async function BossHeat() {
+  const group = await getGlobalGroup();
+  const bosses = group?.top_bosses ?? [];
+  if (bosses.length === 0) {
+    return <p className="hp-empty">Boss totals are being tallied — check back in a minute.</p>;
+  }
+  const max = bosses[0]!.loot.value || 1;
+
+  return (
+    <ol className="hp-heat">
+      {bosses.map((boss, i) => (
+        <li key={boss.npc_id} className="hp-heat-row">
+          <img src={npcIcon(boss.npc_id)} alt="" width={56} height={56} loading="lazy" />
+          <div className="hp-heat-body">
+            <div className="hp-heat-line">
+              <Link href={entityPath("npcs", boss.npc_id, boss.name)} className="hp-link">
+                <b>{boss.name}</b>
+              </Link>
+              <span className="hp-heat-value">{boss.loot.value_formatted}</span>
+            </div>
+            <div className="hp-heat-track" aria-hidden>
+              <i
+                style={{
+                  width: `${Math.max(4, (boss.loot.value / max) * 100)}%`,
+                  animationDelay: `${i * 90}ms`,
+                }}
+              />
+            </div>
+            <span className="hp-heat-sub">{formatCount(boss.drops)} drops recorded</span>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function HeatSkeleton() {
+  return (
+    <ol className="hp-heat" aria-hidden>
+      {Array.from({ length: 5 }, (_, i) => (
+        <li key={i} className="hp-heat-row" data-pending="true">
+          <span className="hp-heat-ghost" />
+          <div className="hp-heat-body">
+            <div className="hp-heat-track">
+              <i style={{ width: `${88 - i * 14}%` }} />
+            </div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Static copy                                                                */
+/* -------------------------------------------------------------------------- */
+
+const TRACKED = [
+  { name: "Drops", note: "valued against live Grand Exchange prices" },
+  { name: "Personal bests", note: "ranked per boss and team size" },
+  { name: "Collection log", note: "every new slot, as it fills" },
+  { name: "Combat achievements", note: "task by task, tier by tier" },
+  { name: "Pets", note: "the moment one follows you out" },
+  { name: "Levels & quests", note: "milestones, announced if you want them" },
+  { name: "Diaries", note: "each tier as it completes" },
+  { name: "Deaths", note: "optional, with your clan's own messages" },
+];
+
+const DISCORD_POINTS = [
   {
-    title: "The plugin sees it first",
-    body: "DropTracker runs inside RuneLite. When a drop lands, a boss dies, a log slot fills or an achievement completes, it captures the event and the screenshot.",
-    tags: ["Drops", "Personal bests", "Collection log", "Combat achievements", "Pets", "Levels"],
+    title: "A channel per submission type",
+    body: "Send drops, personal bests, collection log slots, pets and the rest wherever you like — or all to one channel.",
   },
   {
-    title: "We value it and check it",
-    body: "Every item is priced against live Grand Exchange data with our own override table for untradeables. Anything over 1M is checked against the wiki to confirm it can actually drop from that source.",
-    tags: ["Live GE pricing", "Value overrides", "Source verification", "Deduplication"],
+    title: "Your threshold, your rules",
+    body: "Announce everything or only what is worth shouting about, and optionally require a screenshot first.",
   },
   {
-    title: "Everything else happens by itself",
-    body: "Leaderboards update, your clan's lootboard regenerates, Discord gets the announcement, event boards tick over, and your profile reflects it — within seconds.",
-    tags: ["Leaderboards", "Lootboards", "Discord", "Events", "Profiles"],
+    title: "Boards that edit themselves",
+    body: "Lootboards and live event standings are posted once and updated in place, so the channel stays readable.",
   },
 ];
 
-/** Clans on the dial's inner ring. */
-const DIAL_GROUPS = 6;
+const STEPS: { title: string; body: string; href: Route; link: string }[] = [
+  {
+    title: "Install the plugin",
+    body: "Find DropTracker on the RuneLite Plugin Hub. Drops start recording straight away — no account needed.",
+    href: "/docs/runelite-plugin" as Route,
+    link: "Plugin guide",
+  },
+  {
+    title: "Link your account",
+    body: "Sign in with Discord and claim your RuneScape names to unlock your profile, badges and notifications.",
+    href: "/docs/link-account" as Route,
+    link: "Linking guide",
+  },
+  {
+    title: "Bring your clan",
+    body: "Create a group for a shared lootboard, clan leaderboards, Discord announcements and events.",
+    href: "/docs/create-group" as Route,
+    link: "Group setup",
+  },
+];
 
-/**
- * Resolve the top clans for the dial.
- *
- * The leaderboard gives rank/name/loot but no icon or member count, so each one
- * is topped up from its profile. Six extra cached reads at render is a fair
- * price for a ring that shows real clan identity; any that fail are simply
- * dropped rather than rendering a hole.
- */
-async function dialGroups(entries: { id: number; name: string; rank: number }[]): Promise<DialGroup[]> {
-  const resolved = await Promise.all(
-    entries.slice(0, DIAL_GROUPS).map(async (entry) => {
-      const profile = await api.group(entry.id).catch(() => null);
-      if (!profile) return null;
-      return {
-        id: entry.id,
-        name: profile.name || entry.name,
-        rank: profile.global_rank ?? entry.rank,
-        memberCount: profile.member_count,
-        monthlyLoot: profile.monthly_loot?.value ?? 0,
-        iconUrl: profile.icon_url ?? null,
-      } satisfies DialGroup;
-    }),
-  );
-  return resolved.filter((g): g is DialGroup => g !== null);
-}
-
-/**
- * Pick a public bingo event whose board is worth showing: prefer the global
- * DropTracker group's, then any other active public one with cells.
- */
-async function liveBingoEvent(): Promise<EventDetail | null> {
-  const events = await api.events({ status: "active" }).catch(() => []);
-  const candidates = events
-    .filter((e) => e.kind === "bingo" && e.visibility === "public" && e.has_bingo)
-    .sort((a, b) => Number(b.group_id === GLOBAL_GROUP_ID) - Number(a.group_id === GLOBAL_GROUP_ID));
-
-  for (const candidate of candidates.slice(0, 3)) {
-    const detail = await api.event(candidate.id).catch(() => null);
-    if (detail?.bingo && detail.bingo.cells.length > 0) return detail;
-  }
-  return null;
-}
+/* -------------------------------------------------------------------------- */
+/* Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export default async function TestHeroPage() {
-  const period = resolvePeriod(DEFAULT_PERIOD);
+  const nowDate = new Date();
+  const renderedAt = Math.floor(nowDate.getTime() / 1000);
+  const month = monthName(nowDate);
 
-  // Everything here is decorative to some degree — a slow or unhappy backend
-  // must degrade the page, never break it.
-  const [globalGroup, players, groups, feed, supporters, bingoEvent] = await Promise.all([
-    api.group(GLOBAL_GROUP_ID).catch(() => null),
-    api
-      .playerLeaderboard({ scope: "global", limit: 8, period })
-      .catch(() => ({ entries: [], meta: { page: 1, limit: 0, total: 0 } })),
-    api
-      .groupLeaderboard({ limit: 8, period })
-      .catch(() => ({ entries: [], meta: { page: 1, limit: 0, total: 0 } })),
-    api.recentFeed().catch(() => []),
+  // Every read below decorates the page to some degree — a slow or unhappy
+  // backend must thin the page out, never break it.
+  const board = (period: string, kind: "players" | "clans") =>
+    (kind === "players"
+      ? api.playerLeaderboard({ scope: "global", limit: BOARD_ROWS, period })
+      : api.groupLeaderboard({ limit: BOARD_ROWS, period })
+    ).catch(() => null);
+
+  const day = resolvePeriod("day");
+  const week = resolvePeriod("week");
+  const thisMonth = resolvePeriod("month");
+
+  const feedPromise = api.recentFeed().catch(() => []);
+
+  // The Discord preview's first announcement, stats included, so it paints
+  // complete instead of fetching on mount.
+  const announcedPromise = feedPromise.then(async (feed) => {
+    const latest = notableDrops(feed, 1)[0] ?? null;
+    if (!latest || latest.playerId === null) return { latest, card: null };
+    const card = await within(api.player(latest.playerId).then(toPlayerCard), 2_500);
+    return { latest, card };
+  });
+
+  const [
+    dayPlayers,
+    dayClans,
+    weekPlayers,
+    weekClans,
+    monthPlayers,
+    monthClans,
+    feed,
+    announced,
+    status,
+    supporters,
+    events,
+  ] = await Promise.all([
+    board(day, "players"),
+    board(day, "clans"),
+    board(week, "players"),
+    board(week, "clans"),
+    board(thisMonth, "players"),
+    board(thisMonth, "clans"),
+    feedPromise,
+    announcedPromise,
+    api.statusSummary({ revalidate: 30 }).catch(() => null),
     api.supporters().catch(() => ({ groups: [], players: [] })),
-    liveBingoEvent(),
+    api.events({ status: "active" }).catch(() => []),
   ]);
 
-  // Seed rows for the live panel; the client takes over from here via SSE.
-  const seedRows: FeedRow[] = feed
-    .map((event, i) => toRow(event.type, event.data, `seed-${i}`, false))
-    .filter((row): row is FeedRow => row !== null)
-    .slice(0, 14);
+  const boards: BoardSet = {
+    day: { players: toBoard(dayPlayers), clans: toBoard(dayClans) },
+    week: { players: toBoard(weekPlayers), clans: toBoard(weekClans) },
+    month: { players: toBoard(monthPlayers), clans: toBoard(monthClans) },
+  };
 
-  // Seed for the hero's "latest notable drop" line: the NEWEST drop over the
-  // notable bar, not the biggest. Picking the biggest meant one 1.4B Twisted
-  // bow could sit there for hours; the client then keeps this current over SSE.
-  const latestDrop: NotableDrop | null =
-    feed
-      .map((e) => toNotableDrop(e.type, e.data, Number(e.data.ts ?? 0)))
-      .filter((d): d is NotableDrop => d !== null)
-      .sort((a, b) => b.ts - a.ts)[0] ?? null;
+  const feedItems: FeedItem[] = feed
+    .map((e) => toFeedItem(e.type, e.data, 0))
+    .filter((item): item is FeedItem => item !== null && item.ts > 0)
+    .sort((a, b) => b.ts - a.ts);
 
-  const topGroups = await dialGroups(groups.entries);
+  const reel = notableDrops(feed, 10);
+  const pulse = toPlatformPulse(status);
+  const running = liveEvents(events, renderedAt, 3);
+
+  const lootboards: LootboardChoice[] = [
+    {
+      groupId: GLOBAL_GROUP_ID,
+      label: "Every tracked account",
+      detail: `the whole platform's ${month} on one board`,
+    },
+    ...boards.month.clans.rows.slice(0, 3).map((clan) => ({
+      groupId: clan.id,
+      label: clan.name,
+      detail: `#${clan.rank} clan this month`,
+    })),
+  ];
 
   return (
     <>
-      <Hero
-        monthlyLoot={globalGroup?.monthly_loot?.value ?? 0}
-        playersTracked={globalGroup?.member_count ?? 0}
-        rankedPlayers={players.meta.total}
-        rankedClans={groups.meta.total}
-        latestDrop={latestDrop}
-        topGroups={topGroups}
-      />
+      <ServerResync everySeconds={RESYNC_SECONDS} />
 
-      {/* --- 1. How it works --------------------------------------------- */}
-      <section className="th-section" id="capture">
-        <Reveal className="th-split-head">
-          <div className="th-section-head" style={{ marginBottom: 0 }}>
-            <span className="th-eyebrow">How it works</span>
-            <h2 className="th-display">You play. We do the paperwork.</h2>
-            <p className="th-lede">
-              There is no form to fill in and no screenshot to paste. Install the plugin once and
-              everything meaningful that happens in your account is captured, valued, ranked and
-              announced.
-            </p>
+      {/* --- Hero: the rain, the counter it falls into, then the pitch ------- */}
+      <section className="hp-hero hp-bleed" aria-labelledby="hp-title">
+        <div className="hp-stage">
+          <HeroRain reel={reel} />
+          <div className="hp-shell hp-stage-meta">
+            <LivePill />
+            {/* A chart needs a key: what a streak is, and what its colour means
+                (the same value tiers the feed and lootboards use). */}
+            <span className="hp-legend">
+              each streak is one real drop, as it lands
+              <span aria-hidden>
+                <i data-tier="1m" />
+                1M+
+                <i data-tier="10m" />
+                10M+
+                <i data-tier="100m" />
+                100M+
+              </span>
+            </span>
+            {pulse && (
+              <span className="hp-stage-stat">
+                <b>{formatCount(pulse.players1h)}</b> players submitting this hour
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="hp-ledger">
+          <div className="hp-shell">
+            <Suspense fallback={<OdometerSkeleton />}>
+              <HeroOdometer month={month} />
+            </Suspense>
+          </div>
+        </div>
+
+        <div className="hp-shell hp-pitch">
+          <p className="hp-kicker">DropTracker · Old School RuneScape</p>
+          <h1 id="hp-title">Gielinor&rsquo;s loot, counted live.</h1>
+          <p className="hp-lede">
+            DropTracker is a RuneLite plugin and Discord bot. It records your drops, personal
+            bests, collection log and achievements the moment they happen — and turns them into
+            leaderboards, clan lootboards, Discord announcements and events.
+          </p>
+
+          {/* The site's own homepage search — same component, same behaviour. */}
+          <div className="hp-search">
+            <HeroSearch />
           </div>
 
-          {/* The actual in-client side panel, not a mock-up. */}
-          <figure className="th-frame th-panel-shot">
-            <div className="th-frame-bar">
-              <i />
-              <i />
-              <i />
-              RuneLite
-              <span>DropTracker side panel</span>
-            </div>
-            <img
-              src={ARTWORK.plugin}
-              alt="The DropTracker panel inside RuneLite, showing clan, minimum value, personal total and clan total"
-              loading="lazy"
-            />
-          </figure>
-        </Reveal>
-
-        <div className="th-pipeline">
-          {PIPELINE.map((step, i) => (
-            <Reveal key={step.title} delay={i * 110} className="th-step">
-              <span className="th-step-n" aria-hidden />
-              <h3>{step.title}</h3>
-              <p>{step.body}</p>
-              <ul>
-                {step.tags.map((tag) => (
-                  <li key={tag}>{tag}</li>
-                ))}
-              </ul>
-            </Reveal>
-          ))}
+          <div className="hp-cta">
+            <Link className="hp-btn hp-btn-primary" href="/docs/getting-started">
+              Get started
+            </Link>
+            <Link className="hp-btn" href="/leaderboards">
+              View leaderboards
+            </Link>
+            <Link className="hp-btn hp-btn-quiet" href="/docs">
+              Browse the docs →
+            </Link>
+          </div>
         </div>
       </section>
 
-      {/* --- 2. Notable drops --------------------------------------------- */}
-      <section className="th-section" id="proof">
-        <Reveal className="th-section-head">
-          <span className="th-eyebrow">Notable drops</span>
-          <h2 className="th-display">Proof, attached automatically.</h2>
-          <p className="th-lede">
-            Every screenshot below is the exact image a real submission carried into Discord — chat
-            box, kill timer, party damage and all. Click any of them.
+      {/* --- Right now -------------------------------------------------------- */}
+      <section className="hp-section" aria-labelledby="hp-now">
+        <header className="hp-section-head">
+          <p className="hp-kicker">Right now</p>
+          <h2 id="hp-now">None of this is a screenshot.</h2>
+          <p>
+            The feed, the boards and the counter move on the same submissions that set off your
+            clan&rsquo;s Discord announcements, the moment they are processed. Leave the tab open
+            for a while — sooner or later someone gets overtaken.
           </p>
-        </Reveal>
+        </header>
 
-        <Gallery />
+        <div className="hp-grid hp-grid-now">
+          <LiveFeed seed={feedItems} renderedAt={renderedAt} />
+          <Leaderboard boards={boards} />
+        </div>
       </section>
 
-      {/* --- 3. Boards + leaderboards ------------------------------------- */}
-      <section className="th-section" id="boards">
-        <Reveal className="th-section-head">
-          <span className="th-eyebrow">Your clan&apos;s front page</span>
-          <h2 className="th-display">One board. Everyone&apos;s month.</h2>
-          <p className="th-lede">
-            Lootboards are rendered in the game&apos;s own interface font from your clan&apos;s real
-            submissions and refreshed automatically. Global and per-clan leaderboards run off the
-            same data, in real time.
-          </p>
-        </Reveal>
-
-        <BoardShowcase players={players.entries} totalPlayers={players.meta.total} />
+      {/* --- By the numbers ---------------------------------------------------- */}
+      <section className="hp-band" aria-label="DropTracker by the numbers">
+        {/* dt before dd, as a <dl> requires — the stylesheet puts the figure on top. */}
+        <dl className="hp-figures">
+          {pulse && (
+            <div>
+              <dt>
+                submissions processed <span>in the last 24 hours</span>
+              </dt>
+              <dd>{formatCount(pulse.processed24h)}</dd>
+            </div>
+          )}
+          {pulse && (
+            <div>
+              <dt>
+                of them <span>in the last 5 minutes</span>
+              </dt>
+              <dd>{formatCount(pulse.processed5m)}</dd>
+            </div>
+          )}
+          <div>
+            <dt>
+              players on the board <span>in {month}</span>
+            </dt>
+            <dd>{formatCount(boards.month.players.ranked)}</dd>
+          </div>
+          <div>
+            <dt>
+              clans competing <span>in {month}</span>
+            </dt>
+            <dd>{formatCount(boards.month.clans.ranked)}</dd>
+          </div>
+        </dl>
       </section>
 
-      {/* --- 4. Discord ---------------------------------------------------- */}
-      <section className="th-section" id="discord">
-        <Reveal className="th-section-head">
-          <span className="th-eyebrow">Discord integration</span>
-          <h2 className="th-display">Where your clan already lives.</h2>
-          <p className="th-lede">
-            Invite the bot, pick your channels, set a value threshold. Every qualifying submission
-            is announced with the item, its source and value, the player&apos;s monthly total and
-            their rank — with the proof attached.
+      {/* --- The month so far --------------------------------------------------- */}
+      <section className="hp-section" aria-labelledby="hp-month">
+        <header className="hp-section-head">
+          <p className="hp-kicker">{month} so far</p>
+          <h2 id="hp-month">Where the loot is coming from.</h2>
+          <p>
+            Totals run month to month, for every account and every clan. These are the bosses
+            paying out the most since the 1st, and the boards being redrawn from it all.
           </p>
-        </Reveal>
+        </header>
 
-        <DiscordDemo />
+        <div className="hp-grid hp-grid-month">
+          <div className="hp-stack">
+            <section className="hp-panel" aria-labelledby="hp-heat-title">
+              <header className="hp-panel-head">
+                <h3 id="hp-heat-title">Richest bosses this month</h3>
+                <span className="hp-stream">all tracked accounts</span>
+              </header>
+              <Suspense fallback={<HeatSkeleton />}>
+                <BossHeat />
+              </Suspense>
+            </section>
+
+            <SessionPulse />
+          </div>
+
+          <section className="hp-panel" aria-labelledby="hp-board-title">
+            <header className="hp-panel-head">
+              <h3 id="hp-board-title">Lootboards</h3>
+              <span className="hp-stream">redrawn every few minutes</span>
+            </header>
+            <LiveLootboard choices={lootboards} renderedAt={renderedAt} />
+            <p className="hp-panel-note">
+              A lootboard is your clan&rsquo;s month on one image — top looters, the items that
+              made the total, and the latest submissions — rendered in the game&rsquo;s own
+              interface font and kept up to date in a Discord channel of your choosing.
+            </p>
+          </section>
+        </div>
       </section>
 
-      {/* --- 5. Events ----------------------------------------------------- */}
-      {bingoEvent?.bingo && (
-        <section className="th-section" id="events">
-          <Reveal className="th-section-head">
-            <span className="th-eyebrow">Events</span>
-            <h2 className="th-display">Boards that fill themselves in.</h2>
-          </Reveal>
+      {/* --- What you get -------------------------------------------------------- */}
+      <section className="hp-section" aria-labelledby="hp-product">
+        <header className="hp-section-head">
+          <p className="hp-kicker">What you get</p>
+          <h2 id="hp-product">Install one plugin. The rest happens by itself.</h2>
+          <p>
+            There is no form to fill in and no screenshot to paste. The plugin sees the drop, we
+            price it and check it, and everything downstream updates within seconds.
+          </p>
+        </header>
 
-          <Reveal>
-            <EventsShowcase
-              board={bingoEvent.bingo}
-              tasks={bingoEvent.tasks}
-              eventId={bingoEvent.id}
-              eventName={bingoEvent.name}
-            />
-          </Reveal>
+        <div className="hp-grid hp-grid-product">
+          <div className="hp-stack">
+            <DiscordPreview seed={announced.latest} seedCard={announced.card} month={month} />
+
+            <ul className="hp-points">
+              {DISCORD_POINTS.map((point) => (
+                <li key={point.title}>
+                  <b>{point.title}</b>
+                  <span>{point.body}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="hp-stack">
+            <section className="hp-panel" aria-labelledby="hp-tracked-title">
+              <header className="hp-panel-head">
+                <h3 id="hp-tracked-title">Everything your account does</h3>
+              </header>
+              <ul className="hp-tracked">
+                {TRACKED.map((t) => (
+                  <li key={t.name}>
+                    <b>{t.name}</b>
+                    <span>{t.note}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="hp-panel-note">
+                Each type can go to its own Discord channel, with your own value threshold, and
+                anything over 1M is checked against the wiki to confirm it can really drop from
+                that source.
+              </p>
+            </section>
+
+            <section className="hp-panel" aria-labelledby="hp-events-title">
+              <header className="hp-panel-head">
+                <h3 id="hp-events-title">Events that score themselves</h3>
+                <span className="hp-stream" data-state={running.length > 0 ? "open" : undefined}>
+                  {running.length > 0 && <i aria-hidden />}
+                  {running.length > 0 ? `${running.length} public, running now` : "none public right now"}
+                </span>
+              </header>
+
+              {running.length > 0 ? (
+                <ul className="hp-events">
+                  {running.map((event) => {
+                    const left = event.ends_at ? formatCountdown(event.ends_at, renderedAt) : null;
+                    return (
+                      <li key={event.id}>
+                        <Link href={`/events/${event.id}` as Route} className="hp-link">
+                          <b>{event.name}</b>
+                        </Link>
+                        <span>
+                          {EVENT_KIND_LABEL[event.kind]}
+                          {left && ` · ${left} left`}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+
+              <p className="hp-panel-note">
+                Bingo, board-game races, loot sweeps and Skill or Boss of the Week — with teams,
+                sign-ups and prize pots built in. Tiles tick themselves off from the same
+                submissions as everything else, so nobody keeps a spreadsheet.{" "}
+                <Link href="/events" className="hp-link">
+                  Browse events →
+                </Link>
+              </p>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      {/* --- Get started ------------------------------------------------------------ */}
+      <section className="hp-section" aria-labelledby="hp-start">
+        <header className="hp-section-head">
+          <p className="hp-kicker">Get started</p>
+          <h2 id="hp-start">From install to your first tracked drop in minutes.</h2>
+        </header>
+
+        <ol className="hp-steps">
+          {STEPS.map((step, i) => (
+            <li key={step.title}>
+              <span className="hp-step-n" aria-hidden>
+                {i + 1}
+              </span>
+              <h3>{step.title}</h3>
+              <p>{step.body}</p>
+              <Link href={step.href} className="hp-more">
+                {step.link} →
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      {/* --- Supporters --------------------------------------------------------------- */}
+      {(supporters.groups.length > 0 || supporters.players.length > 0) && (
+        <section className="hp-section" aria-labelledby="hp-supporters">
+          <header className="hp-section-head">
+            <p className="hp-kicker">Thank you</p>
+            <h2 id="hp-supporters">Kept running by the people who use it.</h2>
+            <p>
+              DropTracker is paid for by the clans and players below. A{" "}
+              <Link href="/premium" className="hp-link">
+                subscription
+              </Link>{" "}
+              keeps the servers on — and unlocks premium features for everyone in your clan.
+            </p>
+          </header>
+
+          {supporters.groups.length > 0 && (
+            <ul className="hp-supporters">
+              {supporters.groups.map((g) => (
+                <li key={g.id}>
+                  <EntityChip
+                    href={entityPath("groups", g.id, g.name)}
+                    name={g.name}
+                    subtitle={`${g.tier_name} · ${formatCount(g.member_count)} ${
+                      g.member_count === 1 ? "member" : "members"
+                    }`}
+                    flair={g.flair?.style}
+                    flairTitle={g.flair?.tier_name ?? g.tier_name}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {supporters.players.length > 0 && (
+            <ul className="hp-supporters" data-compact="true">
+              {supporters.players.map((p) => (
+                <li key={p.user_id}>
+                  <EntityChip
+                    href={entityPath("players", p.player_id, p.name)}
+                    name={p.name}
+                    size="sm"
+                    playerId={p.player_id}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
-      {/* --- 6. Supporters -------------------------------------------------- */}
-      <section className="th-section" id="supporters">
-        <Reveal className="th-section-head">
-          <span className="th-eyebrow">Thank you</span>
-          <h2 className="th-display">Kept running by these clans.</h2>
-          <p className="th-lede">
-            DropTracker is funded by the clans and players who subscribe. If your clan gets value
-            out of it,{" "}
-            <Link href="/premium" className="th-inline-link">
-              a subscription
-            </Link>{" "}
-            keeps the lights on — and unlocks premium features for everyone in it.
+      {/* --- Close: status + call to action ---------------------------------------------- */}
+      <section className="hp-close" aria-labelledby="hp-close-title">
+        <div>
+          <h2 id="hp-close-title">Your next drop could be on this page.</h2>
+          <p>
+            Install the plugin and it is tracked from the first kill. Sign in with Discord to claim
+            it, then bring the clan along.
           </p>
-        </Reveal>
-
-        <SupportersWall supporters={supporters} />
-      </section>
-
-      {/* --- 7. Live ------------------------------------------------------- */}
-      <section className="th-section" id="live">
-        <Reveal className="th-section-head">
-          <span className="th-eyebrow">Right now</span>
-          <h2 className="th-display">This is happening while you read.</h2>
-        </Reveal>
-
-        <div className="th-live">
-          <Reveal>
-            <LiveFeed seed={seedRows} />
-          </Reveal>
-
-          <Reveal delay={120}>
-            <div className="th-lb">
-              <div className="th-lb-head">
-                <span>Top clans</span>
-                <span>{groups.meta.total.toLocaleString()} ranked</span>
-              </div>
-              {groups.entries.map((entry, i) => {
-                const max = groups.entries[0]?.loot.value ?? 1;
-                return (
-                  <div key={entry.id} className="th-lb-row" data-top={i === 0}>
-                    <span
-                      className="th-lb-bar"
-                      style={{
-                        ["--th-w" as string]: `${Math.max(6, (entry.loot.value / max) * 100)}%`,
-                        ["--th-delay" as string]: `${i * 70}ms`,
-                      }}
-                    />
-                    <span className="th-lb-rank">{entry.rank}</span>
-                    <span className="th-lb-name">
-                      <Link href={`/groups/${entry.id}`}>{entry.name}</Link>
-                    </span>
-                    <span className="th-lb-val">{entry.loot.value_formatted}</span>
-                  </div>
-                );
-              })}
-              <Link className="th-lb-more" href="/leaderboards?tab=groups">
-                All clans →
-              </Link>
-            </div>
-          </Reveal>
+          <div className="hp-cta">
+            <Link className="hp-btn hp-btn-primary" href="/docs/getting-started">
+              Get started
+            </Link>
+            <a className="hp-btn" href="/discord">
+              Join the Discord
+            </a>
+          </div>
         </div>
 
-        <Reveal delay={80}>
-          <div style={{ marginTop: "clamp(1.5rem, 3vw, 2.5rem)" }}>
-            <StatGrid
-              monthlyLoot={globalGroup?.monthly_loot?.value ?? 0}
-              playersTracked={globalGroup?.member_count ?? 0}
-              rankedClans={groups.meta.total}
-            />
-          </div>
-        </Reveal>
-      </section>
-
-      {/* --- 8. Close ------------------------------------------------------ */}
-      <section className="th-section">
-        <Reveal>
-          <div className="th-cta">
-            <div className="th-cta-bg" aria-hidden>
-              {[...DROP_SHOTS, ...DROP_SHOTS].map((drop, i) => (
-                <img
-                  key={`${drop.dropId}-${i}`}
-                  src={`https://www.droptracker.io/img/itemdb/${drop.itemId}.png`}
-                  alt=""
-                  loading="lazy"
-                />
-              ))}
-            </div>
-            <div>
-              <h2>Start tracking in about two minutes.</h2>
-              <p className="th-lede">
-                Install the plugin and your drops start recording immediately. Sign in with Discord
-                to claim your accounts, then bring the clan for lootboards, leaderboards,
-                announcements and events.
-              </p>
-              <div className="th-cta-row">
-                <Link className="th-btn th-btn-primary" href="/docs/getting-started">
-                  Get started
-                </Link>
-                <Link className="th-btn th-btn-ghost" href="/leaderboards">
-                  View leaderboards
-                </Link>
-                <a className="th-btn th-btn-ghost" href="/discord">
-                  Join the Discord
-                </a>
-              </div>
-            </div>
-          </div>
-        </Reveal>
+        {pulse && (
+          <p className="hp-status" data-state={pulse.state}>
+            <i aria-hidden />
+            <b>
+              {pulse.state === "operational"
+                ? "All systems operational"
+                : pulse.state === "degraded"
+                  ? "Running degraded"
+                  : "Intake is offline"}
+            </b>
+            <span>
+              {formatCount(pulse.processed30m)} submissions in the last 30 minutes
+              {pulse.openIssues > 0 &&
+                ` · ${pulse.openIssues} known ${pulse.openIssues === 1 ? "issue" : "issues"}`}
+            </span>
+          </p>
+        )}
       </section>
     </>
   );
