@@ -16,7 +16,12 @@ import {
   type EventTeam,
   type EventTeamBulkAddResult,
 } from "@droptracker/api-types";
-import { competitionBlockToInput, isCompetitionKind } from "@/lib/competition";
+import {
+  competitionBlockToInput,
+  isCompetitionKind,
+  isTeamRace,
+  teamScoreText,
+} from "@/lib/competition";
 import { CompetitionSetup } from "@/components/competition-setup";
 import {
   FORMATION_MODE_LABELS,
@@ -545,6 +550,10 @@ export function EventManager({
   };
 
   const isClanVsClan = event.mode === "clan_vs_clan";
+  // SOTW/BOTW: an individual race's roster team is scaffolding — the Teams tab
+  // shows it as "Participants" (no team create/delete). A team race manages
+  // its teams like any team event.
+  const individualRace = isCompetitionKind(event.kind) && !isTeamRace(event.competition);
   /** web68a: an ended event is a frozen record — task/team structure locks
    * (the backend 409s `event_past`; this mirrors it client-side). */
   const structuralFrozen = event.status === "past";
@@ -1369,7 +1378,7 @@ export function EventManager({
               // event (no group) has no clan to pay.
               !(t.key === "points" && groupId == null) &&
               (isCompetitionKind(event.kind)
-                ? !["tasks", "teams", "board"].includes(t.key)
+                ? !["tasks", "board"].includes(t.key)
                 : t.key !== "competition"),
           ).map((t) => (
             <button
@@ -1384,7 +1393,11 @@ export function EventManager({
                   : "text-osrs-parchment-dark/60 hover:text-osrs-gold-bright"
               }`}
             >
-              {t.key === "board" && event.kind === "board_game" ? "Game board" : t.label}
+              {t.key === "board" && event.kind === "board_game"
+                ? "Game board"
+                : t.key === "teams" && individualRace
+                  ? "Participants"
+                  : t.label}
               {/* Unsaved-work marker, so a switched-away Discord draft is
                   visible from any tab. */}
               {t.key === "discord" && discordDirty && (
@@ -1767,9 +1780,20 @@ export function EventManager({
         </div>
       )}
 
-      {/* Teams */}
+      {/* Teams (an individual race's single roster shows as "Participants") */}
       <section className={tab === "teams" ? "" : "hidden"}>
-        <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Teams</h3>
+        <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
+          {individualRace ? "Participants" : "Teams"}
+        </h3>
+        {individualRace && (
+          <p className="text-osrs-parchment/70 mb-3 max-w-2xl text-sm">
+            {event.competition?.participation === "signup"
+              ? "Players who sign up land here. Add or remove anyone by hand, and post the sign-up button to Discord below."
+              : "Every clan member is entered automatically when the race starts, and the roster follows the clan. Add someone by hand here — for example a player who belongs to more than one participating clan."}{" "}
+            To race in teams instead, switch the format on the Competition tab
+            while the event is a draft.
+          </p>
+        )}
         {isClanVsClan && event.status === "draft" && (
           <p className="text-osrs-parchment/70 mb-3 text-sm">
             Teams are optional. Leave them empty and, when the event starts, it
@@ -1778,6 +1802,7 @@ export function EventManager({
             every clan needs at least one).
           </p>
         )}
+        {!individualRace && (
         <form onSubmit={onAddTeam} className="mb-4 flex flex-wrap gap-2">
           {isClanVsClan && (
             <select
@@ -1811,6 +1836,7 @@ export function EventManager({
             Add team
           </button>
         </form>
+        )}
 
         {/* Admin scale/testing tool: bulk-fill teams with random ACTIVE
             members, balanced across teams. Never moves or removes anyone. */}
@@ -1879,6 +1905,10 @@ export function EventManager({
                 onColor={onColorTeam}
                 onTag={onTagTeam}
                 onDelete={onDeleteTeam}
+                {...(event.competition && isCompetitionKind(event.kind)
+                  ? { scoreText: teamScoreText(team.score, event.competition) }
+                  : {})}
+                allowDelete={!individualRace}
               />
               ));
             })()}
@@ -1994,11 +2024,17 @@ function TeamRoster({
   onColor,
   onTag,
   onDelete,
+  scoreText,
+  allowDelete = true,
 }: {
   groupId: number | null;
   eventId: number;
   participantGroupIds: number[];
   team: EventTeam;
+  /** The team's score, worded — a race's score is XP/KC, not "pts". */
+  scoreText?: string;
+  /** False for an individual race's roster team (it IS the race's roster). */
+  allowDelete?: boolean;
   /** Effective accent (assigned color, else palette fallback) for the dot. */
   accentColor: string;
   participants: EventParticipant[];
@@ -2108,7 +2144,7 @@ function TeamRoster({
           </span>
           <div className="flex items-center gap-1">
             <span className="text-osrs-parchment-dark/60 mr-1 text-xs">
-              {members.length} players · {team.score} pts
+              {members.length} players · {scoreText ?? `${team.score} pts`}
             </span>
             <button
               type="button"
@@ -2122,14 +2158,16 @@ function TeamRoster({
             >
               Rename
             </button>
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-              disabled={pending}
-              className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
-            >
-              Delete
-            </button>
+            {allowDelete && (
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={pending}
+                className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+              >
+                Delete
+              </button>
+            )}
           </div>
         </div>
       )}

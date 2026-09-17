@@ -2539,10 +2539,22 @@ export type CompetitionSourceMode = (typeof COMPETITION_SOURCE_MODES)[number];
 export const COMPETITION_RANKING_MODES = ["gained", "points"] as const;
 export type CompetitionRankingMode = (typeof COMPETITION_RANKING_MODES)[number];
 
-/** Who competes: every clan member automatically, or opt-in sign-ups. */
+/** Who competes on an INDIVIDUAL race: every clan member automatically, or
+ * opt-in sign-ups. (A team race forms its teams with the event's ordinary
+ * `formation_mode` instead.) */
 export const COMPETITION_PARTICIPATION_MODES = ["whole_clan", "signup"] as const;
 export type CompetitionParticipationMode =
   (typeof COMPETITION_PARTICIPATION_MODES)[number];
+
+/** Individual race (one roster, ranked per player) or a race between the
+ * event's teams (the per-player leaderboard stays alongside). */
+export const COMPETITION_FORMATS = ["individual", "teams"] as const;
+export type CompetitionFormat = (typeof COMPETITION_FORMATS)[number];
+
+/** How a team race ranks its teams: the members' summed scores, or that sum
+ * per team member (fairer when team sizes differ). */
+export const COMPETITION_TEAM_SCORING_MODES = ["total", "average"] as const;
+export type CompetitionTeamScoring = (typeof COMPETITION_TEAM_SCORING_MODES)[number];
 
 /** `pet` — a new pet. `time_under` — a kill at or under a threshold.
  * `task` — any criteria the event task builder can express, embedded and
@@ -2659,7 +2671,13 @@ export const EventCompetitionSchema = z.object({
   bonus_rules: z.array(CompetitionBonusRuleSchema).default([]),
   source_mode: z.enum(COMPETITION_SOURCE_MODES).default("hosted"),
   wom: CompetitionWomStateSchema.nullable().optional(),
+  /** Individual races only — a team race forms teams via `formation_mode`. */
   participation: z.enum(COMPETITION_PARTICIPATION_MODES).optional(),
+  /** Absent on payloads from before team races (= individual). `.catch`, not
+   * a bare enum: a value a newer backend invents must degrade to the default,
+   * not fail every viewer's event page. */
+  format: z.enum(COMPETITION_FORMATS).catch("individual"),
+  team_scoring: z.enum(COMPETITION_TEAM_SCORING_MODES).catch("total"),
   /** False while the wizard hasn't picked a metric yet (activation blocks). */
   configured: z.boolean().optional(),
 });
@@ -2695,8 +2713,41 @@ export const CompetitionStandingRowSchema = z.object({
       }),
     )
     .optional(),
+  /** Team race: the player's team (current roster, else the team they last
+   * scored for; a WOM-only row may carry only WOM's team name). */
+  team_id: z.number().int().nullable().optional(),
+  team_name: z.string().nullable().optional(),
 });
 export type CompetitionStandingRow = z.infer<typeof CompetitionStandingRowSchema>;
+
+/** One team's row on a team race's standings. `score` is the ranked number
+ * (the summed `total`, or the per-member `average`), worded in `score_text`. */
+export const CompetitionTeamStandingSchema = z.object({
+  team_id: z.number().int(),
+  name: z.string(),
+  color: z.string().nullable().optional(),
+  rank: z.number().int(),
+  /** Everyone on the roster, plus anyone who left with rows on the team. */
+  members: z.number().int(),
+  /** Members who gained or scored anything. */
+  active: z.number().int().default(0),
+  gained: z.number().int(),
+  bonus_points: z.number().int(),
+  points: z.number().int(),
+  total: z.number(),
+  average: z.number(),
+  score: z.number(),
+  score_text: z.string().optional(),
+  top_player: z
+    .object({
+      player_id: z.number().int(),
+      player_name: z.string(),
+      value: z.number(),
+    })
+    .nullable()
+    .optional(),
+});
+export type CompetitionTeamStanding = z.infer<typeof CompetitionTeamStandingSchema>;
 
 /** GET /events/{id}/competition — config + merged, ranked standings (frozen
  * final standings once the event ends). */
@@ -2711,6 +2762,8 @@ export const EventCompetitionBoardSchema = z.object({
     bonus_points: z.number().int(),
   }),
   standings: z.array(CompetitionStandingRowSchema).default([]),
+  /** Team races only: the ranked teams. */
+  teams: z.array(CompetitionTeamStandingSchema).optional(),
   finalized: z.boolean().default(false),
   updated_at: z.number().int(),
 });
@@ -2758,9 +2811,14 @@ export const WomCompetitionPreviewSchema = z.object({
   /** Whether the comp's WOM group matches this DT group's (soft warning). */
   group_matches: z.boolean().nullable(),
   participant_count: z.number().int().nullable(),
+  /** Team competitions: each WOM team and how many players it lists. */
+  teams: z
+    .array(z.object({ name: z.string(), participants: z.number().int() }))
+    .default([]),
   linkable: z.boolean(),
-  /** Machine reasons it can't back the event (team_competition, multi_metric,
-   * unsupported_metric, metric_kind_mismatch, finished, already_linked). */
+  /** Machine reasons it can't back the event (team_competition,
+   * classic_competition, multi_metric, unsupported_metric,
+   * metric_kind_mismatch, finished, already_linked). */
   problems: z.array(z.string()).default([]),
   linked_event_id: z.number().int().nullable(),
   /** Pre-fill hint for the wizard's metric picker. */
@@ -2838,6 +2896,8 @@ export const EventCompetitionInputSchema = z.object({
     .max(12)
     .optional(),
   participation: z.enum(COMPETITION_PARTICIPATION_MODES).optional(),
+  format: z.enum(COMPETITION_FORMATS).optional(),
+  team_scoring: z.enum(COMPETITION_TEAM_SCORING_MODES).optional(),
 });
 export type EventCompetitionInput = z.infer<typeof EventCompetitionInputSchema>;
 

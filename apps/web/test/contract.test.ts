@@ -184,6 +184,9 @@ test("mock payloads validate against shared schemas", () => {
   // SOTW/BOTW (web105a): the competition detail + board + drill-in mocks.
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(6)));
   assert.doesNotThrow(() => EventCompetitionBoardSchema.parse(mockEventCompetition(6)));
+  // Team race (event 7): teams on the board, team fields on the rows.
+  assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(7)));
+  assert.doesNotThrow(() => EventCompetitionBoardSchema.parse(mockEventCompetition(7)));
   assert.doesNotThrow(() =>
     CompetitionPlayerDetailSchema.parse(mockCompetitionPlayerDetail(6, 1337)),
   );

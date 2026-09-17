@@ -1370,11 +1370,13 @@ export async function previewWomCompetition(
   groupId: EventGroupId,
   query: string,
   kind?: "sotw" | "botw",
+  format?: "individual" | "teams",
 ) {
   await assertCanManageEvent(groupId);
   try {
     const preview = await api.womCompetitionPreview(query, {
       kind,
+      ...(format ? { format } : {}),
       ...(groupId != null ? { groupId } : {}),
     });
     return { ok: true as const, preview };

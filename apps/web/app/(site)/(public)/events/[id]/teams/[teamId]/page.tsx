@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { api, ApiError, apiErrorCode } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { AccessDenied } from "@/components/access-denied";
+import { CompetitionTeamView } from "@/components/competition-team-view";
 import { EventTeamView } from "@/components/event-team-view";
+import { isCompetitionKind } from "@/lib/competition";
 
 export const revalidate = 15;
 
@@ -60,6 +62,21 @@ export default async function EventTeamPage({ params }: { params: Params }) {
     }
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;
+  }
+  // SOTW/BOTW: a race team's page is the race — its standing, its players
+  // on the board, and who hasn't gained yet (no task list to show).
+  if (isCompetitionKind(detail.event.kind)) {
+    const board = await api.eventCompetition(eventId).catch(() => null);
+    if (board) {
+      return (
+        <CompetitionTeamView
+          detail={detail}
+          board={board}
+          live={detail.event.status === "active"}
+          viewerPlayerIds={user?.players.map((p) => p.id) ?? []}
+        />
+      );
+    }
   }
   return <EventTeamView detail={detail} live={detail.event.status === "active"} />;
 }

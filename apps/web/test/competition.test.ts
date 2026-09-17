@@ -9,13 +9,23 @@ import {
   formatGained,
   formatTimeMs,
   isCompetitionKind,
+  isTeamRace,
   metricSummary,
   parseTimeToMs,
   rateSentence,
   scoreText,
+  teamScoreText,
 } from "../lib/competition";
-import { EventCompetitionInputSchema } from "@droptracker/api-types";
-import { mockEventCompetitionBlock } from "../lib/mock-data";
+import {
+  EventCompetitionBoardSchema,
+  EventCompetitionInputSchema,
+  EventCompetitionSchema,
+} from "@droptracker/api-types";
+import {
+  MOCK_TEAM_RACE_ID,
+  mockEventCompetition,
+  mockEventCompetitionBlock,
+} from "../lib/mock-data";
 
 test("isCompetitionKind matches exactly the two kinds", () => {
   assert.equal(isCompetitionKind("sotw"), true);
@@ -258,4 +268,68 @@ test("competitionBlockToInput round-trips a task rule intact", () => {
   };
   const input = competitionBlockToInput(block);
   assert.equal(input.bonus_rules?.[0]?.task?.config, '{"kind":"all_of"}');
+});
+
+
+// ── team races ──────────────────────────────────────────────────────────────
+
+test("isTeamRace reads the block's format", () => {
+  assert.equal(isTeamRace(mockEventCompetitionBlock()), false);
+  assert.equal(isTeamRace(mockEventCompetitionBlock(MOCK_TEAM_RACE_ID)), true);
+  assert.equal(isTeamRace(null), false);
+  assert.equal(isTeamRace({ format: "teams" }), true);
+});
+
+test("a payload from before team races parses as an individual total race", () => {
+  const { format: _f, team_scoring: _t, ...legacy } = mockEventCompetitionBlock();
+  const parsed = EventCompetitionSchema.parse(legacy);
+  assert.equal(parsed.format, "individual");
+  assert.equal(parsed.team_scoring, "total");
+  // A value a newer backend invents degrades instead of failing the page.
+  const future = EventCompetitionSchema.parse({ ...legacy, format: "leagues" });
+  assert.equal(future.format, "individual");
+});
+
+test("teamScoreText mirrors the backend wording", () => {
+  const team = mockEventCompetitionBlock(MOCK_TEAM_RACE_ID); // sotw, gained, average
+  assert.equal(teamScoreText(12.5, { ...team, metric: { kind: "boss" } }), "12.5 KC per member");
+  assert.equal(teamScoreText(41_250.4, team), "41,250 XP per member");
+  assert.equal(teamScoreText(275_400, team), "275.4K XP per member");
+  assert.equal(
+    teamScoreText(27, { ...team, ranking: { mode: "points" } }),
+    "27 pts per member",
+  );
+  const summed = { ...team, team_scoring: "total" as const };
+  assert.equal(teamScoreText(2_481_034, summed), "2.48M XP");
+  // An individual race never averages.
+  assert.equal(teamScoreText(312, mockEventCompetitionBlock()), "312 KC");
+});
+
+test("metricSummary says the team wins on a team race", () => {
+  const team = mockEventCompetitionBlock(MOCK_TEAM_RACE_ID);
+  assert.equal(metricSummary(team), "Mining — the team with the most XP gained per member wins");
+  assert.equal(
+    metricSummary({ ...team, team_scoring: "total" }),
+    "Mining — the team with the most XP gained wins",
+  );
+});
+
+test("competitionBlockToInput keeps the race format and drops participation for teams", () => {
+  const team = competitionBlockToInput(mockEventCompetitionBlock(MOCK_TEAM_RACE_ID));
+  assert.equal(team.format, "teams");
+  assert.equal(team.team_scoring, "average");
+  assert.equal("participation" in team, false);
+  assert.doesNotThrow(() => EventCompetitionInputSchema.parse(team));
+  const individual = competitionBlockToInput(mockEventCompetitionBlock());
+  assert.equal(individual.format, "individual");
+  assert.equal(individual.participation, "signup");
+});
+
+test("the team race board carries ranked teams and team-attributed rows", () => {
+  const board = EventCompetitionBoardSchema.parse(mockEventCompetition(MOCK_TEAM_RACE_ID));
+  assert.deepEqual(
+    board.teams?.map((t) => t.rank),
+    [1, 2, 3],
+  );
+  assert.ok(board.standings.every((r) => r.team_name));
 });

@@ -3,22 +3,46 @@
  * scoring must never be a surprise. Server component (pure props). */
 
 import type { EventCompetitionBoard } from "@droptracker/api-types";
-import { bonusRuleIcon, bonusRuleSentence, metricSummary, rateSentence } from "@/lib/competition";
+import {
+  bonusRuleIcon,
+  bonusRuleSentence,
+  isTeamRace,
+  metricSummary,
+  rateSentence,
+} from "@/lib/competition";
 
-export function CompetitionBonusRulesCard({ board }: { board: EventCompetitionBoard }) {
+export function CompetitionBonusRulesCard({
+  board,
+  openLink,
+}: {
+  board: EventCompetitionBoard;
+  /** Discord Activity: opens WiseOldMan through the SDK (a `target="_blank"`
+   * link does nothing inside the iframe). Site: unset. */
+  openLink?: (url: string) => void;
+}) {
   const { competition, totals } = board;
   const metricKind = competition.metric.kind;
   const summary = metricSummary(competition);
   const pointsMode = competition.ranking.mode === "points";
+  const teams = isTeamRace(competition);
+  const unit = metricKind === "skill" ? "XP" : "KC";
 
   return (
     <div className="border-osrs-bronze/30 bg-osrs-brown-dark/30 space-y-2.5 rounded border p-3 text-sm">
       <h3 className="text-osrs-gold font-semibold">How the race is scored</h3>
       {summary && <p className="text-osrs-parchment">{summary}</p>}
+      {teams && (
+        <p className="text-osrs-parchment-dark/70 text-xs">
+          {competition.team_scoring === "average"
+            ? `A team scores its members' total divided by everyone who has been on the team.`
+            : `A team scores everything its members gain.`}{" "}
+          Players still rank individually below the teams.
+        </p>
+      )}
       <p className="text-osrs-parchment-dark/70 text-xs">
         {pointsMode
           ? `${rateSentence(competition.ranking.gained_per_point, metricKind)}; bonus points stack on top — one combined ranking.`
-          : `Ranked by raw ${metricKind === "skill" ? "XP" : "KC"} gained${
+          : `Ranked by raw ${unit} gained${
               competition.bonus_rules.length
                 ? " — bonus points show in their own column and never change the order."
                 : "."
@@ -62,14 +86,24 @@ export function CompetitionBonusRulesCard({ board }: { board: EventCompetitionBo
       {competition.wom && (
         <p className="text-osrs-parchment-dark/50 text-xs">
           {competition.source_mode === "created" ? "Also live on " : "Mirrors "}
-          <a
-            href={competition.wom.url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-osrs-gold-bright hover:underline"
-          >
-            WiseOldMan ↗
-          </a>
+          {openLink ? (
+            <button
+              type="button"
+              onClick={() => openLink(competition.wom!.url)}
+              className="text-osrs-gold-bright hover:underline"
+            >
+              WiseOldMan ↗
+            </button>
+          ) : (
+            <a
+              href={competition.wom.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-osrs-gold-bright hover:underline"
+            >
+              WiseOldMan ↗
+            </a>
+          )}
           {competition.wom.sync_error
             ? ` — sync problem: ${competition.wom.sync_error}`
             : competition.wom.synced_at

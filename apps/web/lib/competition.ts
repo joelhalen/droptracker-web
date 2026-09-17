@@ -5,7 +5,9 @@
 import type {
   CompetitionBonusRule,
   CompetitionEventKind,
+  CompetitionFormat,
   CompetitionRankingMode,
+  CompetitionTeamScoring,
   EventCompetition,
   EventCompetitionInput,
   EventKind,
@@ -16,6 +18,38 @@ import { OSRS_SKILLS } from "@/lib/events";
 export function isCompetitionKind(kind: EventKind | string | null | undefined): kind is CompetitionEventKind {
   return (COMPETITION_EVENT_KINDS as readonly string[]).includes(kind ?? "");
 }
+
+/** Whether a competition races the event's teams (vs. individuals). Takes a
+ * detail block, an input block, or a board's `competition`. */
+export function isTeamRace(
+  block: { format?: CompetitionFormat | null } | null | undefined,
+): boolean {
+  return block?.format === "teams";
+}
+
+export const COMPETITION_FORMAT_LABELS: Record<CompetitionFormat, string> = {
+  individual: "Every player for themselves",
+  teams: "Teams",
+};
+
+export const COMPETITION_FORMAT_HELP: Record<CompetitionFormat, string> = {
+  individual: "One leaderboard of players — the classic Skill/Boss of the Week.",
+  teams:
+    "Players race in teams. Each team scores what its members gain, and the player " +
+    "leaderboard stays alongside it.",
+};
+
+export const TEAM_SCORING_LABELS: Record<CompetitionTeamScoring, string> = {
+  total: "Total of every member",
+  average: "Average per member",
+};
+
+export const TEAM_SCORING_HELP: Record<CompetitionTeamScoring, string> = {
+  total: "A team scores everything its members gain. Best when teams are the same size.",
+  average:
+    "A team scores its total divided by its members — anyone who has been on the team " +
+    "counts, so a quiet member lowers the average. Fairer when team sizes differ.",
+};
 
 export const COMPETITION_KIND_LABELS: Record<CompetitionEventKind, string> = {
   sotw: "Skill of the Week",
@@ -63,6 +97,34 @@ export function scoreText(
 ): string {
   if (rankingMode === "points") return `${Math.max(Math.floor(value || 0), 0).toLocaleString("en-US")} pts`;
   return formatGained(value, metricKind);
+}
+
+/** An averaged amount: the gained-style abbreviation for big numbers, one
+ * decimal for small ones (backend `_format_fraction`). */
+function formatFraction(value: number): string {
+  const v = Math.max(Number(value) || 0, 0);
+  if (v >= 100_000) return formatGained(Math.round(v), "boss").replace(/ KC$/, "");
+  if (v >= 100 || Number.isInteger(v)) return Math.round(v).toLocaleString("en-US");
+  return trimZeros(v.toFixed(1));
+}
+
+/** A team's ranked number, worded — "2.48M XP" / "270 pts" for a summed
+ * team, "41.3K XP per member" when the race averages. Mirrors the backend's
+ * `team_score_text`; the standings API sends it pre-worded, this covers the
+ * live frames and mocks. */
+export function teamScoreText(
+  value: number,
+  competition: Pick<EventCompetition, "ranking" | "metric" | "team_scoring"> & {
+    format?: CompetitionFormat | null;
+  },
+): string {
+  const metricKind = competition.metric?.kind ?? null;
+  if (!(isTeamRace(competition) && competition.team_scoring === "average")) {
+    return scoreText(Math.round(Number(value) || 0), competition.ranking.mode, metricKind);
+  }
+  const unit =
+    competition.ranking.mode === "points" ? "pts" : metricKind === "skill" ? "XP" : "KC";
+  return `${formatFraction(value)} ${unit} per member`;
 }
 
 /** `91_800` → "1:31.8" — OSRS kill-time style (tick precision keeps at most
@@ -191,19 +253,29 @@ export function bonusRuleSentence(rule: BonusRuleSentenceInput): string {
   return `${pts}${rule.label?.trim() ? ` for ${rule.label.trim()}` : ""}${cap}`;
 }
 
-/** "**Boss** Zulrah — most kills gained wins" without the markdown (web copy). */
-export function metricSummary(competition: Pick<EventCompetition, "metric"> | null | undefined): string | null {
+/** "**Boss** Zulrah — most kills gained wins" without the markdown (web copy);
+ * a team race says the team wins (and "per member" when it averages). */
+export function metricSummary(
+  competition:
+    | (Pick<EventCompetition, "metric"> &
+        Partial<Pick<EventCompetition, "format" | "team_scoring">>)
+    | null
+    | undefined,
+): string | null {
   const metric = competition?.metric;
   if (!metric) return null;
+  const teams = isTeamRace(competition);
+  const who = teams ? "the team with the most" : "most";
+  const tail = teams && competition?.team_scoring === "average" ? " per member wins" : " wins";
   if (metric.kind === "skill" && metric.skill) {
-    return `${titleCase(metric.skill)} — most XP gained wins`;
+    return `${titleCase(metric.skill)} — ${who} XP gained${tail}`;
   }
   if (metric.kind === "boss") {
     const npcs = metric.npcs ?? [];
     if (!npcs.length) return null;
     const names = npcs.slice(0, 3).map(titleCase).join(", ");
     const extra = npcs.length > 3 ? ` (+${npcs.length - 3} more)` : "";
-    return `${names}${extra} — most kills gained wins`;
+    return `${names}${extra} — ${who} kills gained${tail}`;
   }
   return null;
 }
@@ -283,14 +355,23 @@ export function competitionBlockToInput(
     // the read-only projection keys instead of naming the ones to keep, so a
     // new rule field survives a round trip without an edit here.
     bonus_rules: block.bonus_rules.map(bonusRuleToInput),
-    participation: block.participation ?? "whole_clan",
+    // Always sent: a save that left the format out would turn a team race
+    // back into an individual one.
+    format: block.format ?? "individual",
+    team_scoring: block.team_scoring ?? "total",
+    // Who competes is an individual-race setting; a team race's teams follow
+    // the event's formation mode.
+    ...(isTeamRace(block) ? {} : { participation: block.participation ?? "whole_clan" }),
   };
 }
 
 /** Human copy for the link validator's machine problems. */
 export const WOM_LINK_PROBLEM_COPY: Record<string, string> = {
   not_found: "No WiseOldMan competition found for that link.",
-  team_competition: "That's a team competition — DropTracker mirrors classic (individual) ones.",
+  team_competition:
+    "That's a team competition — switch this race to Teams to mirror it, or pick an individual one.",
+  classic_competition:
+    "That's an individual competition — a team race mirrors a WiseOldMan team competition.",
   multi_metric: "That competition tracks several metrics at once, which DropTracker can't mirror yet.",
   unsupported_metric: "That competition's metric isn't a skill or boss KC race.",
   metric_kind_mismatch: "That competition tracks a different kind of metric — switch the event format or pick another competition.",

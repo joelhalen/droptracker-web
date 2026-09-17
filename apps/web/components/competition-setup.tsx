@@ -20,14 +20,22 @@ import type {
   WomCompetitionPreview,
   WomReadiness,
 } from "@droptracker/api-types";
-import { EVENT_TASK_TYPES } from "@droptracker/api-types";
+import {
+  COMPETITION_FORMATS,
+  COMPETITION_TEAM_SCORING_MODES,
+  EVENT_TASK_TYPES,
+} from "@droptracker/api-types";
 import {
   bonusRuleIcon,
   bonusRuleSentence,
+  COMPETITION_FORMAT_HELP,
+  COMPETITION_FORMAT_LABELS,
   COMPETITION_SKILLS,
   formatTimeMs,
   parseTimeToMs,
   rateSentence,
+  TEAM_SCORING_HELP,
+  TEAM_SCORING_LABELS,
   WOM_LINK_PROBLEM_COPY,
 } from "@/lib/competition";
 import { EventTaskForm } from "@/components/event-task-form";
@@ -230,7 +238,12 @@ export function CompetitionSetup({
     startTransition(async () => {
       setPreviewError(null);
       setPreview(null);
-      const res = await previewWomCompetition(groupId, womQuery, kind);
+      const res = await previewWomCompetition(
+        groupId,
+        womQuery,
+        kind,
+        value.format ?? "individual",
+      );
       if (!res.ok) {
         setPreviewError(res.message);
         return;
@@ -336,6 +349,8 @@ export function CompetitionSetup({
 
   const rankingMode = value.ranking?.mode ?? "gained";
   const participation = value.participation ?? "whole_clan";
+  const raceFormat = value.format ?? "individual";
+  const teamScoring = value.team_scoring ?? "total";
   const skillKey = value.metric?.key ?? value.skill ?? "";
 
   return (
@@ -535,6 +550,19 @@ export function CompetitionSetup({
                       Already running — standings will include gains since it started.
                     </p>
                   )}
+                  {preview.teams.length > 0 && (
+                    <p className="text-osrs-parchment-dark/70">
+                      {preview.teams.length} team{preview.teams.length === 1 ? "" : "s"}:{" "}
+                      {preview.teams.map((t) => `${t.name} (${t.participants})`).join(", ")}
+                    </p>
+                  )}
+                  {preview.linkable && raceFormat === "teams" && (
+                    <p className="text-osrs-gold-bright/90">
+                      Linking replaces this event&apos;s teams with the competition&apos;s,
+                      and WiseOldMan keeps the rosters in step from then on. Players
+                      without a DropTracker account still count for their team.
+                    </p>
+                  )}
                   {preview.linkable && event && (
                     <button
                       type="button"
@@ -573,11 +601,19 @@ export function CompetitionSetup({
                     : "Link your WiseOldMan group (and save its verification code) in Group settings → Integrations to let DropTracker create the competition."}
                 </p>
               )}
-              {readiness?.can_create && (
+              {readiness?.can_create && raceFormat !== "teams" && (
                 <p className="text-osrs-parchment-dark/50 text-xs">
                   One click makes the matching WOM competition, keeps it in sync, and
                   deletes it if you discard the draft. Single WOM-ranked boss / one skill
                   only.
+                </p>
+              )}
+              {readiness?.can_create && raceFormat === "teams" && (
+                <p className="text-osrs-parchment-dark/50 text-xs">
+                  Makes a WiseOldMan team competition from your teams — put at least one
+                  player on a team first, and keep team names to 30 characters. Roster
+                  changes after that are sent to WiseOldMan automatically. Single
+                  WOM-ranked boss / one skill only.
                 </p>
               )}
             </div>
@@ -952,44 +988,107 @@ export function CompetitionSetup({
         )}
       </fieldset>
 
-      {/* ---- Participation ------------------------------------------------ */}
-      <fieldset className="space-y-2" disabled={disabled}>
-        <legend className="text-osrs-gold text-sm font-semibold">Who competes?</legend>
+      {/* ---- Format ------------------------------------------------------- */}
+      <fieldset className="space-y-2" disabled={disabled || linked}>
+        <legend className="text-osrs-gold text-sm font-semibold">Individuals or teams?</legend>
+        {linked && (
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            WiseOldMan can&apos;t turn an individual competition into a team one (or back) —
+            unlink it to change this.
+          </p>
+        )}
         <div className="space-y-2" role="radiogroup">
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="radio"
-              name="comp-participation"
-              checked={participation === "whole_clan"}
-              onChange={() => patch({ participation: "whole_clan" })}
-              disabled={groupId == null}
-              className="mt-0.5"
-            />
-            <span>
-              Whole clan (automatic)
-              <span className="text-osrs-parchment-dark/50 block text-xs">
-                Every clan member is entered automatically — no sign-up needed, and the
-                roster follows the clan as people join or leave.
+          {COMPETITION_FORMATS.map((f) => (
+            <label key={f} className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="comp-format"
+                checked={raceFormat === f}
+                onChange={() => patch({ format: f })}
+                className="mt-0.5"
+              />
+              <span>
+                {COMPETITION_FORMAT_LABELS[f]}
+                <span className="text-osrs-parchment-dark/50 block text-xs">
+                  {COMPETITION_FORMAT_HELP[f]}
+                </span>
               </span>
-            </span>
-          </label>
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="radio"
-              name="comp-participation"
-              checked={participation === "signup"}
-              onChange={() => patch({ participation: "signup" })}
-              className="mt-0.5"
-            />
-            <span>
-              Players sign up
-              <span className="text-osrs-parchment-dark/50 block text-xs">
-                Players opt in from the event page or the Discord sign-up button.
-              </span>
-            </span>
-          </label>
+            </label>
+          ))}
         </div>
       </fieldset>
+
+      {raceFormat === "teams" ? (
+        /* ---- Team scoring ---------------------------------------------- */
+        <fieldset className="space-y-2" disabled={disabled}>
+          <legend className="text-osrs-gold text-sm font-semibold">How do teams score?</legend>
+          <div className="space-y-2" role="radiogroup">
+            {COMPETITION_TEAM_SCORING_MODES.map((m) => (
+              <label key={m} className="flex items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="comp-team-scoring"
+                  checked={teamScoring === m}
+                  onChange={() => patch({ team_scoring: m })}
+                  className="mt-0.5"
+                />
+                <span>
+                  {TEAM_SCORING_LABELS[m]}
+                  <span className="text-osrs-parchment-dark/50 block text-xs">
+                    {TEAM_SCORING_HELP[m]}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            {rankingMode === "points"
+              ? "A member's score is their combined points, bonuses included."
+              : "A member's score is what they gained; bonus points show alongside."}{" "}
+            Set up the teams — and how players get onto them — on the{" "}
+            {event ? "Teams tab" : "Teams step"}.
+          </p>
+        </fieldset>
+      ) : (
+        /* ---- Participation (individual races) -------------------------- */
+        <fieldset className="space-y-2" disabled={disabled}>
+          <legend className="text-osrs-gold text-sm font-semibold">Who competes?</legend>
+          <div className="space-y-2" role="radiogroup">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="comp-participation"
+                checked={participation === "whole_clan"}
+                onChange={() => patch({ participation: "whole_clan" })}
+                disabled={groupId == null}
+                className="mt-0.5"
+              />
+              <span>
+                Whole clan (automatic)
+                <span className="text-osrs-parchment-dark/50 block text-xs">
+                  Every clan member is entered automatically — no sign-up needed, and the
+                  roster follows the clan as people join or leave.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="comp-participation"
+                checked={participation === "signup"}
+                onChange={() => patch({ participation: "signup" })}
+                className="mt-0.5"
+              />
+              <span>
+                Players sign up
+                <span className="text-osrs-parchment-dark/50 block text-xs">
+                  Players opt in from the event page or the Discord sign-up button.
+                </span>
+              </span>
+            </label>
+          </div>
+        </fieldset>
+      )}
     </div>
   );
 }

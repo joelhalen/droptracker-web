@@ -2177,6 +2177,21 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
       ...eventDefaults,
       formation_mode: "auto_assign" as const,
     },
+    {
+      id: 7,
+      group_id: groupId ?? 101,
+      name: "Mining Mayhem",
+      description:
+        "Skill of the Week in teams — the squad with the most Mining XP per member wins.",
+      status: "active",
+      starts_at: now - DAY,
+      ends_at: now + 6 * DAY,
+      has_bingo: false,
+      kind: "sotw" as const,
+      activated_at: now - DAY,
+      ...eventDefaults,
+      formation_mode: "self_join" as const,
+    },
   ];
   return all.filter((e) => (status ? e.status === status : true));
 }
@@ -2218,6 +2233,7 @@ export function mockEvent(id: number): EventDetail {
     };
   }
   if (summary.kind === "sotw" || summary.kind === "botw") {
+    const teamRace = id === MOCK_TEAM_RACE_ID;
     return {
       ...summary,
       id,
@@ -2237,17 +2253,27 @@ export function mockEvent(id: number): EventDetail {
           managed: true,
         },
       ],
-      teams: [
-        { id: 61, name: "Participants", score: 812, coins: 0, member_count: 24, members: [] },
-      ],
+      teams: teamRace
+        ? MOCK_TEAM_RACE_TEAMS.map((t) => ({
+            id: t.team_id,
+            name: t.name,
+            score: t.score,
+            coins: 0,
+            ...(t.color ? { color: t.color } : {}),
+            member_count: t.members,
+            members: [],
+          }))
+        : [{ id: 61, name: "Participants", score: 812, coins: 0, member_count: 24, members: [] }],
       progress: [],
       bingo: null,
-      viewer: { player_ids_on_event: [1337], team_id: 61, signed_up_player_ids: [1337] },
+      viewer: teamRace
+        ? { player_ids_on_event: [1337], team_id: 71, signed_up_player_ids: [] }
+        : { player_ids_on_event: [1337], team_id: 61, signed_up_player_ids: [1337] },
       join_requires_code: false,
       join_code: null,
       starts_at: summary.starts_at ?? now - 2 * DAY,
       ends_at: summary.ends_at ?? now + 5 * DAY,
-      competition: mockEventCompetitionBlock(),
+      competition: mockEventCompetitionBlock(id),
     };
   }
   const cells = Array.from({ length: 25 }, (_, i) => ({
@@ -4410,8 +4436,47 @@ export function mockEventParticipants(): EventParticipant[] {
 
 /* ── SOTW/BOTW competition mocks (web105a) ─────────────────────────────────── */
 
-/** The competition block on the mock botw event's detail payload. */
-export function mockEventCompetitionBlock(): EventCompetition {
+/** The mock team race (a sotw run in teams, averaged per member). */
+export const MOCK_TEAM_RACE_ID = 7;
+
+const MOCK_TEAM_RACE_TEAMS = [
+  {
+    team_id: 71, name: "Rune Rocks", color: "#4fb3ff", rank: 1, members: 4, active: 4,
+    gained: 2_840_000, bonus_points: 50, points: 334, total: 2_840_000, average: 710_000,
+    score: 710_000, score_text: "710K XP per member",
+    top_player: { player_id: 1337, player_name: "Zezima", value: 1_210_000 },
+  },
+  {
+    team_id: 72, name: "Gem Grinders", color: "#b86bff", rank: 2, members: 6, active: 5,
+    gained: 3_310_000, bonus_points: 0, points: 331, total: 3_310_000, average: 551_666.67,
+    score: 551_666.67, score_text: "551.7K XP per member",
+    top_player: { player_id: 1338, player_name: "B0aty", value: 980_000 },
+  },
+  {
+    team_id: 73, name: "Pickaxe Posse", color: null, rank: 3, members: 3, active: 2,
+    gained: 640_000, bonus_points: 0, points: 64, total: 640_000, average: 213_333.33,
+    score: 213_333.33, score_text: "213.3K XP per member",
+    top_player: { player_id: 1340, player_name: "Framed", value: 420_000 },
+  },
+];
+
+/** The competition block on the mock competition events' detail payloads —
+ * the botw (event 6, individual, WOM-linked) or the team race (event 7). */
+export function mockEventCompetitionBlock(eventId = 6): EventCompetition {
+  if (eventId === MOCK_TEAM_RACE_ID) {
+    return {
+      metric: { kind: "skill", skill: "mining", display: "Mining" },
+      ranking: { mode: "gained" },
+      bonus_rules: [
+        { id: 1, type: "pet", points: 50, max_awards: 1, label: "New pet: Rock golem", pets: ["Rock golem"] },
+      ],
+      source_mode: "hosted",
+      wom: null,
+      format: "teams",
+      team_scoring: "average",
+      configured: true,
+    };
+  }
   return {
     metric: {
       kind: "boss",
@@ -4435,14 +4500,42 @@ export function mockEventCompetitionBlock(): EventCompetition {
       sync_error: null,
     },
     participation: "signup",
+    format: "individual",
+    team_scoring: "total",
     configured: true,
   };
 }
 
 /** GET /events/{id}/competition — a live botw leaderboard with a WOM-only
- * greyed row and bonus detail on the leaders. */
+ * greyed row and bonus detail on the leaders; event 7 is a team race. */
 export function mockEventCompetition(eventId: number): EventCompetitionBoard {
   const now = Math.floor(Date.now() / 1000);
+  if (eventId === MOCK_TEAM_RACE_ID) {
+    return {
+      event_id: eventId,
+      kind: "sotw",
+      status: "active",
+      competition: mockEventCompetitionBlock(eventId),
+      totals: { participants: 5, gained: 6_790_000, bonus_points: 50 },
+      standings: [
+        { rank: 1, player_id: 1337, player_name: "Zezima", registered: true, gained: 1_210_000,
+          bonus_points: 50, points: 171, team_id: 71, team_name: "Rune Rocks",
+          bonus: { "1": { type: "pet", count: 1, awarded: 1, points: 50 } } },
+        { rank: 2, player_id: 1338, player_name: "B0aty", registered: true, gained: 980_000,
+          bonus_points: 0, points: 98, team_id: 72, team_name: "Gem Grinders", bonus: {} },
+        { rank: 3, player_id: 1341, player_name: "Lynx Titan", registered: true, gained: 910_000,
+          bonus_points: 0, points: 91, team_id: 71, team_name: "Rune Rocks", bonus: {} },
+        { rank: 4, player_id: 1340, player_name: "Framed", registered: true, gained: 420_000,
+          bonus_points: 0, points: 42, team_id: 73, team_name: "Pickaxe Posse", bonus: {} },
+        { rank: 5, player_id: null, wom_player_id: 777002, player_name: "Placeholder Pete",
+          registered: false, gained: 120_000, bonus_points: 0, points: 12, team_id: 72,
+          team_name: "Gem Grinders", bonus: {} },
+      ],
+      teams: MOCK_TEAM_RACE_TEAMS,
+      finalized: false,
+      updated_at: now,
+    };
+  }
   return {
     event_id: eventId,
     kind: "botw",
@@ -4529,6 +4622,7 @@ export function mockWomCompetitionPreview(query: string): WomCompetitionPreview 
     wom_group_id: 141,
     group_matches: true,
     participant_count: 61,
+    teams: [],
     linkable: true,
     problems: [],
     linked_event_id: null,

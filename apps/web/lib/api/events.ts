@@ -611,11 +611,13 @@ export const eventsApi = {
   /** Wizard link validator: preview a WOM competition by URL or id. */
   async womCompetitionPreview(
     query: string,
-    params: { kind?: "sotw" | "botw"; groupId?: number } = {},
+    params: { kind?: "sotw" | "botw"; groupId?: number; format?: "individual" | "teams" } = {},
   ): Promise<WomCompetitionPreview> {
     const q = new URLSearchParams({ query });
     if (params.kind) q.set("kind", params.kind);
     if (params.groupId) q.set("group_id", String(params.groupId));
+    // A team race links a WOM TEAM competition — the verdicts depend on it.
+    if (params.format) q.set("format", params.format);
     return withFallback(
       async () =>
         WomCompetitionPreviewSchema.parse(

@@ -5,20 +5,77 @@
  * the site. */
 
 import type { EventCompetitionBoard } from "@droptracker/api-types";
-import { formatGained, metricSummary } from "@/lib/competition";
+import {
+  formatGained,
+  isTeamRace,
+  metricSummary,
+  scoreText,
+  teamScoreText,
+} from "@/lib/competition";
+
+const medals = ["🥇", "🥈", "🥉"];
+
+function Place({ rank }: { rank: number }) {
+  return rank <= 3 ? (
+    <>{medals[rank - 1]}</>
+  ) : (
+    <span className="text-osrs-parchment-dark/70 tabular-nums">{rank}</span>
+  );
+}
 
 export function CompetitionStandingsSnapshot({ board }: { board: EventCompetitionBoard }) {
   const { competition, standings, totals } = board;
   const metricKind = competition.metric.kind;
-  const pointsMode = competition.ranking.mode === "points";
+  const mode = competition.ranking.mode;
+  const pointsMode = mode === "points";
   const hasBonuses = competition.bonus_rules.length > 0;
-  const top = standings.slice(0, 10);
+  const teams = isTeamRace(competition) ? (board.teams ?? []) : [];
+  // A team race leads with its teams; the player list below it is shorter.
+  const top = standings.slice(0, teams.length ? 5 : 10);
   const summary = metricSummary(competition);
-  const medals = ["🥇", "🥈", "🥉"];
 
   return (
     <div className="border-osrs-bronze/40 bg-osrs-brown-dark/40 rounded border p-4">
       {summary && <p className="text-osrs-parchment-dark/80 mb-2 text-sm">⚔️ {summary}</p>}
+      {teams.length > 0 && (
+        <table className="mb-3 w-full text-sm">
+          <thead>
+            <tr className="border-osrs-bronze/30 text-osrs-parchment-dark/60 border-b text-left text-xs">
+              <th className="w-10 px-2 py-1.5 font-normal">#</th>
+              <th className="px-2 py-1.5 font-normal">Team</th>
+              <th className="px-2 py-1.5 text-right font-normal">Score</th>
+              <th className="px-2 py-1.5 text-right font-normal">Top player</th>
+            </tr>
+          </thead>
+          <tbody>
+            {teams.slice(0, 8).map((t) => (
+              <tr key={t.team_id} className="border-osrs-bronze/15 border-b last:border-b-0">
+                <td className="px-2 py-1.5">
+                  <Place rank={t.rank} />
+                </td>
+                <td className="text-osrs-parchment px-2 py-1.5 font-medium">
+                  {t.color && (
+                    <span
+                      aria-hidden
+                      className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle"
+                      style={{ backgroundColor: t.color }}
+                    />
+                  )}
+                  {t.name}
+                </td>
+                <td className="text-osrs-gold-bright px-2 py-1.5 text-right font-medium tabular-nums">
+                  {t.score_text ?? teamScoreText(t.score, competition)}
+                </td>
+                <td className="text-osrs-parchment-dark/80 px-2 py-1.5 text-right">
+                  {t.top_player
+                    ? `${t.top_player.player_name} (${scoreText(t.top_player.value, mode, metricKind)})`
+                    : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       <table className="w-full text-sm">
         <thead>
           <tr className="border-osrs-bronze/30 text-osrs-parchment-dark/60 border-b text-left text-xs">
@@ -40,11 +97,14 @@ export function CompetitionStandingsSnapshot({ board }: { board: EventCompetitio
               }`}
             >
               <td className="px-2 py-1.5">
-                {row.rank <= 3 ? medals[row.rank - 1] : (
-                  <span className="text-osrs-parchment-dark/70 tabular-nums">{row.rank}</span>
+                <Place rank={row.rank} />
+              </td>
+              <td className="text-osrs-parchment px-2 py-1.5">
+                {row.player_name}
+                {teams.length > 0 && row.team_name && (
+                  <span className="text-osrs-parchment-dark/60 ml-1.5 text-xs">{row.team_name}</span>
                 )}
               </td>
-              <td className="text-osrs-parchment px-2 py-1.5">{row.player_name}</td>
               <td className="text-osrs-parchment px-2 py-1.5 text-right tabular-nums">
                 {formatGained(row.gained, metricKind)}
               </td>

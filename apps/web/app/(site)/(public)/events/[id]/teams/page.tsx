@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { EventTeamsBoard } from "@/components/event-teams-board";
+import { CompetitionStandings } from "@/components/competition-standings";
+import { isCompetitionKind, isTeamRace } from "@/lib/competition";
 import { EventPageHeader, loadEventForView } from "../_shared";
 
 export const revalidate = 15;
@@ -31,9 +33,26 @@ export default async function EventTeamsIndexPage({ params }: { params: Params }
   if ("denied" in loaded) return loaded.denied;
   const { event } = loaded;
 
-  // SOTW/BOTW (web105a): an individual race — there is no teams surface
-  // (the single roster team is scaffolding, not a competitor).
-  if (event.kind === "sotw" || event.kind === "botw") notFound();
+  // SOTW/BOTW (web105a): an individual race has no teams surface (its one
+  // roster team is scaffolding, not a competitor). A team race's teams page is
+  // the race's team table, over its players.
+  if (isCompetitionKind(event.kind)) {
+    if (!isTeamRace(event.competition)) notFound();
+    const board = await api.eventCompetition(eventId).catch(() => null);
+    if (!board) notFound();
+    return (
+      <div className="space-y-8">
+        <EventPageHeader event={event} />
+        <CompetitionStandings
+          eventId={eventId}
+          initial={board}
+          live={event.status === "active"}
+          viewerPlayerIds={user?.players.map((p) => p.id) ?? []}
+          viewerTeamId={event.viewer?.team_id ?? null}
+        />
+      </div>
+    );
+  }
 
   // Self-sufficient standings rollup: rank/score + tasks-done, pot share,
   // event-window loot GP, top task-credited items, and top contributors.

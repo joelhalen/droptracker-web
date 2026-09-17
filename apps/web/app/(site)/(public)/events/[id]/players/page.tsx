@@ -45,6 +45,7 @@ export default async function EventPlayersPage({ params }: { params: Params }) {
           initial={board}
           live={event.status === "active"}
           viewerPlayerIds={user?.players.map((p) => p.id) ?? []}
+          viewerTeamId={event.viewer?.team_id ?? null}
         />
       </div>
     );

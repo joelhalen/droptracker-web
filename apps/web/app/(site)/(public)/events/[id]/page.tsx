@@ -15,7 +15,7 @@ import { PrizePotPanel } from "@/components/prize-pot-panel";
 import { EventClanPointsCard } from "@/components/event-clan-points-card";
 import { CompetitionBonusRulesCard } from "@/components/competition-bonus-rules-card";
 import { CompetitionStandings, CompetitionTopStrip } from "@/components/competition-standings";
-import { isCompetitionKind } from "@/lib/competition";
+import { isCompetitionKind, isTeamRace } from "@/lib/competition";
 import { EmptyState } from "@/components/ui";
 import { EventPageHeader, loadEventForView } from "./_shared";
 
@@ -135,14 +135,16 @@ export default async function EventDetailPage({ params }: { params: Params }) {
   ) : null;
 
   if (competition) {
-    // SOTW/BOTW: an individual race — the leaderboard IS the event, full
-    // width; participate + scoring cards ride above it. No teams surface.
+    // SOTW/BOTW: the leaderboard IS the event, full width; participate +
+    // scoring cards ride above it. A team race adds its team table (inside
+    // the standings) and joins like any team event.
+    const teamRace = isTeamRace(event.competition);
     return (
       <div className="space-y-8">
         <EventPageHeader event={event} />
         <CompetitionTopStrip board={competition} />
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-          {event.competition?.participation === "signup" ? (
+          {teamRace || event.competition?.participation === "signup" ? (
             participatePanel
           ) : (
             <div>
@@ -168,6 +170,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
             initial={competition}
             live={event.status === "active"}
             viewerPlayerIds={user?.players.map((p) => p.id) ?? []}
+            viewerTeamId={event.viewer?.team_id ?? null}
           />
         </div>
         {event.status !== "draft" && (

@@ -76,7 +76,13 @@ import {
   teamColorMap,
 } from "@/lib/events";
 import { materializeSchedule } from "@/lib/event-schedule";
-import { competitionBlockToInput, isCompetitionKind } from "@/lib/competition";
+import {
+  competitionBlockToInput,
+  isCompetitionKind,
+  isTeamRace,
+  metricSummary,
+  TEAM_SCORING_LABELS,
+} from "@/lib/competition";
 import { confirmDiscard } from "@/lib/use-unsaved-changes";
 import { Alert, buttonVariants, EmptyState } from "@/components/ui";
 import { CompetitionSetup } from "@/components/competition-setup";
@@ -199,12 +205,15 @@ const BLOCKER_STEP: Record<string, StepKey> = {
   competition: "competition",
 };
 
-/** The wizard's step list per kind: competition kinds swap Tasks & Teams for
- * the Competition step (the race IS the tasks; the roster is automatic). */
-function stepsForKind(kind: EventKind): typeof STEPS {
+/** The wizard's step list per kind: competition kinds swap Tasks for the
+ * Competition step (the race IS the task). An individual race has no Teams
+ * step either (its roster is automatic or sign-up); a team race keeps it,
+ * after Joining & rules so the formation mode is chosen first. */
+function stepsForKind(kind: EventKind, teamRace = false): typeof STEPS {
   if (!isCompetitionKind(kind)) return STEPS;
   return STEPS.flatMap((s) => {
-    if (s.key === "tasks" || s.key === "teams") return [];
+    if (s.key === "tasks") return [];
+    if (s.key === "teams") return teamRace ? [s] : [];
     if (s.key === "rules") return [COMPETITION_STEP, s];
     return [s];
   });
@@ -231,7 +240,9 @@ export function EventSetupWizard({
   // rebuild this component at step 0 — the "wizard loops back to step 1" bug.
   // Without a draft only the first two steps exist, so clamp accordingly.
   const [stepIdx, setStepIdx] = useState(() => {
-    const max = initialEvent ? stepsForKind(initialEvent.kind).length - 1 : 1;
+    const max = initialEvent
+      ? stepsForKind(initialEvent.kind, isTeamRace(initialEvent.competition)).length - 1
+      : 1;
     return Math.min(Math.max(Math.trunc(initialStep) || 0, 0), max);
   });
 
@@ -246,6 +257,11 @@ export function EventSetupWizard({
   const [description, setDescription] = useState(initialEvent?.description ?? "");
   const [kind, setKind] = useState<EventKind>(initialEvent?.kind ?? "standard");
   const [mode, setMode] = useState<(typeof EVENT_MODES)[number]>(initialEvent?.mode ?? "standard");
+  // Skill/Boss of the Week events are clan-locked: picking one resets the
+  // ownership (and a draft made before the lock saves its way back to Standard).
+  useEffect(() => {
+    if (isCompetitionKind(kind) && mode !== "standard") setMode("standard");
+  }, [kind, mode]);
   const [startsAt, setStartsAt] = useState(toLocalInput(initialEvent?.starts_at));
   const [endsAt, setEndsAt] = useState(toLocalInput(initialEvent?.ends_at));
   // Recurring schedule (web82a): null = the continuous event every event was
@@ -316,11 +332,22 @@ export function EventSetupWizard({
     competitionBlockToInput(initialEvent?.competition),
   );
 
-  // The kind-dependent step list (competition kinds swap Tasks & Teams for
-  // the Competition step). Once a draft exists the SAVED kind decides — the
-  // picked-but-unsaved kind must not open steps whose PATCHes the backend
-  // would refuse. Clamp the index whenever the list shrinks under it.
-  const steps = useMemo(() => stepsForKind(detail ? detail.kind : kind), [detail, kind]);
+  // The kind-dependent step list (competition kinds swap Tasks for the
+  // Competition step, and keep Teams only for a team race). Once a draft
+  // exists the SAVED kind and race format decide — the picked-but-unsaved
+  // choice must not open steps whose PATCHes the backend would refuse. Clamp
+  // the index whenever the list shrinks under it.
+  const steps = useMemo(
+    () =>
+      stepsForKind(
+        detail ? detail.kind : kind,
+        isTeamRace(detail ? detail.competition : competitionInput),
+      ),
+    [detail, kind, competitionInput],
+  );
+  // A team race forms its teams the ordinary way — the formation-mode choice
+  // (and the rest of "Joining & rules") applies to it like any team event.
+  const teamRace = isTeamRace(detail?.competition);
   const stepCount = steps.length;
   useEffect(() => {
     setStepIdx((i) => Math.min(i, stepCount - 1));
@@ -527,9 +554,10 @@ export function EventSetupWizard({
           setDetail(updated);
           setCompetitionInput(competitionBlockToInput(updated.competition));
         } else if (step.key === "rules" && detail) {
-          // Competition kinds: the scaffold owns formation_mode (participation
-          // on the Competition step decides it) — never override it here.
-          const comp = isCompetitionKind(detail.kind);
+          // Individual races: the scaffold owns formation_mode (participation
+          // on the Competition step decides it) — never override it here. A
+          // team race picks its formation mode here like any team event.
+          const comp = isCompetitionKind(detail.kind) && !isTeamRace(detail.competition);
           await updateGroupEvent(groupId, detail.id, {
             ...(comp
               ? {}
@@ -868,7 +896,13 @@ export function EventSetupWizard({
               </div>
             </div>
           )}
-          {groupId != null && (
+          {groupId != null && isCompetitionKind(kind) && (
+            <p className="text-osrs-parchment-dark/60 text-xs">
+              Skill/Boss of the Week events run within your clan. To race in squads, choose
+              Teams on the Competition step.
+            </p>
+          )}
+          {groupId != null && !isCompetitionKind(kind) && (
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
                 Ownership
@@ -1064,7 +1098,7 @@ export function EventSetupWizard({
       )}
 
       {/* ---- Step 3: Joining & rules ------------------------------------ */}
-      {step.key === "rules" && detail && isCompetitionKind(detail.kind) && (
+      {step.key === "rules" && detail && isCompetitionKind(detail.kind) && !teamRace && (
         <div className="max-w-2xl space-y-1 pb-1 text-sm">
           <p className="text-osrs-parchment">
             {competitionInput.participation === "signup"
@@ -1078,7 +1112,7 @@ export function EventSetupWizard({
       )}
       {step.key === "rules" && detail && (
         <div className="max-w-2xl space-y-4">
-          {!isCompetitionKind(detail.kind) && (
+          {(!isCompetitionKind(detail.kind) || teamRace) && (
           <div className="text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
               How do players get onto teams?
@@ -1113,7 +1147,7 @@ export function EventSetupWizard({
             </div>
           </div>
           )}
-          {(isCompetitionKind(detail.kind)
+          {(isCompetitionKind(detail.kind) && !teamRace
             ? competitionInput.participation === "signup"
             : formationMode !== "admin_assign") && (
             <label className="flex items-start gap-2 text-sm">
@@ -1308,7 +1342,7 @@ export function EventSetupWizard({
                       <label key={i} className="text-sm">
                         <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
                           {placeBadge(i + 1)} {ordinal(i + 1)} place
-                          {isCompetitionKind(detail.kind) ? "" : " · each member"}
+                          {isCompetitionKind(detail.kind) && !teamRace ? "" : " · each member"}
                         </span>
                         <QuantityInput
                           min={0}
@@ -1479,17 +1513,42 @@ export function EventSetupWizard({
                   "Ends",
                   detail.ends_at ? <LocalTime key="e" unix={detail.ends_at} /> : "not set",
                 ],
-                ["Joining", FORMATION_MODE_LABELS[detail.formation_mode]],
+                ...(isCompetitionKind(detail.kind) && !teamRace
+                  ? [
+                      [
+                        "Who competes",
+                        detail.competition?.participation === "signup"
+                          ? "players who sign up"
+                          : "the whole clan",
+                      ],
+                    ]
+                  : [["Joining", FORMATION_MODE_LABELS[detail.formation_mode]]]),
                 ["Submissions", SUBMISSION_POLICY_LABELS[detail.submission_policy]],
-                ["Tasks", String(tasks.length)],
-                [
-                  "Teams",
-                  teams.length
-                    ? `${teams.length} (${teams.reduce((n, t) => n + (t.members?.length ?? t.member_count), 0)} players)`
-                    : isClanVsClan
-                      ? "whole clan vs whole clan"
-                      : "none yet",
-                ],
+                ...(isCompetitionKind(detail.kind)
+                  ? [
+                      ["Race", metricSummary(detail.competition) ?? "not set"],
+                      ...(teamRace
+                        ? [
+                            [
+                              "Team score",
+                              TEAM_SCORING_LABELS[detail.competition?.team_scoring ?? "total"],
+                            ],
+                          ]
+                        : []),
+                    ]
+                  : [["Tasks", String(tasks.length)]]),
+                ...(isCompetitionKind(detail.kind) && !teamRace
+                  ? []
+                  : [
+                      [
+                        "Teams",
+                        teams.length
+                          ? `${teams.length} (${teams.reduce((n, t) => n + (t.members?.length ?? t.member_count), 0)} players)`
+                          : isClanVsClan
+                            ? "whole clan vs whole clan"
+                            : "none yet",
+                      ],
+                    ]),
               ] as [string, ReactNode][]
             ).map(([label, value]) => (
               <div key={label} className="flex items-baseline justify-between gap-3 px-3 py-2">

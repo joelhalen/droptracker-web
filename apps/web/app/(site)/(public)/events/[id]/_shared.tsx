@@ -93,13 +93,14 @@ export function EventPageHeader({
 }: {
   event: EventSummary & Partial<Pick<EventDetail, "schedule" | "competition">>;
 }) {
-  // SOTW/BOTW (web105a): an individual race has no Teams surface.
+  // SOTW/BOTW (web105a): an individual race has no Teams surface; a team race
+  // does (its race team table).
   const isCompetition = event.kind === "sotw" || event.kind === "botw";
   const tabs = [
     { href: `/events/${event.id}`, label: "Overview" },
     { href: `/events/${event.id}/players`, label: "Players" },
     // matchPrefix keeps Teams active on the /teams/[teamId] drill-down.
-    ...(isCompetition
+    ...(isCompetition && event.competition?.format !== "teams"
       ? []
       : [{ href: `/events/${event.id}/teams`, label: "Teams", matchPrefix: true }]),
   ];
@@ -129,6 +130,7 @@ export function EventPageHeader({
           <span className="text-osrs-parchment">
             {event.kind === "sotw" ? "⚔️ Skill of the Week" : "⚔️ Boss of the Week"}
             {event.competition.metric.display ? ` — ${event.competition.metric.display}` : ""}
+            {event.competition.format === "teams" ? " · in teams" : ""}
           </span>
           {event.competition.wom ? (
             <a
