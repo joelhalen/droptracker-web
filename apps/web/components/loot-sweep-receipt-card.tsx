@@ -82,6 +82,8 @@ export function LootSweepReceiptCard({
   count,
   banked,
   fetchReceipts = fetchLootSweepReceipts,
+  onOpenPlayer,
+  openLink,
 }: {
   eventId: number;
   set: Pick<LootSweepSet, "task_id" | "label" | "decay_percent" | "decay_mode">;
@@ -93,6 +95,12 @@ export function LootSweepReceiptCard({
   banked: number;
   /** Ledger transport; defaults to the website cookie action. */
   fetchReceipts?: ReceiptsFetcher;
+  /** Discord Activity: an in-app view push instead of the site's player link,
+   * which would navigate the iframe out of the Activity. */
+  onOpenPlayer?: (playerId: number) => void;
+  /** Discord Activity: opens a screenshot through the SDK — a
+   * `target="_blank"` link does nothing inside the iframe. */
+  openLink?: (url: string) => void;
 }) {
   const [data, setData] = useState<LootSweepReceipts | null>(null);
   const [failed, setFailed] = useState(false);
@@ -118,6 +126,15 @@ export function LootSweepReceiptCard({
   const isPet = item.source === "pet";
   const bonus = item.counts_for_group === false;
   const ids = iconIdsOf(item);
+  const shot = (url: string) => (
+    <img
+      src={url}
+      alt={`Screenshot of ${item.item_name}`}
+      loading="lazy"
+      className="border-osrs-bronze/25 hover:border-osrs-gold/50 h-20 w-full rounded-md border object-cover"
+      onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+    />
+  );
 
   return (
     <div className="p-3 text-sm">
@@ -226,12 +243,22 @@ export function LootSweepReceiptCard({
                       #{r.n}
                     </span>
                     {r.player_id != null ? (
-                      <Link
-                        href={`/players/${r.player_id}`}
-                        className="text-osrs-parchment hover:text-osrs-gold-bright min-w-0 truncate font-medium"
-                      >
-                        {r.player_name ?? `Player ${r.player_id}`}
-                      </Link>
+                      onOpenPlayer ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenPlayer(r.player_id!)}
+                          className="text-osrs-parchment hover:text-osrs-gold-bright min-w-0 truncate text-left font-medium"
+                        >
+                          {r.player_name ?? `Player ${r.player_id}`}
+                        </button>
+                      ) : (
+                        <Link
+                          href={`/players/${r.player_id}`}
+                          className="text-osrs-parchment hover:text-osrs-gold-bright min-w-0 truncate font-medium"
+                        >
+                          {r.player_name ?? `Player ${r.player_id}`}
+                        </Link>
+                      )
                     ) : (
                       <span className="text-osrs-parchment min-w-0 truncate font-medium">
                         {r.player_name ?? "Unknown"}
@@ -252,25 +279,27 @@ export function LootSweepReceiptCard({
                   <div className="text-osrs-parchment-dark/50 mt-0.5 pl-[1.875rem] text-[11px]">
                     {timeAgo(r.received_at)}
                   </div>
-                  {r.proof_url && (
-                    <a
-                      href={r.proof_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1.5 block pl-[1.875rem]"
-                      title="Open screenshot"
-                    >
-                      <img
-                        src={r.proof_url}
-                        alt={`Screenshot of ${item.item_name}`}
-                        loading="lazy"
-                        className="border-osrs-bronze/25 hover:border-osrs-gold/50 h-20 w-full rounded-md border object-cover"
-                        onError={(e) =>
-                          ((e.currentTarget as HTMLImageElement).style.display = "none")
-                        }
-                      />
-                    </a>
-                  )}
+                  {r.proof_url &&
+                    (openLink ? (
+                      <button
+                        type="button"
+                        onClick={() => openLink(r.proof_url!)}
+                        className="mt-1.5 block w-full pl-[1.875rem]"
+                        title="Open screenshot"
+                      >
+                        {shot(r.proof_url)}
+                      </button>
+                    ) : (
+                      <a
+                        href={r.proof_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1.5 block pl-[1.875rem]"
+                        title="Open screenshot"
+                      >
+                        {shot(r.proof_url)}
+                      </a>
+                    ))}
                 </li>
               ))}
               {receipts.length > RECEIPT_ROWS && (

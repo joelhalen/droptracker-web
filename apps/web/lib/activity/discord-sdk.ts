@@ -14,6 +14,7 @@
  * an "open this inside Discord" notice instead of hanging on the handshake.
  */
 import { DiscordSDK } from "@discord/embedded-app-sdk";
+import { externalUrl } from "@/lib/activity/external-url";
 
 let sdk: DiscordSDK | null = null;
 
@@ -44,15 +45,21 @@ export function getDiscordSdk(): DiscordSDK | null {
  * how the activity defers deep features — full lootboards, drop tables,
  * settings, premium — to droptracker.io instead of rebuilding them in-app.
  * Falls back to window.open outside Discord (the /activity "outside" notice).
+ *
+ * Accepts the CSP-rewritten asset URLs the BFF hands out (`/img/...`, the
+ * board-img proxy) and opens their public address — Discord only opens
+ * absolute URLs. Anything unsafe (a non-http scheme) opens nothing.
  */
 export async function openExternal(url: string): Promise<void> {
+  const target = externalUrl(url);
+  if (!target) return;
   const s = getDiscordSdk();
   if (!s) {
-    window.open(url, "_blank", "noopener");
+    window.open(target, "_blank", "noopener");
     return;
   }
   try {
-    await s.commands.openExternalLink({ url });
+    await s.commands.openExternalLink({ url: target });
   } catch {
     /* user declined or old client — nothing to do */
   }

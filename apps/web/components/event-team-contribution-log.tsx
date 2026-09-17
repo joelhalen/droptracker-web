@@ -51,12 +51,49 @@ function subject(e: EventTeamContribution): string {
   return contributionSummary(e);
 }
 
+/** A row's screenshot thumbnail, opening the full image — a new tab on the
+ * site, the SDK's external-link prompt in the Activity. */
+function ProofShot({
+  url,
+  alt,
+  openLink,
+}: {
+  url: string;
+  alt: string;
+  openLink?: (url: string) => void;
+}) {
+  const img = (
+    <img
+      src={url}
+      alt={alt}
+      loading="lazy"
+      className="border-osrs-bronze/25 hover:border-osrs-gold/50 h-24 w-full rounded-md border object-cover"
+      onError={(ev) => ((ev.currentTarget as HTMLImageElement).style.display = "none")}
+    />
+  );
+  return openLink ? (
+    <button
+      type="button"
+      onClick={() => openLink(url)}
+      className="mt-1.5 block w-full max-w-xs"
+      title="Open screenshot"
+    >
+      {img}
+    </button>
+  ) : (
+    <a href={url} target="_blank" rel="noreferrer" className="mt-1.5 block max-w-xs" title="Open screenshot">
+      {img}
+    </a>
+  );
+}
+
 export function EventTeamContributionLog({
   eventId,
   teamId,
   refreshKey = 0,
   loadPage,
   onOpenPlayer,
+  openLink,
 }: {
   eventId: number;
   teamId: number;
@@ -68,6 +105,9 @@ export function EventTeamContributionLog({
   loadPage?: (page: number) => Promise<EventTeamContributions>;
   /** Discord Activity: swaps player links for in-app view pushes. */
   onOpenPlayer?: (playerId: number) => void;
+  /** Discord Activity: opens a screenshot through the SDK — a
+   * `target="_blank"` link does nothing inside the iframe. */
+  openLink?: (url: string) => void;
 }) {
   const [data, setData] = useState<EventTeamContributions | null>(null);
   const [page, setPage] = useState(1);
@@ -222,23 +262,11 @@ export function EventTeamContributionLog({
                     {e.note && <span className="italic"> — “{e.note}”</span>}
                   </div>
                   {e.proof_url && (
-                    <a
-                      href={e.proof_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-1.5 block max-w-xs"
-                      title="Open screenshot"
-                    >
-                      <img
-                        src={e.proof_url}
-                        alt={`Screenshot of ${e.matched_target ?? e.task_label ?? "submission"}`}
-                        loading="lazy"
-                        className="border-osrs-bronze/25 hover:border-osrs-gold/50 h-24 w-full rounded-md border object-cover"
-                        onError={(ev) =>
-                          ((ev.currentTarget as HTMLImageElement).style.display = "none")
-                        }
-                      />
-                    </a>
+                    <ProofShot
+                      url={e.proof_url}
+                      alt={`Screenshot of ${e.matched_target ?? e.task_label ?? "submission"}`}
+                      openLink={openLink}
+                    />
                   )}
                 </div>
               </li>

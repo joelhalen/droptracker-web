@@ -29,6 +29,7 @@ import { PbBoardView } from "@/components/activity/pb-board-view";
 import { EventView } from "@/components/activity/event-view";
 import { EventReviewView } from "@/components/activity/review-view";
 import { ActivityEventPlayersView } from "@/components/activity/event-players-view";
+import { ActivityEventTeamsView } from "@/components/activity/event-teams-view";
 import { ActivityEventTeamView } from "@/components/activity/event-team-view";
 import { PendingReviewPrompt } from "@/components/activity/pending-review-prompt";
 
@@ -95,6 +96,7 @@ function viewMaxWidth(view: ActivityView): string {
     case "event":
     case "event-review":
     case "event-players":
+    case "event-teams":
     case "event-team":
       return "max-w-3xl";
     case "group-setup":
@@ -115,6 +117,8 @@ function presenceLabel(view: ActivityView): string {
       return "Reviewing event completions";
     case "event-players":
       return "Checking event standings";
+    case "event-teams":
+      return "Checking team standings";
     case "event-team":
       return "Checking their team";
     case "player":
@@ -152,6 +156,8 @@ function renderView(
       return <EventReviewView eventId={view.id} />;
     case "event-players":
       return <ActivityEventPlayersView eventId={view.id} />;
+    case "event-teams":
+      return <ActivityEventTeamsView eventId={view.id} />;
     case "event-team":
       return <ActivityEventTeamView eventId={view.id} teamId={view.teamId} />;
     case "player":

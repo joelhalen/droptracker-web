@@ -44,6 +44,7 @@ export function ProofAttach({
   disabled = false,
   size = "sm",
   title = "Attach a screenshot",
+  openLink,
 }: {
   /** The currently attached image, or null. May be a just-uploaded preview the
    * caller hasn't saved yet. */
@@ -56,6 +57,9 @@ export function ProofAttach({
   disabled?: boolean;
   size?: "sm" | "md";
   title?: string;
+  /** Discord Activity: opens the full screenshot through the SDK — a
+   * `target="_blank"` link does nothing inside the iframe. Site: unset. */
+  openLink?: (url: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -86,15 +90,24 @@ export function ProofAttach({
   if (!url && !onUploaded) return null;
 
   if (url) {
+    const thumb = (
+      <img
+        src={url}
+        alt="Payment proof"
+        className={`border-osrs-bronze/30 hover:border-osrs-gold/60 ${box} rounded border object-cover transition-colors`}
+      />
+    );
     return (
       <span className="relative inline-flex shrink-0">
-        <a href={url} target="_blank" rel="noreferrer" title="View proof screenshot">
-          <img
-            src={url}
-            alt="Payment proof"
-            className={`border-osrs-bronze/30 hover:border-osrs-gold/60 ${box} rounded border object-cover transition-colors`}
-          />
-        </a>
+        {openLink ? (
+          <button type="button" onClick={() => openLink(url)} title="View proof screenshot">
+            {thumb}
+          </button>
+        ) : (
+          <a href={url} target="_blank" rel="noreferrer" title="View proof screenshot">
+            {thumb}
+          </a>
+        )}
         {onRemove && !disabled && (
           <button
             type="button"

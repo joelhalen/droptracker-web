@@ -10,6 +10,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { EventPlayersResponse } from "@droptracker/api-types";
 import { EventPlayersView, type PlayerDetailFetcher } from "@/components/event-players-view";
 import { BackBar, ErrorNote, LoadingBlock } from "@/components/activity/bits";
+import { ActivityCompetitionBoard } from "@/components/activity/competition-board";
+import { isCompetitionKind } from "@/lib/competition";
 import { eventPlayerDetail, eventPlayers } from "@/lib/activity/api";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityNav } from "@/lib/activity/nav";
@@ -60,6 +62,20 @@ export function ActivityEventPlayersView({ eventId }: { eventId: number }) {
       <div>
         <BackBar title="Players" onBack={nav.pop} />
         <LoadingBlock rows={6} />
+      </div>
+    );
+  }
+
+  if (isCompetitionKind(data.event.kind)) {
+    // SOTW/BOTW: the race standings ARE the players view (as on the site).
+    return (
+      <div>
+        <BackBar title={`Players — ${data.event.name}`} onBack={nav.pop} />
+        <ActivityCompetitionBoard
+          eventId={eventId}
+          live={data.event.status === "active"}
+          showRules={false}
+        />
       </div>
     );
   }

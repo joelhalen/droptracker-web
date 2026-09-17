@@ -26,6 +26,9 @@ import {
   EventPlayersResponseSchema,
   EventPrizePotSchema,
   EventClanPointsSchema,
+  EventCompetitionBoardSchema,
+  CompetitionPlayerDetailSchema,
+  EventRecruitingItemSchema,
   EventSummarySchema,
   EventTeamContributionsSchema,
   EventTeamDetailSchema,
@@ -51,6 +54,9 @@ import {
   type EventPlayersResponse,
   type EventPrizePot,
   type EventClanPoints,
+  type EventCompetitionBoard,
+  type CompetitionPlayerDetail,
+  type EventRecruitingItem,
   type EventTeamContributions,
   type EventTeamDetail,
   type EventTeamsResponse,
@@ -77,6 +83,7 @@ import {
   type WomGroupPreview,
 } from "@droptracker/api-types";
 import { z } from "zod";
+import { CompletionHistorySchema, type CompletionHistory } from "@/lib/api/types";
 
 /** Feed history envelope (matches lib/api.ts's local FeedEventSchema). */
 const FeedEventSchema = z.object({
@@ -158,6 +165,46 @@ export async function myEvents(
   if (status) q.set("status", status);
   return EventSummarySchema.array().parse(
     await get(`/api/activity/events?${q.toString()}`, sessionToken),
+  );
+}
+
+/** SOTW/BOTW race board: standings (and the ranked teams on a team race). */
+export async function competitionBoard(
+  eventId: number,
+  sessionToken: string | null,
+): Promise<EventCompetitionBoard> {
+  return EventCompetitionBoardSchema.parse(
+    await get(`/api/activity/events/${eventId}/competition`, sessionToken),
+  );
+}
+
+/** One race participant's bonus-award log (the standings row drill-in). */
+export async function competitionPlayer(
+  eventId: number,
+  playerId: number,
+  sessionToken: string | null,
+): Promise<CompetitionPlayerDetail> {
+  return CompetitionPlayerDetailSchema.parse(
+    await get(`/api/activity/events/${eventId}/competition/players/${playerId}`, sessionToken),
+  );
+}
+
+/** The event's public completion history page (filters as the site's). */
+export async function eventCompletionHistory(
+  eventId: number,
+  query: URLSearchParams,
+  sessionToken: string | null,
+): Promise<CompletionHistory> {
+  return CompletionHistorySchema.parse(
+    await get(`/api/activity/events/${eventId}/completions/history?${query}`, sessionToken),
+  );
+}
+
+/** Clan-vs-clan events the session user's clans are recruiting for (the site's
+ * "Your clans are recruiting" banner, `api.eventRecruiting`). */
+export async function eventRecruiting(sessionToken: string): Promise<EventRecruitingItem[]> {
+  return EventRecruitingItemSchema.array().parse(
+    await get("/api/activity/events/recruiting", sessionToken),
   );
 }
 

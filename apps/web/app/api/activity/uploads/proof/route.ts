@@ -7,10 +7,15 @@
  *
  * Multipart, so it can't use `upstreamForward` (JSON-only): the incoming
  * FormData is re-posted so fetch sets its own multipart boundary.
+ *
+ * `public_url` (the caller's preview thumbnail, never stored — `key` is what
+ * gets saved) goes through `proxiedBoardImg`: it is a B2 CDN address, which the
+ * discordsays CSP blocks, so an unproxied preview rendered as a broken image.
+ * The pot read proxies saved proofs the same way.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { env, SESSION_COOKIE } from "@/lib/env";
-import { bearerFrom } from "@/app/api/activity/_lib";
+import { bearerFrom, proxiedBoardImg } from "@/app/api/activity/_lib";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +45,11 @@ export async function POST(req: NextRequest) {
       headers: { accept: "application/json", cookie: `${SESSION_COOKIE}=${bearer}` },
       body: outbound,
     });
-    return NextResponse.json(await res.json().catch(() => ({})), { status: res.status });
+    const body = (await res.json().catch(() => ({}))) as { public_url?: unknown } | null;
+    if (res.ok && body && typeof body.public_url === "string") {
+      body.public_url = proxiedBoardImg(body.public_url);
+    }
+    return NextResponse.json(body ?? {}, { status: res.status });
   } catch (err) {
     console.error("[activity/uploads/proof]", err);
     return NextResponse.json({ detail: "Couldn't upload the image." }, { status: 502 });

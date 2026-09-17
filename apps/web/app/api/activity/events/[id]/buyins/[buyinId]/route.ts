@@ -1,14 +1,19 @@
 /**
- * BFF: tick (PATCH) or remove (DELETE) one buy-in from the Activity (web52a).
- * Bearer twin of the site server actions — the backend re-checks admin auth;
- * this route only forwards, never trusts the client.
+ * BFF: update one buy-in from the Activity (web52a) — the paid tick and the
+ * proof screenshot (web75a), both PATCH. Bearer twin of the site server
+ * actions — the backend re-checks admin auth; this route only forwards, never
+ * trusts the client.
+ *
+ * There is deliberately no DELETE: the Activity's pot panel has no remove
+ * control (removal lives in the site's admin prize-pot manager), and an
+ * unused write proxy is attack surface with nothing to show for it.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { bearerFrom, upstreamForward } from "@/app/api/activity/_lib";
 
 type Ctx = { params: Promise<{ id: string; buyinId: string }> };
 
-async function forward(req: NextRequest, ctx: Ctx, method: "PATCH" | "DELETE") {
+export async function PATCH(req: NextRequest, ctx: Ctx) {
   const { id, buyinId } = await ctx.params;
   const eventId = Number(id);
   const bid = Number(buyinId);
@@ -19,19 +24,12 @@ async function forward(req: NextRequest, ctx: Ctx, method: "PATCH" | "DELETE") {
   if (!bearer) {
     return NextResponse.json({ detail: "Sign in to manage the pot." }, { status: 401 });
   }
-  const body = method === "PATCH" ? await req.json().catch(() => ({})) : {};
+  const body = await req.json().catch(() => ({}));
   try {
-    const res = await upstreamForward(method, `/events/${eventId}/buyins/${bid}`, bearer, body);
+    const res = await upstreamForward("PATCH", `/events/${eventId}/buyins/${bid}`, bearer, body);
     return NextResponse.json(await res.json().catch(() => ({})), { status: res.status });
   } catch (err) {
     console.error("[activity/events/:id/buyins/:buyinId]", err);
     return NextResponse.json({ detail: "Couldn't reach the event service." }, { status: 502 });
   }
-}
-
-export function PATCH(req: NextRequest, ctx: Ctx) {
-  return forward(req, ctx, "PATCH");
-}
-export function DELETE(req: NextRequest, ctx: Ctx) {
-  return forward(req, ctx, "DELETE");
 }

@@ -38,11 +38,18 @@ export function EventCompletionHistory({
   eventId,
   teams = [],
   taskTypes = [],
+  fetchHistory,
+  openLink,
 }: {
   eventId: number;
   teams?: Array<{ id: number; name: string }>;
   /** Task types present in this event, for the type chips. */
   taskTypes?: string[];
+  /** Discord Activity: the bearer-token transport (default: the site BFF). */
+  fetchHistory?: (query: URLSearchParams) => Promise<CompletionHistory>;
+  /** Discord Activity: opens a proof screenshot through the SDK — a
+   * `target="_blank"` link does nothing inside the iframe. */
+  openLink?: (url: string) => void;
 }) {
   const [data, setData] = useState<CompletionHistory | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,11 +74,16 @@ export function EventCompletionHistory({
         if (playerCommitted.trim()) q.set("player", playerCommitted.trim());
         q.set("mode", mode);
         if (taskType) q.set("taskType", taskType);
-        const res = await fetch(`/api/events/${eventId}/completions/history?${q}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error(`Failed to load (${res.status})`);
-        const json = (await res.json()) as CompletionHistory;
+        let json: CompletionHistory;
+        if (fetchHistory) {
+          json = await fetchHistory(q);
+        } else {
+          const res = await fetch(`/api/events/${eventId}/completions/history?${q}`, {
+            cache: "no-store",
+          });
+          if (!res.ok) throw new Error(`Failed to load (${res.status})`);
+          json = (await res.json()) as CompletionHistory;
+        }
         setData(json);
         setPage(nextPage);
       } catch (err) {
@@ -80,7 +92,7 @@ export function EventCompletionHistory({
         setLoading(false);
       }
     },
-    [eventId, team, playerCommitted, mode, taskType],
+    [eventId, team, playerCommitted, mode, taskType, fetchHistory],
   );
 
   useEffect(() => {
@@ -248,7 +260,15 @@ export function EventCompletionHistory({
                     {e.points ? e.points.toLocaleString() : "—"}
                   </td>
                   <td className="px-3 py-2">
-                    {e.proof_url ? (
+                    {e.proof_url && openLink ? (
+                      <button
+                        type="button"
+                        onClick={() => openLink(e.proof_url!)}
+                        className="text-osrs-gold hover:underline"
+                      >
+                        view
+                      </button>
+                    ) : e.proof_url ? (
                       <a
                         href={e.proof_url}
                         target="_blank"

@@ -35,10 +35,14 @@ export function PrizePotPanel({
   pot,
   actions,
   onChanged,
+  openLink,
 }: {
   pot: EventPrizePot;
   actions?: PrizePotActions | null;
   onChanged?: () => void | Promise<void>;
+  /** Discord Activity: how a proof thumbnail opens the full screenshot (see
+   * `ProofAttach`). Site: unset — a plain new-tab link. */
+  openLink?: (url: string) => void;
 }) {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -81,9 +85,10 @@ export function PrizePotPanel({
           run(`p:${row.id}`, () => actions!.setProof!(row.id, u.key))
         }
         onRemove={() => run(`p:${row.id}`, () => actions!.setProof!(row.id, null))}
+        openLink={openLink}
       />
     ) : (
-      <ProofAttach url={row.proof_url ?? null} />
+      <ProofAttach url={row.proof_url ?? null} openLink={openLink} />
     );
 
   return (
@@ -205,6 +210,7 @@ export function PrizePotPanel({
           onAdd={(rsn, amount, proofKey) =>
             run("donate", () => actions!.recordDonation(rsn, amount, proofKey))
           }
+          openLink={openLink}
         />
       )}
     </div>
@@ -215,11 +221,13 @@ function DonationAdd({
   onAdd,
   busy,
   uploader,
+  openLink,
 }: {
   onAdd: (rsn: string, amount: number, proofKey: string | null) => void;
   busy: boolean;
   /** Present only when this surface can upload — otherwise no proof control. */
   uploader?: ProofUploader;
+  openLink?: (url: string) => void;
 }) {
   const [rsn, setRsn] = useState("");
   const [amount, setAmount] = useState(0);
@@ -251,6 +259,7 @@ function DonationAdd({
           title="Attach a screenshot of the donation"
           onUploaded={setProof}
           onRemove={() => setProof(null)}
+          openLink={openLink}
         />
       )}
       <button

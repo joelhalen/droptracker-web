@@ -21,6 +21,7 @@ export type ActivityView =
   | { name: "event"; id: number }
   | { name: "event-review"; id: number }
   | { name: "event-players"; id: number }
+  | { name: "event-teams"; id: number }
   | { name: "event-team"; id: number; teamId: number }
   | { name: "player"; id: number }
   | { name: "group"; id: number }
@@ -39,6 +40,7 @@ export function tabOf(root: ActivityView): ActivityTab {
     case "event":
     case "event-review":
     case "event-players":
+    case "event-teams":
     case "event-team":
       return "events";
     case "me":

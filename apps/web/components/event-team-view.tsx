@@ -140,6 +140,7 @@ export function EventTeamView({
   onBack,
   onOpenPlayer,
   loadContributions,
+  openLink,
 }: {
   detail: EventTeamDetail;
   live: boolean;
@@ -154,6 +155,9 @@ export function EventTeamView({
   /** Discord Activity: bearer-authed loader for the submission log, which is
    * fetched separately from `detail` (cookies don't reach the iframe). */
   loadContributions?: (page: number) => Promise<EventTeamContributions>;
+  /** Discord Activity: opens submission-log screenshots through the SDK
+   * (`target="_blank"` does nothing inside the iframe). */
+  openLink?: (url: string) => void;
 }) {
   const { event, team, members, tasks } = detail;
 
@@ -833,6 +837,7 @@ export function EventTeamView({
             refreshKey={logVersion}
             loadPage={loadContributions}
             onOpenPlayer={onOpenPlayer}
+            openLink={openLink}
           />
         </section>
       </div>

@@ -7,12 +7,17 @@
  * back to the session user's events across every group they belong to.
  * Upcoming (draft) events only come back for signed-in members of a
  * participating clan — the pre-publication landing page.
+ *
+ * Signed-in viewers also get the site's "Your clans are recruiting" banner:
+ * clan-vs-clan events their clans have joined that they haven't opted into.
+ * It follows the viewer (like the site's), not the launch server.
  */
 import { useEffect, useState } from "react";
-import type { EventSummary } from "@droptracker/api-types";
+import type { EventRecruitingItem, EventSummary } from "@droptracker/api-types";
 import { Card } from "@/components/ui";
+import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
 import { EventWindow } from "@/components/local-time";
-import { guildEvents, myEvents } from "@/lib/activity/api";
+import { eventRecruiting, guildEvents, myEvents } from "@/lib/activity/api";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityData } from "@/lib/activity/data-context";
 import { useActivityNav } from "@/lib/activity/nav";
@@ -59,12 +64,28 @@ function EventRow({ event, phase }: { event: EventSummary; phase: "upcoming" | "
 }
 
 export function EventsView() {
+  const nav = useActivityNav();
   const { guildId } = useActivityData();
   const { sessionToken } = useActivityAuth();
   const [active, setActive] = useState<EventSummary[] | null>(null);
   const [upcoming, setUpcoming] = useState<EventSummary[]>([]);
   const [past, setPast] = useState<EventSummary[]>([]);
+  const [recruiting, setRecruiting] = useState<EventRecruitingItem[]>([]);
   const [failed, setFailed] = useState(false);
+
+  // Best-effort, like the site's: a failure just means no banner.
+  useEffect(() => {
+    if (!sessionToken) return;
+    let cancelled = false;
+    eventRecruiting(sessionToken)
+      .then((items) => {
+        if (!cancelled) setRecruiting(items);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionToken]);
 
   useEffect(() => {
     if (!guildId && !sessionToken) {
@@ -107,7 +128,20 @@ export function EventsView() {
 
   return (
     <div>
-      {active.length === 0 && upcoming.length === 0 && past.length === 0 && (
+      {recruiting.length > 0 && (
+        <div className="mb-4">
+          <EventRecruitingBanner
+            items={recruiting}
+            onOpenEvent={(id) => nav.push({ name: "event", id })}
+          />
+        </div>
+      )}
+
+      {/* Not "no events" while the recruiting banner is offering one. */}
+      {active.length === 0 &&
+        upcoming.length === 0 &&
+        past.length === 0 &&
+        recruiting.length === 0 && (
         <Card padding="p-6">
           <p className="text-osrs-gold text-center font-serif text-lg font-semibold">No events yet</p>
           <p className="text-osrs-parchment-dark/60 mt-1 text-center text-sm">

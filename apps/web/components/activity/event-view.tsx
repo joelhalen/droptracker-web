@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * The activity's event screen: live bingo board + team standings + task list,
- * composed from the same components the website's event page uses.
+ * The activity's event screen: the same sections as the website's event page
+ * (header, standings, board / bingo / Loot Sweep / race, tasks, pot, clan
+ * points, participation, completion history), composed from the same
+ * components with the Activity's transports and navigation injected.
  *
  * Realtime rides the same anonymous `event:{id}` SSE scope as the site (the
  * board and progress bars subscribe themselves). Discord's proxy is expected
@@ -37,6 +39,7 @@ import {
   boardShop,
   boardUse,
   eventDetail,
+  eventCompletionHistory,
   eventPendingCompletions,
   eventPot,
   eventClanPoints,
@@ -53,7 +56,10 @@ import {
 } from "@/lib/activity/api";
 import { PrizePotPanel, type PrizePotActions } from "@/components/prize-pot-panel";
 import { EventClanPointsCard } from "@/components/event-clan-points-card";
-import { isCompetitionKind } from "@/lib/competition";
+import { EventCompletionHistory } from "@/components/event-completion-history";
+import { ActivityCompetitionBoard } from "@/components/activity/competition-board";
+import { openExternal } from "@/lib/activity/discord-sdk";
+import { isCompetitionKind, isTeamRace } from "@/lib/competition";
 import type { EventClanPoints, EventPrizePot } from "@droptracker/api-types";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -98,6 +104,20 @@ export function EventView({
   const fetchRequirements: RequirementsFetcher = useCallback(
     (taskId) => taskRequirements(eventId, taskId, sessionToken),
     [eventId, sessionToken],
+  );
+
+  // Completion history pages through the Activity BFF (the site's cookie
+  // route is unreachable from the iframe).
+  const fetchHistory = useCallback(
+    (query: URLSearchParams) => eventCompletionHistory(eventId, query, sessionToken),
+    [eventId, sessionToken],
+  );
+  // Outbound links (proof screenshots, WOM, guides) go through the SDK — a
+  // target="_blank" link is inert inside the iframe.
+  const openLink = useCallback((url: string) => void openExternal(url), []);
+  const openPlayer = useCallback(
+    (playerId: number) => nav.push({ name: "player", id: playerId }),
+    [nav],
   );
 
   // Board-game events: the dice board replaces the bingo grid. Fetched
@@ -333,6 +353,14 @@ export function EventView({
   // own ranking and colouring.
   const standings = [...event.teams].sort((a, b) => b.score - a.score);
   const teamRefs = event.teams.map((t) => ({ id: t.id, name: t.name, color: t.color }));
+  // SOTW/BOTW: the race board replaces the standings strip and task list. An
+  // individual race's one roster team is scaffolding, so it gets no team
+  // shortcuts; a team race does.
+  const isRace = isCompetitionKind(event.kind);
+  const teamRace = isRace && isTeamRace(event.competition);
+  const showTeams = !isRace || teamRace;
+  const wholeClanRace =
+    isRace && !teamRace && event.competition?.participation !== "signup";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-3 py-4">
@@ -364,6 +392,40 @@ export function EventView({
             <ScoringWindowBadge schedule={event.schedule} status={event.status} />
           </p>
         )}
+        {/* SOTW/BOTW: what is raced and where it runs, as on the site. */}
+        {isRace && event.competition && (
+          <p className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-osrs-parchment">
+              {event.kind === "sotw" ? "⚔️ Skill of the Week" : "⚔️ Boss of the Week"}
+              {event.competition.metric.display ? ` — ${event.competition.metric.display}` : ""}
+              {teamRace ? " · in teams" : ""}
+            </span>
+            {event.competition.wom ? (
+              <button
+                type="button"
+                onClick={() => openLink(event.competition!.wom!.url)}
+                className="border-osrs-bronze/40 text-osrs-parchment-dark/70 hover:text-osrs-gold-bright rounded border px-1.5 py-px"
+              >
+                {event.competition.source_mode === "created"
+                  ? "Created on WiseOldMan ↗"
+                  : "Mirrors WiseOldMan ↗"}
+              </button>
+            ) : (
+              <span className="border-osrs-bronze/40 text-osrs-parchment-dark/60 rounded border px-1.5 py-px">
+                Hosted on DropTracker
+              </span>
+            )}
+          </p>
+        )}
+        {event.description && (
+          <p className="text-osrs-parchment-dark/80 text-sm">{event.description}</p>
+        )}
+        {event.status === "draft" && (
+          <p className="border-osrs-gold/30 bg-osrs-gold/10 text-osrs-parchment-dark/90 rounded border px-2.5 py-1.5 text-xs">
+            This event hasn&apos;t started yet — this is a preview. Sign up now and you&apos;ll be
+            ready the moment it goes live.
+          </p>
+        )}
         {user && (
           <p className="text-osrs-parchment-dark/50 text-xs">
             Viewing as {user.global_name ?? user.username}
@@ -371,27 +433,41 @@ export function EventView({
         )}
       </header>
 
-      <EventStandingsStrip
-        eventId={eventId}
-        teams={event.teams}
-        viewerTeamId={event.viewer?.team_id ?? null}
-        onOpenTeam={(teamId) => nav.push({ name: "event-team", id: eventId, teamId })}
-      />
+      {!isRace && (
+        <EventStandingsStrip
+          eventId={eventId}
+          teams={event.teams}
+          viewerTeamId={event.viewer?.team_id ?? null}
+          onOpenTeam={(teamId) => nav.push({ name: "event-team", id: eventId, teamId })}
+        />
+      )}
 
       {/* Mirror of the site's Players/Teams tabs — full standings live in
           their own pushed views (podium + GP + items, team rollup cards). */}
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <button
           type="button"
           onClick={() => nav.push({ name: "event-players", id: eventId })}
-          className="border-osrs-bronze/30 bg-osrs-surface-1/70 hover:border-osrs-gold/60 flex-1 rounded-lg border px-3 py-2 text-left transition-colors"
+          className="border-osrs-bronze/30 bg-osrs-surface-1/70 hover:border-osrs-gold/60 rounded-lg border px-3 py-2 text-left transition-colors"
         >
           <span className="text-osrs-parchment block text-[13px] font-semibold">🏆 Players</span>
           <span className="text-osrs-parchment-dark/55 block text-[11px]">
-            Podium, points &amp; loot earned
+            {isRace ? "Every player on the race board" : "Podium, points & loot earned"}
           </span>
         </button>
-        {standings.length > 0 && (
+        {showTeams && standings.length > 0 && (
+          <button
+            type="button"
+            onClick={() => nav.push({ name: "event-teams", id: eventId })}
+            className="border-osrs-bronze/30 bg-osrs-surface-1/70 hover:border-osrs-gold/60 rounded-lg border px-3 py-2 text-left transition-colors"
+          >
+            <span className="text-osrs-parchment block text-[13px] font-semibold">👥 Teams</span>
+            <span className="text-osrs-parchment-dark/55 block text-[11px]">
+              {isRace ? "Team standings & top players" : "Standings, loot & top contributors"}
+            </span>
+          </button>
+        )}
+        {showTeams && standings.length > 0 && (
           <button
             type="button"
             onClick={() =>
@@ -401,26 +477,23 @@ export function EventView({
                 teamId: event.viewer?.team_id ?? standings[0]!.id,
               })
             }
-            className="border-osrs-bronze/30 bg-osrs-surface-1/70 hover:border-osrs-gold/60 flex-1 rounded-lg border px-3 py-2 text-left transition-colors"
+            className="border-osrs-bronze/30 bg-osrs-surface-1/70 hover:border-osrs-gold/60 rounded-lg border px-3 py-2 text-left transition-colors"
           >
             <span className="text-osrs-parchment block text-[13px] font-semibold">
               🛡️ {event.viewer?.team_id ? "My team" : "Top team"}
             </span>
             <span className="text-osrs-parchment-dark/55 block text-[11px]">
-              Roster, items earned &amp; progress
+              {isRace ? "Roster & who has gained" : "Roster, items earned & progress"}
             </span>
           </button>
         )}
       </div>
 
       {pot && pot.enabled && (
-        <PrizePotPanel pot={pot} actions={potActions} onChanged={loadPot} />
+        <PrizePotPanel pot={pot} actions={potActions} onChanged={loadPot} openLink={openLink} />
       )}
 
-      <EventClanPointsCard
-        data={clanPoints}
-        competition={isCompetitionKind(event.kind)}
-      />
+      <EventClanPointsCard data={clanPoints} competition={isRace} />
 
       {canManage && pendingCount > 0 && (
         <button
@@ -447,7 +520,12 @@ export function EventView({
       {event.status !== "past" && (
         <div className="border-osrs-bronze/20 bg-osrs-brown-dark/30 rounded border p-3">
           <h2 className="text-osrs-gold mb-2 text-sm font-semibold">Participate</h2>
-          {sessionToken ? (
+          {wholeClanRace ? (
+            <p className="text-osrs-parchment-dark/70 text-sm">
+              Every clan member is entered automatically — just play. Gains track live from
+              the plugin and the WiseOldMan hiscores.
+            </p>
+          ) : sessionToken ? (
             <EventJoinPanel
               event={event}
               players={me ? me.players.map((p) => ({ id: p.id, name: p.name })) : []}
@@ -464,6 +542,17 @@ export function EventView({
         </div>
       )}
 
+      {isRace && (
+        <ActivityCompetitionBoard
+          key={`race-${refreshKey}`}
+          eventId={event.id}
+          live={live}
+          refreshKey={refreshKey}
+          viewerPlayerIds={event.viewer?.player_ids_on_event ?? []}
+          viewerTeamId={teamRace ? (event.viewer?.team_id ?? null) : null}
+        />
+      )}
+
       {isBoardGame && board && (
         <div>
           <h2 className="heading-rule text-osrs-gold mb-2 pb-1 text-base font-semibold">
@@ -477,6 +566,7 @@ export function EventView({
             leadership={event.leadership}
             viewerRole={event.viewer?.team_role ?? null}
             actions={boardActions}
+            openLink={openLink}
           />
         </div>
       )}
@@ -495,6 +585,8 @@ export function EventView({
             fetchBoard={lootSweepFetchBoard}
             fetchReceipts={lootSweepFetchReceipts}
             stickyTop={0}
+            onOpenPlayer={openPlayer}
+            openLink={openLink}
           />
         </div>
       )}
@@ -517,8 +609,9 @@ export function EventView({
       {/* The organisers keep the tasks to themselves (web112a). */}
       {event.tasks_hidden && <HiddenBoardNotice compact />}
 
-      {/* Loot Sweep sets are shown by the matrix above, not as flat tasks. */}
-      {!isLootSweep && event.tasks.length > 0 && (
+      {/* Loot Sweep sets are shown by the matrix above, not as flat tasks; a
+          race's one managed task is the race board. */}
+      {!isLootSweep && !isRace && event.tasks.length > 0 && (
         <div>
           <h2 className="heading-rule text-osrs-gold mb-2 pb-1 text-base font-semibold">Tasks</h2>
           <EventTaskBoard
@@ -533,6 +626,22 @@ export function EventView({
             fetchRequirements={fetchRequirements}
           />
         </div>
+      )}
+
+      {/* The centralized "where the points came from" timeline (web57a). */}
+      {event.status !== "draft" && (event.teams.length > 0 || event.tasks.length > 0) && (
+        <section>
+          <h2 className="heading-rule text-osrs-gold mb-2 pb-1 text-base font-semibold">
+            {isRace ? "Bonus history" : "Completion history"}
+          </h2>
+          <EventCompletionHistory
+            eventId={event.id}
+            teams={event.teams.map((t) => ({ id: t.id, name: t.name }))}
+            taskTypes={event.tasks.map((t) => t.type)}
+            fetchHistory={fetchHistory}
+            openLink={openLink}
+          />
+        </section>
       )}
     </div>
   );

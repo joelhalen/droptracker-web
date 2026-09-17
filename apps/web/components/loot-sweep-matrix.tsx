@@ -301,6 +301,8 @@ export function LootSweepMatrix({
   fetchBoard = fetchEventLootSweep,
   fetchReceipts = fetchLootSweepReceipts,
   stickyTop,
+  onOpenPlayer,
+  openLink,
 }: {
   eventId: number;
   initial: LootSweepBoard;
@@ -314,6 +316,11 @@ export function LootSweepMatrix({
   /** Where the pinned team-header strip sticks. Omitted = measure the site
    * nav (the website); the activity passes 0 (its own scroll container). */
   stickyTop?: number;
+  /** Discord Activity: navigation for the hover cards' contributor names and
+   * screenshots (site links and `target="_blank"` don't work in the iframe).
+   * The site leaves both unset. */
+  onOpenPlayer?: (playerId: number) => void;
+  openLink?: (url: string) => void;
 }) {
   const [board, setBoard] = useState<LootSweepBoard>(initial);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -911,6 +918,8 @@ export function LootSweepMatrix({
                               count={prog?.count ?? 0}
                               banked={prog?.points ?? 0}
                               fetchReceipts={fetchReceipts}
+                              onOpenPlayer={onOpenPlayer}
+                              openLink={openLink}
                             />
                           }
                         >

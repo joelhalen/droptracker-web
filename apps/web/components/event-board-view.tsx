@@ -60,6 +60,9 @@ export type BoardActions = {
   resolveChoice: (eventId: number, choiceIndex: number) => Promise<Record<string, unknown>>;
 };
 
+/** The player guide behind the board's "How to play" link. */
+const HOW_TO_PLAY_URL = "https://www.droptracker.io/docs/events-board";
+
 /** Site default: the cookie-session server actions. */
 const SITE_BOARD_ACTIONS: BoardActions = {
   fetchBoard: fetchPublicEventBoard,
@@ -142,6 +145,7 @@ import { useEventStream } from "@/lib/use-event-stream";
 import { LiveStatusBadge } from "@/components/live-status-badge";
 import { Alert, Button } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
+import { QuantityInput } from "@/components/quantity-input";
 import { HoverCard } from "@/components/hover-card";
 import { TaskDetailSheet, useCoarsePointer } from "@/components/task-detail";
 import { BoardLinksOverlay } from "@/components/board-links-overlay";
@@ -153,6 +157,7 @@ export function EventBoardView({
   leadership,
   viewerRole,
   actions = SITE_BOARD_ACTIONS,
+  openLink,
 }: {
   event: EventDetail;
   initialBoard: BoardDetail;
@@ -165,6 +170,9 @@ export function EventBoardView({
   /** Data transport — defaults to the site server actions; the Activity passes
    * bearer-token BFF fetchers so the same component works inside the iframe. */
   actions?: BoardActions;
+  /** Discord Activity: opens outbound links through the SDK — a
+   * `target="_blank"` link does nothing inside the iframe. Site: unset. */
+  openLink?: (url: string) => void;
 }) {
   const [board, setBoard] = useState<BoardDetail>(initialBoard);
   const [error, setError] = useState<string | null>(null);
@@ -330,14 +338,24 @@ export function EventBoardView({
             : "Complete your task → earn coins → roll → move. First to the finish wins."}
         </p>
         <LiveStatusBadge state={streamState} />
-        <a
-          href="https://www.droptracker.io/docs/events-board"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-osrs-parchment-dark/70 hover:text-osrs-gold shrink-0 text-[11px] underline"
-        >
-          How to play ↗
-        </a>
+        {openLink ? (
+          <button
+            type="button"
+            onClick={() => openLink(HOW_TO_PLAY_URL)}
+            className="text-osrs-parchment-dark/70 hover:text-osrs-gold shrink-0 text-[11px] underline"
+          >
+            How to play ↗
+          </button>
+        ) : (
+          <a
+            href={HOW_TO_PLAY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-osrs-parchment-dark/70 hover:text-osrs-gold shrink-0 text-[11px] underline"
+          >
+            How to play ↗
+          </a>
+        )}
       </div>
 
       <div
@@ -1107,10 +1125,13 @@ function BoardShopPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, startBusy] = useTransition();
   // Inline targeting state for interference items (offensive → a team,
-  // roadblock → a tile, choose_roll → a number). Keyed by inventory_id.
+  // roadblock → a tile, choose_roll → a number). Keyed by inventory_id. The
+  // two numeric fields hold 0 for a blank box (`emptyAs` below) — a roadblock
+  // left blank (or 0) lands on the team's current tile; a blank move is
+  // refused.
   const [targetTeam, setTargetTeam] = useState<Record<number, number>>({});
-  const [targetTile, setTargetTile] = useState<Record<number, string>>({});
-  const [targetValue, setTargetValue] = useState<Record<number, string>>({});
+  const [targetTile, setTargetTile] = useState<Record<number, number>>({});
+  const [targetValue, setTargetValue] = useState<Record<number, number>>({});
 
   const load = useCallback(() => {
     actions
@@ -1154,10 +1175,10 @@ function BoardShopPanel({
       opts.targetTeamId = t;
     }
     if (effect === "roadblock") {
-      // Optional now — omit to default to the team's current tile server-side.
-      const raw = (targetTile[inventoryId] ?? "").trim();
-      if (raw) {
-        const tile = Number(raw);
+      // Optional now — blank (0) omits it, defaulting to the team's current
+      // tile server-side.
+      const tile = targetTile[inventoryId] ?? 0;
+      if (tile !== 0) {
         if (!Number.isInteger(tile) || tile <= 0 || tile >= maxTile) {
           setError(`Pick a tile between 1 and ${Math.max(1, maxTile - 1)}.`);
           return;
@@ -1166,9 +1187,9 @@ function BoardShopPanel({
       }
     }
     if (VALUE_EFFECTS.has(effect)) {
-      const raw = (targetValue[inventoryId] ?? "").trim();
-      const v = Number(raw);
-      if (!raw || !Number.isInteger(v) || v < diceMin || v > diceMax) {
+      // Required — blank (0) is refused like any out-of-range pick.
+      const v = targetValue[inventoryId] ?? 0;
+      if (v === 0 || !Number.isInteger(v) || v < diceMin || v > diceMax) {
         setError(
           diceMin === diceMax
             ? `This board always moves ${diceMax}, so ${diceMax} is the only pick.`
@@ -1364,37 +1385,37 @@ function BoardShopPanel({
                     ))}
                   </select>
                 )}
+                {/* Both fields are unbounded on purpose: an out-of-range entry
+                    has to reach use()'s range check and be refused with the
+                    valid range. A bounded field quietly reverts it on blur —
+                    and tapping Use blurs first, so the item would be spent on
+                    the previous value (for a roadblock, the blank "current
+                    tile"). Spending an item can't be undone. 0 is the blank. */}
                 {i.effect === "roadblock" && (
-                  <input
-                    type="number"
-                    min={1}
-                    max={Math.max(1, maxTile - 1)}
+                  <QuantityInput
+                    min={null}
+                    max={null}
+                    emptyAs={0}
                     placeholder="current tile"
                     title="Leave blank to block your team's current tile"
-                    value={targetTile[i.inventory_id] ?? ""}
-                    onChange={(e) =>
-                      setTargetTile((prev) => ({
-                        ...prev,
-                        [i.inventory_id]: e.target.value,
-                      }))
+                    value={targetTile[i.inventory_id] ?? 0}
+                    onChange={(tile) =>
+                      setTargetTile((prev) => ({ ...prev, [i.inventory_id]: tile }))
                     }
                     className="border-osrs-bronze/40 bg-osrs-brown-dark/60 w-24 rounded border px-1 py-0.5 text-[11px]"
                     aria-label="Roadblock tile (blank = current tile)"
                   />
                 )}
                 {VALUE_EFFECTS.has(i.effect) && (
-                  <input
-                    type="number"
-                    min={diceMin}
-                    max={diceMax}
+                  <QuantityInput
+                    min={null}
+                    max={null}
+                    emptyAs={0}
                     placeholder={diceMin === diceMax ? `${diceMax}` : `${diceMin}–${diceMax}`}
                     title={`Move exactly this many tiles (${diceMin}–${diceMax})`}
-                    value={targetValue[i.inventory_id] ?? ""}
-                    onChange={(e) =>
-                      setTargetValue((prev) => ({
-                        ...prev,
-                        [i.inventory_id]: e.target.value,
-                      }))
+                    value={targetValue[i.inventory_id] ?? 0}
+                    onChange={(steps) =>
+                      setTargetValue((prev) => ({ ...prev, [i.inventory_id]: steps }))
                     }
                     className="border-osrs-bronze/40 bg-osrs-brown-dark/60 w-16 rounded border px-1 py-0.5 text-[11px]"
                     aria-label="Tiles to advance"
