@@ -35,6 +35,13 @@ import {
 /* -------------------------------------------------------------------------- */
 
 /**
+ * The bot's avatar. The real embeds use `/img/droptracker-small.gif`, but that
+ * file is 672 KB — for a 40px circle. `/logo.gif` is the same animated mark at
+ * 45 KB, and the site header has already put it in every visitor's cache.
+ */
+const BOT_AVATAR = "/logo.gif";
+
+/**
  * The announced player's month total and global rank, via the BFF hover-card
  * route the rest of the site already uses. The first drop's card is resolved on
  * the server and passed in, so nothing is fetched until a new drop arrives.
@@ -121,7 +128,7 @@ export function DiscordPreview({
         </div>
         {/* Keyed by drop so a new announcement animates in as a new message. */}
         <div className="hp-dc-msg" key={drop.key} data-live={arrivedLive}>
-          <img className="hp-dc-avatar" src="/img/droptracker-small.gif" alt="" />
+          <img className="hp-dc-avatar" src={BOT_AVATAR} alt="" loading="lazy" decoding="async" />
           <div className="hp-dc-main">
             <div className="hp-dc-author">
               <b>DropTracker</b>
@@ -135,7 +142,7 @@ export function DiscordPreview({
                 player's month total and global rank. */}
             <div className="hp-dc-embed">
               <div className="hp-dc-embed-author">
-                <img src="/img/droptracker-small.gif" alt="" />
+                <img src={BOT_AVATAR} alt="" loading="lazy" decoding="async" />
                 <span>{drop.playerName}</span>
               </div>
               <div className="hp-dc-embed-title">{drop.itemName}</div>
