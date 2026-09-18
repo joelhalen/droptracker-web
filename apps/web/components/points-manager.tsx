@@ -470,6 +470,16 @@ function BehaviorSection({
           "Public leaderboard",
           "Anyone can view your points leaderboard. Off: only group members and admins can see it.",
         )}
+        {toggle(
+          "points_combine_accounts",
+          "Combine each member's accounts",
+          "Count every RuneScape account a member has claimed on Discord — and that is currently in this group — as one leaderboard entry with one total. Off: each account is ranked on its own. This changes how points are shown, not how they are earned, so you can switch it back at any time.",
+        )}
+        <p className="text-osrs-parchment-dark/50 text-xs">
+          Only current members appear on the leaderboard and in the Discord commands. When an
+          account leaves the group its points stop counting — nothing is deleted, so they return if
+          it rejoins. The award history below still lists everyone.
+        </p>
         <div className="flex flex-wrap gap-6">
           <label className="flex items-center gap-3">
             <span className="text-osrs-parchment-dark/80">Minimum points per submission</span>

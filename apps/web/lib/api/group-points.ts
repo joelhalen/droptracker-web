@@ -208,10 +208,11 @@ export const groupPointsApi = {
    * private boards). */
   async groupPointsLeaderboard(
     groupId: number,
-    params: { period?: string; page?: number; limit?: number } = {},
+    params: { period?: string; q?: string; page?: number; limit?: number } = {},
   ): Promise<PointsLeaderboard> {
     const q = new URLSearchParams();
     if (params.period) q.set("period", params.period);
+    if (params.q) q.set("q", params.q);
     if (params.page) q.set("page", String(params.page));
     if (params.limit) q.set("limit", String(params.limit));
     return PointsLeaderboardSchema.parse(

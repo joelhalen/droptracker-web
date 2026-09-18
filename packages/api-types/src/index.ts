@@ -6563,6 +6563,11 @@ export const PointsBehaviorSchema = z.object({
   point_sharing_method: PointSharingMethodSchema,
   points_require_group_only: z.boolean(),
   points_leaderboard_public: z.boolean(),
+  /** Boards, Discord commands and notification totals sum every RSN a Discord
+   * user has claimed that is currently in the group. Display-only: the ledger
+   * stays per-RSN, so flipping it never rewrites a row. Defaulted so a web
+   * deploy that lands before the backend restart still parses. */
+  points_combine_accounts: z.boolean().default(false),
   min_submission_pts: z.number().int(),
   max_submission_pts: z.number().int(),
 });
@@ -6662,11 +6667,24 @@ export const PointsHistoryPageSchema = z.object({
 });
 export type PointsHistoryPage = z.infer<typeof PointsHistoryPageSchema>;
 
-export const PointsLeaderboardEntrySchema = z.object({
-  rank: z.number().int(),
+export const PointsLeaderboardAccountSchema = z.object({
   id: z.number().int(),
   name: z.string(),
   points: z.number().int(),
+});
+export type PointsLeaderboardAccount = z.infer<typeof PointsLeaderboardAccountSchema>;
+
+export const PointsLeaderboardEntrySchema = z.object({
+  /** Rank on the FULL board — a search narrows the list without re-ranking. */
+  rank: z.number().int(),
+  /** The account the row is shown under: the top-scoring one behind it. */
+  id: z.number().int(),
+  name: z.string(),
+  points: z.number().int(),
+  /** Every nameable account behind `points`: one on a per-RSN board, several
+   * when the group combines a Discord user's RSNs. A hidden account counts
+   * towards the total but is never listed, so this can sum to less. */
+  accounts: z.array(PointsLeaderboardAccountSchema).default([]),
 });
 export type PointsLeaderboardEntry = z.infer<typeof PointsLeaderboardEntrySchema>;
 
@@ -6674,6 +6692,10 @@ export const PointsLeaderboardSchema = z.object({
   period: z.string(),
   group_id: z.number().int(),
   group_name: z.string(),
+  /** Rows are Discord users (RSNs summed) rather than single RSNs. */
+  combined: z.boolean().default(false),
+  /** The search the backend applied (trimmed), echoed back. */
+  query: z.string().default(""),
   entries: z.array(PointsLeaderboardEntrySchema),
   seasons: z.array(PointSeasonSchema),
   meta: PageMetaSchema,

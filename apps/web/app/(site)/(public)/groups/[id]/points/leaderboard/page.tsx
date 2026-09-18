@@ -5,13 +5,22 @@ import { orNotFound } from "@/lib/fetch";
 import { resolveRef, resolveIdOrRedirect } from "@/lib/entity-ref";
 import { groupSocialMetadata } from "@/lib/seo";
 import { entityPath } from "@/lib/slug";
+import {
+  isCombinedRow,
+  leaderboardHref,
+  matchRange,
+  normalizeQuery,
+  otherAccounts,
+  primaryShare,
+} from "@/lib/points-leaderboard";
 import { Card, EmptyState, NameTile, RankMedal } from "@/components/ui";
+import { PointsLeaderboardSearch } from "@/components/points-leaderboard-search";
 
 // Rendered dynamically: the fetch forwards the viewer's session so group
 // members can see members-only boards.
 
 type Params = Promise<{ id: string }>;
-type SearchParams = Promise<{ period?: string; page?: string }>;
+type SearchParams = Promise<{ period?: string; page?: string; q?: string }>;
 
 const PERIOD_TABS = [
   { key: "month", label: "Monthly" },
@@ -45,14 +54,15 @@ export default async function GroupPointsLeaderboardPage({
   const groupId = await resolveIdOrRedirect("group", "groups", id);
   // Keep the caller's URL form (slug or id) in this page's own nav links.
   const base = `/groups/${id}`;
-  const { period = "month", page: pageParam } = await searchParams;
+  const { period = "month", page: pageParam, q: qParam } = await searchParams;
   const page = Math.max(1, Number(pageParam) || 1);
+  const q = normalizeQuery(qParam);
 
   const group = await orNotFound(api.group(groupId));
 
   let board;
   try {
-    board = await api.groupPointsLeaderboard(groupId, { period, page, limit: 50 });
+    board = await api.groupPointsLeaderboard(groupId, { period, q, page, limit: 50 });
   } catch (err) {
     if (err instanceof ApiError && err.status === 403) {
       return (
@@ -95,7 +105,7 @@ export default async function GroupPointsLeaderboardPage({
         {PERIOD_TABS.map((p) => (
           <Link
             key={p.key}
-            href={`${base}/points/leaderboard?period=${p.key}` as Route}
+            href={leaderboardHref(base, { period: p.key, q }) as Route}
             className={tabClass(isPresetActive(p.key))}
           >
             {p.label}
@@ -104,7 +114,7 @@ export default async function GroupPointsLeaderboardPage({
         {board.seasons.map((s) => (
           <Link
             key={s.id}
-            href={`${base}/points/leaderboard?period=season:${s.id}` as Route}
+            href={leaderboardHref(base, { period: `season:${s.id}`, q }) as Route}
             className={tabClass(board.period === `season:${s.id}`)}
             title={
               s.start_at && s.end_at
@@ -125,7 +135,36 @@ export default async function GroupPointsLeaderboardPage({
         </p>
       )}
 
-      {board.entries.length === 0 ? (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <PointsLeaderboardSearch base={base} period={board.period} initialQuery={q} />
+        <p className="text-osrs-parchment-dark/60 text-sm">
+          {q ? (
+            <>
+              {board.meta.total.toLocaleString()} match{board.meta.total === 1 ? "" : "es"} for
+              “{q}” ·{" "}
+              <Link
+                href={leaderboardHref(base, { period: board.period }) as Route}
+                className="text-osrs-gold-bright hover:underline"
+              >
+                clear
+              </Link>
+            </>
+          ) : (
+            <>
+              {board.meta.total.toLocaleString()} ranked
+              {board.combined && " · each member's accounts are counted together"}
+            </>
+          )}
+        </p>
+      </div>
+
+      {board.entries.length === 0 && q ? (
+        <EmptyState
+          icon="🔍"
+          title={`No one matching “${q}”`}
+          hint="Only current group members with points in this period are ranked. Check the spelling, or try another period."
+        />
+      ) : board.entries.length === 0 ? (
         <EmptyState
           title="No points earned in this period"
           hint="Points appear here as group members earn them through drops, personal bests, pets, collection log slots and combat achievements."
@@ -152,8 +191,27 @@ export default async function GroupPointsLeaderboardPage({
                       className="hover:text-osrs-gold-bright flex items-center gap-2"
                     >
                       <NameTile name={row.name} playerId={row.id} />
-                      <span className="font-medium">{row.name}</span>
+                      <span className="font-medium">
+                        <Highlighted name={row.name} q={q} />
+                      </span>
                     </Link>
+                    {/* A combined row: every RSN behind the total, with its share. */}
+                    {isCombinedRow(row) && (
+                      <p className="text-osrs-parchment-dark/60 mt-1 flex flex-wrap gap-x-3 gap-y-0.5 pl-8 text-xs">
+                        <span>
+                          {row.name}: {primaryShare(row).toLocaleString()}
+                        </span>
+                        {otherAccounts(row).map((a) => (
+                          <Link
+                            key={a.id}
+                            href={entityPath("players", a.id, a.name)}
+                            className="hover:text-osrs-gold-bright"
+                          >
+                            <Highlighted name={a.name} q={q} />: {a.points.toLocaleString()}
+                          </Link>
+                        ))}
+                      </p>
+                    )}
                   </td>
                   <td className="text-osrs-gold-bright px-4 py-2 text-right font-semibold">
                     {row.points.toLocaleString()}
@@ -169,9 +227,7 @@ export default async function GroupPointsLeaderboardPage({
         <div className="flex items-center gap-3 text-sm">
           {page > 1 && (
             <Link
-              href={
-                `${base}/points/leaderboard?period=${board.period}&page=${page - 1}` as Route
-              }
+              href={leaderboardHref(base, { period: board.period, q, page: page - 1 }) as Route}
               className="text-osrs-gold-bright hover:underline"
             >
               ← Previous
@@ -182,9 +238,7 @@ export default async function GroupPointsLeaderboardPage({
           </span>
           {page < totalPages && (
             <Link
-              href={
-                `${base}/points/leaderboard?period=${board.period}&page=${page + 1}` as Route
-              }
+              href={leaderboardHref(base, { period: board.period, q, page: page + 1 }) as Route}
               className="text-osrs-gold-bright hover:underline"
             >
               Next →
@@ -193,6 +247,19 @@ export default async function GroupPointsLeaderboardPage({
         </div>
       )}
     </div>
+  );
+}
+
+/** A name with the part the search matched picked out. */
+function Highlighted({ name, q }: { name: string; q: string }) {
+  const range = matchRange(name, q);
+  if (!range) return <>{name}</>;
+  return (
+    <>
+      {name.slice(0, range[0])}
+      <mark className="bg-osrs-gold/25 text-inherit rounded-sm">{name.slice(range[0], range[1])}</mark>
+      {name.slice(range[1])}
+    </>
   );
 }
 
