@@ -558,6 +558,18 @@
   text-wrap: balance;
 }
 
+/* The "(.io)" trailing the wordmark: part of the name, said quietly. It sits
+   on the headline's baseline with no gap, so it reads "DropTracker(.io)".
+   Set in the UI face on purpose: the display face (Cinzel) has no lowercase —
+   it draws small capitals instead — and this is meant to read ".io", not ".IO". */
+.hp-title-tld {
+  font-family: var(--font-sans);
+  font-size: 0.36em;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--hp-ink-faint);
+}
+
 .hp-lede {
   max-width: 44rem;
   margin-top: 1.1rem;

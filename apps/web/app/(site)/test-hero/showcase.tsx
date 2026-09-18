@@ -192,7 +192,7 @@ export function DiscordPreview({
         <span className="hp-gp" data-tier={valueTier(drop.value)}>
           ●
         </span>{" "}
-        Not a mock-up of a made-up drop: this is the newest 10M+ drop on the platform,{" "}
+        A real announcement:{" "}
         {drop.playerId !== null ? (
           <Link
             href={entityPath("players", drop.playerId, drop.playerName)}
@@ -203,8 +203,8 @@ export function DiscordPreview({
         ) : (
           drop.playerName
         )}
-        &rsquo;s {drop.itemName}, laid out the way the bot announces it. It is replaced the moment
-        the next one lands.
+        &rsquo;s {drop.itemName} is the newest 10M+ drop on DropTracker, shown the way our bot
+        posts it. The next one replaces it automatically.
       </figcaption>
     </figure>
   );
@@ -284,7 +284,7 @@ export function LiveLootboard({
       <BoardFrame groupId={current.groupId}>
         <img
           src={lootboardUrl(current.groupId, bucket)}
-          alt={`${current.label} — this month's lootboard, generated from live submissions`}
+          alt={`${current.label}: this month's lootboard, generated from live submissions`}
           width={1074}
           height={795}
           loading="lazy"

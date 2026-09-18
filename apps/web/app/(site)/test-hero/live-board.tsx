@@ -97,7 +97,7 @@ export function LiveFeed({ seed, renderedAt }: { seed: FeedItem[]; renderedAt: n
   return (
     <section className="hp-panel" aria-labelledby="hp-feed-title">
       <header className="hp-panel-head">
-        <h3 id="hp-feed-title">Notable, as it happens</h3>
+        <h3 id="hp-feed-title">Live feed</h3>
         <span className="hp-stream" data-state={state}>
           <i aria-hidden />
           {state === "open" ? "streaming" : state === "connecting" ? "connecting" : "offline"}
@@ -281,7 +281,7 @@ export function Leaderboard({ boards }: { boards: BoardSet }) {
       </div>
 
       {board.rows.length === 0 ? (
-        <p className="hp-empty">Nobody is on this board yet — it fills as drops are tracked.</p>
+        <p className="hp-empty">Nobody is on this board yet. It fills up as drops are tracked.</p>
       ) : (
         <ol className="hp-lb-rows" style={{ height: board.rows.length * ROW_PX }}>
           {placed.map(({ row, index }) => {
@@ -450,7 +450,7 @@ export function SessionPulse() {
                 <small>{stats.biggest.name}</small>
               </>
             ) : (
-              "—"
+              <small>waiting…</small>
             )}
           </dd>
         </div>

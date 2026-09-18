@@ -263,7 +263,7 @@ export function toFeedItem(
         kind: "pet",
         ts,
         who: playerLink(data),
-        verb: "got a pet —",
+        verb: "got a pet:",
         what: {
           text: petName,
           href: itemId === null ? null : entityPath("items", itemId, petName),
@@ -526,14 +526,20 @@ export function applyDelta(rows: BoardRow[], id: number, delta: number): BoardRo
 /* Platform status                                                            */
 /* -------------------------------------------------------------------------- */
 
+/** How the "players online" window is described next to the figure. */
+export const ONLINE_WINDOW_LABEL = "last 5 mins";
+
 export interface PlatformPulse {
   state: "operational" | "degraded" | "offline";
   /** Submissions of every type processed in the trailing windows (both intake paths). */
   processed24h: number;
   processed30m: number;
   processed5m: number;
-  /** Distinct players who submitted something in the last hour. */
-  players1h: number;
+  /**
+   * Distinct players a submission was processed for in the last five minutes,
+   * or null when the backend predates the figure (then nothing is shown).
+   */
+  playersOnline: number | null;
   /** Open known issues staff have published. */
   openIssues: number;
   generatedAt: number;
@@ -547,10 +553,15 @@ export interface PlatformPulse {
  * took, so their counters are summed. The plugin API is the one that matters
  * for "is it working": the webhook reader being down alone reads as degraded,
  * not offline.
+ *
+ * Players online is the exception to "summed": it is a headcount, so the
+ * backend de-duplicates it across both paths and sends one number. Adding the
+ * two per-path `players_1h` figures, as this used to, counts anyone seen on
+ * both paths twice.
  */
 export function toPlatformPulse(summary: StatusSummary | null): PlatformPulse | null {
   if (!summary) return null;
-  const { api, webhook, generated_at } = summary.services;
+  const { api, webhook, generated_at, players_5m } = summary.services;
   // All-zero counters are the API client's "backend unreachable" placeholder
   // (EMPTY_STATUS_SUMMARY), not a quiet day — there is nothing honest to show.
   if (generated_at === 0) return null;
@@ -566,7 +577,7 @@ export function toPlatformPulse(summary: StatusSummary | null): PlatformPulse | 
     processed24h: api.processed["24h"] + webhook.processed["24h"],
     processed30m: api.processed["30m"] + webhook.processed["30m"],
     processed5m: api.processed["5m"] + webhook.processed["5m"],
-    players1h: api.players_1h + webhook.players_1h,
+    playersOnline: players_5m ?? null,
     openIssues: summary.categories.reduce(
       (n, c) => n + c.issues.filter((i) => i.status !== "resolved").length,
       0,

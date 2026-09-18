@@ -281,6 +281,7 @@ const STATUS: StatusSummary = {
   categories: [],
   services: {
     generated_at: 1789657770,
+    players_5m: 239,
     api: {
       status: "operational",
       online: true,
@@ -305,10 +306,20 @@ test("toPlatformPulse sums both intake paths", () => {
     processed24h: 885_927,
     processed30m: 19_134,
     processed5m: 2_610,
-    players1h: 719,
+    // A headcount, de-duplicated by the backend: NOT 523 + 196, which would
+    // count anyone seen on both intake paths twice.
+    playersOnline: 239,
     openIssues: 0,
     generatedAt: 1789657770,
   });
+});
+
+test("toPlatformPulse leaves players online unknown for a backend that predates it", () => {
+  const { players_5m: _omitted, ...services } = STATUS.services;
+  const pulse = toPlatformPulse({ ...STATUS, services });
+  // null, so the page shows no figure at all rather than a misleading 0.
+  assert.equal(pulse?.playersOnline, null);
+  assert.equal(pulse?.processed5m, 2_610);
 });
 
 test("toPlatformPulse grades the state by which path is down", () => {

@@ -11,6 +11,7 @@ import { HeroRain, LivePill, Odometer, OdometerSkeleton } from "./hero";
 import {
   EVENT_KIND_LABEL,
   GLOBAL_GROUP_ID,
+  ONLINE_WINDOW_LABEL,
   formatCount,
   formatCountdown,
   liveEvents,
@@ -34,9 +35,9 @@ import { DiscordPreview, LiveLootboard, type LootboardChoice } from "./showcase"
  * is curated, measured once and pasted in, or mocked up —
  *
  *   server render   leaderboards (day / week / month × players / clans), the
- *                   notable-drop feed history, intake counters from /status,
- *                   public events, supporters, and the global group's month
- *                   total, account count and top bosses
+ *                   notable-drop feed history, intake counters and players
+ *                   online from /status, public events, supporters, and the
+ *                   platform summary: month total, account count, top bosses
  *   SSE `global`    one frame per credited drop platform-wide (~7/s): drives
  *                   the rain, the odometer, live overtakes on the player
  *                   boards and the since-you-arrived counters
@@ -83,37 +84,39 @@ function within<T>(promise: Promise<T>, ms: number): Promise<T | null> {
 }
 
 /**
- * The global group's profile: month total, account count, top bosses.
+ * Month total, account count and top bosses, platform-wide.
  *
- * This is the one slow read on the page. The backend sums ~26k members to
- * build it — about 3s warm and 20s from a cold start — so it is (a) memoised
- * per render with `cache`, (b) capped, and (c) only ever awaited inside a
- * <Suspense> boundary, so the rest of the page streams without it. Next serves
- * it stale-while-revalidate (30s) after the first request, which is why a
- * visitor practically never waits on it.
+ * This used to be `api.group(2)` — the global group's profile, which walks ~27k
+ * members per uncached request: 3s warm, ~20s whenever a worker's cache was cold. The
+ * summary endpoint reads the total the global lootboard already publishes and
+ * a snapshot the backend keeps in Redis, so it answers in milliseconds.
+ *
+ * It is still memoised per render, capped, and awaited only inside <Suspense>:
+ * the page must thin out rather than stall if the backend is having a bad day,
+ * however fast the happy path is.
  */
-const getGlobalGroup = cache(() => within(api.group(GLOBAL_GROUP_ID), 8_000));
+const getPlatformSummary = cache(() => within(api.platformSummary(), 4_000));
 
 /* -------------------------------------------------------------------------- */
-/* Suspended sections (the ones fed by the slow global-group read)            */
+/* Suspended sections (the ones fed by the platform summary)                  */
 /* -------------------------------------------------------------------------- */
 
 async function HeroOdometer({ month }: { month: string }) {
-  const group = await getGlobalGroup();
+  const summary = await getPlatformSummary();
   return (
     <Odometer
-      seed={group?.monthly_loot?.value ?? null}
+      seed={summary?.monthly_loot?.value ?? null}
       month={month}
-      accounts={group?.member_count ?? null}
+      accounts={summary?.member_count ?? null}
     />
   );
 }
 
 async function BossHeat() {
-  const group = await getGlobalGroup();
-  const bosses = group?.top_bosses ?? [];
+  const summary = await getPlatformSummary();
+  const bosses = summary?.top_bosses ?? [];
   if (bosses.length === 0) {
-    return <p className="hp-empty">Boss totals are being tallied — check back in a minute.</p>;
+    return <p className="hp-empty">Boss totals are being tallied. Check back in a minute.</p>;
   }
   const max = bosses[0]!.loot.value || 1;
 
@@ -167,35 +170,35 @@ function HeatSkeleton() {
 /* -------------------------------------------------------------------------- */
 
 const TRACKED = [
-  { name: "Drops", note: "valued against live Grand Exchange prices" },
+  { name: "Drops", note: "valued at live Grand Exchange prices" },
   { name: "Personal bests", note: "ranked per boss and team size" },
-  { name: "Collection log", note: "every new slot, as it fills" },
+  { name: "Collection log", note: "every new slot as it fills" },
   { name: "Combat achievements", note: "task by task, tier by tier" },
   { name: "Pets", note: "the moment one follows you out" },
-  { name: "Levels & quests", note: "milestones, announced if you want them" },
+  { name: "Levels & quests", note: "milestones, announced if you like" },
   { name: "Diaries", note: "each tier as it completes" },
-  { name: "Deaths", note: "optional, with your clan's own messages" },
+  { name: "Deaths", note: "optional, with your clan’s own messages" },
 ];
 
 const DISCORD_POINTS = [
   {
-    title: "A channel per submission type",
-    body: "Send drops, personal bests, collection log slots, pets and the rest wherever you like — or all to one channel.",
+    title: "A channel for everything",
+    body: "Send drops, personal bests, collection logs and pets to separate channels, or keep it all in one.",
   },
   {
     title: "Your threshold, your rules",
-    body: "Announce everything or only what is worth shouting about, and optionally require a screenshot first.",
+    body: "Announce every drop or only the big ones. You can ask for a screenshot too.",
   },
   {
-    title: "Boards that edit themselves",
-    body: "Lootboards and live event standings are posted once and updated in place, so the channel stays readable.",
+    title: "Boards that update themselves",
+    body: "Lootboards and event standings are posted once, then edited in place. Your channel stays tidy.",
   },
 ];
 
 const STEPS: { title: string; body: string; href: Route; link: string }[] = [
   {
     title: "Install the plugin",
-    body: "Find DropTracker on the RuneLite Plugin Hub. Drops start recording straight away — no account needed.",
+    body: "Find DropTracker on the RuneLite Plugin Hub. Tracking starts right away, no account needed.",
     href: "/docs/runelite-plugin" as Route,
     link: "Plugin guide",
   },
@@ -289,8 +292,8 @@ export default async function TestHeroPage() {
   const lootboards: LootboardChoice[] = [
     {
       groupId: GLOBAL_GROUP_ID,
-      label: "Every tracked account",
-      detail: `the whole platform's ${month} on one board`,
+      label: "All players",
+      detail: `every tracked account’s ${month} on one board`,
     },
     ...boards.month.clans.rows.slice(0, 3).map((clan) => ({
       groupId: clan.id,
@@ -322,9 +325,9 @@ export default async function TestHeroPage() {
                 100M+
               </span>
             </span>
-            {pulse && (
+            {pulse && pulse.playersOnline !== null && (
               <span className="hp-stage-stat">
-                <b>{formatCount(pulse.players1h)}</b> players submitting this hour
+                <b>{formatCount(pulse.playersOnline)}</b> players online ({ONLINE_WINDOW_LABEL})
               </span>
             )}
           </div>
@@ -339,12 +342,16 @@ export default async function TestHeroPage() {
         </div>
 
         <div className="hp-shell hp-pitch">
-          <p className="hp-kicker">DropTracker · Old School RuneScape</p>
-          <h1 id="hp-title">Gielinor&rsquo;s loot, counted live.</h1>
+          <p className="hp-kicker">Welcome to</p>
+          {/* No whitespace before the span: the suffix butts up against the
+              wordmark, "DropTracker(.io)". */}
+          <h1 id="hp-title">
+            The DropTracker<span className="hp-title-tld">(.io)</span>
+          </h1>
           <p className="hp-lede">
-            DropTracker is a RuneLite plugin and Discord bot. It records your drops, personal
-            bests, collection log and achievements the moment they happen — and turns them into
-            leaderboards, clan lootboards, Discord announcements and events.
+            An all-in-one loot and achievement tracker for Old School RuneScape players and
+            groups. Real-time Discord notifications, live leaderboards and clan events, all
+            powered by one RuneLite plugin.
           </p>
 
           {/* The site's own homepage search — same component, same behaviour. */}
@@ -369,12 +376,11 @@ export default async function TestHeroPage() {
       {/* --- Right now -------------------------------------------------------- */}
       <section className="hp-section" aria-labelledby="hp-now">
         <header className="hp-section-head">
-          <p className="hp-kicker">Right now</p>
-          <h2 id="hp-now">None of this is a screenshot.</h2>
+          <p className="hp-kicker">Happening now</p>
+          <h2 id="hp-now">This page is live.</h2>
           <p>
-            The feed, the boards and the counter move on the same submissions that set off your
-            clan&rsquo;s Discord announcements, the moment they are processed. Leave the tab open
-            for a while — sooner or later someone gets overtaken.
+            Every number, feed and leaderboard here updates automatically as drops come in. No
+            refresh needed.
           </p>
         </header>
 
@@ -399,14 +405,14 @@ export default async function TestHeroPage() {
           {pulse && (
             <div>
               <dt>
-                of them <span>in the last 5 minutes</span>
+                processed just now <span>in the last 5 minutes</span>
               </dt>
               <dd>{formatCount(pulse.processed5m)}</dd>
             </div>
           )}
           <div>
             <dt>
-              players on the board <span>in {month}</span>
+              players ranked <span>in {month}</span>
             </dt>
             <dd>{formatCount(boards.month.players.ranked)}</dd>
           </div>
@@ -425,8 +431,8 @@ export default async function TestHeroPage() {
           <p className="hp-kicker">{month} so far</p>
           <h2 id="hp-month">Where the loot is coming from.</h2>
           <p>
-            Totals run month to month, for every account and every clan. These are the bosses
-            paying out the most since the 1st, and the boards being redrawn from it all.
+            Totals reset on the 1st of every month. These are the bosses paying out the most so
+            far, and the lootboards being drawn from it all.
           </p>
         </header>
 
@@ -452,9 +458,8 @@ export default async function TestHeroPage() {
             </header>
             <LiveLootboard choices={lootboards} renderedAt={renderedAt} />
             <p className="hp-panel-note">
-              A lootboard is your clan&rsquo;s month on one image — top looters, the items that
-              made the total, and the latest submissions — rendered in the game&rsquo;s own
-              interface font and kept up to date in a Discord channel of your choosing.
+              A lootboard is your clan&rsquo;s month in one image: top looters, best items and the
+              latest drops. We keep it up to date in a Discord channel of your choice.
             </p>
           </section>
         </div>
@@ -466,8 +471,8 @@ export default async function TestHeroPage() {
           <p className="hp-kicker">What you get</p>
           <h2 id="hp-product">Install one plugin. The rest happens by itself.</h2>
           <p>
-            There is no form to fill in and no screenshot to paste. The plugin sees the drop, we
-            price it and check it, and everything downstream updates within seconds.
+            No forms to fill in and no screenshots to paste. The plugin spots your drop, we value
+            and verify it, and everything updates within seconds.
           </p>
         </header>
 
@@ -499,9 +504,8 @@ export default async function TestHeroPage() {
                 ))}
               </ul>
               <p className="hp-panel-note">
-                Each type can go to its own Discord channel, with your own value threshold, and
-                anything over 1M is checked against the wiki to confirm it can really drop from
-                that source.
+                Drops over 1M are checked against the OSRS Wiki to confirm they can really come
+                from that source.
               </p>
             </section>
 
@@ -534,9 +538,9 @@ export default async function TestHeroPage() {
               ) : null}
 
               <p className="hp-panel-note">
-                Bingo, board-game races, loot sweeps and Skill or Boss of the Week — with teams,
-                sign-ups and prize pots built in. Tiles tick themselves off from the same
-                submissions as everything else, so nobody keeps a spreadsheet.{" "}
+                Bingo, board-game races, loot sweeps and Skill or Boss of the Week, with teams,
+                sign-ups and prize pots built in. Tiles complete automatically from your
+                submissions, so nobody needs a spreadsheet.{" "}
                 <Link href="/events" className="hp-link">
                   Browse events →
                 </Link>
@@ -576,11 +580,11 @@ export default async function TestHeroPage() {
             <p className="hp-kicker">Thank you</p>
             <h2 id="hp-supporters">Kept running by the people who use it.</h2>
             <p>
-              DropTracker is paid for by the clans and players below. A{" "}
+              DropTracker is funded by the clans and players below. A{" "}
               <Link href="/premium" className="hp-link">
                 subscription
               </Link>{" "}
-              keeps the servers on — and unlocks premium features for everyone in your clan.
+              keeps the servers running and unlocks premium features for your whole clan.
             </p>
           </header>
 
@@ -624,8 +628,8 @@ export default async function TestHeroPage() {
         <div>
           <h2 id="hp-close-title">Your next drop could be on this page.</h2>
           <p>
-            Install the plugin and it is tracked from the first kill. Sign in with Discord to claim
-            it, then bring the clan along.
+            Install the plugin and you are tracked from the first kill. Sign in with Discord to
+            claim your account, then bring your clan along.
           </p>
           <div className="hp-cta">
             <Link className="hp-btn hp-btn-primary" href="/docs/getting-started">
