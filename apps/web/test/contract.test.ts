@@ -35,6 +35,7 @@ import {
   GroupConfigPatchSchema,
   LeaderboardPageSchema,
   LootboardSchema,
+  PlatformSummarySchema,
   LootSweepBoardSchema,
   EventCompetitionBoardSchema,
   CompetitionPlayerDetailSchema,
@@ -99,6 +100,7 @@ import {
   mockGroupSubscriptionSummary,
   mockLookup,
   mockLootboard,
+  mockPlatformSummary,
   mockChatMessages,
   mockChatThreads,
   mockCreatedTicket,
@@ -177,6 +179,7 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => B2UsageSchema.parse(mockB2Usage()));
   assert.doesNotThrow(() => AdminLookupResponseSchema.parse(mockLookup("zez")));
   assert.doesNotThrow(() => LootboardSchema.parse(mockLootboard(42, "all")));
+  assert.doesNotThrow(() => PlatformSummarySchema.parse(mockPlatformSummary()));
   assert.doesNotThrow(() => EventSummarySchema.array().parse(mockEvents()));
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(1)));
   assert.doesNotThrow(() => EventDetailSchema.parse(mockEvent(3)));

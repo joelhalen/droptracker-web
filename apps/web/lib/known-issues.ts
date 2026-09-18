@@ -48,6 +48,12 @@ export const StatusCountsSchema = z.object({
 
 export const StatusServicesSchema = z.object({
   generated_at: z.number().int(),
+  /**
+   * Distinct players a submission was processed for in the last five minutes,
+   * across BOTH intake paths (de-duplicated, so it is not the sum of anything
+   * below). Optional: a backend from before 2026-09-18 does not send it.
+   */
+  players_5m: z.number().int().optional(),
   api: z.object({
     status: z.string(),
     online: z.boolean(),

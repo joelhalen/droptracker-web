@@ -818,6 +818,25 @@ export const GroupProfileSchema = z.object({
 });
 export type GroupProfile = z.infer<typeof GroupProfileSchema>;
 
+/**
+ * `GET /platform/summary` — the homepage's platform-wide figures for the current
+ * tracking month. Not in the vendored OpenAPI spec (like `/status`); the
+ * contract is `web_api/routes/platform.py` in the backend repo.
+ *
+ * `monthly_loot` is null when nobody can say (Redis unreachable), which is not
+ * the same as 0 gp. `member_count` is null and `top_bosses` empty only while the
+ * first snapshot of a month is being built.
+ */
+export const PlatformSummarySchema = z.object({
+  partition: z.number().int(),
+  generated_at: z.number().int(),
+  monthly_loot: MoneySchema.nullable(),
+  member_count: z.number().int().nullable(),
+  top_bosses: z.array(TopBossSchema),
+  snapshot_at: z.number().int().nullable(),
+});
+export type PlatformSummary = z.infer<typeof PlatformSummarySchema>;
+
 export const AnnouncementSchema = z.object({
   id: z.number().int(),
   scope_type: z.enum(["global", "group"]),

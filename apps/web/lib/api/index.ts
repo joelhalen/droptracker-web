@@ -21,6 +21,7 @@ import { announcementsApi } from "./announcements";
 import { docsApi } from "./docs";
 import { redirectsApi } from "./redirects";
 import { statusApi } from "./status";
+import { platformApi } from "./platform";
 import { devApi } from "./dev";
 import { itemValuesApi } from "./item-values";
 import { accountApi } from "./account";
@@ -54,6 +55,7 @@ export const api = {
   ...docsApi,
   ...redirectsApi,
   ...statusApi,
+  ...platformApi,
   ...devApi,
   ...itemValuesApi,
   ...accountApi,

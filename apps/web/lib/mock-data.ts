@@ -47,6 +47,7 @@ import type {
   NotificationLayoutMeta,
   GroupMembersPage,
   GroupProfile,
+  PlatformSummary,
   AuthorizedUsersResponse,
   EventManagersResponse,
   NotificationBlacklist,
@@ -402,6 +403,21 @@ export function mockGroupProfile(id: number): GroupProfile {
         ts: Math.floor(Date.now() / 1000) - 900,
       },
     ],
+  };
+}
+
+/** `GET /platform/summary` — the same figures the mock global group reports. */
+export function mockPlatformSummary(): PlatformSummary {
+  const now = Math.floor(Date.now() / 1000);
+  const today = new Date();
+  const group = mockGroupProfile(2);
+  return {
+    partition: today.getUTCFullYear() * 100 + today.getUTCMonth() + 1,
+    generated_at: now,
+    monthly_loot: group.monthly_loot ?? null,
+    member_count: group.member_count,
+    top_bosses: group.top_bosses ?? [],
+    snapshot_at: now - 60,
   };
 }
 
