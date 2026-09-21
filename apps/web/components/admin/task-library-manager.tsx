@@ -51,11 +51,12 @@ const PAGE_SIZE = 50; // mirrors the API's _LIBRARY_PAGE_SIZE
 
 const IMG_BASE = "https://www.droptracker.io/img";
 
-type ItemMode = "single" | "any_of" | "all_of" | "point_collection";
+type ItemMode = "single" | "any_of" | "any_of_distinct" | "all_of" | "point_collection";
 
 const ITEM_MODE_LABELS: Record<ItemMode, string> = {
   single: "Single item",
   any_of: "Any item(s) from a list",
+  any_of_distinct: "Different items from a list",
   all_of: "All items from a list",
   point_collection: "Points from a list",
 };
@@ -469,11 +470,14 @@ function PresetForm({
     initial?.type === "item_collection" && initialItems.length ? (initial.target_value ?? 0) : 0,
   );
   // any_of: how many qualifying drops complete the task ("any 2 boaters").
+  // any_of_distinct shares it: how many DIFFERENT items ("any 4 of 8 hilts").
   const [anyOfQty, setAnyOfQty] = useState(
-    initial?.type === "item_collection" && initialConfig.kind === "any_of"
+    initial?.type === "item_collection" &&
+      (initialConfig.kind === "any_of" || initialConfig.kind === "any_of_distinct")
       ? (initial.target_value ?? 1)
       : 1,
   );
+  const distinctListCount = new Set(listItems.map((i) => i.name.trim().toLowerCase())).size;
   const [npcSel, setNpcSel] = useState<PickerEntry[]>(
     initial && ["kc_target", "pb_target"].includes(initial.type) && initial.target
       ? [{ name: initial.target }]
@@ -525,6 +529,11 @@ function PresetForm({
           if (listItems.length < 2) return "Add at least two items to the list.";
           if (itemMode === "any_of" && anyOfQty < 1)
             return "Set how many from the list are needed.";
+          if (itemMode === "any_of_distinct") {
+            if (anyOfQty < 1) return "Set how many different items are needed.";
+            if (anyOfQty > distinctListCount)
+              return `The list has ${distinctListCount} different items. Lower the goal or add items.`;
+          }
         }
         break;
       case "kc_target":
@@ -582,7 +591,7 @@ function PresetForm({
           target_value:
             itemMode === "point_collection"
               ? pointsGoal
-              : itemMode === "any_of"
+              : itemMode === "any_of" || itemMode === "any_of_distinct"
                 ? anyOfQty
                 : listItems.length,
           config: JSON.stringify({
@@ -767,6 +776,18 @@ function PresetForm({
                   onChange={setAnyOfQty}
                   className={field}
                   title="Total qualifying drops needed — duplicates count (any 2 boaters)."
+                />
+              </label>
+            ) : itemMode === "any_of_distinct" ? (
+              <label className="grid gap-1 text-sm">
+                <span className="text-osrs-parchment-dark/80">How many different items</span>
+                <QuantityInput
+                  min={1}
+                  max={distinctListCount || null}
+                  value={anyOfQty}
+                  onChange={setAnyOfQty}
+                  className={field}
+                  title="Each item counts once. A repeat of an item the team already has doesn't count."
                 />
               </label>
             ) : null}

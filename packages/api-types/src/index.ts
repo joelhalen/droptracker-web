@@ -4887,6 +4887,9 @@ export const TaskBreakdownGroupSchema = z.object({
   need: z.number().int().default(0),
   obtained: z.number().int().default(0),
   satisfied: z.boolean().default(false),
+  /** An any_of bucket whose items each count once (`any_of_distinct` tasks,
+   * "any 4 DIFFERENT of these 8"): a repeat of a held item adds nothing. */
+  distinct: z.boolean().optional(),
   /** Unit for the bucket total, e.g. "pts" for point_collection. */
   unit: z.string().optional(),
   items: z.array(TaskBreakdownItemSchema).default([]),
@@ -5009,6 +5012,8 @@ export const TaskRequirementGroupSchema = z.object({
   mode: z.enum(["all_of", "any_of", "points", "count"]),
   need: z.number().int().default(0),
   label: z.string().optional(),
+  /** Items each count once (`any_of_distinct`); `label` already says so. */
+  distinct: z.boolean().optional(),
   unit: z.string().optional(),
   items: z.array(TaskRequirementItemSchema).default([]),
 });

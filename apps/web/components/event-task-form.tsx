@@ -88,11 +88,21 @@ import {
 const field =
   "bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-osrs-gold/60";
 
-type ItemMode = "single" | "any_of" | "all_of" | "point_collection" | "groups" | "any_path";
+type ItemMode =
+  | "single"
+  | "any_of"
+  | "any_of_distinct"
+  | "all_of"
+  | "point_collection"
+  | "groups"
+  | "any_path";
 
+// Key order is the dropdown order: the two "any N" modes sit together so the
+// difference between them (do repeats count?) is visible at the choice.
 const ITEM_MODE_LABELS: Record<ItemMode, string> = {
   single: "Single item",
   any_of: "Any item(s) from a list",
+  any_of_distinct: "Different items from a list",
   all_of: "All items from a list",
   point_collection: "Points from a list",
   groups: "Combined requirements",
@@ -101,7 +111,10 @@ const ITEM_MODE_LABELS: Record<ItemMode, string> = {
 
 const ITEM_MODE_HELP: Record<ItemMode, string> = {
   single: "One specific item (optionally more than once).",
-  any_of: "Any items from the list count — set how many are needed (e.g. any 2 boaters).",
+  any_of:
+    "Any items from the list count, including repeats of the same item. Set how many are needed (e.g. any 2 boaters).",
+  any_of_distinct:
+    "Each item on the list counts once, so a repeat of an item the team already has adds nothing. Set how many different items are needed (e.g. any 4 of 8 hilts).",
   all_of: "The team must collect every item on the list.",
   point_collection:
     "Each item is worth points — the team races to the points goal. Weight rare drops higher.",
@@ -636,11 +649,15 @@ export function EventTaskForm({
     initial?.type === "item_collection" && initialItems.length ? (initial.target_value ?? 0) : 0,
   );
   // any_of: how many qualifying drops complete the task ("any 2 boaters").
+  // any_of_distinct shares it: how many DIFFERENT items ("any 4 of 8 hilts").
   const [anyOfQty, setAnyOfQty] = useState(
-    initial?.type === "item_collection" && initialConfig.kind === "any_of"
+    initial?.type === "item_collection" &&
+      (initialConfig.kind === "any_of" || initialConfig.kind === "any_of_distinct")
       ? (initial.target_value ?? 1)
       : 1,
   );
+  // A name listed twice is still one item: the goal is bounded by this.
+  const distinctListCount = new Set(listItems.map((i) => i.name.trim().toLowerCase())).size;
   // Starter shape mirrors the classic use case: one all-of set + one any-of pick.
   const [groups, setGroups] = useState<GroupDraft[]>(
     initialGroups.length
@@ -976,6 +993,11 @@ export function EventTaskForm({
           if (listItems.length < 2) return "Add at least two items to the list.";
           if (itemMode === "any_of" && anyOfQty < 1)
             return "Set how many from the list are needed.";
+          if (itemMode === "any_of_distinct") {
+            if (anyOfQty < 1) return "Set how many different items are needed.";
+            if (anyOfQty > distinctListCount)
+              return `The list has ${distinctListCount} different items. Lower the goal or add items.`;
+          }
         }
         break;
       case "kc_target":
@@ -1049,6 +1071,10 @@ export function EventTaskForm({
         if (itemMode === "any_of")
           return anyOfQty > 1
             ? `Any ${anyOfQty} of ${listItems.length} items`
+            : `Any of ${listItems.length} items`;
+        if (itemMode === "any_of_distinct")
+          return anyOfQty > 1
+            ? `Any ${anyOfQty} different of ${listItems.length} items`
             : `Any of ${listItems.length} items`;
         if (itemMode === "all_of") return `Collect all ${listItems.length} items`;
         if (itemMode === "groups")
@@ -1203,7 +1229,7 @@ export function EventTaskForm({
             target_value:
               itemMode === "point_collection"
                 ? pointsGoal
-                : itemMode === "any_of"
+                : itemMode === "any_of" || itemMode === "any_of_distinct"
                   ? anyOfQty
                   : listItems.length,
             config: JSON.stringify({
@@ -1536,6 +1562,18 @@ export function EventTaskForm({
                   onChange={setAnyOfQty}
                   className={field}
                   title="Total qualifying drops needed — duplicates count (any 2 boaters)."
+                />
+              </label>
+            ) : itemMode === "any_of_distinct" ? (
+              <label className="grid gap-1 text-sm">
+                <span className="text-osrs-parchment-dark/80">How many different items</span>
+                <QuantityInput
+                  min={1}
+                  max={distinctListCount || null}
+                  value={anyOfQty}
+                  onChange={setAnyOfQty}
+                  className={field}
+                  title="Each item counts once. A repeat of an item the team already has doesn't count."
                 />
               </label>
             ) : null}

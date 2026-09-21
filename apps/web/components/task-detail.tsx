@@ -161,6 +161,8 @@ function groupLabel(g: TaskBreakdownGroup): string | null {
     case "all_of":
       return "All of";
     case "any_of":
+      // A distinct bucket counts each item once ("Any 4 different").
+      if (g.distinct && g.need > 1) return `Any ${g.need} different`;
       return g.need > 1 ? `Any ${g.need} of` : "Any of";
     case "points":
       return "Points";

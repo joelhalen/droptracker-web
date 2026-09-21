@@ -681,9 +681,15 @@ export function taskGoal(
       }
       const items = taskConfigItems(task);
       if (items.length) {
-        const kind = String(taskConfig(task).kind ?? "any_of").replace("_", " ");
+        const rawKind = taskConfig(task).kind;
+        // any_of_distinct counts each item once ("any 4 DIFFERENT of 8");
+        // naming it keeps it apart from any_of, where repeats count.
+        const kind =
+          rawKind === "any_of_distinct"
+            ? "any different"
+            : String(rawKind ?? "any_of").replace("_", " ");
         const need =
-          taskConfig(task).kind === "any_of" && tv != null && tv > 1
+          (rawKind === "any_of" || rawKind === "any_of_distinct") && tv != null && tv > 1
             ? ` · ${tv.toLocaleString()} needed`
             : "";
         return `${kind} · ${items.length} items${need}${lockSuffix}`;
