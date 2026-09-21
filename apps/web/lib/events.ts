@@ -18,7 +18,13 @@ import { formatGp } from "@/lib/format";
  * per team instead of wrapping the old 8. The first 8 are unchanged, so no
  * existing team is recolored; the next 8 fill the gaps (indigo, fuchsia, lime,
  * brown, aqua, cyan, rose, lavender) and are picked so positions 0–11 stay
- * clearly distinguishable from one another. */
+ * clearly distinguishable from one another.
+ *
+ * "Roster order" means team id order. The backend mirrors this list as
+ * TEAM_PALETTE in droptracker-core services/event_team_discord.py and picks
+ * the same entry by id ordinal for the team's Discord role color, channel
+ * circle and in-game orb, so edit or reorder the two together (a core unit
+ * test compares them when both repos are checked out side by side). */
 export const TEAM_COLORS = [
   "#e05c4c", // red
   "#4c8fe0", // blue

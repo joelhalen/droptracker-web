@@ -422,9 +422,14 @@ export function LootSweepMatrix({
   const railW = compact ? RAIL_W_COMPACT : RAIL_W;
   const colW = compact ? COL_W_COMPACT : COL_W;
 
-  // Colors resolve against the unsorted roster (palette fallbacks stay stable
-  // and match the Teams panel); columns then rank by overall score.
-  const colors = useMemo(() => teamColorMap(board.teams), [board.teams]);
+  // Colors resolve against the id-ordered roster, as on every other surface
+  // (the Teams panel, the Discord channel circles, the in-game orb): the API
+  // sends these teams ranked by score, so indexing them as-is recolored a
+  // colorless team whenever the standings changed. Columns then rank by score.
+  const colors = useMemo(
+    () => teamColorMap([...board.teams].sort((a, b) => a.id - b.id)),
+    [board.teams],
+  );
   const columns = useMemo(
     () => buildTeamColumns(board.teams, viewerTeamId ?? null, colors),
     [board.teams, viewerTeamId, colors],
