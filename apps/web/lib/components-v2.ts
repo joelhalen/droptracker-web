@@ -52,18 +52,37 @@ function lineValuesAreAllBlank(
   return sawKnown;
 }
 
+/**
+ * Replace one token the way notifications do (`replace_placeholders_in_text`):
+ * a sample that is already inline code, like `{item_value}`'s "`1.2B`", takes
+ * the place of the template's own backtick pair around the token, so
+ * "G/E Value: `{item_value}`" does not nest them.
+ */
+function substituteCodeAware(line: string, token: string, sample: string): string {
+  const unwrapped = sample.includes("`") ? line.split(`\`${token}\``).join(sample) : line;
+  return unwrapped.split(token).join(sample);
+}
+
+/**
+ * `unwrapCode` applies the notification sender's backtick rule
+ * (`substituteCodeAware`). The event renderer substitutes plainly, so the
+ * event editor leaves it off.
+ */
 export function resolveLines(
   text: string,
   samples: Map<string, string>,
   substitute: boolean,
   tokenRe: RegExp,
+  unwrapCode = false,
 ): string[] {
   const out: string[] = [];
   for (const rawLine of text.split("\n")) {
     let line = rawLine;
     if (substitute) {
       if (lineValuesAreAllBlank(rawLine, samples, tokenRe)) continue;
-      for (const [token, sample] of samples) line = line.split(token).join(sample);
+      for (const [token, sample] of samples) {
+        line = unwrapCode ? substituteCodeAware(line, token, sample) : line.split(token).join(sample);
+      }
       if (tokenRe.test(line)) continue;
       if (!line.trim() && rawLine.trim()) continue;
     }
@@ -142,7 +161,7 @@ export function renderNotificationPreview(
     }
 
     if (block.type === "text" || block.type === "section") {
-      const text = resolveLines(block.content, samples, substitute, NOTIFICATION_TOKEN_RE)
+      const text = resolveLines(block.content, samples, substitute, NOTIFICATION_TOKEN_RE, true)
         .join("\n")
         .trim();
       // A block whose every line dropped is itself dropped.

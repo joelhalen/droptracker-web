@@ -94,6 +94,25 @@ test("a line keeps its label while any one of its values resolves", () => {
   assert.deepEqual(lines, ["**Time** 1:52.20 — "]);
 });
 
+test("a code-formatted drop value is not wrapped twice", () => {
+  // Mirrors test_code_formatted_drop_value_is_not_wrapped_twice: the default
+  // drop layout wraps {item_value}, which the sender already sends as inline
+  // code. Nested, a stack showed stray backticks.
+  const samples = new Map([["{item_value}", "`163.48K` (670 x `238`)"]]);
+  const [preview] = renderNotificationPreview(
+    [block({ content: "G/E Value: `{item_value}`" })],
+    samples,
+    true,
+  );
+  assert.deepEqual(preview, { kind: "text", text: "G/E Value: `163.48K` (670 x `238`)" });
+});
+
+test("the event renderer's plain substitution is left alone", () => {
+  const samples = new Map([["{points}", "`5`"]]);
+  const lines = resolveLines("Earned `{points}`", samples, true, EVENT_TOKEN_RE);
+  assert.deepEqual(lines, ["Earned ``5``"]);
+});
+
 test("raw mode substitutes and drops nothing", () => {
   const lines = resolveLines("hi {player_name}\n{missing}", SAMPLES, false, NOTIFICATION_TOKEN_RE);
   assert.deepEqual(lines, ["hi {player_name}", "{missing}"]);
