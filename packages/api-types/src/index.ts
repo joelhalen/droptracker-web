@@ -6592,6 +6592,12 @@ export const PointsBehaviorSchema = z.object({
    * stays per-RSN, so flipping it never rewrites a row. Defaulted so a web
    * deploy that lands before the backend restart still parses. */
   points_combine_accounts: z.boolean().default(false),
+  /** On: the Discord replies that change points (/add-group-points,
+   * /remove-group-points and the "Modify Entry" message menu) are shown only
+   * to the admin who acted. Off, the default: they are posted for the whole
+   * channel. Defaulted so a web deploy that lands before the backend restart
+   * still parses. */
+  points_ephemeral_messages: z.boolean().default(false),
   min_submission_pts: z.number().int(),
   max_submission_pts: z.number().int(),
 });

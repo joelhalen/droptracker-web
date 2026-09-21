@@ -135,4 +135,5 @@ test("behavior without the new toggle parses as off", () => {
     max_submission_pts: 0,
   });
   assert.equal(parsed.points_combine_accounts, false);
+  assert.equal(parsed.points_ephemeral_messages, false);
 });

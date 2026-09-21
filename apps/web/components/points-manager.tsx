@@ -480,6 +480,11 @@ function BehaviorSection({
           account leaves the group its points stop counting — nothing is deleted, so they return if
           it rejoins. The award history below still lists everyone.
         </p>
+        {toggle(
+          "points_ephemeral_messages",
+          "Ephemeral messages",
+          "On: replies to /add-group-points, /remove-group-points and the Modify Entry menu are only shown to the admin who used them. Off: changes are posted in the channel, so everyone can see what changed and who changed it.",
+        )}
         <div className="flex flex-wrap gap-6">
           <label className="flex items-center gap-3">
             <span className="text-osrs-parchment-dark/80">Minimum points per submission</span>
