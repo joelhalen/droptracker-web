@@ -755,6 +755,7 @@ export function CompetitionSetup({
                       min={1}
                       max={100}
                       value={r.max_awards ?? 1}
+                      disabled={!!r.unlimited}
                       onChange={(e) =>
                         setRule(i, {
                           ...r,
@@ -764,8 +765,23 @@ export function CompetitionSetup({
                           ),
                         })
                       }
-                      className={`${field} w-16`}
+                      className={`${field} w-16 disabled:opacity-40`}
                     />
+                  </label>
+                  {/* The number above is kept while this is on, so turning it
+                      back off restores what the admin had. */}
+                  <label
+                    className="flex cursor-pointer items-center gap-1.5"
+                    title="Pays every time a player earns it"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!r.unlimited}
+                      onChange={(e) =>
+                        setRule(i, { ...r, unlimited: e.target.checked || undefined })
+                      }
+                    />
+                    No limit
                   </label>
                   {r.type === "time_under" && (
                     <>

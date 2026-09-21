@@ -81,6 +81,10 @@ test("bonusRuleSentence words rules exactly like the Discord award line", () => 
     }),
     "+5 pts for a Zulrah kill under 1:00, up to 3× per player",
   );
+  assert.equal(
+    bonusRuleSentence({ type: "milestone", points: 10, step: 100, max_awards: 3, unlimited: true }),
+    "+10 pts for every 100 gained, no limit per player",
+  );
 });
 
 test("metricSummary + rateSentence", () => {
@@ -163,6 +167,21 @@ test("an unknown rule type still says what it is worth", () => {
   assert.equal(sentence, "+15 pts for Something new");
   assert.equal(bonusRuleIcon("some_future_type"), "✨");
   assert.equal(bonusRuleIcon("task"), "🎯");
+});
+
+test("bonusRuleToInput round-trips the no-limit switch with the admin's number", () => {
+  const input = bonusRuleToInput({
+    id: 2,
+    type: "time_under",
+    points: 5,
+    max_awards: 3,
+    unlimited: true,
+    label: "Zulrah kill under 1:00",
+    npc: "Zulrah",
+    threshold_ms: 60_000,
+  });
+  assert.equal(input.unlimited, true);
+  assert.equal(input.max_awards, 3);
 });
 
 test("bonusRuleToInput keeps the criteria and drops the display projection", () => {

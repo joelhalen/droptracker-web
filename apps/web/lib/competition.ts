@@ -175,6 +175,7 @@ type BonusRuleSentenceInput = {
   type: CompetitionBonusRule["type"];
   points: number;
   max_awards?: number | null;
+  unlimited?: boolean | null;
   pets?: string[] | null;
   npc?: string | null;
   threshold_ms?: number | null;
@@ -228,7 +229,11 @@ function taskRuleGoal(rule: BonusRuleSentenceInput): string {
  * card and the Discord award line all render exactly this shape. */
 export function bonusRuleSentence(rule: BonusRuleSentenceInput): string {
   const pts = `+${rule.points.toLocaleString("en-US")} pts`;
-  const cap = rule.max_awards && rule.max_awards > 1 ? `, up to ${rule.max_awards}× per player` : "";
+  const cap = rule.unlimited
+    ? ", no limit per player"
+    : rule.max_awards && rule.max_awards > 1
+      ? `, up to ${rule.max_awards}× per player`
+      : "";
   const where = rule.scope_line ? ` (${rule.scope_line})` : "";
   if (rule.type === "pet") {
     const pets = rule.pets ?? [];

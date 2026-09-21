@@ -2610,6 +2610,9 @@ export const CompetitionBonusRuleSchema = z.object({
   points: z.number().int(),
   /** Per-player award cap. Pinned to 1 for progress kinds that saturate. */
   max_awards: z.number().int().default(1),
+  /** No per-player cap: the rule pays every time it is earned. `max_awards`
+   * still carries the admin's number, restored if this is turned off. */
+  unlimited: z.boolean().optional(),
   /** The sentence to SHOW — the admin's own wording when they named the rule,
    * a derived one otherwise. Never send this back: see `custom_label`. */
   label: z.string(),
@@ -2886,6 +2889,9 @@ export const EventCompetitionInputSchema = z.object({
         type: z.enum(COMPETITION_BONUS_RULE_TYPES),
         points: z.number().int().positive(),
         max_awards: z.number().int().positive().optional(),
+        /** No per-player cap. The server ignores it on a rule that can only
+         * pay once. */
+        unlimited: z.boolean().optional(),
         label: z.string().max(120).optional(),
         pets: z.array(z.string()).optional(),
         npc: z.string().optional(),
