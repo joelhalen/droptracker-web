@@ -1526,6 +1526,7 @@ export function EventManager({
               groupId={groupId}
               eventId={event.id}
               liveEvent={liveTaskEvent}
+              eventTasks={tasks}
               onSaved={(t) => {
                 setTasks((prev) => [...prev, t]);
                 setTaskFormFor(null);
@@ -1554,6 +1555,7 @@ export function EventManager({
                     eventId={event.id}
                     initial={t}
                     liveEvent={liveTaskEvent}
+                    eventTasks={tasks}
                     onSaved={(updated) => {
                       setTasks((prev) => prev.map((x) => (x.id === t.id ? updated : x)));
                       setTaskFormFor(null);

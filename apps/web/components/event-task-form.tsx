@@ -31,6 +31,7 @@ import {
   type EventTaskInput,
 } from "@droptracker/api-types";
 import {
+  GOLD_RING_ITEM_ID,
   OSRS_SKILLS,
   PET_CATEGORY_KEYS,
   PET_CATEGORY_LABELS,
@@ -41,13 +42,17 @@ import {
   formatSeconds,
   parseTimeToSeconds,
   isDefaultSlayerExclusion,
+  isGoldRingName,
+  isVestigeName,
   pbRequirement,
   slayerRequirement,
   slayerRequirementSummary,
   taskConfig,
   taskConfigItems,
   taskConfigPetNames,
+  taskListsItem,
   taskSourceNpcs,
+  vestigeRingsCount,
   type PbRequirementMode,
   type SlayerRequirement,
 } from "@/lib/events";
@@ -558,6 +563,7 @@ export function EventTaskForm({
   hideDifficulty,
   submitLabel,
   liveEvent,
+  eventTasks,
 }: {
   groupId: number | null;
   eventId: number;
@@ -580,6 +586,9 @@ export function EventTaskForm({
    * whether to re-score recorded progress ("recompute") or apply the change
    * going forward ("keep") before saving. */
   liveEvent?: boolean;
+  /** The event's tasks, when the caller has them. Only read to point out a
+   * Gold ring task that a vestige task would also credit on the same ring. */
+  eventTasks?: EventTask[];
 }) {
   const draftMode = onDraftSubmit != null;
   const editing = !draftMode && initial != null;
@@ -618,6 +627,11 @@ export function EventTaskForm({
       ? initialConfig.progress_notify
       : "",
   );
+  // DT2 vestiges (config.vestige_rings): a Gold ring from a vestige's boss
+  // counts as that vestige unless the task switches it off. Only `false` is
+  // ever stored, and only while the list holds a vestige.
+  const initialVestigeRings = initial ? vestigeRingsCount(initial) : true;
+  const [vestigeRings, setVestigeRings] = useState(initialVestigeRings);
 
   // item_collection
   const initialGroups = groupsFromConfig(initialConfig, initialPetNames);
@@ -677,6 +691,37 @@ export function EventTaskForm({
   );
   const patchPath = (pi: number, patch: Partial<PathDraft>) =>
     setPaths((prev) => prev.map((p, i) => (i === pi ? { ...p, ...patch } : p)));
+
+  /** Item names the current collection mode would save. */
+  const pickedItemNames = (): string[] => {
+    switch (itemMode) {
+      case "single":
+        return singleItem.map((i) => i.name);
+      case "groups":
+        return groups.flatMap((g) => g.items.map((i) => i.name));
+      case "any_path":
+        return paths.flatMap((p) =>
+          p.kind === "items"
+            ? p.groups.flatMap((g) => g.items.map((i) => i.name))
+            : p.kind === "points"
+              ? p.items.map((i) => i.name)
+              : [],
+        );
+      default:
+        return listItems.map((i) => i.name);
+    }
+  };
+  // The Gold ring switch only means something while a vestige is listed, and
+  // not when the list names Gold ring itself: a listed ring counts as a ring.
+  const pickedNames = type === "item_collection" ? pickedItemNames() : [];
+  const listsVestige = pickedNames.some(isVestigeName);
+  const listsGoldRing = pickedNames.some(isGoldRingName);
+  const ringSwitchApplies = listsVestige && !listsGoldRing;
+  // Another task already scoring Gold rings is exactly the clash the switch
+  // exists for: with it on, one ring from a DT2 boss credits both tasks.
+  const goldRingTaskElsewhere = (eventTasks ?? []).some(
+    (t) => t.id !== initial?.id && taskListsItem(t, "Gold ring"),
+  );
 
   // kc / pb / xp / skill / loot / ehp / ehb
   // kc_target may carry several NPCs (config.npcs) — a kill of ANY of them
@@ -1349,6 +1394,23 @@ export function EventTaskForm({
     return { ...input, config: JSON.stringify({ ...cfg, progress_notify: progressNotify }) };
   };
 
+  /** Fold the "Gold rings count as vestiges" switch into the built config.
+   * Only the off state is stored (on is the default), and only while the
+   * switch applies (a vestige listed, Gold ring not), so a single-item task
+   * gains a config just for this. */
+  const withVestigeRings = (input: EventTaskInput): EventTaskInput => {
+    if (!ringSwitchApplies || vestigeRings) return input;
+    let cfg: Record<string, unknown> = {};
+    if (input.config) {
+      try {
+        cfg = JSON.parse(input.config) as Record<string, unknown>;
+      } catch {
+        return input;
+      }
+    }
+    return { ...input, config: JSON.stringify({ ...cfg, vestige_rings: false }) };
+  };
+
   /** web68a: a pending scoring-affecting edit awaiting the editor's
    * retroactivity choice (shown as an inline prompt over the actions row). */
   const [retroPrompt, setRetroPrompt] = useState<EventTaskInput | null>(null);
@@ -1396,7 +1458,7 @@ export function EventTaskForm({
       return;
     }
     setError(null);
-    const input = withProgressNotify(buildInput());
+    const input = withVestigeRings(withProgressNotify(buildInput()));
     if (onDraftSubmit) {
       onDraftSubmit(input);
       return;
@@ -1761,6 +1823,38 @@ export function EventTaskForm({
               bossImport={bossImport}
               searchPets={searchPets}
             />
+          )}
+          {listsVestige && listsGoldRing && (
+            <p className="text-osrs-parchment-dark/60 text-xs">
+              Gold ring is on this list, so a ring from a DT2 boss counts as a Gold ring here, not
+              as a vestige.
+            </p>
+          )}
+          {ringSwitchApplies && (
+            <div className="border-osrs-gold/30 bg-osrs-gold/5 grid gap-1.5 rounded-lg border p-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={vestigeRings}
+                  onChange={(e) => setVestigeRings(e.target.checked)}
+                  disabled={pending}
+                />
+                <ItemDbIcon itemId={GOLD_RING_ITEM_ID} size={18} />
+                <span className="text-osrs-parchment">Gold rings count as vestiges</span>
+              </label>
+              <p className="text-osrs-parchment-dark/60 text-xs">
+                DT2 bosses drop a Gold ring, then two, on the rolls before a vestige.{" "}
+                {vestigeRings
+                  ? "While this is on, a ring from the vestige's boss counts as the vestige. A player's rings and the vestige they lead to count once."
+                  : "Only the vestige itself counts here. Rings can still score in a task of their own."}
+              </p>
+              {vestigeRings && goldRingTaskElsewhere && (
+                <p className="text-osrs-gold-bright text-xs">
+                  Another task in this event scores Gold rings, so one ring from these bosses
+                  currently counts for both. Turn this off if the ring should only count there.
+                </p>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -2402,6 +2496,14 @@ export function EventTaskForm({
             change going forward (item-list progress may still adjust when the next submission
             arrives).
           </p>
+          {ringSwitchApplies &&
+            vestigeRingsCount({ config: retroPrompt.config ?? null }) !== initialVestigeRings && (
+              <p className="text-osrs-parchment-dark/70 mt-1 text-xs">
+                {initialVestigeRings
+                  ? "Re-score also takes back the vestige credit Gold rings have already given on this task."
+                  : "Re-score gives back ring credit that an earlier re-score took away. Rings that dropped while this was off can't be counted."}
+              </p>
+            )}
           <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"

@@ -333,6 +333,52 @@ export function taskSourceNpcs(task: Pick<EventTask, "config">): string[] {
   return Array.isArray(raw) ? raw.filter((n): n is string => typeof n === "string") : [];
 }
 
+/** The four DT2 vestiges. Each one's boss drops a Gold ring, then two, on the
+ * rolls before the vestige itself (backend: utils/vestige_rings.py). */
+export const DT2_VESTIGES = [
+  "Ultor vestige",
+  "Magus vestige",
+  "Venator vestige",
+  "Bellator vestige",
+] as const;
+
+/** Item id of the Gold ring, for its icon. */
+export const GOLD_RING_ITEM_ID = 1635;
+
+const itemKey = (name: string) => name.trim().toLowerCase().split(/\s+/).join(" ");
+const VESTIGE_KEYS = new Set<string>(DT2_VESTIGES.map(itemKey));
+
+/** Whether an item name is one of the DT2 vestiges (case and spacing ignored,
+ * like the engine's name match). */
+export function isVestigeName(name: string): boolean {
+  return VESTIGE_KEYS.has(itemKey(name));
+}
+
+/** Whether an item name is the Gold ring. A list that names it counts a ring
+ * as a ring, so the "Gold rings count as vestiges" switch has no effect there. */
+export function isGoldRingName(name: string): boolean {
+  return itemKey(name) === "gold ring";
+}
+
+/** Whether a Gold ring from a vestige's boss counts as that vestige on this
+ * task (`config.vestige_rings`). On unless explicitly switched off, which is
+ * also how every task built before the switch existed behaves. */
+export function vestigeRingsCount(task: Pick<EventTask, "config">): boolean {
+  return taskConfig(task).vestige_rings !== false;
+}
+
+/** Whether an item_collection task names `item` itself, as its single target
+ * or anywhere in its item list (case and spacing ignored). */
+export function taskListsItem(
+  task: Pick<EventTask, "type" | "target" | "config">,
+  item: string,
+): boolean {
+  if (task.type !== "item_collection") return false;
+  const key = itemKey(item);
+  if (task.target && itemKey(task.target) === key) return true;
+  return taskConfigItems(task).some((it) => itemKey(it.item_name) === key);
+}
+
 /** pb_target completion requirement (config `{mode, need}`): beat the time N
  * times / N unique players each beat it / every rostered team member beats
  * it. Config-less tasks are the legacy `times` ×1 (complete on first beat). */
