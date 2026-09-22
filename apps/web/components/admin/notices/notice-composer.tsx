@@ -394,9 +394,9 @@ export function NoticeComposer({
           notice={previewContent}
           preview
           onClose={() => setPreviewOpen(false)}
-          onFollowLink={(href, external) => {
-            if (external) window.open(href, "_blank", "noopener,noreferrer");
-          }}
+          // Site links do nothing here, so a click can't navigate away from an
+          // unsaved draft. External links still open in their own tab.
+          onFollowLink={() => {}}
         />
       )}
     </div>

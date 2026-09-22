@@ -152,7 +152,9 @@ export function NoticesManager({ initial, options }: { initial: AdminPopupNotice
         );
       })}
 
-      {preview && <NoticeDialog notice={preview} preview onClose={() => setPreview(null)} />}
+      {preview && (
+        <NoticeDialog notice={preview} preview onClose={() => setPreview(null)} onFollowLink={() => {}} />
+      )}
     </div>
   );
 }
