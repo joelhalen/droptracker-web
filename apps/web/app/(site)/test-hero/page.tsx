@@ -288,6 +288,7 @@ export default async function TestHeroPage() {
   const reel = notableDrops(feed, 10);
   const pulse = toPlatformPulse(status);
   const running = liveEvents(events, renderedAt, 3);
+  const hasSupporters = supporters.groups.length > 0 || supporters.players.length > 0;
 
   const lootboards: LootboardChoice[] = [
     {
@@ -370,98 +371,6 @@ export default async function TestHeroPage() {
               Browse the docs →
             </Link>
           </div>
-        </div>
-      </section>
-
-      {/* --- Right now -------------------------------------------------------- */}
-      <section className="hp-section" aria-labelledby="hp-now">
-        <header className="hp-section-head">
-          <p className="hp-kicker">Happening now</p>
-          <h2 id="hp-now">This page is live.</h2>
-          <p>
-            Every number, feed and leaderboard here updates automatically as drops come in. No
-            refresh needed.
-          </p>
-        </header>
-
-        <div className="hp-grid hp-grid-now">
-          <LiveFeed seed={feedItems} renderedAt={renderedAt} />
-          <Leaderboard boards={boards} />
-        </div>
-      </section>
-
-      {/* --- By the numbers ---------------------------------------------------- */}
-      <section className="hp-band" aria-label="DropTracker by the numbers">
-        {/* dt before dd, as a <dl> requires — the stylesheet puts the figure on top. */}
-        <dl className="hp-figures">
-          {pulse && (
-            <div>
-              <dt>
-                submissions processed <span>in the last 24 hours</span>
-              </dt>
-              <dd>{formatCount(pulse.processed24h)}</dd>
-            </div>
-          )}
-          {pulse && (
-            <div>
-              <dt>
-                processed just now <span>in the last 5 minutes</span>
-              </dt>
-              <dd>{formatCount(pulse.processed5m)}</dd>
-            </div>
-          )}
-          <div>
-            <dt>
-              players ranked <span>in {month}</span>
-            </dt>
-            <dd>{formatCount(boards.month.players.ranked)}</dd>
-          </div>
-          <div>
-            <dt>
-              clans competing <span>in {month}</span>
-            </dt>
-            <dd>{formatCount(boards.month.clans.ranked)}</dd>
-          </div>
-        </dl>
-      </section>
-
-      {/* --- The month so far --------------------------------------------------- */}
-      <section className="hp-section" aria-labelledby="hp-month">
-        <header className="hp-section-head">
-          <p className="hp-kicker">{month} so far</p>
-          <h2 id="hp-month">Where the loot is coming from.</h2>
-          <p>
-            Totals reset on the 1st of every month. These are the bosses paying out the most so
-            far, and the lootboards being drawn from it all.
-          </p>
-        </header>
-
-        <div className="hp-grid hp-grid-month">
-          <div className="hp-stack">
-            <section className="hp-panel" aria-labelledby="hp-heat-title">
-              <header className="hp-panel-head">
-                <h3 id="hp-heat-title">Richest bosses this month</h3>
-                <span className="hp-stream">all tracked accounts</span>
-              </header>
-              <Suspense fallback={<HeatSkeleton />}>
-                <BossHeat />
-              </Suspense>
-            </section>
-
-            <SessionPulse />
-          </div>
-
-          <section className="hp-panel" aria-labelledby="hp-board-title">
-            <header className="hp-panel-head">
-              <h3 id="hp-board-title">Lootboards</h3>
-              <span className="hp-stream">redrawn every few minutes</span>
-            </header>
-            <LiveLootboard choices={lootboards} renderedAt={renderedAt} />
-            <p className="hp-panel-note">
-              A lootboard is your clan&rsquo;s month in one image: top looters, best items and the
-              latest drops. We keep it up to date in a Discord channel of your choice.
-            </p>
-          </section>
         </div>
       </section>
 
@@ -573,55 +482,150 @@ export default async function TestHeroPage() {
         </ol>
       </section>
 
-      {/* --- Supporters --------------------------------------------------------------- */}
-      {(supporters.groups.length > 0 || supporters.players.length > 0) && (
-        <section className="hp-section" aria-labelledby="hp-supporters">
-          <header className="hp-section-head">
-            <p className="hp-kicker">Thank you</p>
-            <h2 id="hp-supporters">Kept running by the people who use it.</h2>
-            <p>
-              DropTracker is funded by the clans and players below. A{" "}
-              <Link href="/premium" className="hp-link">
-                subscription
-              </Link>{" "}
-              keeps the servers running and unlocks premium features for your whole clan.
+      {/* --- Supporters: the thank-you, and the ask ---------------------------------------
+          Always rendered: the wall only appears once someone subscribes, but the
+          ask to support the project stands on its own. */}
+      <section className="hp-section" aria-labelledby="hp-supporters">
+        <header className="hp-section-head">
+          <p className="hp-kicker">Thank you</p>
+          <h2 id="hp-supporters">Kept running by the people who use it.</h2>
+          <p>
+            {hasSupporters && "DropTracker is funded by the clans and players below. "}A
+            subscription keeps the servers running and unlocks premium features for your whole
+            clan.
+          </p>
+          <div className="hp-cta">
+            <Link className="hp-btn hp-btn-primary" href="/premium">
+              Become a supporter
+            </Link>
+          </div>
+        </header>
+
+        {supporters.groups.length > 0 && (
+          <ul className="hp-supporters">
+            {supporters.groups.map((g) => (
+              <li key={g.id}>
+                <EntityChip
+                  href={entityPath("groups", g.id, g.name)}
+                  name={g.name}
+                  subtitle={`${g.tier_name} · ${formatCount(g.member_count)} ${
+                    g.member_count === 1 ? "member" : "members"
+                  }`}
+                  flair={g.flair?.style}
+                  flairTitle={g.flair?.tier_name ?? g.tier_name}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {supporters.players.length > 0 && (
+          <ul className="hp-supporters" data-compact="true">
+            {supporters.players.map((p) => (
+              <li key={p.user_id}>
+                <EntityChip
+                  href={entityPath("players", p.player_id, p.name)}
+                  name={p.name}
+                  size="sm"
+                  playerId={p.player_id}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* --- Right now -------------------------------------------------------- */}
+      <section className="hp-section" aria-labelledby="hp-now">
+        <header className="hp-section-head">
+          <p className="hp-kicker">Happening now</p>
+          <h2 id="hp-now">This page is live.</h2>
+          <p>
+            Every number, feed and leaderboard here updates automatically as drops come in. No
+            refresh needed.
+          </p>
+        </header>
+
+        <div className="hp-grid hp-grid-now">
+          <LiveFeed seed={feedItems} renderedAt={renderedAt} />
+          <Leaderboard boards={boards} />
+        </div>
+      </section>
+
+      {/* --- By the numbers ---------------------------------------------------- */}
+      <section className="hp-band" aria-label="DropTracker by the numbers">
+        {/* dt before dd, as a <dl> requires — the stylesheet puts the figure on top. */}
+        <dl className="hp-figures">
+          {pulse && (
+            <div>
+              <dt>
+                submissions processed <span>in the last 24 hours</span>
+              </dt>
+              <dd>{formatCount(pulse.processed24h)}</dd>
+            </div>
+          )}
+          {pulse && (
+            <div>
+              <dt>
+                processed just now <span>in the last 5 minutes</span>
+              </dt>
+              <dd>{formatCount(pulse.processed5m)}</dd>
+            </div>
+          )}
+          <div>
+            <dt>
+              players ranked <span>in {month}</span>
+            </dt>
+            <dd>{formatCount(boards.month.players.ranked)}</dd>
+          </div>
+          <div>
+            <dt>
+              clans competing <span>in {month}</span>
+            </dt>
+            <dd>{formatCount(boards.month.clans.ranked)}</dd>
+          </div>
+        </dl>
+      </section>
+
+      {/* --- The month so far --------------------------------------------------- */}
+      <section className="hp-section" aria-labelledby="hp-month">
+        <header className="hp-section-head">
+          <p className="hp-kicker">{month} so far</p>
+          <h2 id="hp-month">Where the loot is coming from.</h2>
+          <p>
+            Totals reset on the 1st of every month. These are the bosses paying out the most so
+            far, and the lootboards being drawn from it all.
+          </p>
+        </header>
+
+        <div className="hp-grid hp-grid-month">
+          <div className="hp-stack">
+            <section className="hp-panel" aria-labelledby="hp-heat-title">
+              <header className="hp-panel-head">
+                <h3 id="hp-heat-title">Richest bosses this month</h3>
+                <span className="hp-stream">all tracked accounts</span>
+              </header>
+              <Suspense fallback={<HeatSkeleton />}>
+                <BossHeat />
+              </Suspense>
+            </section>
+
+            <SessionPulse />
+          </div>
+
+          <section className="hp-panel" aria-labelledby="hp-board-title">
+            <header className="hp-panel-head">
+              <h3 id="hp-board-title">Lootboards</h3>
+              <span className="hp-stream">redrawn every few minutes</span>
+            </header>
+            <LiveLootboard choices={lootboards} renderedAt={renderedAt} />
+            <p className="hp-panel-note">
+              A lootboard is your clan&rsquo;s month in one image: top looters, best items and the
+              latest drops. We keep it up to date in a Discord channel of your choice.
             </p>
-          </header>
-
-          {supporters.groups.length > 0 && (
-            <ul className="hp-supporters">
-              {supporters.groups.map((g) => (
-                <li key={g.id}>
-                  <EntityChip
-                    href={entityPath("groups", g.id, g.name)}
-                    name={g.name}
-                    subtitle={`${g.tier_name} · ${formatCount(g.member_count)} ${
-                      g.member_count === 1 ? "member" : "members"
-                    }`}
-                    flair={g.flair?.style}
-                    flairTitle={g.flair?.tier_name ?? g.tier_name}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {supporters.players.length > 0 && (
-            <ul className="hp-supporters" data-compact="true">
-              {supporters.players.map((p) => (
-                <li key={p.user_id}>
-                  <EntityChip
-                    href={entityPath("players", p.player_id, p.name)}
-                    name={p.name}
-                    size="sm"
-                    playerId={p.player_id}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+          </section>
+        </div>
+      </section>
 
       {/* --- Close: status + call to action ---------------------------------------------- */}
       <section className="hp-close" aria-labelledby="hp-close-title">

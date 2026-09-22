@@ -629,6 +629,11 @@
   text-wrap: pretty;
 }
 
+.hp-section-head .hp-cta {
+  justify-content: flex-start;
+  margin-top: 1.25rem;
+}
+
 /*
  * `min-width: 0` on every grid child: a grid item defaults to
  * `min-width: auto`, so one long unbroken name would push the whole page wider
