@@ -13,20 +13,20 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Alert } from "@/components/ui";
 
 const MESSAGES: Record<string, string> = {
-  error: "Sign-in didn't complete — please try again.",
-  state_mismatch: "That sign-in attempt expired or was already used — please try again.",
-  exchange_failed: "Discord sign-in failed on our end — please try again in a moment.",
+  error: "Sign-in didn't complete. Please try again.",
+  state_mismatch: "That sign-in attempt expired or was already used. Please try again.",
+  exchange_failed: "Discord sign-in failed on our end. Please try again in a moment.",
 };
-const GENERIC = "Sign-in didn't complete — please try again.";
+const GENERIC = "Sign-in didn't complete. Please try again.";
 
-function Banner() {
+function Banner({ className }: { className: string }) {
   const router = useRouter();
   const code = useSearchParams().get("auth");
   const [dismissed, setDismissed] = useState(false);
   if (!code || dismissed) return null;
 
   return (
-    <Alert variant="error" className="flex items-center justify-between gap-3">
+    <Alert variant="error" className={`flex items-center justify-between gap-3 ${className}`}>
       <span>{MESSAGES[code] ?? GENERIC}</span>
       <button
         type="button"
@@ -45,10 +45,10 @@ function Banner() {
 }
 
 /** useSearchParams needs a Suspense boundary when the page is prerendered. */
-export function AuthErrorBanner() {
+export function AuthErrorBanner({ className = "" }: { className?: string }) {
   return (
     <Suspense fallback={null}>
-      <Banner />
+      <Banner className={className} />
     </Suspense>
   );
 }

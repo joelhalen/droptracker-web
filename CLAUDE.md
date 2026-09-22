@@ -35,7 +35,10 @@ scripts/deploy.sh     Blue-green production deploy
 `(site)` layout owns the header, live ticker, and footer; `app/activity` and
 `app/board-image` deliberately sit outside it so they render chromeless.
 
-- `(public)` — `/`, `/leaderboards`, `/events/[id]{,/players,/teams[/teamId]}`,
+- `(home)` — `/`, the all-live homepage (ISR, `revalidate = 15`): page, client
+  islands, pure shaping (`home-data.ts`) and its own `home.css` (`hp-` classes).
+  Nothing on it may read cookies/headers/searchParams or it stops being static.
+- `(public)` — `/leaderboards`, `/events/[id]{,/players,/teams[/teamId]}`,
   `/announcements[/id]`, `/search`, `/docs[/slug]` (DB-backed CMS),
   `/groups/[id]{,/lootboard,/personal-bests,/points[/leaderboard]}`,
   `/players/[id]`, `/npcs/[npcId]`, `/items/[itemId]`, `/item-values`,

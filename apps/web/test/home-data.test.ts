@@ -1,6 +1,5 @@
 /**
- * Shaping behind the /test-hero homepage candidate (app/(site)/test-hero/
- * home-data.ts). The envelopes below are real frames captured from the
+ * Shaping behind the homepage (app/(site)/(home)/home-data.ts). The envelopes below are real frames captured from the
  * production `feed` and `global` scopes, trimmed only of nothing.
  */
 import assert from "node:assert/strict";
@@ -27,7 +26,7 @@ import {
   valueTier,
   type BoardRow,
   type FeedItem,
-} from "../app/(site)/test-hero/home-data";
+} from "../app/(site)/(home)/home-data";
 
 const DROP = {
   icon_url: "https://www.droptracker.io/img/itemdb/26243.png",

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * The "happening now" islands for /test-hero: the live activity feed, the
+ * The "happening now" islands for the homepage: the live activity feed, the
  * period/kind leaderboard with live overtakes, and the since-you-arrived pulse.
  *
  * Each is painted from a server snapshot and then kept current over SSE — the

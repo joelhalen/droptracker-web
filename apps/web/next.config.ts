@@ -285,6 +285,11 @@ const nextConfig: NextConfig = {
       { source: "/account/premium", destination: "/settings", permanent: true },
       { source: "/account/:page*", destination: "/settings", permanent: false },
 
+      // The homepage was reviewed at /test-hero (signed-in only) before it
+      // replaced `/` in 2026-09; links shared during that review land here.
+      // Not permanent, so the path stays free for a future candidate.
+      { source: "/test-hero", destination: "/", permanent: false },
+
       // External shortlinks used by the Discord bot, RuneLite plugin, and old docs.
       // /discord is intentionally NOT permanent: the vanity has been lost before, and a
       // 308 would let browsers cache a dead invite forever.

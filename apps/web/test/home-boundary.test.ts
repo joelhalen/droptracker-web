@@ -1,5 +1,5 @@
 /**
- * Guards the server/client boundary for the /test-hero route.
+ * Guards the server/client boundary for the homepage route group.
  *
  * Why this exists: a pure helper was twice defined inside a `"use client"`
  * module and called from the server page. That throws
@@ -11,14 +11,14 @@
  * page rendered perfectly in every local check and failed in production. A
  * static check is the only thing that reliably catches it.
  *
- * The shaping itself is covered in ./test-hero-data.test.ts.
+ * The shaping itself is covered in ./home-data.test.ts.
  */
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-const DIR = join(import.meta.dirname, "..", "app", "(site)", "test-hero");
+const DIR = join(import.meta.dirname, "..", "app", "(site)", "(home)");
 
 /** Modules that opt into the client bundle. */
 function clientModules(): Set<string> {

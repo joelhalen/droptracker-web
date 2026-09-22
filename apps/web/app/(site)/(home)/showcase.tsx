@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Product showcase islands for /test-hero. Both demonstrate a feature with the
+ * Product showcase islands for the homepage. Both demonstrate a feature with the
  * platform's own live output rather than a canned screenshot:
  *
  *  - `DiscordPreview` re-creates the announcement the bot posts, from whichever

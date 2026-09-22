@@ -2,6 +2,7 @@ import { Suspense, cache } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { AuthErrorBanner } from "@/components/auth-error-banner";
 import { HeroSearch } from "@/components/hero-search";
 import { EntityChip } from "@/components/ui";
 import { toPlayerCard } from "@/lib/entity-card";
@@ -28,8 +29,9 @@ import { Leaderboard, LiveFeed, ServerResync, SessionPulse } from "./live-board"
 import { DiscordPreview, LiveLootboard, type LootboardChoice } from "./showcase";
 
 /**
- * /test-hero — homepage candidate. Signed-in visitors only while it is being
- * evaluated (see ./layout.tsx), rendered inside the real site chrome.
+ * The homepage (`/`), rendered inside the real site chrome. It was built and
+ * reviewed as the signed-in-only candidate at /test-hero, which now redirects
+ * here (next.config.ts).
  *
  * The rule for this page: every number, name and image on it is LIVE. Nothing
  * is curated, measured once and pasted in, or mocked up —
@@ -47,15 +49,15 @@ import { DiscordPreview, LiveLootboard, type LootboardChoice } from "./showcase"
  *
  * The only static content is the explanatory copy.
  *
- * No `revalidate` export: the layout's guard reads cookies, so this route is
- * always dynamically rendered and a segment revalidate would be dead config.
- * Freshness comes from the per-fetch `revalidate` hints inside lib/api/.
- *
- * If this replaces `app/(site)/page.tsx`: drop the layout guard + noindex, add
- * `export const revalidate = 15`, and render `<AuthErrorBanner />` first —
- * failed Discord sign-ins redirect to `/?auth=<code>` and only the homepage
- * surfaces them.
+ * Static with ISR: nothing here reads cookies, headers or searchParams (every
+ * api call is unauthenticated), so one render serves every visitor and is
+ * refreshed at most every `revalidate` seconds. Keep it that way: a single
+ * `cookies()` on this path would make the busiest page on the site render per
+ * request. Anything visitor-specific belongs in a client island, like the
+ * sign-in error banner below.
  */
+
+export const revalidate = 15;
 
 /** How often open tabs re-run this server component (see `useServerResync`). */
 const RESYNC_SECONDS = 120;
@@ -220,7 +222,7 @@ const STEPS: { title: string; body: string; href: Route; link: string }[] = [
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
-export default async function TestHeroPage() {
+export default async function HomePage() {
   const nowDate = new Date();
   const renderedAt = Math.floor(nowDate.getTime() / 1000);
   const month = monthName(nowDate);
@@ -306,6 +308,10 @@ export default async function TestHeroPage() {
   return (
     <>
       <ServerResync everySeconds={RESYNC_SECONDS} />
+
+      {/* Failed Discord sign-ins land on `/?auth=<code>`. A client island, so
+          the page itself never reads searchParams (which would break ISR). */}
+      <AuthErrorBanner className="my-4" />
 
       {/* --- Hero: the rain, the counter it falls into, then the pitch ------- */}
       <section className="hp-hero hp-bleed" aria-labelledby="hp-title">

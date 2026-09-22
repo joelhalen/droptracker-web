@@ -1,5 +1,5 @@
 /*
- * /test-hero — page-scoped stylesheet.
+ * The homepage (`/`): page-scoped stylesheet.
  *
  * Every rule is namespaced under `.hp-page` or a `.hp-*` class, so nothing here
  * can leak into the rest of the site.

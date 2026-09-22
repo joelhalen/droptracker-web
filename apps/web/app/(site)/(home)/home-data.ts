@@ -1,12 +1,12 @@
 /**
- * Pure data shaping for the /test-hero homepage prototype.
+ * Pure data shaping for the homepage.
  *
  * Deliberately NOT a "use client" module. The page shapes its first paint on
  * the SERVER (feed history, leaderboards, status counters) and the client
  * islands re-use the exact same functions for SSE frames — so everything here
  * must be importable from both environments. A helper that lives in a
  * "use client" file becomes a client-reference proxy on the server and throws
- * the moment it is called (test/test-hero-boundary.test.ts guards this).
+ * the moment it is called (test/home-boundary.test.ts guards this).
  *
  * Nothing in this file is curated or hard-coded content: every function takes a
  * live API payload or a realtime envelope and returns a display shape.

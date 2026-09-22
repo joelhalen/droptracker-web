@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Hero islands for /test-hero: the loot rain, the live odometer it falls into,
+ * Hero islands for the homepage: the loot rain, the live odometer it falls into,
  * and the stream indicator.
  *
  * All three listen to the `global` realtime scope, which carries one

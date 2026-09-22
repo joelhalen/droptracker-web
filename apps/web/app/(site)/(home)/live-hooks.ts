@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Small client hooks shared by the /test-hero islands.
+ * Small client hooks shared by the homepage islands.
  *
  * Exports are hooks and components' plumbing only — anything the SERVER page
  * also needs lives in ./home-data.ts, because every export of a "use client"

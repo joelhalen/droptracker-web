@@ -2,8 +2,8 @@
 
 /*
  * Error boundary for (site) pages that no nested boundary covers — most
- * importantly the homepage, which is `app/(site)/page.tsx` (directly in this
- * group, NOT in `(public)`), so `(public)/error.tsx` never caught it. Before
+ * importantly the homepage, which is `app/(site)/(home)/page.tsx` (in its own
+ * route group, NOT in `(public)`), so `(public)/error.tsx` never catches it. Before
  * this file a failed api call on `/` fell all the way through to Next's
  * unstyled built-in error page.
  *
