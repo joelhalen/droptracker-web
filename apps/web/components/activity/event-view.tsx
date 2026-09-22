@@ -28,6 +28,7 @@ import {
 } from "@/components/task-requirements";
 import { EventWindow, ScoringWindowBadge } from "@/components/local-time";
 import { useEventStream } from "@/lib/use-event-stream";
+import type { TaskDifficultyBucket } from "@/lib/events";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityNav } from "@/lib/activity/nav";
 import {
@@ -91,6 +92,8 @@ export function EventView({
   // Bumped on each poll refetch — remounts the board/task list so their
   // internal live-patched state reseeds from the fresh payload.
   const [refreshKey, setRefreshKey] = useState(0);
+  // The task list's difficulty filter lives here, so the remount keeps it.
+  const [taskDifficulty, setTaskDifficulty] = useState<TaskDifficultyBucket | null>(null);
 
   // Per-team task breakdown loads through the Activity BFF with the in-memory
   // bearer (the site's cookie BFF isn't reachable inside the iframe).
@@ -624,6 +627,8 @@ export function EventView({
             viewerTeamId={event.viewer?.team_id}
             fetchBreakdown={fetchBreakdown}
             fetchRequirements={fetchRequirements}
+            difficulty={taskDifficulty}
+            onDifficultyChange={setTaskDifficulty}
           />
         </div>
       )}

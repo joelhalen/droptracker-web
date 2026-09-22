@@ -7,6 +7,7 @@ import type {
   EventTask,
   EventTaskDifficulty,
 } from "@droptracker/api-types";
+import { EVENT_TASK_DIFFICULTIES } from "@droptracker/api-types";
 import { formatGp } from "@/lib/format";
 
 /** Default per-team accent palette, indexed by roster order — the fallback
@@ -149,6 +150,47 @@ export const TASK_DIFFICULTY_LABELS: Record<EventTaskDifficulty, string> = {
   earth: "Hard",
   fire: "Elite",
 };
+
+/** Where a task sits on the participant task list's difficulty filter: its
+ * tier, or "none" when the organisers never gave it one. Difficulty is
+ * optional, so plenty of tasks (and whole events) have none. */
+export type TaskDifficultyBucket = EventTaskDifficulty | "none";
+
+/** Filter/section order: easiest first, untiered last. */
+export const TASK_DIFFICULTY_BUCKETS: readonly TaskDifficultyBucket[] = [
+  ...EVENT_TASK_DIFFICULTIES,
+  "none",
+];
+
+export const TASK_DIFFICULTY_BUCKET_LABELS: Record<TaskDifficultyBucket, string> = {
+  ...TASK_DIFFICULTY_LABELS,
+  none: "No difficulty",
+};
+
+export function taskDifficultyBucket(task: Pick<EventTask, "difficulty">): TaskDifficultyBucket {
+  return task.difficulty ?? "none";
+}
+
+export type TaskDifficultySection<T> = { difficulty: TaskDifficultyBucket; tasks: T[] };
+
+/** Split a task list into difficulty sections in `TASK_DIFFICULTY_BUCKETS`
+ * order. Tasks keep the event's own order within a section, and a tier with
+ * no tasks gets no section. */
+export function groupTasksByDifficulty<T extends Pick<EventTask, "difficulty">>(
+  tasks: readonly T[],
+): TaskDifficultySection<T>[] {
+  const byBucket = new Map<TaskDifficultyBucket, T[]>();
+  for (const task of tasks) {
+    const bucket = taskDifficultyBucket(task);
+    const list = byBucket.get(bucket);
+    if (list) list.push(task);
+    else byBucket.set(bucket, [task]);
+  }
+  return TASK_DIFFICULTY_BUCKETS.flatMap((difficulty) => {
+    const list = byBucket.get(difficulty);
+    return list ? [{ difficulty, tasks: list }] : [];
+  });
+}
 
 /** Pet categories the engine can gate on (utils/osrs_pets.py). `misc` is
  * opt-in — a bare "any pet" task excludes those trivial/stackable pets. */

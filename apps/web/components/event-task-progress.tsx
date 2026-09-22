@@ -8,14 +8,28 @@
  * and patched live from the event SSE channel (progress / completion /
  * revoke frames), the same way the bingo board consumes cell frames.
  *
+ * When the tasks span more than one difficulty tier, the board groups them
+ * into a section per tier (easiest first, untiered last) behind a row of
+ * filter chips, so a player can look at one tier at a time.
+ *
  * The progress-state hook and bar primitive are shared with the team page
  * (`event-team-view.tsx`), which shows the same numbers scoped to one team.
  */
 import { useMemo, useState } from "react";
 import type { EventProgress, EventTask } from "@droptracker/api-types";
 import { useEventStream } from "@/lib/use-event-stream";
-import { TASK_TYPE_LABELS, pbRequirement, taskConfig, taskGoal, teamColorMap } from "@/lib/events";
+import {
+  TASK_DIFFICULTY_BUCKET_LABELS,
+  TASK_TYPE_LABELS,
+  groupTasksByDifficulty,
+  pbRequirement,
+  taskConfig,
+  taskGoal,
+  teamColorMap,
+  type TaskDifficultyBucket,
+} from "@/lib/events";
 import { formatGp } from "@/lib/format";
+import { ToggleChip } from "@/components/ui";
 import { TaskDetailContent, type BreakdownFetcher } from "@/components/task-detail";
 import type { RequirementsFetcher } from "@/components/task-requirements";
 
@@ -246,6 +260,8 @@ export function EventTaskBoard({
   viewerTeamId,
   fetchBreakdown,
   fetchRequirements,
+  difficulty: controlledDifficulty,
+  onDifficultyChange,
 }: {
   tasks: EventTask[];
   teams: TeamRef[];
@@ -258,21 +274,30 @@ export function EventTaskBoard({
   fetchBreakdown?: BreakdownFetcher;
   /** Host transport for the (team-independent) requirement list. */
   fetchRequirements?: RequirementsFetcher;
+  /** Controlled difficulty filter (null = every tier), for a host that
+   * remounts the board: the Activity re-keys it on every poll, which would
+   * reset local state. Omit both to let the board keep its own. */
+  difficulty?: TaskDifficultyBucket | null;
+  onDifficultyChange?: (next: TaskDifficultyBucket | null) => void;
 }) {
   const progressMap = useLiveProgress(eventId, live, progress);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [localDifficulty, setLocalDifficulty] = useState<TaskDifficultyBucket | null>(null);
+  const difficulty = onDifficultyChange ? (controlledDifficulty ?? null) : localDifficulty;
+  const setDifficulty = onDifficultyChange ?? setLocalDifficulty;
 
   const teamColor = useMemo(() => teamColorMap(teams), [teams]);
   const orderedTeams = useMemo(() => {
     if (viewerTeamId == null) return teams;
     return [...teams].sort((a, b) => Number(b.id === viewerTeamId) - Number(a.id === viewerTeamId));
   }, [teams, viewerTeamId]);
+  const sections = useMemo(() => groupTasksByDifficulty(tasks), [tasks]);
 
   if (!tasks.length) return null;
 
-  return (
+  const taskList = (list: EventTask[]) => (
     <ul className="divide-osrs-bronze/20 divide-y">
-      {tasks.map((t) => {
+      {list.map((t) => {
         const doneCount = teams.filter((tm) => progressMap.get(key(t.id, tm.id))?.completed).length;
         return (
           <li key={t.id} className="py-3">
@@ -334,5 +359,52 @@ export function EventTaskBoard({
         );
       })}
     </ul>
+  );
+
+  // All tasks in one tier, or none tiered: nothing to filter, so keep the
+  // plain list.
+  if (sections.length < 2) return taskList(tasks);
+
+  // A selected tier can empty out under the viewer (the organisers delete or
+  // retier its last task); fall back to every tier rather than show nothing.
+  const active = sections.some((s) => s.difficulty === difficulty) ? difficulty : null;
+  const shown = active == null ? sections : sections.filter((s) => s.difficulty === active);
+
+  return (
+    <div className="space-y-4">
+      <div
+        className="flex flex-wrap items-center gap-1.5"
+        role="group"
+        aria-label="Filter tasks by difficulty"
+      >
+        <ToggleChip active={active == null} onClick={() => setDifficulty(null)}>
+          All <span className="text-osrs-parchment-dark/50 tabular-nums">{tasks.length}</span>
+        </ToggleChip>
+        {sections.map((s) => (
+          <ToggleChip
+            key={s.difficulty}
+            active={active === s.difficulty}
+            onClick={() => setDifficulty(active === s.difficulty ? null : s.difficulty)}
+          >
+            {TASK_DIFFICULTY_BUCKET_LABELS[s.difficulty]}{" "}
+            <span className="text-osrs-parchment-dark/50 tabular-nums">{s.tasks.length}</span>
+          </ToggleChip>
+        ))}
+      </div>
+      {shown.map((s) => (
+        <div key={s.difficulty}>
+          {/* The chips already name a lone selected tier. */}
+          {active == null && (
+            <h3 className="text-osrs-gold border-osrs-bronze/20 border-b pb-1 text-sm font-semibold">
+              {TASK_DIFFICULTY_BUCKET_LABELS[s.difficulty]}
+              <span className="text-osrs-parchment-dark/50 ml-2 text-xs font-normal tabular-nums">
+                {s.tasks.length} {s.tasks.length === 1 ? "task" : "tasks"}
+              </span>
+            </h3>
+          )}
+          {taskList(s.tasks)}
+        </div>
+      ))}
+    </div>
   );
 }
