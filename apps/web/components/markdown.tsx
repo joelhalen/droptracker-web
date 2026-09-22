@@ -24,6 +24,7 @@ export function Markdown({
   className = "",
   tone = "default",
   mentions,
+  components,
 }: {
   children: string;
   className?: string;
@@ -31,6 +32,8 @@ export function Markdown({
   tone?: "default" | "ink";
   /** When set, `<@id>` etc. Discord tokens render as resolved mention chips. */
   mentions?: MentionMap;
+  /** Element overrides, e.g. an `a` that closes a pop-up before navigating. */
+  components?: Options["components"];
 }) {
   const palette =
     tone === "ink"
@@ -38,7 +41,9 @@ export function Markdown({
       : "prose prose-invert prose-headings:text-osrs-gold prose-a:text-osrs-gold-bright prose-strong:text-osrs-parchment";
   return (
     <div className={`${palette} max-w-none ${className}`}>
-      <ReactMarkdown remarkPlugins={plugins(mentions)}>{children}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={plugins(mentions)} components={components}>
+        {children}
+      </ReactMarkdown>
     </div>
   );
 }

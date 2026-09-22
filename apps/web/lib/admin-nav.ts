@@ -51,6 +51,11 @@ export const ADMIN_SECTIONS: AdminNavSection[] = [
     label: "Content",
     items: [
       { href: "/admin/announcements", label: "Global news", desc: "Publish site-wide announcements." },
+      {
+        href: "/admin/notices",
+        label: "Pop-up notices",
+        desc: "Send a pop-up to specific people, clan leaders, group members or supporters.",
+      },
       { href: "/admin/docs", label: "Docs", desc: "Add, edit, and delete documentation pages." },
       { href: "/admin/redirects", label: "Redirects", desc: "Manage vanity short links (e.g. /discord)." },
       { href: "/admin/badges", label: "Badges", desc: "Define badges and award them manually." },

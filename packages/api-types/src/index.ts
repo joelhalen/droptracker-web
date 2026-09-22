@@ -7284,3 +7284,6 @@ export * from "./tier-flair";
 
 // Group mini-sites (sites-v1)
 export * from "./sites";
+
+// Targeted site pop-ups (web118a)
+export * from "./popup-notices";

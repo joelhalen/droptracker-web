@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChatWidget } from "@/components/chat-widget/chat-widget";
 import { LiveDropTicker } from "@/components/live-drop-ticker";
 import { SiteHeader } from "@/components/site-header";
+import { SiteNotices } from "@/components/site-notices/site-notices";
 import type { NavTab } from "@/components/tab-nav";
 
 // "Events" owns a nested /events/[id] detail route — stay highlighted there too.
@@ -108,6 +109,9 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
           signed out. Chromeless surfaces never render SiteChrome, so the
           widget is automatically absent from /activity and /board-image. */}
       <ChatWidget />
+      {/* Targeted pop-ups staff send from /admin/notices (web118a). Also a
+          signed-out no-op, and also absent from the chromeless surfaces. */}
+      <SiteNotices />
     </>
   );
 }
