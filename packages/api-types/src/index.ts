@@ -2625,6 +2625,9 @@ export const CompetitionBonusRuleSchema = z.object({
   scope_line: z.string().nullable().optional(),
   /** pet rules (and `task` rules embedding a pet goal): the pet names. */
   pets: z.array(z.string()).optional(),
+  /** pet rules: a duplicate of a pet the player already owns pays too.
+   * Absent means only a new pet pays. */
+  duplicate_pets: z.boolean().optional(),
   /** time_under rules: the raced boss + tick-precision threshold. */
   npc: z.string().nullable().optional(),
   threshold_ms: z.number().int().optional(),
@@ -2894,6 +2897,8 @@ export const EventCompetitionInputSchema = z.object({
         unlimited: z.boolean().optional(),
         label: z.string().max(120).optional(),
         pets: z.array(z.string()).optional(),
+        /** pet rules: duplicates of an owned pet pay too. Stored only when true. */
+        duplicate_pets: z.boolean().optional(),
         npc: z.string().optional(),
         threshold_ms: z.number().int().positive().optional(),
         /** milestone rules: gained units per payout. */

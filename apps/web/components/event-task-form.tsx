@@ -41,6 +41,8 @@ import {
   TASK_TYPE_LABELS,
   formatSeconds,
   parseTimeToSeconds,
+  duplicatePetsCount,
+  duplicatePetsDefault,
   isDefaultSlayerExclusion,
   isGoldRingName,
   isVestigeName,
@@ -632,6 +634,14 @@ export function EventTaskForm({
   // ever stored, and only while the list holds a vestige.
   const initialVestigeRings = initial ? vestigeRingsCount(initial) : true;
   const [vestigeRings, setVestigeRings] = useState(initialVestigeRings);
+  // Duplicate pets (config.duplicate_pets): whether a duplicate of a pet the
+  // player already owns counts. The default depends on the task type (item
+  // lists yes, pet tasks and sweeps no), so an untouched switch (null) follows
+  // whichever type is picked, and only a value unlike that default is stored.
+  const initialDuplicatePets = initial ? duplicatePetsCount(initial) : null;
+  const [duplicatePetsChoice, setDuplicatePetsChoice] = useState<boolean | null>(
+    typeof initialConfig.duplicate_pets === "boolean" ? initialConfig.duplicate_pets : null,
+  );
 
   // item_collection
   const initialGroups = groupsFromConfig(initialConfig, initialPetNames);
@@ -692,28 +702,29 @@ export function EventTaskForm({
   const patchPath = (pi: number, patch: Partial<PathDraft>) =>
     setPaths((prev) => prev.map((p, i) => (i === pi ? { ...p, ...patch } : p)));
 
-  /** Item names the current collection mode would save. */
-  const pickedItemNames = (): string[] => {
+  /** Item entries the current collection mode would save. */
+  const pickedItems = (): PickerEntry[] => {
     switch (itemMode) {
       case "single":
-        return singleItem.map((i) => i.name);
+        return singleItem;
       case "groups":
-        return groups.flatMap((g) => g.items.map((i) => i.name));
+        return groups.flatMap((g) => g.items);
       case "any_path":
         return paths.flatMap((p) =>
           p.kind === "items"
-            ? p.groups.flatMap((g) => g.items.map((i) => i.name))
+            ? p.groups.flatMap((g) => g.items)
             : p.kind === "points"
-              ? p.items.map((i) => i.name)
+              ? p.items
               : [],
         );
       default:
-        return listItems.map((i) => i.name);
+        return listItems;
     }
   };
+  const picked = type === "item_collection" ? pickedItems() : [];
   // The Gold ring switch only means something while a vestige is listed, and
   // not when the list names Gold ring itself: a listed ring counts as a ring.
-  const pickedNames = type === "item_collection" ? pickedItemNames() : [];
+  const pickedNames = picked.map((i) => i.name);
   const listsVestige = pickedNames.some(isVestigeName);
   const listsGoldRing = pickedNames.some(isGoldRingName);
   const ringSwitchApplies = listsVestige && !listsGoldRing;
@@ -972,6 +983,16 @@ export function EventTaskForm({
   const [lootSweep, setLootSweep] = useState<LootSweepDraft>(
     initial?.type === "loot_sweep" ? lootSweepFromConfig(initialConfig) : emptyLootSweepDraft(),
   );
+
+  // The duplicate-pets switch shows wherever a pet can score: every pet task,
+  // an item list with a pet in it (single-item mode saves no pets), and a
+  // loot sweep with a pet entry.
+  const duplicatePets = duplicatePetsChoice ?? duplicatePetsDefault(type);
+  const duplicateSwitchApplies =
+    type === "pet_collection" ||
+    (type === "item_collection" && itemMode !== "single" && picked.some((i) => i.isPet)) ||
+    (type === "loot_sweep" &&
+      lootSweep.groups.some((g) => g.items.some((i) => i.source === "pet")));
 
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -1411,6 +1432,41 @@ export function EventTaskForm({
     return { ...input, config: JSON.stringify({ ...cfg, vestige_rings: false }) };
   };
 
+  /** Fold the "Duplicate pets count" switch into the built config, only while
+   * a pet can score on the task and only when it differs from the type's
+   * default (the server drops it otherwise too). */
+  const withDuplicatePets = (input: EventTaskInput): EventTaskInput => {
+    if (!duplicateSwitchApplies || duplicatePets === duplicatePetsDefault(type)) return input;
+    let cfg: Record<string, unknown> = {};
+    if (input.config) {
+      try {
+        cfg = JSON.parse(input.config) as Record<string, unknown>;
+      } catch {
+        return input;
+      }
+    }
+    return { ...input, config: JSON.stringify({ ...cfg, duplicate_pets: duplicatePets }) };
+  };
+
+  const duplicatePetsSwitch = duplicateSwitchApplies && (
+    <div className="border-osrs-gold/30 bg-osrs-gold/5 grid gap-1.5 rounded-lg border p-3">
+      <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={duplicatePets}
+          onChange={(e) => setDuplicatePetsChoice(e.target.checked)}
+          disabled={pending}
+        />
+        <span className="text-osrs-parchment">Duplicate pets count</span>
+      </label>
+      <p className="text-osrs-parchment-dark/60 text-xs">
+        {duplicatePets
+          ? "Any pet drop counts, including a duplicate of a pet the player already owns."
+          : "Only a pet the player didn't already own counts. A duplicate (the \"funny feeling\" message) doesn't."}
+      </p>
+    </div>
+  );
+
   /** web68a: a pending scoring-affecting edit awaiting the editor's
    * retroactivity choice (shown as an inline prompt over the actions row). */
   const [retroPrompt, setRetroPrompt] = useState<EventTaskInput | null>(null);
@@ -1458,7 +1514,7 @@ export function EventTaskForm({
       return;
     }
     setError(null);
-    const input = withVestigeRings(withProgressNotify(buildInput()));
+    const input = withDuplicatePets(withVestigeRings(withProgressNotify(buildInput())));
     if (onDraftSubmit) {
       onDraftSubmit(input);
       return;
@@ -1856,6 +1912,7 @@ export function EventTaskForm({
               )}
             </div>
           )}
+          {duplicatePetsSwitch}
         </div>
       )}
 
@@ -2236,6 +2293,7 @@ export function EventTaskForm({
               />
             </div>
           ) : null}
+          {duplicatePetsSwitch}
         </div>
       )}
 
@@ -2377,18 +2435,21 @@ export function EventTaskForm({
       )}
 
       {type === "loot_sweep" && (
-        <LootSweepEditor
-          value={lootSweep}
-          onChange={setLootSweep}
-          searchItems={searchItems}
-          searchNpcs={searchNpcs}
-          uploadImage={
-            groupId != null
-              ? (form) => uploadLootSweepImage(groupId, eventId, form)
-              : undefined
-          }
-          disabled={pending}
-        />
+        <div className="grid gap-3">
+          <LootSweepEditor
+            value={lootSweep}
+            onChange={setLootSweep}
+            searchItems={searchItems}
+            searchNpcs={searchNpcs}
+            uploadImage={
+              groupId != null
+                ? (form) => uploadLootSweepImage(groupId, eventId, form)
+                : undefined
+            }
+            disabled={pending}
+          />
+          {duplicatePetsSwitch}
+        </div>
       )}
 
       {/* ── points / review / sharing / submit ───────────────────────────── */}
@@ -2502,6 +2563,16 @@ export function EventTaskForm({
                 {initialVestigeRings
                   ? "Re-score also takes back the vestige credit Gold rings have already given on this task."
                   : "Re-score gives back ring credit that an earlier re-score took away. Rings that dropped while this was off can't be counted."}
+              </p>
+            )}
+          {duplicateSwitchApplies &&
+            initialDuplicatePets !== null &&
+            duplicatePetsCount({ type, config: retroPrompt.config ?? null }) !==
+              initialDuplicatePets && (
+              <p className="text-osrs-parchment-dark/70 mt-1 text-xs">
+                {initialDuplicatePets
+                  ? "Re-score also takes back the credit duplicate pets have already given on this task."
+                  : "Re-score gives back duplicate-pet credit that an earlier re-score took away. Duplicates that dropped while this was off weren't recorded, so award those by hand."}
               </p>
             )}
           <div className="mt-2 flex flex-wrap gap-2">

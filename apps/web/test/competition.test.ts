@@ -73,6 +73,16 @@ test("bonusRuleSentence words rules exactly like the Discord award line", () => 
   );
   assert.equal(
     bonusRuleSentence({
+      type: "pet",
+      points: 100,
+      max_awards: 1,
+      pets: ["Pet snakeling"],
+      duplicate_pets: true,
+    }),
+    "+100 pts for a Pet snakeling",
+  );
+  assert.equal(
+    bonusRuleSentence({
       type: "time_under",
       points: 5,
       max_awards: 3,

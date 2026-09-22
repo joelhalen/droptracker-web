@@ -783,6 +783,21 @@ export function CompetitionSetup({
                     />
                     No limit
                   </label>
+                  {r.type === "pet" && (
+                    <label
+                      className="flex cursor-pointer items-center gap-1.5"
+                      title="Also pays when a player gets a duplicate of a pet they already own"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={!!r.duplicate_pets}
+                        onChange={(e) =>
+                          setRule(i, { ...r, duplicate_pets: e.target.checked || undefined })
+                        }
+                      />
+                      Duplicates count
+                    </label>
+                  )}
                   {r.type === "time_under" && (
                     <>
                       {npcs.length > 1 && (

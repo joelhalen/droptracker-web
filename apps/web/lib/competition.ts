@@ -177,6 +177,7 @@ type BonusRuleSentenceInput = {
   max_awards?: number | null;
   unlimited?: boolean | null;
   pets?: string[] | null;
+  duplicate_pets?: boolean | null;
   npc?: string | null;
   threshold_ms?: number | null;
   step?: number | null;
@@ -205,7 +206,7 @@ function taskRuleGoal(rule: BonusRuleSentenceInput): string {
         ? "a combat achievement"
         : `${n} combat achievements`;
     case "pet_collection":
-      return (rule.pets?.length ?? 0) === 1 ? `a new ${rule.pets![0]}` : "a new pet";
+      return petGoal(rule);
     case "skill_target":
       return "the level goal";
     default:
@@ -225,6 +226,14 @@ function taskRuleGoal(rule: BonusRuleSentenceInput): string {
   }
 }
 
+/** "a new Vorki" / "a new pet", or without "new" when duplicates of an owned
+ * pet pay too (`duplicate_pets`). */
+function petGoal(rule: BonusRuleSentenceInput): string {
+  const a = rule.duplicate_pets ? "a" : "a new";
+  const pets = rule.pets ?? [];
+  return pets.length === 1 ? `${a} ${pets[0]}` : `${a} pet`;
+}
+
 /** One rule as a sentence — the wizard's live preview, the "How points work"
  * card and the Discord award line all render exactly this shape. */
 export function bonusRuleSentence(rule: BonusRuleSentenceInput): string {
@@ -236,9 +245,7 @@ export function bonusRuleSentence(rule: BonusRuleSentenceInput): string {
       : "";
   const where = rule.scope_line ? ` (${rule.scope_line})` : "";
   if (rule.type === "pet") {
-    const pets = rule.pets ?? [];
-    const what = pets.length === 1 ? `a new ${pets[0]}` : "a new pet";
-    return `${pts} for ${what}${cap}`;
+    return `${pts} for ${petGoal(rule)}${cap}`;
   }
   if (rule.type === "milestone") {
     const step = Math.max(rule.step ?? 1, 1).toLocaleString("en-US");

@@ -415,6 +415,22 @@ export function vestigeRingsCount(task: Pick<EventTask, "config">): boolean {
   return taskConfig(task).vestige_rings !== false;
 }
 
+/** Whether a duplicate pet counts on a task of this type when its config
+ * doesn't say (`config.duplicate_pets`; backend: utils/duplicate_pets.py).
+ * Item lists always counted them (a listed pet has no other credit path);
+ * pet tasks and loot sweeps counted only pets the player didn't already own. */
+export function duplicatePetsDefault(type: string): boolean {
+  return type === "item_collection";
+}
+
+/** Whether a duplicate of a pet the player already owns counts toward this
+ * task (`config.duplicate_pets`). Only a real boolean overrides the type's
+ * default, which is also how every task saved before the switch behaves. */
+export function duplicatePetsCount(task: Pick<EventTask, "type" | "config">): boolean {
+  const value = taskConfig(task).duplicate_pets;
+  return typeof value === "boolean" ? value : duplicatePetsDefault(task.type);
+}
+
 /** Whether an item_collection task names `item` itself, as its single target
  * or anywhere in its item list (case and spacing ignored). */
 export function taskListsItem(
