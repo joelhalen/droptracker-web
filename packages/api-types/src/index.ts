@@ -1489,6 +1489,21 @@ export const GroupDiagnosticsSchema = z.object({
       }),
     )
     .default([]),
+  /** Boards the bot could not update because their thread is archived and it
+   * may not reopen it (backend utils/discord_threads). Read live, not cached. */
+  channel_problems: z
+    .array(
+      z.object({
+        feature: z.string(),
+        label: z.string(),
+        channel_id: z.string(),
+        thread_name: z.string(),
+        state: z.string(),
+        locked: z.boolean(),
+        checked_at: z.number(),
+      }),
+    )
+    .default([]),
 });
 export type GroupDiagnostics = z.infer<typeof GroupDiagnosticsSchema>;
 

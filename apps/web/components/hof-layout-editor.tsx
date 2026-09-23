@@ -446,7 +446,7 @@ function BlockForm({
                 min={1}
                 max={maxRows}
                 value={block.count ?? ""}
-                placeholder="—"
+                placeholder="-"
                 disabled={block.count === null}
                 onChange={(e) => {
                   const n = Number(e.target.value);
@@ -499,7 +499,7 @@ function BlockForm({
             type="text"
             maxLength={500}
             className={`${fieldInputClass} w-full`}
-            placeholder="When nobody is ranked yet (optional — blank hides the block)"
+            placeholder="When nobody is ranked yet (optional; leave blank to hide the block)"
           />
           <p className="text-osrs-parchment-dark/50 text-xs">
             In a line: {meta.row_tokens.map((t) => `{${t.token}}`).join(" ")}. {"{value}"} is{" "}

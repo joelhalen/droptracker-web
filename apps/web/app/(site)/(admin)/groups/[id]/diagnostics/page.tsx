@@ -87,6 +87,44 @@ export default async function GroupDiagnosticsPage({
         </div>
       )}
 
+      {diag.channel_problems.length > 0 && (
+        <div
+          role="status"
+          className="border-osrs-red/40 bg-osrs-red/10 rounded border px-4 py-3 text-sm"
+        >
+          <p className="text-osrs-red font-semibold">Some boards have stopped updating</p>
+          <ul className="text-osrs-parchment mt-2 space-y-2">
+            {diag.channel_problems.map((p) => (
+              <li key={p.feature}>
+                <span className="font-medium">{p.label}</span> lives in the thread{" "}
+                <span className="font-medium">&ldquo;{p.thread_name || "unnamed"}&rdquo;</span>,
+                which Discord archived.{" "}
+                {p.locked ? (
+                  <>
+                    The thread is also locked, and only members with the{" "}
+                    <strong>Manage Threads</strong> permission can reopen a locked thread. Give the
+                    DropTracker bot Manage Threads in that channel, or unlock the thread.
+                  </>
+                ) : (
+                  <>
+                    The bot isn&apos;t allowed to reopen it. Give the DropTracker bot{" "}
+                    <strong>Send Messages in Threads</strong> in that channel.
+                  </>
+                )}{" "}
+                <span className="text-osrs-parchment-dark/60 text-xs">
+                  Checked {formatRelativeTime(p.checked_at)}.
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-osrs-parchment-dark/70 mt-2 text-xs">
+            Discord archives a thread after a few days without new messages, and the bot editing its
+            board doesn&apos;t count. The bot reopens archived threads by itself when it&apos;s
+            allowed to, so once this is fixed you won&apos;t need to do it again.
+          </p>
+        </div>
+      )}
+
       {/* ---- Pipeline heartbeat ------------------------------------------ */}
       <section>
         <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">

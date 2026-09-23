@@ -656,6 +656,7 @@ export function mockDiagnostics(days = 30): GroupDiagnostics {
     members_synced_ts: now - 3600,
     activity_7d: daily.slice(-7).map((d) => ({ date: d.date, submissions: d.announcements })),
     warnings: [],
+    channel_problems: [],
     range_days: days,
     generated_ts: now,
     last_announcement_ts: now - 900,
