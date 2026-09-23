@@ -7,11 +7,14 @@ import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 
 /**
- * Per-account toggles for in-game (RuneLite plugin) event notifications.
- * Types come from the server, so new notification types show up here without
- * a frontend change. Each toggle applies immediately (AccountVisibility
- * pattern). Task-progress pop-ups are deliberately not listed — that mute
- * switch lives in the plugin config, and no option exists in two places.
+ * Per-account toggles for in-game (RuneLite plugin) notifications: event
+ * notifications plus the routine "Drop processed" chat line. Types come from
+ * the server, so new notification types show up here without a frontend
+ * change. Each toggle applies immediately (AccountVisibility pattern).
+ * Task-progress pop-ups are deliberately not listed — that mute switch lives
+ * in the plugin config. Drop confirmations are the one exception that exists
+ * in both places: plugin 6.0.10+ sends its own setting, which wins, and this
+ * one covers older builds.
  */
 export function EventNotificationPrefs({ initial }: { initial: NotificationPrefs }) {
   const [data, setData] = useState(initial);
@@ -37,13 +40,18 @@ export function EventNotificationPrefs({ initial }: { initial: NotificationPrefs
   return (
     <section className="space-y-3">
       <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-        In-game event notifications
+        In-game notifications
       </h2>
       <p className="text-osrs-parchment-dark/60 text-xs">
-        Choose what each account sees in RuneLite during events (task completions, lead changes,
-        board turns…). Requires the DropTracker plugin with the API enabled; whether anything
-        shows at all — and whether teammates&apos; task <em>progress</em> pops up — is controlled
-        in the plugin&apos;s own settings. Changes apply immediately.
+        Choose what each account sees in RuneLite: event updates (task completions, lead changes,
+        board turns) and the &ldquo;Drop processed&rdquo; chat line you get when a drop is sent
+        to your group. Requires the DropTracker plugin with the API enabled. Whether anything
+        shows at all, and whether teammates&apos; task <em>progress</em> pops up, is set in the
+        plugin&apos;s own settings. Changes apply immediately.
+      </p>
+      <p className="text-osrs-parchment-dark/60 text-xs">
+        Newer plugin versions have their own <strong>Drop confirmations</strong> setting. If your
+        plugin has it, that setting is used instead of the one here.
       </p>
       <ul className="space-y-3">
         {data.players.map((p) => (
