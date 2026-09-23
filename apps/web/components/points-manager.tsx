@@ -323,7 +323,7 @@ function RulesSection({
     <section className="space-y-3">
       <SectionHeading
         title="Award rules"
-        hint="Base points per submission type. Drops award (GP value ÷ divisor) × award, rounded; everything else is a flat award. Set an award to 0 to disable that type."
+        hint="Base points per submission type. Drops award (GP value ÷ divisor) × award, rounded down, so a drop worth less than the divisor awards nothing; everything else is a flat award. Set an award to 0 to disable that type."
       />
       <Card padding="p-0" className="overflow-x-auto">
         <table className="w-full text-sm">
