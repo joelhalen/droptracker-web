@@ -257,6 +257,7 @@ export const WIDE_TYPES: ReadonlySet<ConfigField["type"]> = new Set([
   "text",
   "csv",
   "bosslist",
+  "multiselect",
   "messagelist",
 ]);
 

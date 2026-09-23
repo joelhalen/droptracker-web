@@ -1815,6 +1815,7 @@ export const EMBED_TYPES = [
   "quest",
   "death",
   "diary",
+  "slayer",
   "lb",
 ] as const;
 export type EmbedType = (typeof EMBED_TYPES)[number];
@@ -1829,6 +1830,7 @@ export const EMBED_TYPE_LABELS: Record<EmbedType, string> = {
   quest: "Quests",
   death: "Deaths",
   diary: "Achievement diaries",
+  slayer: "Slayer tasks",
   lb: "Lootboard",
 };
 

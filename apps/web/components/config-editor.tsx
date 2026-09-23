@@ -37,6 +37,7 @@ import { Alert, Badge, Button, Card, controlClass, EmptyState, Input, Select, Te
 import { GpInput } from "@/components/gp-input";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
 import { BossListPicker } from "@/components/boss-list-picker";
+import { MultiSelectOptions } from "@/components/multi-select-options";
 import { BoardStylePicker } from "@/components/board-style-picker";
 import { DeathMessageListEditor } from "@/components/death-message-list-editor";
 import { SettingsBlock, SettingsSectionShell, SettingsSubheading } from "@/components/settings-section";
@@ -797,8 +798,10 @@ function InputField({
 }) {
   const disabled = locked;
   const pendingNote = comingSoonNote(field);
+  // A checkbox list labels each of its own boxes, and labels can't nest.
+  const Wrapper = field.type === "multiselect" ? "div" : "label";
   return (
-    <label className={`block ${disabled ? "opacity-60" : ""}`}>
+    <Wrapper className={`block ${disabled ? "opacity-60" : ""}`}>
       <span className="block text-sm font-medium">
         {field.label}
         {locked ? <span className="text-osrs-parchment-dark/50 ml-1 text-xs">🔒 Premium</span> : null}
@@ -863,6 +866,13 @@ function InputField({
           // else wants somewhere postable.
           mode={field.channelKind === "voice" ? "voice" : "sendable"}
         />
+      ) : field.type === "multiselect" ? (
+        <MultiSelectOptions
+          field={field}
+          value={String(value ?? "")}
+          onChange={(v) => onChange(v)}
+          disabled={disabled}
+        />
       ) : field.type === "bosslist" ? (
         <BossListPicker
           bosses={bosses}
@@ -905,7 +915,7 @@ function InputField({
       {field.templateTokens ? (
         <TemplatePreview tokens={field.templateTokens} template={String(value ?? "")} fallback={String(field.default ?? "")} />
       ) : null}
-    </label>
+    </Wrapper>
   );
 }
 

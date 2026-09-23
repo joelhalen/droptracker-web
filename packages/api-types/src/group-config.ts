@@ -38,6 +38,7 @@ export type ConfigFieldType =
   | "bosslist" // comma-separated boss names, picked from GET /groups/{id}/pb-bosses
   | "boardstyle" // lootboards-table row id, picked from GET /lootboard-styles
   | "select"
+  | "multiselect" // comma-separated `options` values, in option order ("" = none chosen)
   | "messagelist"; // JSON array of message templates ("" = unset), edited via a list widget
 
 export interface ConfigField {
@@ -47,7 +48,7 @@ export interface ConfigField {
   type: ConfigFieldType;
   help: string;
   default: string | number | boolean | null;
-  /** For `select` fields. */
+  /** For `select` and `multiselect` fields. */
   options?: { value: string; label: string }[];
   /**
    * For `channel` fields: which kind of channel this setting wants. Defaults
@@ -142,6 +143,25 @@ export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "clan_chat", label: "Clan chat" },
   { id: "voice", label: "Voice channel counters" },
   { id: "integration", label: "WiseOldMan & API" },
+];
+
+/**
+ * Slayer masters by the game's SLAYER_MASTER id, each with the alternates who
+ * stand in for them. Mirrors the backend's `utils/slayer_masters.py`
+ * (`SLAYER_MASTERS`, `SlayerMaster.label`); tests/unit/test_group_config_registry.py
+ * there holds the two lists together.
+ */
+export const SLAYER_MASTER_OPTIONS: { value: string; label: string }[] = [
+  { value: "1", label: "Turael / Aya" },
+  { value: "2", label: "Mazchna / Achtryn" },
+  { value: "3", label: "Vannaka" },
+  { value: "4", label: "Chaeldar" },
+  { value: "5", label: "Duradel / Kuradal" },
+  { value: "6", label: "Nieve / Steve" },
+  { value: "7", label: "Krystilia" },
+  { value: "8", label: "Konar" },
+  { value: "9", label: "Spria" },
+  { value: "10", label: "Mortimer" },
 ];
 
 export const GROUP_CONFIG_FIELDS: ConfigField[] = [
@@ -258,6 +278,22 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
     })),
     seasonalMirror: true,
   },
+  // Slayer tasks: completions come from plugin 6.0.6+ and are recorded
+  // whatever these say; they only decide what is announced. No stored
+  // slayer_excluded_masters row means its default (Turael and Spria, the
+  // backend's DEFAULT_EXCLUDED_MASTER_IDS); a saved "" means skip nobody.
+  { key: "notify_slayer_tasks", label: "Notify slayer tasks", category: "achievements", group: "Slayer tasks", type: "boolean", help: "Post a notification when a member completes a slayer task.", default: false, seasonalMirror: true },
+  {
+    key: "slayer_excluded_masters",
+    label: "Skip tasks from",
+    category: "achievements",
+    group: "Slayer tasks",
+    type: "multiselect",
+    help: "Tasks from these masters are not announced. By default that's Turael and Spria, whose tasks give no points and are mostly used to skip tasks from other masters.",
+    default: "1,9",
+    options: SLAYER_MASTER_OPTIONS,
+  },
+  { key: "channel_id_to_post_slayer", label: "Slayer channel", category: "achievements", group: "Slayer tasks", type: "channel", help: "Channel for slayer task notifications. Falls back to the drops channel when unset.", default: null },
 
   // --- Deaths ---------------------------------------------------------------
   // Death notifications get their own section: toggle, channel and the custom
@@ -428,6 +464,27 @@ export function messageListIssue(raw: string): string | null {
   return null;
 }
 
+/** The option values a stored `multiselect` value holds ("" = none). */
+export function parseMultiselect(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+/**
+ * The stored form of a `multiselect` choice: the chosen values in option
+ * order, comma-separated. Matches the backend's coerce_multiselect, so a
+ * value the editor writes reads back unchanged.
+ */
+export function formatMultiselect(field: ConfigField, chosen: Iterable<string>): string {
+  const picked = new Set(chosen);
+  return (field.options ?? [])
+    .map((o) => o.value)
+    .filter((v) => picked.has(v))
+    .join(",");
+}
+
 /** Per-field Zod validator derived from the registry. */
 function fieldSchema(f: ConfigField): z.ZodTypeAny {
   switch (f.type) {
@@ -441,6 +498,14 @@ function fieldSchema(f: ConfigField): z.ZodTypeAny {
     }
     case "select":
       return z.enum((f.options ?? []).map((o) => o.value) as [string, ...string[]]);
+    case "multiselect": {
+      const allowed = new Set((f.options ?? []).map((o) => o.value));
+      return z
+        .string()
+        .refine((raw) => parseMultiselect(raw).every((v) => allowed.has(v)), {
+          message: "Unknown option.",
+        });
+    }
     case "channel":
     case "string":
     case "text":

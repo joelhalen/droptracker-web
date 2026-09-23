@@ -11,8 +11,8 @@
  *  - group:     a group's own templates, falling back to the site defaults.
  *  - defaults:  the site-wide templates themselves (staff, /admin/embeds).
  *    "Custom" is then the stored default and "default" the embed built in
- *    code behind it — which only quest, death and diary have, so only those
- *    can be reverted.
+ *    code behind it — which only quest, death, diary and slayer have, so only
+ *    those can be reverted.
  */
 import { useMemo, useState, useTransition } from "react";
 import {
@@ -186,6 +186,24 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
+  // Mirrors the backend's slayer TOKEN_DOCS (services/component_layout.py).
+  // Every figure but the task and its kills can be missing, and a field whose
+  // value comes out empty is left out of the message.
+  slayer: [
+    { token: "{player_name}", help: "Player who completed the task (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who completed the task, with no profile link", sample: "RuneLite Ron" },
+    { token: "{slayer_task}", help: "The assignment, or the boss on a boss task", sample: "Abyssal Demons" },
+    { token: "{slayer_master}", help: "The slayer master who gave the task", sample: "Duradel" },
+    { token: "{slayer_kills}", help: "Monsters killed on the task", sample: "206" },
+    { token: "{slayer_task_size}", help: "How many the task asked for. A bracelet of slaughter or an expeditious bracelet makes it differ from the kills", sample: "206" },
+    { token: "{slayer_streak}", help: "Tasks completed in a row, as the game counts them (Krystilia and Mortimer keep their own count)", sample: "377" },
+    { token: "{slayer_points}", help: "Slayer points from this task. Empty when it earned none", sample: "15" },
+    { token: "{slayer_points_total}", help: "The player's Slayer points after this task", sample: "580" },
+    { token: "{slayer_xp}", help: "Slayer XP from the task", sample: "139,468" },
+    { token: "{slayer_icon}", help: "Link to the Slayer skill icon, for a thumbnail", sample: "https://www.droptracker.io/img/metrics/slayer.png" },
+    PLUGIN_VERSION,
+    ...COMMON_MEDIA,
+  ],
   lb: [
     { token: "{next_refresh}", help: "Relative countdown to the next board update", sample: "in 10 minutes" },
     { token: "{tracked_members}", help: "Members tracked in the group", sample: "86" },
@@ -202,6 +220,8 @@ const TYPE_HELP: Record<EmbedType, string> = {
   quest: "Posted when a member completes a quest.",
   death: "Posted when a tracked member dies in-game.",
   diary: "Posted when a member completes an achievement diary.",
+  slayer:
+    "Posted when a member completes a slayer task. Turn it on and pick which masters to skip in your group settings, under Achievement notifications.",
   lb: "The message that accompanies the group's lootboard image.",
 };
 
