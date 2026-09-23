@@ -28,6 +28,7 @@ import { formatGained, isTeamRace, scoreText, teamScoreText } from "@/lib/compet
 import { teamColorMap } from "@/lib/events";
 import { useEventStream } from "@/lib/use-event-stream";
 import { EmptyState, RankMedal } from "@/components/ui";
+import { CompetitionBreakdown, hasBossBreakdown, hasBreakdown } from "@/components/competition-breakdown";
 
 const REFETCH_KINDS = new Set(["competition", "revoke", "recompute", "ended"]);
 
@@ -56,6 +57,40 @@ function bonusProgressSlots(row: CompetitionStandingRow) {
     out.push({ ruleId: Number(key), progress, need, awarded: slot.awarded });
   }
   return out.sort((a, b) => a.ruleId - b.ruleId);
+}
+
+/** A player's kills per boss, in the race's order ("Vardorvis 120"), for a
+ * multi-boss race's expanded row. Kills with no boss on record trail as
+ * "Other". */
+function bossSplit(row: CompetitionStandingRow, npcs: string[]): { label: string; value: number }[] {
+  const by = row.by_npc ?? {};
+  const out = npcs
+    .map((npc) => ({ label: npc.replace(/\b\w/g, (c) => c.toUpperCase()), value: by[npc] ?? 0 }))
+    .filter((p) => p.value > 0);
+  const other = row.gained - out.reduce((a, p) => a + p.value, 0);
+  if (other > 0) out.push({ label: "Other", value: other });
+  return out;
+}
+
+/** One line per distinct award in the drill-in, instead of one line per
+ * ledger row: a 19-orb player reads "Awakener's orb ×19", not 19 rows of +1.
+ * Capped (uncounted) rows stay their own struck-through line. */
+function groupAwards(awards: CompetitionPlayerDetail["awards"]) {
+  const groups = new Map<
+    string,
+    { label: string; counted: boolean; count: number; points: number; contribution: number; progress: boolean }
+  >();
+  for (const a of awards) {
+    const progress = a.contribution != null && a.points === 0;
+    const label = a.label ?? "Bonus award";
+    const key = `${a.rule_id}|${label}|${a.counted}|${progress}`;
+    const g = groups.get(key) ?? { label, counted: a.counted, count: 0, points: 0, contribution: 0, progress };
+    g.count += 1;
+    g.points += a.points;
+    g.contribution += a.contribution ?? 0;
+    groups.set(key, g);
+  }
+  return [...groups.values()];
 }
 
 /** Team id → accent, stable across re-ranks (palette by id order, like every
@@ -87,6 +122,7 @@ export function CompetitionStandings({
   onOpenPlayer,
   onOpenTeam,
   teamId = null,
+  exportable = true,
 }: {
   eventId: number;
   initial: EventCompetitionBoard;
@@ -103,6 +139,8 @@ export function CompetitionStandings({
   /** Discord Activity: in-app view pushes instead of site links. */
   onOpenPlayer?: (playerId: number) => void;
   onOpenTeam?: (teamId: number) => void;
+  /** The breakdown's CSV download (the Activity iframe can't save files). */
+  exportable?: boolean;
 }) {
   const [board, setBoard] = useState(initial);
   useEffect(() => setBoard(initial), [initial]);
@@ -111,6 +149,8 @@ export function CompetitionStandings({
   const [expanded, setExpanded] = useState<number | null>(null);
   const [details, setDetails] = useState<Record<number, CompetitionPlayerDetail | "loading">>({});
   const [teamFilter, setTeamFilter] = useState<number | null>(null);
+  const [view, setView] = useState<"standings" | "breakdown">("standings");
+  const [allAwards, setAllAwards] = useState(false);
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadBoard = useCallback<BoardFetcher>(
@@ -169,6 +209,9 @@ export function CompetitionStandings({
   const pointsMode = rankingMode === "points";
   const hasBonuses = competition.bonus_rules.length > 0;
   const showTeamColumn = showTeams;
+  const raceNpcs = competition.metric.npcs ?? [];
+  const splitBosses = hasBossBreakdown(board);
+  const breakdownOn = hasBreakdown(board) && view === "breakdown";
   const columns = 3 + (showTeamColumn ? 1 : 0) + (hasBonuses ? 1 : 0) + (pointsMode ? 1 : 0);
 
   const toggleRow = (row: CompetitionStandingRow) => {
@@ -179,6 +222,7 @@ export function CompetitionStandings({
       return;
     }
     setExpanded(pid);
+    setAllAwards(false);
     if (!details[pid]) {
       const empty = { event_id: eventId, player_id: pid, row: null, awards: [] };
       setDetails((d) => ({ ...d, [pid]: "loading" }));
@@ -236,8 +280,29 @@ export function CompetitionStandings({
     );
   }
 
+  const viewSwitch = hasBreakdown(board) && (
+    <div className="flex gap-1" role="group" aria-label="Standings view">
+      <ToggleChip shape="tab" active={view === "standings"} onClick={() => setView("standings")}>
+        Standings
+      </ToggleChip>
+      <ToggleChip shape="tab" active={view === "breakdown"} onClick={() => setView("breakdown")}>
+        Breakdown
+      </ToggleChip>
+    </div>
+  );
+
+  if (breakdownOn) {
+    return (
+      <div className="space-y-3">
+        {viewSwitch}
+        <CompetitionBreakdown board={board} accents={accents} teamId={teamId} exportable={exportable} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
+      {viewSwitch}
       {showTeams && (
         <CompetitionTeamTable
           board={board}
@@ -301,10 +366,11 @@ export function CompetitionStandings({
                 // player three items into a five-item set has earned nothing
                 // yet and is exactly the person who wants to see the meter.
                 const inFlight = bonusProgressSlots(row);
+                const split = splitBosses ? bossSplit(row, raceNpcs) : [];
                 const expandable =
                   row.registered &&
                   row.player_id != null &&
-                  (row.bonus_points > 0 || inFlight.length > 0);
+                  (row.bonus_points > 0 || inFlight.length > 0 || split.length > 1);
                 const isOpen = expanded != null && expanded === row.player_id;
                 const detail = row.player_id != null ? details[row.player_id] : undefined;
                 return (
@@ -359,6 +425,21 @@ export function CompetitionStandings({
                     {isOpen && (
                       <tr className="border-osrs-bronze/15 bg-osrs-brown-dark/30 border-b">
                         <td colSpan={columns} className="px-4 py-2.5">
+                          {split.length > 0 && (
+                            <ul className="mb-2.5 flex flex-wrap gap-1.5 text-xs" aria-label="Kills by boss">
+                              {split.map((p) => (
+                                <li
+                                  key={p.label}
+                                  className="border-osrs-bronze/30 text-osrs-parchment-dark/80 rounded border px-2 py-0.5"
+                                >
+                                  {p.label}{" "}
+                                  <span className="text-osrs-parchment tabular-nums">
+                                    {p.value.toLocaleString("en-US")}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                           {inFlight.length > 0 && (
                             <ul className="mb-2 space-y-1.5 text-xs">
                               {inFlight.map(({ ruleId, progress, need, awarded }) => (
@@ -388,31 +469,62 @@ export function CompetitionStandings({
                           {detail === "loading" || detail === undefined ? (
                             <p className="text-osrs-parchment-dark/50 text-xs">Loading awards…</p>
                           ) : detail.awards.length ? (
-                            <ul className="space-y-1 text-xs">
-                              {detail.awards.map((a, i) => (
-                                <li key={i} className="flex items-center justify-between gap-2">
-                                  <span
-                                    className={
-                                      a.counted
-                                        ? "text-osrs-parchment-dark/80"
-                                        : "text-osrs-parchment-dark/40 line-through"
-                                    }
-                                  >
-                                    {a.label ?? "Bonus award"}
-                                  </span>
-                                  <span className="text-osrs-green shrink-0 tabular-nums">
-                                    {/* A task rule's row is progress, not a
-                                        payout — it pays at the rule level,
-                                        shown in the meter above. Printing
-                                        "+0 pts" on every drop would read as a
-                                        bug. */}
-                                    {a.contribution != null && a.points === 0
-                                      ? `+${a.contribution.toLocaleString("en-US")}`
-                                      : `+${a.points} pts`}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
+                            <>
+                              <ul className="space-y-1 text-xs">
+                                {(allAwards
+                                  ? detail.awards.map((a) => ({
+                                      label: a.label ?? "Bonus award",
+                                      counted: a.counted,
+                                      count: 1,
+                                      points: a.points,
+                                      contribution: a.contribution ?? 0,
+                                      progress: a.contribution != null && a.points === 0,
+                                    }))
+                                  : groupAwards(detail.awards)
+                                ).map((g, i) => (
+                                  <li key={i} className="flex items-center justify-between gap-2">
+                                    <span
+                                      className={
+                                        g.counted
+                                          ? "text-osrs-parchment-dark/80"
+                                          : "text-osrs-parchment-dark/40 line-through"
+                                      }
+                                    >
+                                      {g.label}
+                                      {g.count > 1 && (
+                                        <span className="text-osrs-parchment-dark/50 ml-1 tabular-nums">
+                                          ×{g.count}
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className="text-osrs-green shrink-0 tabular-nums">
+                                      {/* A task rule's row is progress, not a
+                                          payout — it pays at the rule level,
+                                          shown in the meter above. Printing
+                                          "+0 pts" on every drop would read as
+                                          a bug. */}
+                                      {g.progress
+                                        ? `+${g.contribution.toLocaleString("en-US")}`
+                                        : `+${g.points.toLocaleString("en-US")} pts`}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                              {detail.awards.length > groupAwards(detail.awards).length && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setAllAwards((v) => !v);
+                                  }}
+                                  className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright mt-1.5 text-[11px] underline-offset-2 hover:underline"
+                                >
+                                  {allAwards
+                                    ? "Group identical awards"
+                                    : `Show all ${detail.awards.length} awards`}
+                                </button>
+                              )}
+                            </>
                           ) : (
                             <p className="text-osrs-parchment-dark/50 text-xs">No bonus awards yet.</p>
                           )}

@@ -98,6 +98,7 @@ export function ActivityCompetitionBoard({
           live={live}
           viewerPlayerIds={viewerPlayerIds}
           viewerTeamId={viewerTeamId}
+          exportable={false}
           {...transports}
         />
       </div>

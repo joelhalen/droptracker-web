@@ -104,6 +104,8 @@ export function CompetitionTeamView({
           live={live}
           teamId={team.id}
           viewerPlayerIds={viewerPlayerIds}
+          // Injected transports mean the Activity, whose iframe can't save a CSV.
+          exportable={!fetchBoard}
           {...(onOpenPlayer ? { onOpenPlayer } : {})}
           {...(fetchBoard ? { fetchBoard } : {})}
           {...(fetchPlayer ? { fetchPlayer } : {})}

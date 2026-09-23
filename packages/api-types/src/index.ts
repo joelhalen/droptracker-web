@@ -2740,6 +2740,10 @@ export const CompetitionStandingRowSchema = z.object({
       }),
     )
     .optional(),
+  /** Boss races: kills gained per boss, keyed by the normalized name in
+   * `competition.metric.npcs`. `""` holds kills with no boss on record
+   * (older rows), so the parts sum to `gained`. Empty for WOM-only rows. */
+  by_npc: z.record(z.string(), z.number().int()).optional(),
   /** Team race: the player's team (current roster, else the team they last
    * scored for; a WOM-only row may carry only WOM's team name). */
   team_id: z.number().int().nullable().optional(),
@@ -2765,6 +2769,10 @@ export const CompetitionTeamStandingSchema = z.object({
   average: z.number(),
   score: z.number(),
   score_text: z.string().optional(),
+  /** Kills per boss across the team (same keys as a row's `by_npc`). */
+  by_npc: z.record(z.string(), z.number().int()).optional(),
+  /** Bonus points per rule id across the team. */
+  bonus_by_rule: z.record(z.string(), z.number().int()).optional(),
   top_player: z
     .object({
       player_id: z.number().int(),
