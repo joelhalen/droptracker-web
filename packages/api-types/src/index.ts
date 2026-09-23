@@ -7023,6 +7023,179 @@ export const SavedNotificationLayoutSchema = z.object({
 });
 export type SavedNotificationLayout = z.infer<typeof SavedNotificationLayoutSchema>;
 
+/* ------------------------------------------------------------------ */
+/* Hall of Fame layouts (hall_of_fame entitlement)                      */
+/* ------------------------------------------------------------------ */
+/** The boss messages the Hall of Fame keeps edited in a group's channel.
+ * Same block DSL as notification layouts (backend services/hof_layout.py) plus
+ * a `leaderboard` block, and `each_mode` on any block: repeat it once per raid
+ * mode, with that mode's numbers. */
+export const HOF_LEADERBOARD_BOARDS = ["pb", "kc", "loot_month", "loot_all"] as const;
+export type HofLeaderboardBoard = (typeof HOF_LEADERBOARD_BOARDS)[number];
+
+const hofEachMode = { each_mode: z.boolean().nullish() };
+
+export const HofLayoutBlockSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), content: z.string().min(1).max(3500), ...hofEachMode }),
+  z.object({
+    type: z.literal("section"),
+    content: z.string().min(1).max(3500),
+    thumbnail: z.string().max(500).nullish(),
+    ...hofEachMode,
+  }),
+  z.object({
+    type: z.literal("separator"),
+    divider: z.boolean().nullish(),
+    spacing: z.enum(["small", "large"]).nullish(),
+    ...hofEachMode,
+  }),
+  z.object({
+    type: z.literal("media"),
+    urls: z.array(z.string().max(500)).min(1).max(10),
+    ...hofEachMode,
+  }),
+  z.object({
+    type: z.literal("buttons"),
+    buttons: z.array(NotificationLayoutButtonSchema).min(1).max(5),
+    ...hofEachMode,
+  }),
+  z.object({
+    type: z.literal("leaderboard"),
+    board: z.enum(HOF_LEADERBOARD_BOARDS),
+    /** null = the group's "Number of PBs to display" setting. */
+    count: z.number().int().min(1).max(10).nullish(),
+    title: z.string().max(500).nullish(),
+    line: z.string().max(500).nullish(),
+    bracket: z.string().max(500).nullish(),
+    empty: z.string().max(500).nullish(),
+    ...hofEachMode,
+  }),
+]);
+export type HofLayoutBlock = z.infer<typeof HofLayoutBlockSchema>;
+
+export const HofLayoutSchema = z.object({
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .nullable(),
+  blocks: z.array(HofLayoutBlockSchema),
+});
+export type HofLayout = z.infer<typeof HofLayoutSchema>;
+
+export const HofLayoutInputSchema = z.object({
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Accent must be a hex color like #c8aa6e")
+    .nullable()
+    .optional(),
+  blocks: z.array(HofLayoutBlockSchema).min(1).max(30),
+  active: z.boolean().optional(),
+});
+export type HofLayoutInput = z.infer<typeof HofLayoutInputSchema>;
+
+export const GroupHofLayoutResponseSchema = z.object({
+  /** The hall_of_fame entitlement: false means saving is refused. */
+  enabled: z.boolean(),
+  custom: HofLayoutSchema.nullable(),
+  /** Whether the channel is built from `custom` right now. */
+  active: z.boolean(),
+  default: HofLayoutSchema,
+  updated_at: z.string().nullable(),
+  /** The group's Hall of Fame bosses (message names), for the preview picker. */
+  bosses: z.array(z.string()),
+  /** False while the retiring Hall of Fame bot still posts for this group:
+   * it owns none of the boss/item emoji, so it leaves them out. */
+  emoji_supported: z.boolean(),
+});
+export type GroupHofLayoutResponse = z.infer<typeof GroupHofLayoutResponseSchema>;
+
+export const SavedHofLayoutSchema = z.object({
+  ok: z.boolean().optional(),
+  layout: HofLayoutSchema,
+  active: z.boolean(),
+});
+export type SavedHofLayout = z.infer<typeof SavedHofLayoutSchema>;
+
+const HofTokenDocSchema = z.object({ token: z.string(), help: z.string() });
+
+export const HofLayoutMetaSchema = z.object({
+  block_types: z.array(z.string()),
+  boards: z.array(
+    z.object({
+      key: z.enum(HOF_LEADERBOARD_BOARDS),
+      label: z.string(),
+      help: z.string(),
+      value: z.string(),
+      default_line: z.string(),
+    }),
+  ),
+  token_groups: z.array(z.object({ label: z.string(), tokens: z.array(HofTokenDocSchema) })),
+  row_tokens: z.array(HofTokenDocSchema),
+  default_bracket: z.string(),
+  limits: z.record(z.string(), z.number()),
+  /** The bot's own boss/item glyphs, placeable as {emoji:name}. */
+  emojis: z.array(
+    z.object({
+      name: z.string(),
+      label: z.string(),
+      kind: z.string(),
+      id: z.string(),
+    }),
+  ),
+  default_layout: HofLayoutSchema,
+});
+export type HofLayoutMeta = z.infer<typeof HofLayoutMetaSchema>;
+
+/** A rendered Components V2 component, as the bot would send it. Loose on
+ * purpose: the preview draws what it recognises and skips the rest. */
+export type HofRenderedComponent = {
+  type: number;
+  content?: string;
+  divider?: boolean;
+  spacing?: number;
+  accent_color?: number;
+  components?: HofRenderedComponent[];
+  accessory?: { type: number; media?: { url: string } };
+  items?: { media: { url: string } }[];
+  label?: string;
+  url?: string;
+};
+const HofRenderedComponentSchema: z.ZodType<HofRenderedComponent> = z.lazy(() =>
+  z
+    .object({
+      type: z.number(),
+      content: z.string().optional(),
+      divider: z.boolean().optional(),
+      spacing: z.number().optional(),
+      accent_color: z.number().optional(),
+      components: z.array(HofRenderedComponentSchema).optional(),
+      accessory: z
+        .object({ type: z.number(), media: z.object({ url: z.string() }).optional() })
+        .optional(),
+      items: z.array(z.object({ media: z.object({ url: z.string() }) })).optional(),
+      label: z.string().optional(),
+      url: z.string().optional(),
+    })
+    .passthrough(),
+);
+
+export const HofLayoutPreviewSchema = z.union([
+  z.object({ ok: z.literal(false), errors: z.array(z.string()) }),
+  z.object({
+    ok: z.literal(true),
+    boss: z.string(),
+    bosses: z.array(z.string()),
+    /** null when the boss is unknown (see `message`) or nothing would render. */
+    payload: z
+      .object({ flags: z.number(), components: z.array(HofRenderedComponentSchema) })
+      .nullable(),
+    /** True when the draft could not be fitted and the default was drawn. */
+    used_default: z.boolean(),
+    message: z.string().optional(),
+  }),
+]);
+export type HofLayoutPreview = z.infer<typeof HofLayoutPreviewSchema>;
+
 /** Staff: the site-wide starting layouts (template group 1) a group's builder
  * copies when it switches a type to components. Never sent themselves. */
 export const NotificationLayoutDefaultEntrySchema = z.object({

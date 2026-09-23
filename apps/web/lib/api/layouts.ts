@@ -28,6 +28,15 @@ import {
   type NotificationLayoutInput,
   type NotificationLayoutMeta,
   type SavedNotificationLayout,
+  GroupHofLayoutResponseSchema,
+  HofLayoutMetaSchema,
+  HofLayoutPreviewSchema,
+  SavedHofLayoutSchema,
+  type GroupHofLayoutResponse,
+  type HofLayoutInput,
+  type HofLayoutMeta,
+  type HofLayoutPreview,
+  type SavedHofLayout,
 } from "@droptracker/api-types";
 import {
   mockEmbedDefaults,
@@ -39,6 +48,8 @@ import {
   mockNotificationLayoutDefaults,
   mockNotificationLayoutMeta,
   mockGroupNotificationLayouts,
+  mockGroupHofLayout,
+  mockHofLayoutMeta,
 } from "../mock-data";
 
 /** Staff routes over the template group's designs (the ACP's Default embeds). */
@@ -250,6 +261,67 @@ export const layoutsApi = {
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,
+    );
+  },
+
+  // --- Hall of Fame layout (hall_of_fame entitlement) --------------------
+  /** Editor metadata: leaderboard kinds, tokens, limits, the bot's emoji. */
+  async hofLayoutMeta(): Promise<HofLayoutMeta> {
+    return withFallback(
+      async () =>
+        HofLayoutMetaSchema.parse(await apiGet(`/hall-of-fame/layout/meta`, { authed: true })),
+      () => mockHofLayoutMeta(),
+    );
+  },
+
+  /** The group's saved layout, whether it is live, and its Hall of Fame bosses. */
+  async groupHofLayout(groupId: number): Promise<GroupHofLayoutResponse> {
+    return withFallback(
+      async () =>
+        GroupHofLayoutResponseSchema.parse(
+          await apiGet(`/groups/${groupId}/hall-of-fame/layout`, { authed: true }),
+        ),
+      () => mockGroupHofLayout(),
+    );
+  },
+
+  /** Save the layout. `active` decides whether the channel uses it. */
+  async saveGroupHofLayout(groupId: number, input: HofLayoutInput): Promise<SavedHofLayout> {
+    return withFallback(
+      async () =>
+        SavedHofLayoutSchema.parse(
+          await apiSend("PUT", `/groups/${groupId}/hall-of-fame/layout`, input),
+        ),
+      () =>
+        SavedHofLayoutSchema.parse({
+          layout: { accent_color: input.accent_color ?? null, blocks: input.blocks },
+          active: Boolean(input.active),
+        }),
+    );
+  },
+
+  /** Delete the layout — the channel goes back to the default. */
+  async deleteGroupHofLayout(groupId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("DELETE", `/groups/${groupId}/hall-of-fame/layout`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+  /** Render a draft for one boss with the group's real standings. */
+  async previewGroupHofLayout(
+    groupId: number,
+    input: HofLayoutInput & { boss?: string | null },
+  ): Promise<HofLayoutPreview> {
+    return withFallback(
+      async () =>
+        HofLayoutPreviewSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/hall-of-fame/layout/preview`, input),
+        ),
+      () => ({ ok: false as const, errors: ["The preview needs the live backend."] }),
     );
   },
 

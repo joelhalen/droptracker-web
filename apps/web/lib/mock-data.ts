@@ -42,6 +42,9 @@ import type {
   EventMessageLayout,
   GroupEventLayoutsResponse,
   GroupNotificationLayoutsResponse,
+  GroupHofLayoutResponse,
+  HofLayout,
+  HofLayoutMeta,
   NotificationLayout,
   NotificationLayoutDefaultsResponse,
   NotificationLayoutMeta,
@@ -1666,6 +1669,57 @@ export function mockNotificationLayoutMeta(): NotificationLayoutMeta {
       ],
     })),
     limits: { max_blocks: 30, max_text_len: 3500, max_media_items: 10, max_buttons: 5 },
+  };
+}
+
+const MOCK_HOF_LAYOUT: HofLayout = {
+  accent_color: null,
+  blocks: [
+    {
+      type: "section",
+      content: "## {boss_emoji} {boss_link} 🏆\n-# • Highest KC: `{top_kc}` kc by {top_kc_player}",
+      thumbnail: "{boss_image_url}",
+    },
+    { type: "separator", divider: true },
+    { type: "text", each_mode: true, content: "### {mode_name}" },
+    { type: "leaderboard", each_mode: true, board: "pb", count: null },
+  ],
+};
+
+export function mockHofLayoutMeta(): HofLayoutMeta {
+  return {
+    block_types: ["text", "section", "separator", "media", "buttons", "leaderboard"],
+    boards: [
+      { key: "pb", label: "Personal bests", help: "Fastest times.", value: "the time", default_line: "-# {medal} `{value}` - {player}" },
+      { key: "kc", label: "Kill count", help: "Highest kill counts.", value: "the kill count", default_line: "-# {medal} {player} - `{value}` kc" },
+      { key: "loot_month", label: "Loot this month", help: "Most loot this month.", value: "GP", default_line: "-# {medal} {player} - `{value}` gp" },
+      { key: "loot_all", label: "Loot, all time", help: "Most loot ever.", value: "GP", default_line: "-# {medal} {player} - `{value}` gp" },
+    ],
+    token_groups: [
+      { label: "Boss", tokens: [{ token: "boss_name", help: "The boss's name" }] },
+      { label: "Top of each ranking", tokens: [{ token: "top_kc_player", help: "Highest KC" }] },
+    ],
+    row_tokens: [
+      { token: "medal", help: "Medal" },
+      { token: "player", help: "The member" },
+      { token: "value", help: "The value" },
+    ],
+    default_bracket: "-# **{team_size}**",
+    limits: { max_blocks: 30, max_rows: 10, max_text_len: 3500 },
+    emojis: [],
+    default_layout: MOCK_HOF_LAYOUT,
+  };
+}
+
+export function mockGroupHofLayout(): GroupHofLayoutResponse {
+  return {
+    enabled: true,
+    custom: null,
+    active: false,
+    default: MOCK_HOF_LAYOUT,
+    updated_at: null,
+    bosses: ["Chambers of Xeric", "Vorkath", "Zulrah"],
+    emoji_supported: true,
   };
 }
 

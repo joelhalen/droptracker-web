@@ -31,11 +31,31 @@ export {
 } from "@/lib/components-v2";
 
 export function formatInline(text: string, keyPrefix: string): React.ReactNode[] {
+  // Custom emoji (`<:name:id>`) and user mentions (`<@id>`) come first: they
+  // arrive in server-rendered previews (the Hall of Fame one draws real
+  // standings) and would otherwise show as raw ids.
   const pattern =
-    /(\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\)|\{[a-z0-9_]+\})/g;
+    /(<a?:[A-Za-z0-9_]+:\d+>|<@!?\d+>|\*\*[^*]+\*\*|__[^_]+__|\*[^*]+\*|~~[^~]+~~|`[^`]+`|\[[^\]]+\]\([^)]+\)|\{[a-z0-9_:]+\})/g;
   const parts = text.split(pattern);
   return parts.filter(Boolean).map((part, i) => {
     const key = `${keyPrefix}-${i}`;
+    const emoji = /^<(a?):([A-Za-z0-9_]+):(\d+)>$/.exec(part);
+    if (emoji)
+      return (
+        <img
+          key={key}
+          src={`https://cdn.discordapp.com/emojis/${emoji[3]}.${emoji[1] ? "gif" : "webp"}?size=48`}
+          alt={`:${emoji[2]}:`}
+          title={`:${emoji[2]}:`}
+          className="inline-block h-[1.375em] w-[1.375em] object-contain align-[-0.3em]"
+        />
+      );
+    if (/^<@!?\d+>$/.test(part))
+      return (
+        <span key={key} className="rounded bg-[#5865f2]/30 px-0.5 text-[#c9cdfb]">
+          @member
+        </span>
+      );
     // Emphasis recurses: the most-used token of all, {player_name}, resolves
     // to a markdown link, so `**{player_name}**` becomes `**[Ron](url)**` —
     // which Discord draws as a bold link and a non-recursing formatter draws
@@ -61,7 +81,7 @@ export function formatInline(text: string, keyPrefix: string): React.ReactNode[]
           {link[1]}
         </span>
       );
-    if (/^\{[a-z0-9_]+\}$/i.test(part))
+    if (/^\{[a-z0-9_:]+\}$/i.test(part))
       return (
         <span key={key} className="rounded bg-[#5865f2]/30 px-0.5 text-[#c9cdfb]">
           {part}

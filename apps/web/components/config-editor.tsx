@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import type { Route } from "next";
+import Link from "next/link";
 import {
   GROUP_CONFIG_FIELDS,
   comingSoonNote,
@@ -371,7 +373,7 @@ export function ConfigEditor({
 
   /** Callouts that belong above one block of one section. */
   const calloutFor = (sectionId: SettingsSectionId, group: string | null): ReactNode => {
-    if (sectionId === "pbs" && group === "Hall of Fame") return <HallOfFameBotCallout />;
+    if (sectionId === "pbs" && group === "Hall of Fame") return <HallOfFameBotCallout groupId={groupId} />;
     if (sectionId === "voice" && group === null && voiceCounterCollision) {
       return (
         <VoiceCounterCollisionCallout
@@ -1017,7 +1019,7 @@ function PasswordInput({
  * That is why this tells people to kick a bot rather than invite one — and why
  * the old invite link is gone.
  */
-function HallOfFameBotCallout() {
+function HallOfFameBotCallout({ groupId }: { groupId: number }) {
   return (
     <div className="border-osrs-gold/30 bg-osrs-brown-dark/40 mb-4 rounded-lg border p-4">
       <p className="text-osrs-gold-bright text-sm font-medium">
@@ -1040,6 +1042,14 @@ function HallOfFameBotCallout() {
       <p className="text-osrs-parchment-dark/60 mt-2 text-xs">
         Never had the separate bot? Nothing to do — leaderboards are rebuilt automatically and can
         take up to ~10 minutes to first appear.
+      </p>
+      <p className="text-osrs-parchment-dark/80 mt-2 text-xs">
+        Want to change what each boss message shows, like the highest kill count, top looters or
+        icons?{" "}
+        <Link href={`/groups/${groupId}/hall-of-fame` as Route} className="text-osrs-gold-bright underline">
+          Design your Hall of Fame layout
+        </Link>
+        .
       </p>
     </div>
   );
