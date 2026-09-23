@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import type { EventSummary } from "@droptracker/api-types";
 import { api } from "@/lib/api";
@@ -6,6 +7,9 @@ import { getUser } from "@/lib/auth";
 import { pickYourEvents, sortEventsChronologically } from "@/lib/events";
 import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
 import { DraftStartNote, EventWindow } from "@/components/local-time";
+import { EventsTimeline } from "@/components/events-timeline";
+import { EventsViewSwitch } from "@/components/events-view-switch";
+import { buildTimelineBands, EVENTS_VIEW_COOKIE, resolveEventsView } from "@/lib/event-timeline";
 
 export const revalidate = 30;
 
@@ -14,7 +18,13 @@ export const metadata: Metadata = {
   description: "Active and past DropTracker clan events, bingos, and competitions.",
 };
 
-export default async function EventsPage() {
+type SearchParams = Promise<{ view?: string | string[] }>;
+
+export default async function EventsPage({ searchParams }: { searchParams: SearchParams }) {
+  const [{ view: viewParam }, jar] = await Promise.all([searchParams, cookies()]);
+  // Timeline is the default; the List view (the sectioned grid below) stays
+  // one click away and the choice sticks via a cookie.
+  const view = resolveEventsView(viewParam, jar.get(EVENTS_VIEW_COOKIE)?.value);
   const user = await getUser().catch(() => null);
   const [active, past, upcoming, recruiting, mine] = await Promise.all([
     api.events({ status: "active" }),
@@ -35,21 +45,20 @@ export default async function EventsPage() {
   const otherUpcoming = sortEventsChronologically(upcoming.filter((e) => !yourIds.has(e.id)));
   const otherActive = sortEventsChronologically(active.filter((e) => !yourIds.has(e.id)));
   const pastSorted = sortEventsChronologically(past);
+  const nowSec = Math.floor(Date.now() / 1000);
 
   return (
     <div className="space-y-10">
       <header>
-        <h1 className="text-osrs-gold text-2xl font-bold">Events & Competitions</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-osrs-gold text-2xl font-bold">Events & Competitions</h1>
+          <EventsViewSwitch current={view} />
+        </div>
         <p className="text-osrs-parchment-dark/70 mt-2 max-w-3xl text-sm">
-          Events are competitions hosted by DropTracker groups — bingo boards, team races, and
-          task lists built from real in-game goals: boss drops, killcounts, XP, personal bests,
-          pets, and more. Progress tracks itself — play with the DropTracker RuneLite plugin
-          installed and the moment a drop lands or a record falls, the matching tile is credited
-          and the scoreboard updates live, both here and in the hosting group&apos;s Discord.
-        </p>
-        <p className="text-osrs-parchment-dark/70 mt-2 max-w-3xl text-sm">
-          Joining is free: be a member of the hosting group, run the plugin, and you&apos;re in.
-          Hosting your own is available to groups subscribed to the{" "}
+          Bingo boards, team races and task lists run by DropTracker groups, built from real
+          in-game goals. Progress tracks itself through the RuneLite plugin and updates live here
+          and in the group&apos;s Discord. Joining is free for members of the hosting group;
+          hosting your own needs the{" "}
           <Link href="/premium" className="text-osrs-gold-bright hover:underline">
             Patron tier
           </Link>
@@ -57,6 +66,41 @@ export default async function EventsPage() {
         </p>
       </header>
       {recruiting.length > 0 && <EventRecruitingBanner items={recruiting} />}
+      {view === "timeline" ? (
+        <EventsTimeline
+          // "Your events" first so its copy of an event wins the dedupe.
+          bands={buildTimelineBands(yourEvents, upcoming, active, past)}
+          yourIds={yourIds}
+          nowSec={nowSec}
+          signedIn={user != null}
+        />
+      ) : (
+        <ListView
+          yourEvents={yourEvents}
+          upcoming={otherUpcoming}
+          active={otherActive}
+          past={pastSorted}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The sectioned grid: the page as it was before the timeline, kept as the
+ * "List" view. */
+function ListView({
+  yourEvents,
+  upcoming: otherUpcoming,
+  active: otherActive,
+  past: pastSorted,
+}: {
+  yourEvents: EventSummary[];
+  upcoming: EventSummary[];
+  active: EventSummary[];
+  past: EventSummary[];
+}) {
+  return (
+    <>
       {yourEvents.length > 0 && (
         <EventSection title="Your events" events={yourEvents} empty="" glowLive />
       )}
@@ -65,7 +109,7 @@ export default async function EventsPage() {
       )}
       <EventSection title="Active" events={otherActive} empty="No active events right now." />
       <EventSection title="Past" events={pastSorted} empty="No past events yet." />
-    </div>
+    </>
   );
 }
 
@@ -131,9 +175,11 @@ function EventSection({
                     {e.description}
                   </p>
                 )}
-                <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
-                  <EventWindow startsAt={e.starts_at} endsAt={e.ends_at} status={e.status} />
-                </p>
+                {(e.starts_at != null || e.ends_at != null) && (
+                  <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
+                    <EventWindow startsAt={e.starts_at} endsAt={e.ends_at} status={e.status} />
+                  </p>
+                )}
                 {/* A draft with a start date goes live on its own at that time;
                     say so, so a planned event doesn't start by surprise. */}
                 {e.status === "draft" && (

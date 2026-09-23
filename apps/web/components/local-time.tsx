@@ -130,7 +130,22 @@ export function EventWindow({
   }
   return (
     <span className={className} suppressHydrationWarning>
-      <LocalTime unix={startsAt} /> – <LocalTime unix={endsAt} />
+      {/* A missing half says so in words instead of a lone dash. */}
+      {startsAt != null && endsAt != null ? (
+        <>
+          <LocalTime unix={startsAt} /> – <LocalTime unix={endsAt} />
+        </>
+      ) : startsAt != null ? (
+        <>
+          <LocalTime unix={startsAt} /> · no end date
+        </>
+      ) : endsAt != null ? (
+        <>
+          Until <LocalTime unix={endsAt} />
+        </>
+      ) : (
+        "No dates set"
+      )}
       {hint && <span className="opacity-80"> · {hint}</span>}
     </span>
   );
@@ -307,6 +322,71 @@ export function TimezoneNote({ className }: { className?: string }) {
       {mounted
         ? `Times are entered in your timezone — ${viewerZone()} (${viewerOffsetLabel()}). Participants see them converted to their own timezone.`
         : ""}
+    </span>
+  );
+}
+
+/**
+ * A calendar-page date ("23" over "SEP") for timeline rows. UTC until
+ * hydration, then the viewer's timezone, like LocalTime; the tooltip carries
+ * the full date and time. A missing date renders a dashed "TBD" tile.
+ */
+export function DateTile({
+  unix,
+  tone = "default",
+}: {
+  unix: number | null | undefined;
+  tone?: "default" | "live" | "upcoming" | "muted";
+}) {
+  const mounted = useMounted();
+  const ring = {
+    default: "border-osrs-bronze/40 bg-osrs-surface-2",
+    live: "border-osrs-gold/70 bg-osrs-gold/10",
+    upcoming: "border-osrs-green/50 bg-osrs-green/10",
+    muted: "border-osrs-bronze/20 bg-osrs-surface-1 opacity-70",
+  }[tone];
+  if (unix == null) {
+    return (
+      <span
+        className="border-osrs-bronze/40 text-osrs-parchment-dark/50 flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg border border-dashed text-[10px] font-semibold tracking-wider"
+        title="No date set yet"
+      >
+        TBD
+      </span>
+    );
+  }
+  const utc = !mounted;
+  const day = fmt(unix, { day: "numeric" }, utc);
+  const month = fmt(unix, { month: "short" }, utc).toUpperCase();
+  return (
+    <time
+      dateTime={new Date(unix * 1000).toISOString()}
+      title={fmt(unix, DATETIME_OPTS, utc)}
+      className={`${ring} flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg border leading-none`}
+      suppressHydrationWarning
+    >
+      <span className="text-osrs-parchment text-lg font-bold" suppressHydrationWarning>
+        {day}
+      </span>
+      <span
+        className="text-osrs-parchment-dark/70 mt-0.5 text-[10px] font-semibold tracking-wider"
+        suppressHydrationWarning
+      >
+        {month}
+      </span>
+    </time>
+  );
+}
+
+/** "ends in 3 days" / "starts in 5 hours" / "ended 2 days ago", after
+ * hydration only (it depends on the viewer's clock). Renders nothing before. */
+export function RelativeTime({ unix, prefix }: { unix: number | null | undefined; prefix?: string }) {
+  const mounted = useMounted();
+  if (!mounted || unix == null) return null;
+  return (
+    <span suppressHydrationWarning>
+      {prefix ? `${prefix} ` : ""}
+      {relativeLabel(unix)}
     </span>
   );
 }
