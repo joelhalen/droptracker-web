@@ -31,6 +31,9 @@ const STATUS_FILTERS = ["pending", "all", "auto", "confirmed", "manual", "reject
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 /** Ledger rows an admin can still unwind. */
 const REVOCABLE = new Set(["auto", "confirmed", "manual"]);
+// The unpaged ledger read returns at most this many rows (newest first) —
+// GET /events/<id>/completions caps it server-side.
+const LEDGER_CAP = 500;
 
 /** Verification queue + completion ledger + manual award (Task 18, PRD D3/D10). */
 export function EventReview({
@@ -363,6 +366,13 @@ export function EventReview({
             </button>
           )}
         </div>
+      )}
+
+      {rows !== null && rows.length >= LEDGER_CAP && (
+        <p className="text-osrs-gold/80 text-xs">
+          Showing the newest {LEDGER_CAP} entries only. To find older ones, use the Audit tab — it
+          pages through the full history and filters by date, player and team.
+        </p>
       )}
 
       {rows === null ? (

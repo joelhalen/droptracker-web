@@ -60,6 +60,9 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
   const [team, setTeam] = useState("");
   const [task, setTask] = useState("");
   const [hasProof, setHasProof] = useState(false);
+  // datetime-local values (the viewer's local time); sent as unix seconds.
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [page, setPage] = useState(1);
 
   const [data, setData] = useState<EventAudit | null>(null);
@@ -78,6 +81,10 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
     const n = Number(s);
     return s.trim() !== "" && Number.isInteger(n) && n > 0 ? n : undefined;
   };
+  const unix = (s: string) => {
+    const ms = s ? new Date(s).getTime() : NaN;
+    return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
+  };
 
   const load = useCallback(
     async (nextPage: number) => {
@@ -93,6 +100,8 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
           teamId: num(team),
           taskId: num(task),
           hasProof: hasProof || undefined,
+          from: unix(from),
+          to: unix(to),
           q: q.trim() || undefined,
         });
         setData(res);
@@ -103,7 +112,7 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
         setLoading(false);
       }
     },
-    [groupId, eventId, cats, actor, player, team, task, hasProof, q],
+    [groupId, eventId, cats, actor, player, team, task, hasProof, from, to, q],
   );
 
   // Initial load + reload whenever a committed filter changes.
@@ -128,6 +137,8 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
     setTeam("");
     setTask("");
     setHasProof(false);
+    setFrom("");
+    setTo("");
   };
 
   /** Arm a row for revoke, opening its detail so the screenshot and the
@@ -230,6 +241,24 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
           <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">Task ID</span>
           <input value={task} onChange={(e) => setTask(e.target.value)} className={`${field} w-20`} />
         </label>
+        <label className="block">
+          <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">From</span>
+          <input
+            type="datetime-local"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className={`${field} w-48`}
+          />
+        </label>
+        <label className="block">
+          <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">To</span>
+          <input
+            type="datetime-local"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className={`${field} w-48`}
+          />
+        </label>
         <label className="flex items-center gap-2 py-2 text-sm">
           <input type="checkbox" checked={hasProof} onChange={(e) => setHasProof(e.target.checked)} />
           <span className="text-osrs-parchment-dark/80">Has screenshot</span>
@@ -254,8 +283,8 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
       {notice && <div className="text-osrs-green text-sm">{notice}</div>}
       {meta?.capped && (
         <div className="text-osrs-gold/80 text-xs">
-          This event has more history than one window shows — narrow with filters or search to reach
-          older rows.
+          This event has more history than one window shows — set a From/To date, or narrow by
+          player or team, to reach older rows.
         </div>
       )}
 
