@@ -16,7 +16,8 @@ import { useEffect, useState } from "react";
 import type { EventRecruitingItem, EventSummary } from "@droptracker/api-types";
 import { Card } from "@/components/ui";
 import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
-import { EventWindow } from "@/components/local-time";
+import { DraftStartNote, EventWindow } from "@/components/local-time";
+import { sortEventsChronologically } from "@/lib/events";
 import { eventRecruiting, guildEvents, myEvents } from "@/lib/activity/api";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityData } from "@/lib/activity/data-context";
@@ -51,6 +52,11 @@ function EventRow({ event, phase }: { event: EventSummary; phase: "upcoming" | "
         <EventWindow startsAt={event.starts_at} endsAt={event.ends_at} status={event.status} />
         {event.has_bingo && " · bingo"}
       </span>
+      {phase === "upcoming" && (
+        <span className="text-osrs-green/80 mt-0.5 block text-[11px]">
+          <DraftStartNote startsAt={event.starts_at} />
+        </span>
+      )}
       {/* Scheduled events (web82a) only score inside repeating windows. The
           list payload can't say whether one is open right now — the event
           screen shows that — so the row just names the pattern. */}
@@ -105,9 +111,11 @@ export function EventsView() {
     ])
       .then(([a, p, u]) => {
         if (cancelled) return;
-        setActive(a);
-        setPast(p.slice(0, 5));
-        setUpcoming(u);
+        // By date, not creation order; the 5 past events are the most
+        // recently ENDED ones, so sort before slicing.
+        setActive(sortEventsChronologically(a));
+        setPast(sortEventsChronologically(p).slice(0, 5));
+        setUpcoming(sortEventsChronologically(u));
       })
       .catch(() => setFailed(true));
     return () => {

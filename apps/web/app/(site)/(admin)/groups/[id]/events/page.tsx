@@ -1,5 +1,6 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
+import type { EventSummary } from "@droptracker/api-types";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { canAdminGroup, getUser } from "@/lib/auth";
@@ -7,6 +8,8 @@ import { EventInvitationsInbox } from "@/components/event-invitations-inbox";
 import { EventTemplatesManager } from "@/components/event-templates-manager";
 import { FeatureGate } from "@/components/feature-gate";
 import { EmptyState } from "@/components/ui";
+import { DraftStartNote, EventWindow } from "@/components/local-time";
+import { sortEventsChronologically } from "@/lib/events";
 
 export const metadata: Metadata = { title: "Events" };
 
@@ -44,8 +47,14 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
   // Clan-vs-clan events this group was CHALLENGED into (group_id is the host,
   // not us). These are co-managed without our own paid tier, so they live
   // OUTSIDE the events paywall — as do pending invitations.
-  const battles = events.filter((e) => e.mode === "clan_vs_clan" && e.group_id !== groupId);
-  const ownEvents = events.filter((e) => !(e.mode === "clan_vs_clan" && e.group_id !== groupId));
+  // Both lists read by date (live by end, upcoming by start, past by most
+  // recent end) rather than the API's newest-created-first.
+  const battles = sortEventsChronologically(
+    events.filter((e) => e.mode === "clan_vs_clan" && e.group_id !== groupId),
+  );
+  const ownEvents = sortEventsChronologically(
+    events.filter((e) => !(e.mode === "clan_vs_clan" && e.group_id !== groupId)),
+  );
 
   // Always visible (even to a group without the events entitlement): respond to
   // invitations and manage the clan battles you've accepted.
@@ -59,18 +68,21 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
           </h2>
           <ul className="divide-osrs-bronze/20 divide-y">
             {battles.map((e) => (
-              <li key={e.id} className="flex items-center justify-between py-3">
-                <Link
-                  href={`/groups/${groupId}/events/${e.id}` as Route}
-                  className="hover:text-osrs-gold-bright font-medium"
-                >
-                  {e.name}
-                </Link>
-                <span
-                  className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
-                >
-                  {e.status}
-                </span>
+              <li key={e.id} className="py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Link
+                    href={`/groups/${groupId}/events/${e.id}` as Route}
+                    className="hover:text-osrs-gold-bright min-w-0 truncate font-medium"
+                  >
+                    {e.name}
+                  </Link>
+                  <span
+                    className={`${STATUS_CHIP[e.status] ?? ""} shrink-0 rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
+                  >
+                    {e.status}
+                  </span>
+                </div>
+                <EventDates event={e} />
               </li>
             ))}
           </ul>
@@ -115,28 +127,34 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
           {ownEvents.length ? (
             <ul className="divide-osrs-bronze/20 divide-y">
               {ownEvents.map((e) => (
-                <li key={e.id} className="flex items-center justify-between gap-2 py-3">
-                  <Link
-                    href={`/groups/${groupId}/events/${e.id}` as Route}
-                    className="hover:text-osrs-gold-bright min-w-0 truncate font-medium"
-                  >
-                    {e.name}
-                  </Link>
-                  <span className="flex shrink-0 items-center gap-2">
-                    {e.status === "draft" && (
-                      <Link
-                        href={`/groups/${groupId}/events/new?event=${e.id}` as Route}
-                        className="text-osrs-gold-bright text-xs hover:underline"
-                      >
-                        Continue setup →
-                      </Link>
-                    )}
-                    <span
-                      className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
+                <li key={e.id} className="py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <Link
+                      href={`/groups/${groupId}/events/${e.id}` as Route}
+                      className="hover:text-osrs-gold-bright min-w-0 truncate font-medium"
                     >
-                      {e.status}
+                      {e.name}
+                    </Link>
+                    <span className="flex shrink-0 items-center gap-2">
+                      {e.status === "draft" && (
+                        <Link
+                          href={`/groups/${groupId}/events/new?event=${e.id}` as Route}
+                          className="text-osrs-gold-bright text-xs hover:underline"
+                        >
+                          Continue setup →
+                        </Link>
+                      )}
+                      <span
+                        className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
+                      >
+                        {e.status}
+                      </span>
                     </span>
-                  </span>
+                  </div>
+                  <EventDates
+                    event={e}
+                    scheduleHref={`/groups/${groupId}/events/new?event=${e.id}&step=1`}
+                  />
                 </li>
               ))}
             </ul>
@@ -165,6 +183,33 @@ export default async function GroupEventsPage({ params }: { params: Params }) {
       >
         {gated}
       </FeatureGate>
+    </div>
+  );
+}
+
+/** A row's dates under its name: the start–end window with a relative hint,
+ * and for drafts how they go live. A draft with a start date starts on its own
+ * at that time (the events worker needs no launch), so it is called out with a
+ * link straight to the wizard's Schedule step (step 1 for every event kind). */
+function EventDates({ event: e, scheduleHref }: { event: EventSummary; scheduleHref?: string }) {
+  return (
+    <div className="text-osrs-parchment-dark/55 mt-1 space-y-0.5 text-xs">
+      <p>
+        <EventWindow startsAt={e.starts_at} endsAt={e.ends_at} status={e.status} />
+      </p>
+      {e.status === "draft" && (
+        <p className="text-osrs-gold-bright/80">
+          <DraftStartNote startsAt={e.starts_at} />
+          {scheduleHref && (
+            <>
+              {" · "}
+              <Link href={scheduleHref as Route} className="underline-offset-2 hover:underline">
+                {e.starts_at == null ? "Set a start date" : "Change start date"}
+              </Link>
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }

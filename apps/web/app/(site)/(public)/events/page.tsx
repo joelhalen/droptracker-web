@@ -3,9 +3,9 @@ import Link from "next/link";
 import type { EventSummary } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
-import { pickYourEvents } from "@/lib/events";
+import { pickYourEvents, sortEventsChronologically } from "@/lib/events";
 import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
-import { EventWindow } from "@/components/local-time";
+import { DraftStartNote, EventWindow } from "@/components/local-time";
 
 export const revalidate = 30;
 
@@ -30,8 +30,11 @@ export default async function EventsPage() {
   // appears twice on the page.
   const yourEvents = pickYourEvents(mine);
   const yourIds = new Set(yourEvents.map((e) => e.id));
-  const otherUpcoming = upcoming.filter((e) => !yourIds.has(e.id));
-  const otherActive = active.filter((e) => !yourIds.has(e.id));
+  // The API lists newest-created first; each section reads by date instead
+  // (upcoming by start, active by end, past by most recent end).
+  const otherUpcoming = sortEventsChronologically(upcoming.filter((e) => !yourIds.has(e.id)));
+  const otherActive = sortEventsChronologically(active.filter((e) => !yourIds.has(e.id)));
+  const pastSorted = sortEventsChronologically(past);
 
   return (
     <div className="space-y-10">
@@ -61,7 +64,7 @@ export default async function EventsPage() {
         <EventSection title="Upcoming" events={otherUpcoming} empty="" />
       )}
       <EventSection title="Active" events={otherActive} empty="No active events right now." />
-      <EventSection title="Past" events={past} empty="No past events yet." />
+      <EventSection title="Past" events={pastSorted} empty="No past events yet." />
     </div>
   );
 }
@@ -131,6 +134,13 @@ function EventSection({
                 <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
                   <EventWindow startsAt={e.starts_at} endsAt={e.ends_at} status={e.status} />
                 </p>
+                {/* A draft with a start date goes live on its own at that time;
+                    say so, so a planned event doesn't start by surprise. */}
+                {e.status === "draft" && (
+                  <p className="text-osrs-green/80 mt-0.5 text-xs">
+                    <DraftStartNote startsAt={e.starts_at} />
+                  </p>
+                )}
                 {e.schedule_summary && (
                   <p className="text-osrs-parchment-dark/50 mt-0.5 text-xs">
                     ⏱ Scores in windows · {e.schedule_summary}

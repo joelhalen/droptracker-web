@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import type { EventScheduleState } from "@droptracker/api-types";
 import { scheduleStatusAt } from "@/lib/event-schedule";
+import { draftStartState } from "@/lib/events";
 
 /** True only after hydration — gates browser-timezone rendering. */
 function useMounted(): boolean {
@@ -131,6 +132,48 @@ export function EventWindow({
     <span className={className} suppressHydrationWarning>
       <LocalTime unix={startsAt} /> – <LocalTime unix={endsAt} />
       {hint && <span className="opacity-80"> · {hint}</span>}
+    </span>
+  );
+}
+
+/**
+ * How an upcoming (draft) event will go live. The events worker starts every
+ * draft whose start time has passed, so a start date on a draft is a live
+ * timer; this makes that explicit on list cards ("Starts automatically …")
+ * instead of reading like a plan. Before hydration it can't compare against
+ * the viewer's clock, so any set start renders as the scheduled form.
+ */
+export function DraftStartNote({
+  startsAt,
+  className,
+}: {
+  startsAt: number | null | undefined;
+  className?: string;
+}) {
+  const mounted = useMounted();
+  const state = draftStartState(
+    { status: "draft", starts_at: startsAt ?? null },
+    mounted ? Math.floor(Date.now() / 1000) : -Infinity,
+  );
+  if (state === "manual") {
+    return (
+      <span className={className}>No start date yet, so it won&apos;t start on its own</span>
+    );
+  }
+  if (state === "overdue") {
+    return (
+      <span className={className} suppressHydrationWarning>
+        Start time passed (<LocalTime unix={startsAt} />). It goes live as soon as setup is
+        finished.
+      </span>
+    );
+  }
+  return (
+    <span className={className} suppressHydrationWarning>
+      Starts automatically <LocalTime unix={startsAt} />
+      {mounted && startsAt != null && (
+        <span className="opacity-80"> · {relativeLabel(startsAt)}</span>
+      )}
     </span>
   );
 }

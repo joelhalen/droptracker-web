@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EventSummarySchema, type EventSummary } from "@droptracker/api-types";
 import { mockEvents, mockEventsMine } from "../lib/mock-data";
-import { pickYourEvents } from "../lib/events";
+import { draftStartState, pickYourEvents, sortEventsChronologically } from "../lib/events";
 
 test("mockEventsMine parses as EventSummary[] and is a subset of mockEvents", () => {
   const mine = EventSummarySchema.array().parse(mockEventsMine());
@@ -75,4 +75,50 @@ test("pickYourEvents: null timestamps sort last within their bucket", () => {
 
 test("pickYourEvents: empty input renders nothing", () => {
   assert.deepEqual(pickYourEvents([]), []);
+});
+
+test("sortEventsChronologically: each phase by its own date, phases in order", () => {
+  const sorted = sortEventsChronologically([
+    ev({ id: 1, status: "past", ends_at: 1_000 }),
+    ev({ id: 2, status: "draft", starts_at: 9_000 }),
+    ev({ id: 3, status: "past", ends_at: 3_000 }),
+    ev({ id: 4, status: "active", ends_at: 8_000 }),
+    ev({ id: 5, status: "draft", starts_at: 6_000 }),
+    ev({ id: 6, status: "active", ends_at: 7_000 }),
+  ]);
+  // live by soonest end, upcoming by soonest start, past by most recent end
+  assert.deepEqual(
+    sorted.map((e) => e.id),
+    [6, 4, 5, 2, 3, 1],
+  );
+});
+
+test("sortEventsChronologically: missing dates last, ties newest-created first", () => {
+  const sorted = sortEventsChronologically([
+    ev({ id: 1, status: "past", ends_at: null }),
+    ev({ id: 2, status: "past", ends_at: 5_000 }),
+    ev({ id: 3, status: "draft", starts_at: 4_000 }),
+    ev({ id: 4, status: "draft", starts_at: 4_000 }),
+  ]);
+  assert.deepEqual(
+    sorted.map((e) => e.id),
+    [4, 3, 2, 1],
+  );
+});
+
+test("sortEventsChronologically: returns a copy", () => {
+  const input = [ev({ id: 1, ends_at: 9_000 }), ev({ id: 2, ends_at: 1_000 })];
+  sortEventsChronologically(input);
+  assert.deepEqual(
+    input.map((e) => e.id),
+    [1, 2],
+  );
+});
+
+test("draftStartState: a start date on a draft is a timer", () => {
+  assert.equal(draftStartState({ status: "draft", starts_at: null }, 5_000), "manual");
+  assert.equal(draftStartState({ status: "draft", starts_at: 6_000 }, 5_000), "scheduled");
+  assert.equal(draftStartState({ status: "draft", starts_at: 5_000 }, 5_000), "overdue");
+  assert.equal(draftStartState({ status: "active", starts_at: 6_000 }, 5_000), null);
+  assert.equal(draftStartState({ status: "past", starts_at: null }, 5_000), null);
 });

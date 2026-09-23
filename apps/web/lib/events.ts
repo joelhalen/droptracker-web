@@ -893,9 +893,49 @@ export function restoreOptimisticRow<T extends { id: number }>(rows: T[], row: T
  * upcoming drafts (soonest start). Null timestamps sort last in their bucket;
  * past events never show. */
 export function pickYourEvents(events: EventSummary[]): EventSummary[] {
-  const byTime = (t: (e: EventSummary) => number | null) => (a: EventSummary, b: EventSummary) =>
-    (t(a) ?? Infinity) - (t(b) ?? Infinity);
-  const live = events.filter((e) => e.status === "active").sort(byTime((e) => e.ends_at));
-  const upcoming = events.filter((e) => e.status === "draft").sort(byTime((e) => e.starts_at));
-  return [...live, ...upcoming];
+  return sortEventsChronologically(events.filter((e) => e.status !== "past"));
+}
+
+const PHASE_ORDER: Record<EventSummary["status"], number> = { active: 0, draft: 1, past: 2 };
+
+/** Chronological order for an event list. The backend lists newest-created
+ * first, which reads as random once a group has a few events, so each list
+ * sorts by the date that matters for its phase: live events by soonest end,
+ * upcoming (draft) events by soonest start, past events by most recent end.
+ * A mixed list keeps live, then upcoming, then past. A missing timestamp sorts
+ * last in its phase, and ties fall back to newest-created. Returns a copy. */
+export function sortEventsChronologically<T extends EventSummary>(events: T[]): T[] {
+  const key = (e: EventSummary): number => {
+    if (e.status === "draft") return e.starts_at ?? Infinity;
+    if (e.status === "past") return e.ends_at != null ? -e.ends_at : Infinity;
+    return e.ends_at ?? Infinity;
+  };
+  return [...events].sort((a, b) => {
+    const phase = (PHASE_ORDER[a.status] ?? 3) - (PHASE_ORDER[b.status] ?? 3);
+    if (phase) return phase;
+    const ka = key(a);
+    const kb = key(b);
+    if (ka !== kb) return ka === Infinity ? 1 : kb === Infinity ? -1 : ka - kb;
+    return b.id - a.id;
+  });
+}
+
+/** How a draft will go live. The events worker activates EVERY draft whose
+ * `starts_at` has passed (services/event_lifecycle.sweep_due, no opt-in), and
+ * keeps retrying one that is blocked until its setup is finished. So a start
+ * date on a draft is a live timer, and lists must say so:
+ *  - "manual": no start date, it only goes live when someone launches it
+ *  - "scheduled": starts automatically at `starts_at`
+ *  - "overdue": the start time passed but it isn't live yet (blocked), so it
+ *    goes live the moment the blocker is fixed
+ * Null for events that aren't drafts. */
+export type DraftStartState = "manual" | "scheduled" | "overdue";
+
+export function draftStartState(
+  e: Pick<EventSummary, "status" | "starts_at">,
+  nowSec: number,
+): DraftStartState | null {
+  if (e.status !== "draft") return null;
+  if (e.starts_at == null) return "manual";
+  return e.starts_at > nowSec ? "scheduled" : "overdue";
 }
