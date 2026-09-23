@@ -40,7 +40,7 @@ export async function loadEventForView(
         denied: (
           <AccessDenied
             title="This event isn't live yet"
-            message="The organizers haven't published this event, so it's only visible to event admins and members of participating clans. If your clan is taking part, ask a clan admin to add you to the group on DropTracker — then this page will open right up."
+            message="The organizers haven't published this event, so it's only visible to event admins and members of participating clans. If your clan is taking part, ask a clan admin to add you to the group on DropTracker. Then this page will open right up."
             back={{ href: "/events", label: "Browse events" }}
           />
         ),
@@ -63,7 +63,7 @@ export async function loadEventForView(
           denied: (
             <AccessDenied
               title="Event not available"
-              message="This event doesn't exist — or it's restricted to participants. If someone shared this link with you, sign in with Discord and we'll bring you back here to check your access."
+              message="This event doesn't exist, or it's restricted to participants. If someone shared this link with you, sign in with Discord and we'll bring you back here to check your access."
               signInReturnTo={returnTo}
               back={{ href: "/events", label: "Browse events" }}
             />
@@ -129,7 +129,7 @@ export function EventPageHeader({
         <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
           <span className="text-osrs-parchment">
             {event.kind === "sotw" ? "⚔️ Skill of the Week" : "⚔️ Boss of the Week"}
-            {event.competition.metric.display ? ` — ${event.competition.metric.display}` : ""}
+            {raceTarget(event.competition.metric) ? `: ${raceTarget(event.competition.metric)}` : ""}
             {event.competition.format === "teams" ? " · in teams" : ""}
           </span>
           {event.competition.wom ? (
@@ -169,11 +169,28 @@ export function EventPageHeader({
           member" claim. */}
       {event.status === "draft" && (
         <p className="border-osrs-gold/30 bg-osrs-gold/10 text-osrs-parchment-dark/90 mt-3 max-w-2xl rounded border px-3 py-2 text-sm">
-          This event hasn&apos;t started yet — this is a preview of the board and tasks. Sign up
+          This event hasn&apos;t started yet, so this is a preview of the board and tasks. Sign up
           now and you&apos;ll be ready the moment it goes live.
         </p>
       )}
       <TabNav tabs={tabs} className="mt-4" />
     </header>
   );
+}
+
+/** What a race is for, in the header line. A multi-boss race names its bosses
+ * (the backend's `display` is only the first one, which read as a one-boss
+ * race). */
+function raceTarget(metric: {
+  kind?: string | null;
+  display?: string | null;
+  npcs?: string[];
+}): string | null {
+  const npcs = metric.kind === "boss" ? (metric.npcs ?? []) : [];
+  if (npcs.length > 1) {
+    const title = (n: string) => n.replace(/\b\w/g, (c) => c.toUpperCase());
+    const shown = npcs.slice(0, 3).map(title).join(", ");
+    return npcs.length > 3 ? `${shown} +${npcs.length - 3} more` : shown;
+  }
+  return metric.display ?? null;
 }

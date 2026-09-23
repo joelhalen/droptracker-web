@@ -15,8 +15,8 @@ import { PrizePotPanel } from "@/components/prize-pot-panel";
 import { EventClanPointsCard } from "@/components/event-clan-points-card";
 import { CompetitionBonusRulesCard } from "@/components/competition-bonus-rules-card";
 import { CompetitionStandings, CompetitionTopStrip } from "@/components/competition-standings";
-import { isCompetitionKind, isTeamRace } from "@/lib/competition";
-import { EmptyState } from "@/components/ui";
+import { formatGained, isCompetitionKind, isTeamRace } from "@/lib/competition";
+import { EmptyState, StatTile } from "@/components/ui";
 import { EventPageHeader, loadEventForView } from "./_shared";
 
 export const revalidate = 30;
@@ -119,7 +119,11 @@ export default async function EventDetailPage({ params }: { params: Params }) {
         <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
           Who&apos;s bought in
         </h2>
-        <PrizePotPanel pot={pot} actions={null} />
+        <PrizePotPanel
+          pot={pot}
+          actions={null}
+          collapseAfter={isCompetitionKind(event.kind) ? 8 : undefined}
+        />
       </div>
     ) : null;
   const lootSweepBoard = lootSweep ? (
@@ -139,32 +143,71 @@ export default async function EventDetailPage({ params }: { params: Params }) {
     // scoring cards ride above it. A team race adds its team table (inside
     // the standings) and joins like any team event.
     const teamRace = isTeamRace(event.competition);
+    const metricKind = competition.competition.metric.kind;
     return (
       <div className="space-y-8">
         <EventPageHeader event={event} />
-        <CompetitionTopStrip board={competition} />
-        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
-          {teamRace || event.competition?.participation === "signup" ? (
-            participatePanel
-          ) : (
-            <div>
-              <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-                Participate
-              </h2>
-              <p className="text-osrs-parchment-dark/70 text-sm">
-                Every clan member is entered automatically — just play. Gains track
-                live from the plugin and the WiseOldMan hiscores.
-              </p>
+
+        {/* Two columns above the standings: the race (podium, live totals,
+            how it's scored) on the left; taking part (join, clan points,
+            the pot) in a narrow rail on the right. On a phone the columns
+            dissolve (`contents`) and `order` puts joining right after the
+            totals instead of below the long rule list. */}
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+          <div className="contents lg:block lg:min-w-0 lg:space-y-6">
+            <div className="order-1 min-w-0 space-y-4 lg:order-none">
+              <CompetitionTopStrip board={competition} />
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <StatTile
+                  label="Players"
+                  value={competition.totals.participants.toLocaleString("en-US")}
+                />
+                <StatTile
+                  label={metricKind === "skill" ? "XP gained" : "Kills gained"}
+                  value={formatGained(competition.totals.gained, metricKind).replace(
+                    / (XP|KC)$/,
+                    "",
+                  )}
+                />
+                {competition.competition.bonus_rules.length > 0 ? (
+                  <StatTile
+                    label="Bonus points"
+                    value={competition.totals.bonus_points.toLocaleString("en-US")}
+                  />
+                ) : teamRace ? (
+                  <StatTile label="Teams" value={event.teams.length} />
+                ) : null}
+              </div>
             </div>
-          )}
-          <CompetitionBonusRulesCard board={competition} />
-          {potPanel}
-          {clanPointsPanel}
+            <div className="order-3 min-w-0 lg:order-none">
+              <CompetitionBonusRulesCard board={competition} wide />
+            </div>
+          </div>
+          <div className="contents lg:block lg:min-w-0 lg:space-y-6">
+            <div className="order-2 min-w-0 space-y-6 lg:order-none">
+              <section className="border-osrs-gold/30 bg-osrs-brown-dark/30 rounded-lg border p-4">
+                <h2 className="text-osrs-gold mb-3 text-base font-semibold">Participate</h2>
+                {teamRace || event.competition?.participation === "signup" ? (
+                  <EventJoinPanel
+                    event={event}
+                    players={players}
+                    viewerGroupIds={user?.groups.map((g) => g.id) ?? []}
+                  />
+                ) : (
+                  <p className="text-osrs-parchment-dark/70 text-sm">
+                    Every clan member is entered automatically. Just play: gains track live from the
+                    plugin and the WiseOldMan hiscores.
+                  </p>
+                )}
+              </section>
+              {clanPointsPanel}
+            </div>
+            {potPanel && <div className="order-4 min-w-0 lg:order-none">{potPanel}</div>}
+          </div>
         </div>
+
         <div>
-          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-            Standings
-          </h2>
+          <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Standings</h2>
           <CompetitionStandings
             eventId={event.id}
             initial={competition}
@@ -179,8 +222,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
               Bonus history
             </h2>
             <p className="text-osrs-parchment-dark/60 mb-4 max-w-2xl text-sm">
-              Every bonus award with its proof — gained progress updates are folded away
-              by default.
+              Every bonus award with its proof. Progress updates are hidden unless you turn them on.
             </p>
             <EventCompletionHistory
               eventId={event.id}

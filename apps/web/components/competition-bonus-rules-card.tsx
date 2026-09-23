@@ -14,8 +14,12 @@ import {
 export function CompetitionBonusRulesCard({
   board,
   openLink,
+  wide = false,
 }: {
   board: EventCompetitionBoard;
+  /** Site event page: the card spans a wide column, so the rules flow in
+   * two columns instead of one tall list. */
+  wide?: boolean;
   /** Discord Activity: opens WiseOldMan through the SDK (a `target="_blank"`
    * link does nothing inside the iframe). Site: unset. */
   openLink?: (url: string) => void;
@@ -41,15 +45,15 @@ export function CompetitionBonusRulesCard({
       )}
       <p className="text-osrs-parchment-dark/70 text-xs">
         {pointsMode
-          ? `${rateSentence(competition.ranking.gained_per_point, metricKind)}; bonus points stack on top — one combined ranking.`
+          ? `${rateSentence(competition.ranking.gained_per_point, metricKind)}; bonus points stack on top for one combined ranking.`
           : `Ranked by raw ${unit} gained${
               competition.bonus_rules.length
-                ? " — bonus points show in their own column and never change the order."
+                ? ". Bonus points show in their own column and never change the order."
                 : "."
             }`}
       </p>
       {competition.bonus_rules.length > 0 && (
-        <ul className="space-y-1.5">
+        <ul className={wide ? "grid gap-x-6 gap-y-1.5 sm:grid-cols-2" : "space-y-1.5"}>
           {competition.bonus_rules.map((r) => (
             <li key={r.id} className="flex items-start gap-2 text-xs">
               <span aria-hidden className="mt-px">
@@ -105,9 +109,9 @@ export function CompetitionBonusRulesCard({
             </a>
           )}
           {competition.wom.sync_error
-            ? ` — sync problem: ${competition.wom.sync_error}`
+            ? `. Sync problem: ${competition.wom.sync_error}`
             : competition.wom.synced_at
-              ? ` — synced ${new Date(competition.wom.synced_at * 1000).toLocaleTimeString()}`
+              ? `. Synced ${new Date(competition.wom.synced_at * 1000).toLocaleTimeString()}`
               : ""}
         </p>
       )}

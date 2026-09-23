@@ -280,14 +280,14 @@ export function metricSummary(
   const who = teams ? "the team with the most" : "most";
   const tail = teams && competition?.team_scoring === "average" ? " per member wins" : " wins";
   if (metric.kind === "skill" && metric.skill) {
-    return `${titleCase(metric.skill)} — ${who} XP gained${tail}`;
+    return `${titleCase(metric.skill)}: ${who} XP gained${tail}`;
   }
   if (metric.kind === "boss") {
     const npcs = metric.npcs ?? [];
     if (!npcs.length) return null;
     const names = npcs.slice(0, 3).map(titleCase).join(", ");
     const extra = npcs.length > 3 ? ` (+${npcs.length - 3} more)` : "";
-    return `${names}${extra} — ${who} kills gained${tail}`;
+    return `${names}${extra}: ${who} kills gained${tail}`;
   }
   return null;
 }

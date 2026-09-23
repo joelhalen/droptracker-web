@@ -36,8 +36,13 @@ export function PrizePotPanel({
   actions,
   onChanged,
   openLink,
+  collapseAfter,
 }: {
   pot: EventPrizePot;
+  /** Show only the first N buy-ins behind a "Show all" toggle (the site's
+   * event page, where a long roster would dwarf the cards beside it).
+   * Managers always see every row: they need the paid ticks. */
+  collapseAfter?: number;
   actions?: PrizePotActions | null;
   onChanged?: () => void | Promise<void>;
   /** Discord Activity: how a proof thumbnail opens the full screenshot (see
@@ -53,6 +58,10 @@ export function PrizePotPanel({
   const rows = pot.contributors ?? [];
   const buyins = rows.filter((r) => r.kind === "buyin");
   const donations = rows.filter((r) => r.kind === "donation");
+  const [showAll, setShowAll] = useState(false);
+  const collapsible =
+    !canManage && collapseAfter != null && buyins.length > collapseAfter + 2;
+  const shownBuyins = collapsible && !showAll ? buyins.slice(0, collapseAfter) : buyins;
 
   const run = (key: string, fn: () => Promise<void>) => {
     setError(null);
@@ -136,7 +145,7 @@ export function PrizePotPanel({
       {/* Buy-ins (paid tick for admins). */}
       {buyins.length > 0 && (
         <ul className="divide-osrs-bronze/10 mt-3 divide-y">
-          {buyins.map((b) => {
+          {shownBuyins.map((b) => {
             const key = `b:${b.id}`;
             const paid = b.status === "paid";
             return (
@@ -175,6 +184,15 @@ export function PrizePotPanel({
             );
           })}
         </ul>
+      )}
+      {collapsible && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright mt-1.5 text-xs underline-offset-2 hover:underline"
+        >
+          {showAll ? "Show fewer" : `Show all ${buyins.length} buy-ins`}
+        </button>
       )}
 
       {/* Donations — bold, per the request. */}

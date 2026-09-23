@@ -99,7 +99,7 @@ test("bonusRuleSentence words rules exactly like the Discord award line", () => 
 
 test("metricSummary + rateSentence", () => {
   const block = mockEventCompetitionBlock();
-  assert.equal(metricSummary(block), "Zulrah — most kills gained wins");
+  assert.equal(metricSummary(block), "Zulrah: most kills gained wins");
   assert.equal(rateSentence(10_000, "skill"), "Every 10,000 XP = 1 pt");
   assert.equal(rateSentence(undefined, "boss"), "Every 1 kill = 1 pt");
 });
@@ -336,10 +336,10 @@ test("teamScoreText mirrors the backend wording", () => {
 
 test("metricSummary says the team wins on a team race", () => {
   const team = mockEventCompetitionBlock(MOCK_TEAM_RACE_ID);
-  assert.equal(metricSummary(team), "Mining — the team with the most XP gained per member wins");
+  assert.equal(metricSummary(team), "Mining: the team with the most XP gained per member wins");
   assert.equal(
     metricSummary({ ...team, team_scoring: "total" }),
-    "Mining — the team with the most XP gained wins",
+    "Mining: the team with the most XP gained wins",
   );
 });
 
