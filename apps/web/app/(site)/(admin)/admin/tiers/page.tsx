@@ -9,15 +9,15 @@ export default async function AdminTiersPage() {
   await requireSuperadmin("/admin/tiers");
   // include_free so the $0 fallback tier (the non-premium plan configured on
   // /admin/event-limits) is visible and editable here too.
-  const tiers = await api.subscriptionTiers("all", { includeFree: true });
+  const [tiers, eventLimits] = await Promise.all([
+    api.subscriptionTiers("all", { includeFree: true }),
+    // Event access is also granted by these rules, so the editor shows them.
+    api.adminEventRateLimits(),
+  ]);
 
   return (
-    <div className="max-w-2xl">
-      <p className="text-osrs-parchment-dark/70 mb-6 text-sm">
-        Define the recurring subscription tiers groups can choose from. Changes appear on the public
-        pricing page.
-      </p>
-      <TierManager tiers={tiers} />
+    <div className="max-w-6xl">
+      <TierManager tiers={tiers} eventLimits={eventLimits} />
     </div>
   );
 }

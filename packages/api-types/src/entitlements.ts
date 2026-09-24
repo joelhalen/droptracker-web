@@ -20,6 +20,8 @@ export interface EntitlementField {
   help: string;
   /** Value shape; boolean when omitted. */
   kind?: "bool" | "int";
+  /** Unit shown after an int field's input on the tier editor. */
+  unit?: string;
   /** Default for tiers that explicitly configure entitlements (missing key). */
   default: boolean | number;
 }
@@ -47,6 +49,7 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     category: "features",
     help: "How many events a group may have active at the same time (enforced at activation; drafts are unlimited).",
     kind: "int",
+    unit: "at once",
     default: 1,
   },
   {
@@ -76,6 +79,7 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     category: "features",
     help: "How many video clips the group's members may upload per day in total, when video submissions are enabled.",
     kind: "int",
+    unit: "per day",
     default: 100,
   },
   {
@@ -84,6 +88,7 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     category: "features",
     help: "How often the group's Discord lootboard is redrawn and updated, in minutes. 0 uses the default of 30.",
     kind: "int",
+    unit: "minutes",
     default: 30,
   },
   {
@@ -106,6 +111,7 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     category: "features",
     help: "How many event tasks a group may generate per day by describing them in plain English (the 'try describing a task instead' panel in the task builder). 0 disables the feature for the tier.",
     kind: "int",
+    unit: "per day",
     default: 5,
   },
   {
