@@ -1,0 +1,810 @@
+/*
+ * /leaderboards2 (card-style leaderboard preview): page-scoped stylesheet.
+ *
+ * Every rule sits under `.lb2-page` or an `.lb2-*` class. Colours come from the
+ * site's `--dt-*` tokens so the page follows the visitor's theme, with the
+ * same deliberate exceptions as the homepage: loot-value tiers, podium medal
+ * metals, and supporter flair, which read the same on every theme (flair
+ * colours match lib/tier-flair.ts).
+ */
+
+.lb2-page {
+  --lb2-line: color-mix(in srgb, var(--dt-bronze) 36%, transparent);
+  --lb2-line-soft: color-mix(in srgb, var(--dt-bronze) 18%, transparent);
+  --lb2-ink-dim: color-mix(in srgb, var(--dt-text-muted) 84%, transparent);
+  --lb2-ink-faint: color-mix(in srgb, var(--dt-text-muted) 58%, transparent);
+
+  --lb2-tier-1m: #6fbf73;
+  --lb2-tier-10m: #56b6f0;
+  --lb2-tier-100m: #c084fc;
+  --lb2-tier-1b: #ffd966;
+
+  color: var(--dt-text);
+  font-family: var(--font-sans);
+}
+
+:root[data-theme="parchment"] .lb2-page {
+  --lb2-tier-1m: #2f7d32;
+  --lb2-tier-10m: #1769aa;
+  --lb2-tier-100m: #7b3fb8;
+  --lb2-tier-1b: #8a5f04;
+}
+
+/* --- hero ------------------------------------------------------------------ */
+
+.lb2-hero {
+  padding-bottom: 1.5rem;
+}
+
+.lb2-kicker {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--dt-gold);
+}
+
+.lb2-title {
+  margin-top: 0.5rem;
+  font-size: clamp(1.8rem, 1.2rem + 2.2vw, 2.9rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--dt-gold-bright);
+  text-wrap: balance;
+}
+
+.lb2-lede {
+  max-width: 40rem;
+  margin-top: 0.7rem;
+  line-height: 1.6;
+  color: var(--lb2-ink-dim);
+}
+
+.lb2-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.1rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lb2-facts li {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--lb2-line-soft);
+  border-radius: 999px;
+  background: var(--dt-surface-1);
+  font-size: 0.82rem;
+  color: var(--lb2-ink-dim);
+}
+
+.lb2-facts strong {
+  font-family: var(--font-osrs);
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--dt-text);
+}
+
+/* --- controls -------------------------------------------------------------- */
+
+.lb2-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--lb2-line);
+  border-radius: 12px;
+  background: var(--dt-surface-1);
+  box-shadow: var(--dt-shadow-card);
+}
+
+.lb2-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border-radius: 9px;
+  background: var(--dt-surface-0);
+}
+
+.lb2-tab {
+  padding: 0.45rem 1.1rem;
+  border-radius: 7px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--lb2-ink-dim);
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.lb2-tab:hover {
+  color: var(--dt-gold-bright);
+}
+
+.lb2-tab[aria-selected="true"] {
+  background: var(--dt-bronze);
+  color: var(--dt-text);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.25);
+}
+
+.lb2-seg {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--lb2-line);
+  border-radius: 8px;
+}
+
+.lb2-seg a {
+  padding: 0.42rem 0.8rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--lb2-ink-dim);
+}
+
+.lb2-seg a + a {
+  border-left: 1px solid var(--lb2-line);
+}
+
+.lb2-seg a:hover {
+  color: var(--dt-gold-bright);
+}
+
+.lb2-seg a[aria-current="true"] {
+  background: color-mix(in srgb, var(--dt-bronze) 55%, transparent);
+  color: var(--dt-text);
+}
+
+.lb2-search {
+  width: 100%;
+}
+
+@media (min-width: 900px) {
+  .lb2-search {
+    width: 17rem;
+    margin-left: auto;
+  }
+}
+
+.lb2-live {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin: -0.9rem 0 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb2-ink-faint);
+}
+
+.lb2-live-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--dt-stone);
+}
+
+.lb2-live[data-state="open"] {
+  color: var(--dt-green);
+}
+
+.lb2-live[data-state="open"] .lb2-live-dot {
+  background: var(--dt-green);
+  animation: lb2-ping 1.8s ease-out infinite;
+}
+
+@keyframes lb2-ping {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--dt-green) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0.55rem transparent;
+  }
+}
+
+/* --- layout ---------------------------------------------------------------- */
+
+/* min-width: 0 on every child: one long unbroken name must never push the
+   page wider than a phone. */
+.lb2-podium,
+.lb2-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.lb2-podium > *,
+.lb2-grid > * {
+  min-width: 0;
+}
+
+.lb2-podium {
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .lb2-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 960px) {
+  .lb2-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* 2nd, 1st, 3rd, with the winner raised. */
+  .lb2-podium {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+    padding-top: 1.5rem;
+  }
+
+  .lb2-podium > [data-podium="1"] {
+    order: 2;
+    transform: translateY(-1.5rem);
+  }
+
+  .lb2-podium > [data-podium="2"] {
+    order: 1;
+  }
+
+  .lb2-podium > [data-podium="3"] {
+    order: 3;
+  }
+}
+
+/* --- card ------------------------------------------------------------------ */
+
+.lb2-card {
+  --lb2-accent: var(--lb2-line);
+  --lb2-glow: transparent;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem 1.05rem;
+  border: 1px solid var(--lb2-accent);
+  border-radius: 12px;
+  background: var(--dt-surface-1);
+  box-shadow:
+    var(--dt-shadow-card),
+    0 0 18px -2px var(--lb2-glow);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background 500ms ease,
+    box-shadow 160ms ease;
+}
+
+.lb2-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--dt-gold) 60%, var(--lb2-accent));
+  box-shadow:
+    var(--dt-shadow-pop),
+    0 0 22px 0 var(--lb2-glow);
+}
+
+.lb2-podium > .lb2-card[data-podium="1"]:hover {
+  transform: translateY(calc(-1.5rem - 2px));
+}
+
+@media (max-width: 959px) {
+  .lb2-podium > .lb2-card[data-podium="1"]:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.lb2-card[data-hit="true"] {
+  background: color-mix(in srgb, var(--dt-green) 12%, var(--dt-surface-1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb2-card,
+  .lb2-card:hover {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* The whole card links to the profile; inner links sit above the overlay. */
+.lb2-card-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.lb2-card-link:focus-visible {
+  outline: 2px solid var(--dt-gold);
+  outline-offset: 2px;
+}
+
+.lb2-raise {
+  position: relative;
+  z-index: 2;
+}
+
+.lb2-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.75rem;
+}
+
+.lb2-rank {
+  font-family: var(--font-osrs);
+  font-size: 1.05rem;
+  color: var(--lb2-ink-faint);
+}
+
+/* Podium medals: real metals, identical across themes (like RankMedal). */
+.lb2-rank[data-rank] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid;
+  border-radius: 50%;
+  font-family: var(--font-display, serif);
+  font-size: 0.8rem;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+}
+
+.lb2-rank[data-rank="1"] {
+  background: radial-gradient(circle at 35% 30%, #fff1b0, #f5c84c 45%, #b8860b);
+  border-color: #c79a1e;
+  color: #4a3505;
+}
+
+.lb2-rank[data-rank="2"] {
+  background: radial-gradient(circle at 35% 30%, #ffffff, #cdd2da 45%, #8f98a6);
+  border-color: #9aa3b0;
+  color: #333a45;
+}
+
+.lb2-rank[data-rank="3"] {
+  background: radial-gradient(circle at 35% 30%, #ffd6ae, #d99a62 45%, #9a5d2a);
+  border-color: #a86a35;
+  color: #4d2c10;
+}
+
+/* Podium cards: bigger, and tinted by their medal. */
+.lb2-card[data-size="lg"] {
+  gap: 0.9rem;
+  padding: 1.25rem 1.3rem 1.3rem;
+}
+
+.lb2-card[data-podium="1"] {
+  --lb2-medal: #f5c84c;
+}
+.lb2-card[data-podium="2"] {
+  --lb2-medal: #cdd2da;
+}
+.lb2-card[data-podium="3"] {
+  --lb2-medal: #d99a62;
+}
+
+.lb2-card[data-podium] {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--lb2-medal) 13%, transparent),
+      transparent 55%
+    ),
+    var(--dt-surface-1);
+}
+
+.lb2-card[data-podium]:not([data-flair]) {
+  --lb2-accent: color-mix(in srgb, var(--lb2-medal) 55%, transparent);
+}
+
+/* --- supporter flair (fixed colours, matching lib/tier-flair.ts) ----------- */
+
+.lb2-card[data-flair="bronze"] {
+  --lb2-flair: #d99a5b;
+  --lb2-accent: rgba(205, 127, 50, 0.6);
+  --lb2-glow: rgba(205, 127, 50, 0.3);
+}
+
+.lb2-card[data-flair="gold"] {
+  --lb2-flair: #ffd966;
+  --lb2-accent: rgba(255, 209, 92, 0.7);
+  --lb2-glow: rgba(255, 209, 92, 0.32);
+}
+
+.lb2-card[data-flair="amethyst"] {
+  --lb2-flair: #d3a7f2;
+  --lb2-accent: rgba(181, 126, 220, 0.7);
+  --lb2-glow: rgba(181, 126, 220, 0.38);
+}
+
+.lb2-card[data-flair="dragon"] {
+  --lb2-flair: #ff8a5c;
+  --lb2-accent: rgba(255, 120, 80, 0.8);
+  --lb2-glow: rgba(255, 90, 60, 0.45);
+}
+
+/* A diagonal sheen across flaired cards; the top tier gets it animated. */
+.lb2-card[data-flair]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    125deg,
+    color-mix(in srgb, var(--lb2-flair) 12%, transparent) 0%,
+    transparent 35%,
+    transparent 65%,
+    color-mix(in srgb, var(--lb2-flair) 8%, transparent) 100%
+  );
+  pointer-events: none;
+}
+
+.lb2-card[data-flair="dragon"]::before {
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 138, 92, 0.16) 40%,
+    rgba(255, 200, 120, 0.2) 50%,
+    rgba(255, 138, 92, 0.16) 60%,
+    transparent 80%
+  );
+  background-size: 250% 100%;
+  animation: lb2-sheen 4s linear infinite;
+}
+
+@keyframes lb2-sheen {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lb2-card[data-flair="dragon"]::before {
+    animation: none;
+  }
+}
+
+.lb2-tier {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--lb2-accent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--lb2-flair) 14%, var(--dt-surface-0));
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb2-flair);
+}
+
+:root[data-theme="parchment"] .lb2-tier {
+  background: color-mix(in srgb, var(--lb2-flair) 22%, #3a2f1c);
+}
+
+/*
+ * The flair name colours are tuned for dark grounds and wash out on
+ * parchment. Darker inks of the same hues there (the shimmer tier keeps its
+ * gradient). !important because the colour arrives inline from resolveFlair.
+ */
+:root[data-theme="parchment"] .lb2-card[data-flair="bronze"] .lb2-name {
+  color: #8a4f1c !important;
+  text-shadow: none !important;
+}
+:root[data-theme="parchment"] .lb2-card[data-flair="gold"] .lb2-name {
+  color: #8a5f04 !important;
+  text-shadow: none !important;
+}
+:root[data-theme="parchment"] .lb2-card[data-flair="amethyst"] .lb2-name {
+  color: #6b2fa8 !important;
+  text-shadow: none !important;
+}
+
+/* --- identity -------------------------------------------------------------- */
+
+.lb2-ident {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.lb2-icon {
+  flex: none;
+  width: 3rem;
+  height: 3rem;
+  border: 1px solid var(--lb2-accent);
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--dt-surface-0);
+}
+
+.lb2-card[data-size="lg"] .lb2-icon {
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: 14px;
+  font-size: 1.6rem;
+}
+
+/* Grid cards: one line of description; the podium has room for two. */
+.lb2-card:not([data-size="lg"]) .lb2-desc {
+  -webkit-line-clamp: 1;
+}
+
+.lb2-card[data-flair] .lb2-icon {
+  box-shadow: 0 0 12px 0 var(--lb2-glow);
+}
+
+/* Player avatars: the 3D model crop reads better on a plain ground. */
+.lb2-avatar {
+  border-radius: 50%;
+}
+
+.lb2-card[data-size="lg"] .lb2-avatar {
+  border-radius: 50%;
+}
+
+.lb2-ident-text {
+  min-width: 0;
+}
+
+.lb2-name {
+  overflow: hidden;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb2-card[data-size="lg"] .lb2-name {
+  font-size: 1.3rem;
+}
+
+.lb2-card:hover .lb2-name:not([style]) {
+  color: var(--dt-gold-bright);
+}
+
+.lb2-meta {
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--lb2-ink-dim);
+}
+
+.lb2-desc {
+  display: -webkit-box;
+  margin-top: 0.2rem;
+  overflow: hidden;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--lb2-ink-faint);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.lb2-clans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.lb2-clan {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--lb2-line-soft);
+  border-radius: 999px;
+  background: var(--dt-surface-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--lb2-ink-dim);
+}
+
+.lb2-clan:hover {
+  border-color: var(--dt-gold);
+  color: var(--dt-gold-bright);
+}
+
+.lb2-clan-more {
+  font-size: 0.72rem;
+  color: var(--lb2-ink-faint);
+}
+
+.lb2-badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+/* --- figures --------------------------------------------------------------- */
+
+.lb2-loot {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.lb2-gp {
+  font-family: var(--font-osrs);
+  font-size: 1.55rem;
+  line-height: 1;
+  color: var(--dt-text);
+}
+
+.lb2-card[data-size="lg"] .lb2-gp {
+  font-size: 2.1rem;
+}
+
+.lb2-gp[data-tier="1m"] {
+  color: var(--lb2-tier-1m);
+}
+.lb2-gp[data-tier="10m"] {
+  color: var(--lb2-tier-10m);
+}
+.lb2-gp[data-tier="100m"] {
+  color: var(--lb2-tier-100m);
+}
+.lb2-gp[data-tier="1b"] {
+  color: var(--lb2-tier-1b);
+}
+
+.lb2-gp-unit {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--lb2-ink-faint);
+}
+
+.lb2-delta {
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--dt-green);
+  animation: lb2-delta 2.6s ease-out forwards;
+}
+
+@keyframes lb2-delta {
+  0% {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  12%,
+  70% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+}
+
+.lb2-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--lb2-line-soft);
+}
+
+.lb2-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--dt-bronze), var(--dt-gold));
+  transition: width 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lb2-card[data-flair] .lb2-bar i {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--lb2-flair) 45%, var(--dt-bronze)), var(--lb2-flair));
+}
+
+.lb2-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.lb2-stats > div {
+  min-width: 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: var(--dt-surface-0);
+}
+
+.lb2-stats dt {
+  overflow: hidden;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--lb2-ink-faint);
+}
+
+.lb2-stats dd {
+  margin: 0.1rem 0 0;
+  font-family: var(--font-osrs);
+  font-size: 1.05rem;
+  color: var(--dt-text);
+}
+
+.lb2-top {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--lb2-line-soft);
+  font-size: 0.82rem;
+}
+
+.lb2-top-label {
+  flex: none;
+  color: var(--lb2-ink-faint);
+}
+
+.lb2-top-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lb2-top-name:hover {
+  color: var(--dt-gold-bright);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.lb2-top-gp {
+  flex: none;
+  margin-left: auto;
+  font-family: var(--font-osrs);
+  font-size: 0.95rem;
+  color: var(--lb2-ink-dim);
+}
+
+/* --- pager ----------------------------------------------------------------- */
+
+.lb2-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2rem;
+  font-size: 0.9rem;
+  color: var(--lb2-ink-dim);
+}
+
+.lb2-pager a {
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--lb2-line);
+  border-radius: 8px;
+  background: var(--dt-surface-1);
+  font-weight: 600;
+  color: var(--dt-text);
+}
+
+.lb2-pager a:hover {
+  border-color: var(--dt-gold);
+  color: var(--dt-gold-bright);
+}
