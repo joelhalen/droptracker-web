@@ -3,7 +3,7 @@
 /**
  * Site header (UI refresh). Replaces the old inline layout header + UserNav:
  *
- *  - Desktop: brand, top-level nav, theme menu, and a real user menu — the
+ *  - Desktop: brand, top-level nav, search field, theme menu, and a real user menu — the
  *    signed-in user's avatar/name opens a dropdown (hover or click) with
  *    Dashboard, Settings, their group admin panels, Admin CP (superadmins),
  *    and Sign out. The old design rendered the username as an unlabeled link.
@@ -22,6 +22,7 @@ import { buttonVariants } from "@droptracker/ui";
 import type { Me } from "@droptracker/api-types";
 import { useMe } from "@/lib/use-me";
 import { HeaderNav, type NavTab } from "@/components/tab-nav";
+import { HeaderSearch } from "@/components/header-search";
 import { ThemeMenu } from "@/components/theme";
 import { DeveloperBadge, NameTile, SuperadminBadge } from "@/components/ui";
 
@@ -90,9 +91,15 @@ function AccountLinks({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
         <>
           <div className="border-osrs-bronze/25 mx-2 my-1.5 border-t" />
           {me.is_superadmin ? (
-            <Link href="/admin" className={`${MENU_ITEM_CLASS} text-osrs-red`} onClick={onNavigate}>
-              <span aria-hidden>⚔</span> Admin CP
-            </Link>
+            <>
+              <Link href="/admin" className={`${MENU_ITEM_CLASS} text-osrs-red`} onClick={onNavigate}>
+                <span aria-hidden>⚔</span> Admin CP
+              </Link>
+              {/* Staff preview of the /tools directory until it goes public. */}
+              <Link href={"/tools" as Route} className={MENU_ITEM_CLASS} onClick={onNavigate}>
+                <span aria-hidden>🧭</span> Tools & communities
+              </Link>
+            </>
           ) : (
             <Link href="/admin" className={`${MENU_ITEM_CLASS} text-sky-300`} onClick={onNavigate}>
               <span aria-hidden>🛠</span> Developer CP
@@ -236,6 +243,7 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
           <HeaderNav tabs={tabs} />
         </nav>
         <div className="hidden items-center gap-2 lg:flex">
+          <HeaderSearch variant="desktop" />
           <ThemeMenu />
           {me === undefined ? (
             <span className="bg-osrs-bronze/20 h-8 w-24 animate-pulse rounded-lg" aria-hidden />
@@ -248,6 +256,7 @@ export function SiteHeader({ tabs }: { tabs: NavTab[] }) {
 
         {/* Mobile controls */}
         <div className="flex items-center gap-1 lg:hidden">
+          <HeaderSearch variant="mobile" onOpen={() => setMobileOpen(false)} />
           <ThemeMenu />
           <button
             type="button"

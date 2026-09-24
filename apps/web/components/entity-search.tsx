@@ -5,7 +5,8 @@
  * (`card-pop`) that populates as you type, so nobody has to submit a form just
  * to find a player or clan. One component backs every search surface — the
  * homepage hero (via `HeroSearch`), the `/search` page, and the page-scoped
- * bars on the leaderboard tabs — differing only by `kinds` scope and size.
+ * bars on the leaderboard tabs, and the site header — differing only by
+ * `kinds` scope and size.
  * Suggestions come from the BFF (`/api/search`); Enter (or the button) still
  * falls through to the full `/search` page for complete results.
  */
@@ -32,11 +33,14 @@ const INPUT_SIZES = {
   lg: "border-osrs-bronze/50 bg-osrs-brown-dark/60 focus:border-osrs-gold placeholder:text-osrs-parchment-dark/50 w-full rounded-lg border py-3 pr-3 pl-9 text-base outline-none backdrop-blur-sm",
   // In-page field: compact, matches the standard form inputs.
   md: "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold placeholder:text-osrs-parchment-dark/50 w-full rounded-lg border py-2 pr-3 pl-9 text-sm outline-none",
+  // Header field: slim enough to sit in the nav row beside the theme menu.
+  sm: "border-osrs-bronze/40 bg-osrs-surface-1 focus:border-osrs-gold placeholder:text-osrs-parchment-dark/50 w-full rounded-lg border py-1.5 pr-3 pl-8 text-sm outline-none",
 } as const;
 
 const BUTTON_SIZES = {
   lg: "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-5 py-3 text-sm font-semibold transition-colors",
   md: "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-4 py-2 text-sm font-semibold transition-colors",
+  sm: "bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors",
 } as const;
 
 export function EntitySearch({
@@ -45,15 +49,24 @@ export function EntitySearch({
   initial = "",
   size = "md",
   withButton = false,
+  autoFocus = false,
+  onEscape,
+  onNavigate,
   className = "",
 }: {
   /** Which entity kinds to surface — scope this to the page's subject. */
   kinds?: readonly SearchKind[];
   placeholder?: string;
   initial?: string;
-  size?: "md" | "lg";
+  size?: "sm" | "md" | "lg";
   /** Render an explicit Search button (submits to the full /search page). */
   withButton?: boolean;
+  /** Focus the field on mount (the header opens it on demand). */
+  autoFocus?: boolean;
+  /** Escape pressed while the suggestion popup is already closed. */
+  onEscape?: () => void;
+  /** Called after any navigation the field triggers (pick or submit). */
+  onNavigate?: () => void;
   className?: string;
 }) {
   const router = useRouter();
@@ -113,6 +126,7 @@ export function EntitySearch({
   const go = (href: Route) => {
     setOpen(false);
     router.push(href);
+    onNavigate?.();
   };
 
   /** A suggestion's site URL — the site's half of the shared shaping. */
@@ -126,6 +140,8 @@ export function EntitySearch({
     else go(`/search?q=${encodeURIComponent(query)}` as Route);
   };
 
+  const showDropdown = open && q.trim().length >= MIN_SEARCH_LENGTH && searched;
+
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
@@ -134,12 +150,13 @@ export function EntitySearch({
       const delta = e.key === "ArrowDown" ? 1 : -1;
       setActive((prev) => cycleActive(prev, delta, suggestions.length));
     } else if (e.key === "Escape") {
+      // First Escape dismisses the popup; a second one leaves the field.
+      if (!showDropdown) onEscape?.();
       setOpen(false);
       setActive(-1);
     }
   };
 
-  const showDropdown = open && q.trim().length >= MIN_SEARCH_LENGTH && searched;
   const showKindBadge = kinds.length > 1;
 
   return (
@@ -155,7 +172,9 @@ export function EntitySearch({
         <div className="relative flex-1">
           <span
             aria-hidden
-            className="text-osrs-parchment-dark/50 pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2"
+            className={`text-osrs-parchment-dark/50 pointer-events-none absolute top-1/2 -translate-y-1/2 ${
+              size === "sm" ? "left-3" : "left-3.5"
+            }`}
           >
             ⌕
           </span>
@@ -174,6 +193,7 @@ export function EntitySearch({
             aria-controls={listboxId}
             aria-autocomplete="list"
             autoComplete="off"
+            autoFocus={autoFocus}
             className={INPUT_SIZES[size]}
           />
         </div>

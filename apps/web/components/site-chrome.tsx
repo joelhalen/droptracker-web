@@ -49,7 +49,6 @@ const HEADER_TABS: NavTab[] = [
       },
     ],
   },
-  { href: "/search", label: "Search" },
 ];
 
 /**
