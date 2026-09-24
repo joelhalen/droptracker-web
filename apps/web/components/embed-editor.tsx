@@ -94,6 +94,11 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{player_name}", help: "Player who filled the log slot (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who filled the log slot, with no profile link", sample: "RuneLite Ron" },
     { token: "{item_name}", help: "New collection log item", sample: "Dragon warhammer" },
+    {
+      token: "{item_emoji}",
+      help: "The item's own icon. Around 1,000 of the most-received items have one; the rest show nothing",
+      sample: "",
+    },
     { token: "{item_id}", help: "OSRS item id", sample: "13576" },
     { token: "{collection_name}", help: "Collection the item belongs to", sample: "Lizardman Shamans" },
     { token: "{npc_name}", help: "NPC / source name", sample: "Lizardman shaman" },
