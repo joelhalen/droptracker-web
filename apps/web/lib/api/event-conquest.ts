@@ -18,9 +18,7 @@ export const eventConquestApi = {
   /** The map + live state: regions, tiles (owner, defense, rules and each
    * team's progress to its next troop), live standings, latest battles. */
   async eventConquest(eventId: number): Promise<ConquestMap> {
-    return ConquestMapSchema.parse(
-      await apiGet(`/events/${eventId}/conquest`, { authed: true }),
-    );
+    return ConquestMapSchema.parse(await apiGet(`/events/${eventId}/conquest`, { authed: true }));
   },
 
   /** The map for the chrome-less board-image render (internal render token). */
@@ -33,7 +31,12 @@ export const eventConquestApi = {
   /** One page of the battle log, newest first. */
   async eventConquestBattles(
     eventId: number,
-    opts: { before?: number | null; tileId?: number | null; teamId?: number | null; limit?: number } = {},
+    opts: {
+      before?: number | null;
+      tileId?: number | null;
+      teamId?: number | null;
+      limit?: number;
+    } = {},
   ): Promise<ConquestBattlesPage> {
     const qs = new URLSearchParams();
     if (opts.before) qs.set("before", String(opts.before));
@@ -55,9 +58,7 @@ export const eventConquestApi = {
 
   /** Replace the whole map (draft only). */
   async saveEventConquestMap(eventId: number, input: ConquestMapInput): Promise<ConquestMap> {
-    return ConquestMapSchema.parse(
-      await apiSend("PUT", `/events/${eventId}/conquest/map`, input),
-    );
+    return ConquestMapSchema.parse(await apiSend("PUT", `/events/${eventId}/conquest/map`, input));
   },
 
   /** Build the map from a preset, replacing the current one (draft only). */
@@ -104,10 +105,10 @@ export const eventConquestApi = {
     tileId: number,
     body: { owner_team_id: number | null; defense?: number },
   ): Promise<{ tile_id: number; owner_team_id: number | null; defense: number }> {
-    return (await apiSend(
-      "POST",
-      `/events/${eventId}/conquest/tiles/${tileId}/adjust`,
-      body,
-    )) as { tile_id: number; owner_team_id: number | null; defense: number };
+    return (await apiSend("POST", `/events/${eventId}/conquest/tiles/${tileId}/adjust`, body)) as {
+      tile_id: number;
+      owner_team_id: number | null;
+      defense: number;
+    };
   },
 };

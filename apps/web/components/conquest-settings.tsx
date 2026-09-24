@@ -269,7 +269,9 @@ export function ConquestLiveTools({
   const ownable = map.tiles.filter((t) => t.kind !== "respawn");
   const [tileId, setTileId] = useState<number | null>(ownable[0]?.id ?? null);
   const tile = ownable.find((t) => t.id === tileId) ?? null;
-  const [owner, setOwner] = useState<string>(tile?.owner_team_id != null ? String(tile.owner_team_id) : "");
+  const [owner, setOwner] = useState<string>(
+    tile?.owner_team_id != null ? String(tile.owner_team_id) : "",
+  );
   const [defense, setDefense] = useState<number>(tile?.defense ?? 0);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
@@ -312,7 +314,11 @@ export function ConquestLiveTools({
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <label className="space-y-1">
           <span className="text-osrs-parchment-dark/70 block text-xs">Tile</span>
-          <select className={input} value={tileId ?? ""} onChange={(e) => pick(Number(e.target.value))}>
+          <select
+            className={input}
+            value={tileId ?? ""}
+            onChange={(e) => pick(Number(e.target.value))}
+          >
             {ownable.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.label}
@@ -338,7 +344,13 @@ export function ConquestLiveTools({
           max={map.settings.max_defense}
           onChange={setDefense}
         />
-        <Button type="button" size="sm" variant="ghost" onClick={onApply} disabled={pending || !tile}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          onClick={onApply}
+          disabled={pending || !tile}
+        >
           {pending ? "Saving…" : "Apply"}
         </Button>
       </div>

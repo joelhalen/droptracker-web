@@ -12,7 +12,12 @@
  * once a minute without any frame.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import type { ConquestBattle, ConquestMap, ConquestTile, RealtimeEvent } from "@droptracker/api-types";
+import type {
+  ConquestBattle,
+  ConquestMap,
+  ConquestTile,
+  RealtimeEvent,
+} from "@droptracker/api-types";
 import {
   fetchEventConquest,
   fetchEventConquestBattles,
@@ -153,7 +158,8 @@ export function ConquestView({
   const edges = map.edges.map(([a, b]) => [String(a), String(b)] as [string, string]);
 
   const standings = [...map.teams].sort(
-    (a, b) => b.live_score - a.live_score || b.tiles - a.tiles || b.regions - a.regions || a.id - b.id,
+    (a, b) =>
+      b.live_score - a.live_score || b.tiles - a.tiles || b.regions - a.regions || a.id - b.id,
   );
   const battles = [...map.battles, ...older.filter((b) => !map.battles.some((m) => m.id === b.id))];
 
@@ -329,7 +335,9 @@ export function ConquestView({
                       className="mt-1.5 inline-block size-2.5 shrink-0 rounded-full"
                       style={{
                         background:
-                          b.team_id != null ? (colors.get(b.team_id) ?? NEUTRAL_COLOR) : NEUTRAL_COLOR,
+                          b.team_id != null
+                            ? (colors.get(b.team_id) ?? NEUTRAL_COLOR)
+                            : NEUTRAL_COLOR,
                       }}
                     />
                     <span className="min-w-0 flex-1">
@@ -364,16 +372,24 @@ export function ConquestView({
       </div>
 
       <details className="border-osrs-bronze/25 rounded border px-3 py-2 text-sm">
-        <summary className="text-osrs-gold cursor-pointer font-semibold">How Conquest works</summary>
+        <summary className="text-osrs-gold cursor-pointer font-semibold">
+          How Conquest works
+        </summary>
         <ul className="text-osrs-parchment-dark/80 mt-2 list-disc space-y-1 pl-5">
-          <li>Every tile is a boss or activity. Doing what it asks earns your team troops there.</li>
-          <li>A troop on an empty tile claims it. A troop on your own tile adds a point of defense.</li>
+          <li>
+            Every tile is a boss or activity. Doing what it asks earns your team troops there.
+          </li>
+          <li>
+            A troop on an empty tile claims it. A troop on your own tile adds a point of defense.
+          </li>
           <li>
             {map.settings.battle_mode === "dice"
               ? `A troop on a rival's tile attacks: you roll ${map.settings.attack_dice} dice, they roll one per defense point (up to ${map.settings.defense_dice}), highest dice compared in pairs, ties go to the defender.`
               : "A troop on a rival's tile knocks off one point of defense."}
           </li>
-          <li>A tile with no defense left falls to the next enemy troop. Reinforce before it does.</li>
+          <li>
+            A tile with no defense left falls to the next enemy troop. Reinforce before it does.
+          </li>
           <li>Hold every tile in a region for its bonus.</li>
           <li>
             {map.settings.scoring_mode === "hold_time"
@@ -432,7 +448,9 @@ function TileDetail({
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block size-2.5 rounded-full"
-            style={{ background: owner != null ? (colors.get(owner) ?? NEUTRAL_COLOR) : NEUTRAL_COLOR }}
+            style={{
+              background: owner != null ? (colors.get(owner) ?? NEUTRAL_COLOR) : NEUTRAL_COLOR,
+            }}
           />
           <span className="text-osrs-parchment">
             {owner != null ? (names.get(owner) ?? "A team") : "Unowned"}
@@ -453,7 +471,9 @@ function TileDetail({
         {tile.captures ? ` · taken ${tile.captures} time${tile.captures === 1 ? "" : "s"}` : ""}
       </p>
       {rulesHidden ? (
-        <p className="text-osrs-parchment-dark/60 text-xs">The organisers keep the tile rules hidden.</p>
+        <p className="text-osrs-parchment-dark/60 text-xs">
+          The organisers keep the tile rules hidden.
+        </p>
       ) : (
         <div className="border-osrs-bronze/25 space-y-2 border-t pt-2">
           <p className="text-osrs-parchment-dark/60 text-[11px] font-semibold uppercase tracking-wide">

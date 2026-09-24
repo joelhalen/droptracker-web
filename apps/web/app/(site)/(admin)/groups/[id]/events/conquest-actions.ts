@@ -41,7 +41,9 @@ function failed<T>(err: unknown, fallback: string): ConquestResult<T> {
 }
 
 function revalidate(groupId: number | null, eventId: number) {
-  revalidatePath(groupId == null ? `/admin/events/${eventId}` : `/groups/${groupId}/events/${eventId}`);
+  revalidatePath(
+    groupId == null ? `/admin/events/${eventId}` : `/groups/${groupId}/events/${eventId}`,
+  );
   revalidatePath(`/events/${eventId}`);
 }
 

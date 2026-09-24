@@ -14,7 +14,12 @@
  * the live tile corrections stay available.
  */
 import { useEffect, useMemo, useState, useTransition } from "react";
-import type { ConquestMap, ConquestPresetOptions, EventDetail, EventTask } from "@droptracker/api-types";
+import type {
+  ConquestMap,
+  ConquestPresetOptions,
+  EventDetail,
+  EventTask,
+} from "@droptracker/api-types";
 import {
   applyConquestPreset,
   clearConquestBackground,
@@ -118,7 +123,11 @@ export function ConquestDesigner({
   );
 
   if (!map) {
-    return error ? <Alert>{error}</Alert> : <p className="text-osrs-parchment-dark/60 text-sm">Loading the map…</p>;
+    return error ? (
+      <Alert>{error}</Alert>
+    ) : (
+      <p className="text-osrs-parchment-dark/60 text-sm">Loading the map…</p>
+    );
   }
 
   const colors = conquestTeamColors(event.teams, TEAM_COLORS);
@@ -210,7 +219,10 @@ export function ConquestDesigner({
   };
 
   const addTile = () => {
-    const key = newKey("t", draft.tiles.map((t) => t.key));
+    const key = newKey(
+      "t",
+      draft.tiles.map((t) => t.key),
+    );
     patchDraft((d) => ({
       ...d,
       tiles: [
@@ -233,7 +245,10 @@ export function ConquestDesigner({
   };
 
   const addRegion = () => {
-    const key = newKey("r", draft.regions.map((r) => r.key));
+    const key = newKey(
+      "r",
+      draft.regions.map((r) => r.key),
+    );
     patchDraft((d) => ({
       ...d,
       regions: [
@@ -315,7 +330,11 @@ export function ConquestDesigner({
               <span className="text-osrs-parchment-dark/70 block text-xs">
                 One troop costs (efficient play)
               </span>
-              <select name="troop_hours" className={input} defaultValue={presets.suggested_troop_hours}>
+              <select
+                name="troop_hours"
+                className={input}
+                defaultValue={presets.suggested_troop_hours}
+              >
                 {presets.troop_hours_choices.map((h) => (
                   <option key={h} value={h}>
                     {h < 1 ? `${Math.round(h * 60)} minutes` : `${h} hour${h === 1 ? "" : "s"}`}
@@ -326,7 +345,11 @@ export function ConquestDesigner({
             </label>
             <label className="space-y-1">
               <span className="text-osrs-parchment-dark/70 block text-xs">Troops for a unique</span>
-              <select name="unique_troops" className={input} defaultValue={presets.default_unique_troops}>
+              <select
+                name="unique_troops"
+                className={input}
+                defaultValue={presets.default_unique_troops}
+              >
                 {[0, 1, 2, 3, 4, 5].map((n) => (
                   <option key={n} value={n}>
                     {n === 0 ? "None" : n}
@@ -389,7 +412,11 @@ export function ConquestDesigner({
         regions={canvasRegions}
         background={
           map.background_url
-            ? { url: map.background_url, width: map.bg_width ?? 1600, height: map.bg_height ?? 1000 }
+            ? {
+                url: map.background_url,
+                width: map.bg_width ?? 1600,
+                height: map.bg_height ?? 1000,
+              }
             : null
         }
         colors={colors}
@@ -418,7 +445,11 @@ export function ConquestDesigner({
 
       {editable && (
         <div className="border-osrs-bronze/25 bg-osrs-brown-dark/95 sticky bottom-0 z-40 flex flex-wrap items-center gap-3 rounded border p-3">
-          <Button type="button" onClick={onSave} disabled={pending || !dirty || problems.length > 0}>
+          <Button
+            type="button"
+            onClick={onSave}
+            disabled={pending || !dirty || problems.length > 0}
+          >
             {pending ? "Saving…" : "Save map"}
           </Button>
           {dirty && (
@@ -524,7 +555,9 @@ function TileEditor({
             step={0.5}
             className={`${input} w-full`}
             value={tile.value}
-            onChange={(e) => onChange((t) => ({ ...t, value: Math.max(0, Number(e.target.value) || 0) }))}
+            onChange={(e) =>
+              onChange((t) => ({ ...t, value: Math.max(0, Number(e.target.value) || 0) }))
+            }
           />
         </label>
         <label className="space-y-1">
@@ -548,7 +581,9 @@ function TileEditor({
             What earns troops here
           </p>
           {tile.rules.length === 0 && (
-            <p className="text-osrs-red text-xs">Add at least one task, or the tile can never be taken.</p>
+            <p className="text-osrs-red text-xs">
+              Add at least one task, or the tile can never be taken.
+            </p>
           )}
           {tile.rules.map((rule, i) => (
             <div key={rule.task_id} className="flex flex-wrap items-center gap-2 text-sm">
@@ -559,7 +594,9 @@ function TileEditor({
                 onChange={(e) =>
                   onChange((t) => ({
                     ...t,
-                    rules: t.rules.map((r, j) => (j === i ? { ...r, troops: Number(e.target.value) } : r)),
+                    rules: t.rules.map((r, j) =>
+                      j === i ? { ...r, troops: Number(e.target.value) } : r,
+                    ),
                   }))
                 }
                 aria-label="Troops"
@@ -573,7 +610,9 @@ function TileEditor({
               <button
                 type="button"
                 className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
-                onClick={() => onChange((t) => ({ ...t, rules: t.rules.filter((_, j) => j !== i) }))}
+                onClick={() =>
+                  onChange((t) => ({ ...t, rules: t.rules.filter((_, j) => j !== i) }))
+                }
               >
                 Remove
               </button>
@@ -588,7 +627,9 @@ function TileEditor({
                 aria-label="Task to add"
               >
                 <option value="">
-                  {eligible.length ? "Add a task from this event…" : "No unused tasks can drive a tile"}
+                  {eligible.length
+                    ? "Add a task from this event…"
+                    : "No unused tasks can drive a tile"}
                 </option>
                 {eligible.map((t) => (
                   <option key={t.id} value={t.id}>
@@ -628,14 +669,18 @@ function TileEditor({
             </div>
           )}
           <p className="text-osrs-parchment-dark/50 text-xs">
-            Every time a team reaches the task&apos;s target again, it earns the troops. New tasks are
-            made in the Tasks tab (kills, items, XP, loot value, pets, combat achievements, slayer
-            tasks or manual).
+            Every time a team reaches the task&apos;s target again, it earns the troops. New tasks
+            are made in the Tasks tab (kills, items, XP, loot value, pets, combat achievements,
+            slayer tasks or manual).
           </p>
         </div>
       )}
 
-      <button type="button" onClick={onDelete} className="text-osrs-red/80 hover:text-osrs-red text-sm">
+      <button
+        type="button"
+        onClick={onDelete}
+        className="text-osrs-red/80 hover:text-osrs-red text-sm"
+      >
         Delete this tile
       </button>
     </section>
@@ -672,7 +717,9 @@ function RegionsEditor({
               onChange={(e) =>
                 onChange((d) => ({
                   ...d,
-                  regions: d.regions.map((x) => (x.key === r.key ? { ...x, color: e.target.value } : x)),
+                  regions: d.regions.map((x) =>
+                    x.key === r.key ? { ...x, color: e.target.value } : x,
+                  ),
                 }))
               }
               className="h-7 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
@@ -685,7 +732,9 @@ function RegionsEditor({
               onChange={(e) =>
                 onChange((d) => ({
                   ...d,
-                  regions: d.regions.map((x) => (x.key === r.key ? { ...x, name: e.target.value } : x)),
+                  regions: d.regions.map((x) =>
+                    x.key === r.key ? { ...x, name: e.target.value } : x,
+                  ),
                 }))
               }
               aria-label="Region name"
@@ -703,20 +752,26 @@ function RegionsEditor({
                   onChange((d) => ({
                     ...d,
                     regions: d.regions.map((x) =>
-                      x.key === r.key ? { ...x, bonus: Math.max(0, Number(e.target.value) || 0) } : x,
+                      x.key === r.key
+                        ? { ...x, bonus: Math.max(0, Number(e.target.value) || 0) }
+                        : x,
                     ),
                   }))
                 }
               />
             </label>
-            <span className="text-osrs-parchment-dark/60 text-xs">{counts.get(r.key) ?? 0} tiles</span>
+            <span className="text-osrs-parchment-dark/60 text-xs">
+              {counts.get(r.key) ?? 0} tiles
+            </span>
             <button
               type="button"
               className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
               onClick={() =>
                 onChange((d) => ({
                   regions: d.regions.filter((x) => x.key !== r.key),
-                  tiles: d.tiles.map((t) => (t.region_key === r.key ? { ...t, region_key: null } : t)),
+                  tiles: d.tiles.map((t) =>
+                    t.region_key === r.key ? { ...t, region_key: null } : t,
+                  ),
                 }))
               }
             >

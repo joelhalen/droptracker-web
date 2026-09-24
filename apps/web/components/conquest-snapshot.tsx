@@ -48,7 +48,11 @@ export function ConquestSnapshot({
         edges={map.edges.map(([a, b]) => [String(a), String(b)] as [string, string])}
         background={
           map.background_url
-            ? { url: map.background_url, width: map.bg_width ?? 1600, height: map.bg_height ?? 1000 }
+            ? {
+                url: map.background_url,
+                width: map.bg_width ?? 1600,
+                height: map.bg_height ?? 1000,
+              }
             : null
         }
         colors={colors}

@@ -156,7 +156,15 @@ function mapFixture(): ConquestMap {
         owner_since: null,
         captures: 0,
         rules: [
-          { id: 1, task_id: 101, label: "40 Barrows chests", type: "kc_target", troops: 1, target: 40, progress: {} },
+          {
+            id: 1,
+            task_id: 101,
+            label: "40 Barrows chests",
+            type: "kc_target",
+            troops: 1,
+            target: 40,
+            progress: {},
+          },
         ],
         troops: {},
       },

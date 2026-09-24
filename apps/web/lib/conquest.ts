@@ -81,14 +81,21 @@ export function fmtPoints(value: number): string {
 }
 
 /** What a team's current holdings are worth, in the event's scoring terms. */
-export function holdingText(team: Pick<ConquestTeam, "holding">, mode: ConquestSettings["scoring_mode"]): string {
-  return mode === "hold_time" ? `+${fmtPoints(team.holding)}/h` : `${fmtPoints(team.holding)} if it ended now`;
+export function holdingText(
+  team: Pick<ConquestTeam, "holding">,
+  mode: ConquestSettings["scoring_mode"],
+): string {
+  return mode === "hold_time"
+    ? `+${fmtPoints(team.holding)}/h`
+    : `${fmtPoints(team.holding)} if it ended now`;
 }
 
 /** One-line description of the rules in force. */
 export function settingsSummary(s: ConquestSettings): string {
   const scoring =
-    s.scoring_mode === "hold_time" ? "Points for every hour a tile is held" : "Only the map at the end counts";
+    s.scoring_mode === "hold_time"
+      ? "Points for every hour a tile is held"
+      : "Only the map at the end counts";
   const battles =
     s.battle_mode === "dice"
       ? `${s.attack_dice} attack dice vs up to ${s.defense_dice} defense dice`
@@ -103,7 +110,8 @@ export function battleText(
   tileLabel: string,
 ): string {
   const team = b.team_id != null ? (names.get(b.team_id) ?? "A team") : "A team";
-  const owner = b.owner_before != null ? (names.get(b.owner_before) ?? "a team") : "the neutral garrison";
+  const owner =
+    b.owner_before != null ? (names.get(b.owner_before) ?? "a team") : "the neutral garrison";
   switch (b.outcome) {
     case "claim":
       return `${team} claimed ${tileLabel}`;
@@ -156,7 +164,8 @@ export function regionLabelPoint(
   region: { label_x: number | null; label_y: number | null },
   tiles: { x: number; y: number }[],
 ): { x: number; y: number } {
-  if (region.label_x != null && region.label_y != null) return { x: region.label_x, y: region.label_y };
+  if (region.label_x != null && region.label_y != null)
+    return { x: region.label_x, y: region.label_y };
   if (!tiles.length) return { x: 0.5, y: 0.5 };
   const x = tiles.reduce((a, t) => a + t.x, 0) / tiles.length;
   const top = Math.min(...tiles.map((t) => t.y));
@@ -237,7 +246,8 @@ export function draftToInput(draft: ConquestDraft, revision: number): ConquestMa
       region_key: t.region_key,
       icon_npc_id: t.icon_npc_id,
       icon_item_id: t.icon_item_id,
-      rules: t.kind === "respawn" ? [] : t.rules.map((r) => ({ task_id: r.task_id, troops: r.troops })),
+      rules:
+        t.kind === "respawn" ? [] : t.rules.map((r) => ({ task_id: r.task_id, troops: r.troops })),
     })),
   };
 }
