@@ -57,12 +57,11 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
         <p className="text-osrs-parchment-dark/70 mt-2 max-w-3xl text-sm">
           Bingo boards, team races and task lists run by DropTracker groups, built from real
           in-game goals. Progress tracks itself through the RuneLite plugin and updates live here
-          and in the group&apos;s Discord. Joining is free for members of the hosting group;
-          hosting your own needs the{" "}
+          and in the group&apos;s Discord. Any group can host events for free, and a{" "}
           <Link href="/premium" className="text-osrs-gold-bright hover:underline">
-            Patron tier
-          </Link>
-          .
+            subscription
+          </Link>{" "}
+          lets you run more of them.
         </p>
       </header>
       {recruiting.length > 0 && <EventRecruitingBanner items={recruiting} />}

@@ -394,10 +394,10 @@ function EmptyTimeline({ signedIn }: { signedIn: boolean }) {
         </p>
       )}
       <Link
-        href="/premium"
+        href="/docs/events-create"
         className="text-osrs-gold-bright mt-4 text-sm hover:underline"
       >
-        Want to host one? See the Patron tier
+        Want to host one? Every group can, for free
       </Link>
     </div>
   );

@@ -12,34 +12,36 @@ export const revalidate = 300;
 export const metadata: Metadata = {
   title: "Premium",
   description:
-    "Upgrade your clan with a DropTracker group subscription, or support the project personally as a supporter.",
+    "Every group gets The DropTracker free. Compare what a group subscription adds, or support the project personally.",
 };
 
 export default async function PremiumPage() {
   const [tiers, supporterTiers] = await Promise.all([
-    api.subscriptionTiers(),
+    // includeFree: the Free plan is shown as a card to compare against, never
+    // as a checkout option (its card has no upgrade button).
+    api.subscriptionTiers("group", { includeFree: true }),
     api.supporterTiers(),
   ]);
+  const paidTiers = tiers.filter((t) => t.price_cents > 0);
 
   return (
     <div className="space-y-8">
       <header className="text-center">
         <h1 className="text-osrs-gold text-3xl font-bold">Upgrade your DropTracker Group</h1>
         <p className="text-osrs-parchment-dark/80 mx-auto mt-2 max-w-xl">
-          A recurring subscription that unlocks extras for your whole group — customizable Discord embeds,
-          a Personal-Best Hall of Fame, and advanced &amp; fully-integrated events like Bingo. Manage it
-          from your group&apos;s admin page.
+          Every group gets notifications, custom designs, lootboards and events for free. A
+          subscription gives your clan more of them, adds a few extras, and helps fund development.
         </p>
       </header>
 
-      {tiers.length === 0 && (
+      {paidTiers.length === 0 && (
         <EmptyState
           title="Plans coming soon"
           hint="Premium subscription tiers aren't available just yet. Check back shortly."
         />
       )}
 
-      <div className="mx-auto grid max-w-4xl gap-4 sm:grid-cols-3">
+      <div className="mx-auto grid max-w-6xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {tiers.map((t) => (
           <div
             key={t.key}
@@ -63,8 +65,14 @@ export default async function PremiumPage() {
                 </li>
               ))}
             </ul>
-            {/* Auth-aware CTA is a client island so the page stays static/ISR. */}
-            <PremiumTierCta tierKey={t.key} />
+            {t.price_cents > 0 ? (
+              // Auth-aware CTA is a client island so the page stays static/ISR.
+              <PremiumTierCta tierKey={t.key} />
+            ) : (
+              <p className="text-osrs-parchment-dark/70 mt-5 text-center text-sm">
+                Included with every group
+              </p>
+            )}
           </div>
         ))}
       </div>
