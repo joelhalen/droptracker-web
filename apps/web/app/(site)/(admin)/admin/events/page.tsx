@@ -1,8 +1,9 @@
 import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { AdminEventsBoard } from "@/components/admin/admin-events-board";
 import { EventTemplatesManager } from "@/components/event-templates-manager";
-import { EmptyState } from "@/components/ui";
+import { buttonVariants } from "@/components/ui";
 import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Events" };
@@ -12,12 +13,6 @@ export const metadata: Metadata = { title: "Events" };
 // global events (group_id null) are managed right here under /admin/events.
 export const dynamic = "force-dynamic";
 
-const STATUS_CHIP: Record<string, string> = {
-  draft: "bg-osrs-bronze/20 text-osrs-parchment-dark/80",
-  active: "bg-green-500/15 text-green-400",
-  past: "bg-osrs-brown-dark/60 text-osrs-parchment-dark/50",
-};
-
 export default async function AdminEventsPage() {
   await requireSuperadmin("/admin/events");
   // Authed list: as a superadmin this includes every draft (group + global).
@@ -26,93 +21,56 @@ export default async function AdminEventsPage() {
     // Superadmin sees every template (site-wide + all groups') for oversight.
     api.eventTemplates({}).catch(() => []),
   ]);
+  // One clock for the whole render, so the server's buckets and the client's
+  // agree on hydration.
+  const nowSec = Math.floor(Date.now() / 1000);
 
   return (
-    <div className="space-y-8">
-      <div className="grid gap-10 lg:grid-cols-2">
-        <section>
-          <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
-            New global event
-          </h2>
-          <p className="text-osrs-parchment-dark/70 mb-3 text-sm">
-            Global events belong to no group — any player with a linked account can join. They
-            start as drafts: guided setup walks through schedule, rules, tasks, and teams, and
-            nothing goes live until you launch it. Group events are created from each group&apos;s
-            own Events tab.
+    <div className="min-w-0 space-y-8">
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0 max-w-2xl">
+          <h2 className="text-osrs-gold text-xl font-semibold">Events</h2>
+          <p className="text-osrs-parchment-dark/70 mt-1 text-sm">
+            Every event on the site. Global events are run from here. Group events open in their
+            group&apos;s own manager.
           </p>
-          <Link
-            href={"/admin/events/new" as Route}
-            className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark inline-block rounded px-4 py-2 text-sm font-medium"
-          >
-            Create global event →
-          </Link>
-        </section>
+          <p className="text-osrs-parchment-dark/50 mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <Link href={"/admin/event-types" as Route} className="hover:text-osrs-gold-bright">
+              Event types →
+            </Link>
+            <Link href={"/admin/event-limits" as Route} className="hover:text-osrs-gold-bright">
+              Tier limits →
+            </Link>
+            {templates.length > 0 && (
+              <a href="#templates" className="hover:text-osrs-gold-bright">
+                Saved templates ({templates.length}) →
+              </a>
+            )}
+          </p>
+        </div>
+        <Link
+          href={"/admin/events/new" as Route}
+          className={buttonVariants({ variant: "primary", size: "md" })}
+        >
+          Create global event
+        </Link>
+      </header>
 
-        <section>
-          <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
-            All events
-          </h2>
-          {events.length ? (
-            <ul className="divide-osrs-bronze/20 divide-y">
-              {events.map((e) => (
-                <li key={e.id} className="flex items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <Link
-                      href={
-                        (e.group_id == null
-                          ? `/admin/events/${e.id}`
-                          : `/groups/${e.group_id}/events/${e.id}`) as Route
-                      }
-                      className="hover:text-osrs-gold-bright block truncate font-medium"
-                    >
-                      {e.name}
-                    </Link>
-                    <span className="text-osrs-parchment-dark/50 text-xs">
-                      {e.group_id == null ? "Global" : `Group #${e.group_id}`}
-                      {e.has_bingo ? " · bingo" : ""}
-                    </span>
-                  </div>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <span
-                      className={`${STATUS_CHIP[e.status] ?? ""} rounded px-1.5 py-0.5 text-xs font-medium uppercase tracking-wide`}
-                    >
-                      {e.status}
-                    </span>
-                    {e.status === "draft" && (
-                      <Link
-                        href={
-                          (e.group_id == null
-                            ? `/admin/events/new?event=${e.id}`
-                            : `/groups/${e.group_id}/events/new?event=${e.id}`) as Route
-                        }
-                        className="text-osrs-gold-bright text-xs hover:underline"
-                      >
-                        Continue setup →
-                      </Link>
-                    )}
-                    <Link
-                      href={
-                        (e.group_id == null
-                          ? `/admin/events/${e.id}`
-                          : `/groups/${e.group_id}/events/${e.id}`) as Route
-                      }
-                      className="text-osrs-gold-bright text-xs hover:underline"
-                    >
-                      Manage →
-                    </Link>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <EmptyState
-              title="No events yet"
-              hint="Create a global event, or check back once groups start running theirs."
-            />
-          )}
-        </section>
-      </div>
-      <EventTemplatesManager groupId={null} initial={templates} />
+      <AdminEventsBoard events={events} nowSec={nowSec} />
+
+      {templates.length > 0 && (
+        <details id="templates" className="border-osrs-bronze/25 rounded-lg border">
+          <summary className="text-osrs-gold cursor-pointer px-4 py-3 font-semibold">
+            Saved templates{" "}
+            <span className="text-osrs-parchment-dark/50 text-sm font-normal">
+              ({templates.length})
+            </span>
+          </summary>
+          <div className="border-osrs-bronze/20 border-t p-4">
+            <EventTemplatesManager groupId={null} initial={templates} showHeading={false} />
+          </div>
+        </details>
+      )}
     </div>
   );
 }

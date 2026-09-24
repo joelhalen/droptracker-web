@@ -19,9 +19,13 @@ const field =
 export function EventTemplatesManager({
   groupId,
   initial,
+  showHeading = true,
 }: {
   groupId: number | null;
   initial: EventTemplateSummary[];
+  /** Off when the caller already titles the section (the staff overview puts
+   * templates in a collapsible with its own summary line). */
+  showHeading?: boolean;
 }) {
   const [templates, setTemplates] = useState(initial);
   const [renamingId, setRenamingId] = useState<number | null>(null);
@@ -87,9 +91,11 @@ export function EventTemplatesManager({
 
   return (
     <section>
-      <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
-        Saved templates
-      </h2>
+      {showHeading && (
+        <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
+          Saved templates
+        </h2>
+      )}
       <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
         Reusable event structures saved from past events. Start one from the “New event” form;
         deleting a template never touches events created from it.

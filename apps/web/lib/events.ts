@@ -952,3 +952,82 @@ export function draftStartState(
   if (e.starts_at == null) return "manual";
   return e.starts_at > nowSec ? "scheduled" : "overdue";
 }
+
+// --- Staff events overview (/admin/events) -----------------------------------
+
+/** Where an event sits on the staff overview. Drafts split three ways because
+ * each needs something different from staff: "upcoming" starts on its own,
+ * "attention" is past its start date but blocked (it goes live the moment the
+ * blocker is fixed), and "draft" has no start date and waits for a launch. */
+export type AdminEventBucket = "live" | "upcoming" | "attention" | "draft" | "past";
+
+export const ADMIN_EVENT_BUCKETS: readonly AdminEventBucket[] = [
+  "live",
+  "upcoming",
+  "attention",
+  "draft",
+  "past",
+];
+
+export function adminEventBucket(
+  e: Pick<EventSummary, "status" | "starts_at">,
+  nowSec: number,
+): AdminEventBucket {
+  if (e.status === "active") return "live";
+  if (e.status === "past") return "past";
+  const state = draftStartState(e, nowSec);
+  return state === "scheduled" ? "upcoming" : state === "overdue" ? "attention" : "draft";
+}
+
+export type AdminEventScope = "all" | "global" | "group";
+
+export type AdminEventFilters = {
+  bucket: AdminEventBucket | "all";
+  scope: AdminEventScope;
+  kind: EventSummary["kind"] | "all";
+  query: string;
+};
+
+/** Filter + order the staff overview. Live by soonest end, upcoming by
+ * soonest start, past by most recent end (sortEventsChronologically), and
+ * drafts newest first, since a draft with no date has nothing else to sort on. */
+export function filterAdminEvents<T extends EventSummary>(
+  events: T[],
+  f: AdminEventFilters,
+  nowSec: number,
+): T[] {
+  const q = f.query.trim().toLowerCase();
+  const kept = events.filter((e) => {
+    if (f.bucket !== "all" && adminEventBucket(e, nowSec) !== f.bucket) return false;
+    if (f.scope === "global" && e.group_id != null) return false;
+    if (f.scope === "group" && e.group_id == null) return false;
+    if (f.kind !== "all" && e.kind !== f.kind) return false;
+    if (
+      q &&
+      !e.name.toLowerCase().includes(q) &&
+      !(e.group_name ?? "").toLowerCase().includes(q) &&
+      String(e.id) !== q
+    ) {
+      return false;
+    }
+    return true;
+  });
+  if (f.bucket === "draft") return [...kept].sort((a, b) => b.id - a.id);
+  return sortEventsChronologically(kept);
+}
+
+/** Per-bucket counts for the overview's tabs. */
+export function countAdminEvents(
+  events: Pick<EventSummary, "status" | "starts_at">[],
+  nowSec: number,
+): Record<AdminEventBucket, number> {
+  const out: Record<AdminEventBucket, number> = {
+    live: 0,
+    upcoming: 0,
+    attention: 0,
+    draft: 0,
+    past: 0,
+  };
+  for (const e of events) out[adminEventBucket(e, nowSec)] += 1;
+  return out;
+}

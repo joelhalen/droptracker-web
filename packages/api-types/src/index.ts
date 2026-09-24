@@ -4380,6 +4380,11 @@ export const EventSummarySchema = z.object({
   clan_roster_max: z.number().int().nullable().optional(),
   /** Clan leaders can't change their roster once the event is live. */
   clan_roster_locked_at_start: z.boolean().optional(),
+  /** List-card context (GET /events only): the owning group's name and the
+   * event's team / player counts. Absent on single-event reads. */
+  group_name: z.string().nullable().optional(),
+  team_count: z.number().int().optional(),
+  player_count: z.number().int().optional(),
   activated_at: z.number().int().nullable().optional(),
   ended_at: z.number().int().nullable().optional(),
 });
