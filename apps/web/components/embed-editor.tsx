@@ -68,7 +68,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     // only Discord can draw. The preview renders TOKEN_SAMPLE_ICONS instead.
     {
       token: "{item_emoji}",
-      help: "The item's own icon. Around 1,000 of the most-received items have one; the rest show nothing",
+      help: "The item's own icon. Around 1,450 of the most-received items have one; the rest show nothing",
       sample: "",
     },
     { token: "{item_id}", help: "OSRS item id (icon URLs)", sample: "4151" },
@@ -96,7 +96,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{item_name}", help: "New collection log item", sample: "Dragon warhammer" },
     {
       token: "{item_emoji}",
-      help: "The item's own icon. Around 1,000 of the most-received items have one; the rest show nothing",
+      help: "The item's own icon. Around 1,450 of the most-received items have one; the rest show nothing",
       sample: "",
     },
     { token: "{item_id}", help: "OSRS item id", sample: "13576" },
