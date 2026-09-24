@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiGet, apiSend, apiSendForm, withFallback } from "./_client";
 import { CompletionHistorySchema, EventAuditSchema, type CompletionHistory, type CompletionHistoryMode, type EventAudit, type EventAuditParams } from "./types";
+import { ScoreChangeFieldSchema, type EventScoreChange } from "../event-credit-receipt";
 import {
   BingoBoardSchema,
   BoardDetailSchema,
@@ -988,13 +989,20 @@ export const eventsApi = {
   },
 
 
-  async confirmEventCompletion(eventId: number, completionId: number): Promise<{ ok: true }> {
+  async confirmEventCompletion(
+    eventId: number,
+    completionId: number,
+  ): Promise<{ ok: true; score_change: EventScoreChange | null }> {
     return withFallback(
       async () => {
-        await apiSend("POST", `/events/${eventId}/completions/${completionId}/confirm`, {});
-        return { ok: true } as const;
+        const res = (await apiSend(
+          "POST",
+          `/events/${eventId}/completions/${completionId}/confirm`,
+          {},
+        )) as { score_change?: unknown } | null;
+        return { ok: true as const, score_change: ScoreChangeFieldSchema.parse(res?.score_change) ?? null };
       },
-      () => ({ ok: true }) as const,
+      () => ({ ok: true as const, score_change: null }),
     );
   },
 
@@ -1037,10 +1045,19 @@ export const eventsApi = {
   },
 
 
-  async awardEventCompletion(eventId: number, input: EventAwardInput): Promise<{ id: number }> {
+  async awardEventCompletion(
+    eventId: number,
+    input: EventAwardInput,
+  ): Promise<{ id: number; score_change: EventScoreChange | null }> {
     return withFallback(
-      async () => (await apiSend("POST", `/events/${eventId}/award`, input)) as { id: number },
-      () => ({ id: Math.floor(Math.random() * 100000) }),
+      async () => {
+        const res = (await apiSend("POST", `/events/${eventId}/award`, input)) as {
+          id: number;
+          score_change?: unknown;
+        };
+        return { id: res.id, score_change: ScoreChangeFieldSchema.parse(res.score_change) ?? null };
+      },
+      () => ({ id: Math.floor(Math.random() * 100000), score_change: null }),
     );
   },
 

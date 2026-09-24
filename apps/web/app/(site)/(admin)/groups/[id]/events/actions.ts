@@ -870,8 +870,8 @@ export async function confirmEventCompletion(
   completionId: number,
 ) {
   await assertCanManageEvent(groupId);
-  await api.confirmEventCompletion(eventId, completionId);
-  return { ok: true as const };
+  const result = await api.confirmEventCompletion(eventId, completionId);
+  return { ok: true as const, score_change: result.score_change };
 }
 
 export async function confirmEventCompletionsBulk(
@@ -906,7 +906,7 @@ export async function awardEventCompletion(
   const parsed = EventAwardInputSchema.parse(input);
   const result = await api.awardEventCompletion(eventId, parsed);
   revalidatePath(`/events/${eventId}`);
-  return { ok: true as const, id: result.id };
+  return { ok: true as const, id: result.id, score_change: result.score_change };
 }
 
 export async function revokeEventCompletion(

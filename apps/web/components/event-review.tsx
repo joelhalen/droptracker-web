@@ -13,6 +13,8 @@ import {
 import { Alert, EmptyState } from "@/components/ui";
 import { LocalTime } from "@/components/local-time";
 import { QuantityInput } from "@/components/quantity-input";
+import { EventCreditReceipt } from "@/components/event-credit-receipt";
+import type { EventScoreChange } from "@/lib/event-credit-receipt";
 import {
   awardEventCompletion,
   confirmEventCompletion,
@@ -59,6 +61,14 @@ export function EventReview({
   const [busy, setBusy] = useState<ReadonlySet<number>>(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [awarding, setAwarding] = useState(false);
+  // Before → after of the last manual award or confirm, so the organizer can
+  // see the credit landed. `from` picks where it shows (next to the form or
+  // at the top of the queue).
+  const [receipt, setReceipt] = useState<{
+    from: "award" | "confirm";
+    title: string;
+    change: EventScoreChange;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -151,7 +161,16 @@ export function EventReview({
   };
 
   const onConfirm = (row: EventCompletion) =>
-    actOnRow(row, "confirmed", "confirm", () => confirmEventCompletion(groupId, eventId, row.id));
+    actOnRow(row, "confirmed", "confirm", async () => {
+      const result = await confirmEventCompletion(groupId, eventId, row.id);
+      if (result.score_change) {
+        setReceipt({
+          from: "confirm",
+          title: `Confirmed #${row.id}${row.task_label ? `: ${row.task_label}` : ""}`,
+          change: result.score_change,
+        });
+      }
+    });
   const onReject = (row: EventCompletion) =>
     actOnRow(row, "rejected", "reject", () => rejectEventCompletion(groupId, eventId, row.id));
   const onRevoke = (row: EventCompletion) =>
@@ -251,7 +270,7 @@ export function EventReview({
     setAwarding(true);
     startTransition(async () => {
       try {
-        await awardEventCompletion(groupId, eventId, {
+        const result = await awardEventCompletion(groupId, eventId, {
           task_id: award.taskId,
           team_id: award.teamId,
           complete: award.mode === "complete" || undefined,
@@ -261,6 +280,11 @@ export function EventReview({
           note: award.note.trim() || undefined,
         });
         setAward((a) => ({ ...a, note: "" }));
+        setReceipt(
+          result.score_change
+            ? { from: "award", title: "Award applied", change: result.score_change }
+            : null,
+        );
         // The awarded row is server-shaped (id, status, labels), so this one
         // reads it back rather than guessing at it.
         await reload();
@@ -286,6 +310,13 @@ export function EventReview({
       </h3>
 
       {error && <Alert variant="error">{error}</Alert>}
+      {receipt?.from === "confirm" && (
+        <EventCreditReceipt
+          title={receipt.title}
+          change={receipt.change}
+          onDismiss={() => setReceipt(null)}
+        />
+      )}
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {STATUS_FILTERS.map((s) => (
@@ -532,6 +563,15 @@ export function EventReview({
           </p>
         )}
       </form>
+      {receipt?.from === "award" && (
+        <div className="mt-3">
+          <EventCreditReceipt
+            title={receipt.title}
+            change={receipt.change}
+            onDismiss={() => setReceipt(null)}
+          />
+        </div>
+      )}
     </section>
   );
 }
