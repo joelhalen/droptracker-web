@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { EventParticipant } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert } from "@/components/ui";
+import { EventInviteFinder } from "@/components/event-invite-finder";
 import {
   bulkInviteEventParticipants,
   listEventParticipants,
@@ -20,7 +21,17 @@ const STATUS_STYLES: Record<EventParticipant["status"], string> = {
   invited: "bg-osrs-bronze/20 text-osrs-parchment-dark/80",
   accepted: "bg-green-500/15 text-green-400",
   declined: "bg-osrs-red/15 text-osrs-red",
+  withdrawn: "bg-osrs-bronze/20 text-osrs-parchment-dark/60",
+  dropped: "bg-osrs-red/15 text-osrs-red",
 };
+
+/** "3 / 5–10" style roster size against a staff-hosted event's limits. */
+function rosterText(count: number, min: number | null, max: number | null): string {
+  if (min && max) return `${count} / ${min === max ? max : `${min}–${max}`}`;
+  if (max) return `${count} / ${max}`;
+  if (min) return `${count} (min ${min})`;
+  return String(count);
+}
 
 type Clan = { id: number; name: string };
 
@@ -31,11 +42,20 @@ export function EventParticipantsPanel({
   groupId,
   eventId,
   isHost,
+  staffHosted = false,
+  rosterMin = null,
+  rosterMax = null,
 }: {
-  groupId: number;
+  /** This page's group; null on the staff page of a staff-hosted event. */
+  groupId: number | null;
   eventId: number;
   /** True when this page's group is the event host (only host may invite/remove). */
   isHost: boolean;
+  /** web119a: a global clan-vs-clan event run by staff (shows roster sizes
+   * and the invite finder). */
+  staffHosted?: boolean;
+  rosterMin?: number | null;
+  rosterMax?: number | null;
 }) {
   const [participants, setParticipants] = useState<EventParticipant[] | null>(null);
   const [query, setQuery] = useState("");
@@ -168,9 +188,25 @@ export function EventParticipantsPanel({
             <li key={p.group_id} className="flex items-center justify-between px-3 py-2 text-sm">
               <span>
                 <span className="font-medium">{p.group_name ?? `Clan ${p.group_id}`}</span>
-                <span className="text-osrs-parchment-dark/50 ml-2 text-xs capitalize">
-                  {p.role}
-                </span>
+                {staffHosted ? (
+                  p.status === "accepted" &&
+                  p.roster_count != null && (
+                    <span
+                      className={`ml-2 text-xs tabular-nums ${
+                        rosterMin && p.roster_count < rosterMin
+                          ? "text-osrs-ember"
+                          : "text-osrs-parchment-dark/60"
+                      }`}
+                      title="Players on this clan's roster"
+                    >
+                      {rosterText(p.roster_count, rosterMin, rosterMax)} players
+                    </span>
+                  )
+                ) : (
+                  <span className="text-osrs-parchment-dark/50 ml-2 text-xs capitalize">
+                    {p.role}
+                  </span>
+                )}
               </span>
               <span className="flex items-center gap-2">
                 <span
@@ -184,7 +220,7 @@ export function EventParticipantsPanel({
                 {p.role !== "host" && (
                   <Link
                     href={
-                      `/groups/${groupId}/events/invitations/${eventId}?clan=${p.group_id}` as Route
+                      `/groups/${groupId ?? p.group_id}/events/invitations/${eventId}?clan=${p.group_id}` as Route
                     }
                     className="text-osrs-gold-bright text-xs hover:underline"
                   >
@@ -290,6 +326,8 @@ export function EventParticipantsPanel({
           )}
         </ul>
       )}
+
+      {isHost && staffHosted && <EventInviteFinder eventId={eventId} onInvited={reload} />}
     </section>
   );
 }

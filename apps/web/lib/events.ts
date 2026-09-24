@@ -82,6 +82,19 @@ export const EVENT_MODE_LABELS: Record<EventDetail["mode"], string> = {
   clan_vs_clan: "Clan vs clan — invite an opponent",
 };
 
+/** Players-per-clan wording for a staff-hosted clan-vs-clan event (web119a):
+ * "5 to 10", "at least 5", "up to 10", "exactly 4" — or null for no limit.
+ * Mirrors services/event_invites.roster_size_text so the DM and the site agree. */
+export function rosterSizeText(
+  min: number | null | undefined,
+  max: number | null | undefined,
+): string | null {
+  if (min && max) return min === max ? `exactly ${min}` : `${min} to ${max}`;
+  if (min) return `at least ${min}`;
+  if (max) return `up to ${max}`;
+  return null;
+}
+
 /** Submission policies as shown in the admin settings form. */
 export const SUBMISSION_POLICY_LABELS: Record<EventDetail["submission_policy"], string> = {
   all: "All submissions count",

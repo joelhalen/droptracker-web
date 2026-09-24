@@ -183,6 +183,10 @@ export async function updateGroupEvent(
       | "visibility"
       /** SOTW/BOTW (web105a): competition settings — draft-only after create. */
       | "competition"
+      /** Staff-hosted clan-vs-clan (web119a): per-clan roster limits. */
+      | "clan_roster_min"
+      | "clan_roster_max"
+      | "clan_roster_locked_at_start"
     >
   >,
 ) {
@@ -531,6 +535,26 @@ export async function removeEventParticipant(
   await api.removeEventParticipant(eventId, participantGroupId);
   revalidatePath(eventAdminPath(groupId, eventId));
   return { ok: true as const };
+}
+
+/** A clan pulls out of a staff-hosted event before it starts (web119a). */
+export async function withdrawEventParticipant(eventId: number, clanGroupId: number) {
+  await assertCanAnswerForClan(clanGroupId);
+  await api.withdrawEventParticipant(eventId, clanGroupId);
+  revalidatePath(eventsIndexPath(clanGroupId));
+  revalidatePath(eventAdminPath(clanGroupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return { ok: true as const };
+}
+
+/** Staff invite finder for a staff-hosted event (web119a): clans with the
+ * numbers to filter on. Superadmin only (global events are staff-run). */
+export async function fetchEventInviteCandidates(
+  eventId: number,
+  filters: Omit<Parameters<typeof api.eventInviteCandidates>[0], "eventId">,
+) {
+  await assertCanManageEvent(null);
+  return api.eventInviteCandidates({ ...filters, eventId });
 }
 
 /** Search opponent clans by name for the invite picker. */
@@ -1190,9 +1214,15 @@ export async function removeEventSignup(
 }
 
 /** Post the interactive "Sign up" button to the event's Discord channel. */
-export async function postEventSignupMessage(groupId: EventGroupId, eventId: number) {
+export async function postEventSignupMessage(
+  groupId: EventGroupId,
+  eventId: number,
+  /** web119a: post only to this clan's own channels (a staff-hosted event's
+   * clan panel passes its clan). */
+  clanGroupId?: number,
+) {
   await assertCanManageEvent(groupId);
-  await api.postEventSignupMessage(eventId);
+  await api.postEventSignupMessage(eventId, clanGroupId);
   return { ok: true as const };
 }
 

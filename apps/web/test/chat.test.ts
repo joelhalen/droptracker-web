@@ -171,6 +171,24 @@ test("invite lifecycle codes read as sentences", () => {
   assert.equal(say("event_ended"), "Autumn Clash has ended.");
 });
 
+test("staff-hosted roster codes read as sentences (web119a)", () => {
+  const say = (code: string, extra: Record<string, unknown> = {}) =>
+    systemText(
+      message({ kind: "system", system_code: code, system_data: { ...SYSTEM_DATA, ...extra } }),
+    );
+  assert.equal(say("clan_withdrew"), "Clan B withdrew from Autumn Clash.");
+  assert.equal(
+    say("roster_below_min", { roster_count: 3, roster_min: 5 }),
+    "Clan B has 3 of the 5 players needed for Autumn Clash. Pick more before the start or the clan will be left out.",
+  );
+  assert.equal(
+    say("clan_dropped", { roster_count: 2, roster_min: 5 }),
+    "Autumn Clash started, and Clan B had 2 of the 5 players needed, so the clan was left out.",
+  );
+  // Counts missing (older rows): still a sentence, never "undefined".
+  assert.ok(!say("clan_dropped").includes("undefined"));
+});
+
 test("system wording survives missing nouns", () => {
   const text = systemText(
     message({ kind: "system", system_code: "invite_sent", system_data: {} }),

@@ -3087,7 +3087,15 @@ export type ApiKeyRevealResult = z.infer<typeof ApiKeyRevealResultSchema>;
 
 /** Clan-vs-clan participant roster (web_event_groups). */
 export const EVENT_PARTICIPANT_ROLES = ["host", "opponent"] as const;
-export const EVENT_PARTICIPANT_STATUSES = ["invited", "accepted", "declined"] as const;
+/** web119a: "withdrawn" = the clan pulled out of a staff-hosted event before
+ * the start; "dropped" = its roster was under the minimum when it started. */
+export const EVENT_PARTICIPANT_STATUSES = [
+  "invited",
+  "accepted",
+  "declined",
+  "withdrawn",
+  "dropped",
+] as const;
 
 /** Which submissions the event engine accepts: everything, non-plugin ones
  * queued for admin confirmation, or plugin-API ones only. */
@@ -4363,6 +4371,15 @@ export const EventSummarySchema = z.object({
    * ride on the detail payload only (`schedule`). */
   has_schedule: z.boolean().default(false),
   schedule_summary: z.string().nullable().optional(),
+  /** Staff-hosted clan-vs-clan (web119a): a clan_vs_clan event with no host
+   * group, run by DropTracker staff. Each accepted clan fields one team of
+   * `clan_roster_min`..`clan_roster_max` players (null = no limit), picked by
+   * its own leaders from its sign-ups. */
+  staff_hosted: z.boolean().optional(),
+  clan_roster_min: z.number().int().nullable().optional(),
+  clan_roster_max: z.number().int().nullable().optional(),
+  /** Clan leaders can't change their roster once the event is live. */
+  clan_roster_locked_at_start: z.boolean().optional(),
   activated_at: z.number().int().nullable().optional(),
   ended_at: z.number().int().nullable().optional(),
 });
@@ -4379,6 +4396,9 @@ export const EventViewerSchema = z.object({
   /** Leadership role any of the viewer's players holds on their team
    * (web48a) — gates board roll/shop buttons client-side. */
   team_role: z.enum(EVENT_TEAM_ROLES).nullable().optional(),
+  /** Staff-hosted events (web119a): the clans the viewer runs their side of
+   * the event for (roster, leaders, Discord). Empty elsewhere. */
+  managed_clan_ids: z.array(z.number().int()).optional(),
 });
 export type EventViewer = z.infer<typeof EventViewerSchema>;
 
@@ -4455,6 +4475,11 @@ export const EventReadinessSchema = z.object({
   status: z.string(),
   ready: z.boolean(),
   blockers: z.array(EventReadinessBlockerSchema),
+  /** Heads-ups that don't stop the start (web119a: a staff-hosted clan whose
+   * roster is under the minimum will be left out). */
+  warnings: z
+    .array(EventReadinessBlockerSchema.extend({ group_id: z.number().int().optional() }))
+    .optional(),
   starts_at: z.number().int().nullable().optional(),
   auto_start: z.boolean().default(false),
   already_active: z.boolean().default(false),
@@ -5089,8 +5114,14 @@ export type TaskRequirements = z.infer<typeof TaskRequirementsSchema>;
 export const EventInputSchema = z.object({
   /** null ⇒ global event (superadmin only). */
   group_id: z.number().int().nullable(),
-  /** clan_vs_clan requires a non-null group_id (the host clan). */
+  /** clan_vs_clan with a group_id = that clan hosts; with a null group_id =
+   * a staff-hosted global clan-vs-clan event (web119a, superadmin only). */
   mode: z.enum(EVENT_MODES).optional(),
+  /** Staff-hosted clan-vs-clan only (web119a): players per clan (null = no
+   * limit), and whether clan rosters lock once the event is live. */
+  clan_roster_min: z.number().int().min(1).max(500).nullable().optional(),
+  clan_roster_max: z.number().int().min(1).max(500).nullable().optional(),
+  clan_roster_locked_at_start: z.boolean().optional(),
   /** Game format; the backend gates restricted kinds at create time. */
   kind: z.enum(EVENT_KINDS).optional(),
   name: z.string().min(1).max(120),
@@ -5920,6 +5951,10 @@ export const CHAT_SYSTEM_CODES = [
   "invite_accepted",
   "invite_declined",
   "invite_withdrawn",
+  // web119a: staff-hosted clan-vs-clan.
+  "clan_withdrew",
+  "roster_below_min",
+  "clan_dropped",
   "event_activated",
   "event_ended",
   // web102a: staff DMs + group notices.
@@ -6100,8 +6135,34 @@ export const EventParticipantSchema = z.object({
   /** This clan's negotiation thread with the host (web96a), if one exists. */
   thread_id: z.number().int().nullable().optional(),
   unread: z.number().int().default(0),
+  /** Staff-hosted events (web119a): the clan's team and its roster size. */
+  team_id: z.number().int().nullable().optional(),
+  roster_count: z.number().int().nullable().optional(),
 });
 export type EventParticipant = z.infer<typeof EventParticipantSchema>;
+
+/** One clan the invite finder offers (GET /admin/event-invite-candidates,
+ * web119a). `active` = members with loot tracked this month. */
+export const EventInviteCandidateSchema = z.object({
+  group_id: z.number().int(),
+  group_name: z.string().nullable().optional(),
+  icon_url: z.string().nullable().optional(),
+  members: z.number().int(),
+  active: z.number().int(),
+  monthly_loot: MoneySchema,
+  admins: z.number().int(),
+  has_guild: z.boolean(),
+  /** This clan's participant status on the event being filled, if any. */
+  event_status: z.enum(EVENT_PARTICIPANT_STATUSES).nullable().optional(),
+});
+export type EventInviteCandidate = z.infer<typeof EventInviteCandidateSchema>;
+
+export const EventInviteCandidatesSchema = z.object({
+  rows: z.array(EventInviteCandidateSchema),
+  /** Matches before the limit. */
+  total: z.number().int(),
+});
+export type EventInviteCandidates = z.infer<typeof EventInviteCandidatesSchema>;
 
 /** Invitation-inbox entry (GET /events/invitations): a pending invite for a
  * clan the caller administers. */

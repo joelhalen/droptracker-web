@@ -2,6 +2,8 @@ import { z } from "zod";
 import { apiGet, apiSend, withFallback } from "./_client";
 import {
   EventInvitationSchema,
+  EventInviteCandidatesSchema,
+  type EventInviteCandidates,
   EventParticipantSchema,
   EventRecruitingItemSchema,
   EventSignupSchema,
@@ -163,6 +165,18 @@ export const eventMembershipApi = {
   },
 
 
+  /** A clan pulls out of a staff-hosted event before it starts (web119a). */
+  async withdrawEventParticipant(eventId: number, groupId: number): Promise<{ ok: true }> {
+    return withFallback(
+      async () => {
+        await apiSend("POST", `/events/${eventId}/participants/${groupId}/withdraw`, {});
+        return { ok: true } as const;
+      },
+      () => ({ ok: true }) as const,
+    );
+  },
+
+
   async declineEventInvitation(eventId: number, groupId: number): Promise<{ ok: true }> {
     return withFallback(
       async () => {
@@ -181,6 +195,39 @@ export const eventMembershipApi = {
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,
+    );
+  },
+
+
+  /** Staff invite finder (web119a, superadmin): every clan with the numbers
+   * to filter on, minus clans already invited to / on `eventId`. */
+  async eventInviteCandidates(params: {
+    eventId?: number;
+    minMembers?: number;
+    minActive?: number;
+    minMonthlyLoot?: number;
+    requireAdmins?: boolean;
+    requireGuild?: boolean;
+    q?: string;
+    sort?: "active" | "members" | "loot" | "name";
+    limit?: number;
+  }): Promise<EventInviteCandidates> {
+    const qs = new URLSearchParams();
+    if (params.eventId != null) qs.set("event_id", String(params.eventId));
+    if (params.minMembers) qs.set("min_members", String(params.minMembers));
+    if (params.minActive) qs.set("min_active", String(params.minActive));
+    if (params.minMonthlyLoot) qs.set("min_monthly_loot", String(params.minMonthlyLoot));
+    if (params.requireAdmins === false) qs.set("require_admins", "0");
+    if (params.requireGuild) qs.set("require_guild", "1");
+    if (params.q) qs.set("q", params.q);
+    if (params.sort) qs.set("sort", params.sort);
+    if (params.limit) qs.set("limit", String(params.limit));
+    return withFallback(
+      async () =>
+        EventInviteCandidatesSchema.parse(
+          await apiGet(`/admin/event-invite-candidates?${qs.toString()}`, { authed: true }),
+        ),
+      () => ({ rows: [], total: 0 }),
     );
   },
 
@@ -300,11 +347,16 @@ export const eventMembershipApi = {
   },
 
 
-  /** Post an interactive "Sign up" button to the event's Discord channel. */
-  async postEventSignupMessage(eventId: number): Promise<{ ok: true }> {
+  /** Post an interactive "Sign up" button to the event's Discord channel.
+   * `groupId` (web119a) posts only to that clan's own channels. */
+  async postEventSignupMessage(eventId: number, groupId?: number): Promise<{ ok: true }> {
     return withFallback(
       async () => {
-        await apiSend("POST", `/events/${eventId}/signup-message`, {});
+        await apiSend(
+          "POST",
+          `/events/${eventId}/signup-message`,
+          groupId != null ? { group_id: groupId } : {},
+        );
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,

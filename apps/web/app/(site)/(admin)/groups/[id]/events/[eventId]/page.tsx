@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { canAdminGroup, getUser } from "@/lib/auth";
 import { orAccessDenied } from "@/lib/fetch";
 import { EventManager } from "@/components/event-manager";
+import { EventClanPanel } from "@/components/event-clan-panel";
 import { FeatureGate } from "@/components/feature-gate";
 
 export const metadata: Metadata = { title: "Manage event" };
@@ -23,6 +24,16 @@ export default async function ManageEventPage({ params }: { params: Params }) {
     api.subscriptionTiers().catch(() => []),
     getUser(),
   ]);
+
+  // web119a: a staff-hosted (global) clan-vs-clan event. Staff manage it under
+  // /admin/events; a participating clan's leaders get their clan's side only.
+  if (event.staff_hosted) {
+    if (!(event.viewer?.managed_clan_ids ?? []).includes(groupId)) {
+      if (user?.is_superadmin) redirect(`/admin/events/${evId}`);
+      notFound();
+    }
+    return <EventClanPanel groupId={groupId} event={event} />;
+  }
 
   // A clan challenged into a clan-vs-clan event (group_id is the HOST) co-manages
   // it without its own paid tier — only the host pays. Don't paywall them.

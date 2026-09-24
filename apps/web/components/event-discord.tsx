@@ -226,9 +226,13 @@ export function EventDiscordSettings({
   eventId,
   hasSchedule = false,
   onDirtyChange,
+  lockedScope,
 }: {
   groupId: number | null;
   eventId: number;
+  /** web119a: edit only this clan's own scope (a staff-hosted event's clan
+   * panel — the shared config belongs to staff and isn't readable here). */
+  lockedScope?: number;
   /** Whether the event runs on a recurring schedule (web82a). Gates the
    * scoring-window ping, which can never fire on a continuous event. */
   hasSchedule?: boolean;
@@ -276,7 +280,7 @@ export function EventDiscordSettings({
   // ── per-group scoping (web48a, clan-vs-clan) ──────────────────────────
   // scope null = the shared/host config; a group id = that clan's own
   // channels + verbosity. `meta` comes from the shared-scope GET.
-  const [scope, setScope] = useState<number | null>(null);
+  const [scope, setScope] = useState<number | null>(lockedScope ?? null);
   const [perGroup, setPerGroup] = useState(false);
   const [meta, setMeta] = useState<{
     isHostAdmin: boolean;
@@ -337,12 +341,17 @@ export function EventDiscordSettings({
     (async () => {
       try {
         const [config, guildList] = await Promise.all([
-          getEventDiscord(groupId, eventId),
+          getEventDiscord(groupId, eventId, lockedScope ?? null),
           listEventDiscordGuilds(groupId),
         ]);
         if (cancelled) return;
         setGuilds(guildList.guilds);
         setGuildsStale(guildList.stale);
+        if (lockedScope != null) {
+          setScope(lockedScope);
+          applyConfig(config);
+          return;
+        }
         setPerGroup(config.per_group_discord ?? false);
         const myGroupIds = config.my_group_ids ?? [];
         setMeta(
@@ -380,7 +389,7 @@ export function EventDiscordSettings({
     return () => {
       cancelled = true;
     };
-  }, [groupId, eventId, loadChannels, applyConfig]);
+  }, [groupId, eventId, loadChannels, applyConfig, lockedScope]);
 
   // Team channels & roles load is scope-aware exactly like the main config:
   // keyed on `scope` so switching pills refetches that clan's own copy.

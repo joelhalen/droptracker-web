@@ -70,6 +70,23 @@ export function systemText(message: ChatMessage): string {
       return `${invited} declined the challenge.`;
     case "invite_withdrawn":
       return `${invited} was removed from ${event}.`;
+    // web119a: staff-hosted clan-vs-clan.
+    case "clan_withdrew":
+      return `${invited} withdrew from ${event}.`;
+    case "roster_below_min": {
+      const count = num(data.roster_count);
+      const min = num(data.roster_min);
+      return count != null && min != null
+        ? `${invited} has ${count} of the ${min} players needed for ${event}. Pick more before the start or the clan will be left out.`
+        : `${invited} doesn't have enough players for ${event} yet.`;
+    }
+    case "clan_dropped": {
+      const count = num(data.roster_count);
+      const min = num(data.roster_min);
+      return count != null && min != null
+        ? `${event} started, and ${invited} had ${count} of the ${min} players needed, so the clan was left out.`
+        : `${event} started without ${invited}: the roster was under the minimum.`;
+    }
     case "event_activated":
       return `${event} is now live.`;
     case "event_ended":
@@ -101,6 +118,10 @@ export function systemText(message: ChatMessage): string {
     default:
       return "Something changed on this event.";
   }
+}
+
+function num(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 function str(value: unknown): string | null {

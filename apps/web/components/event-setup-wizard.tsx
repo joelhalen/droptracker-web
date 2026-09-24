@@ -69,6 +69,7 @@ import {
   EVENT_MODE_LABELS,
   FORMATION_MODE_HELP,
   FORMATION_MODE_LABELS,
+  rosterSizeText,
   SUBMISSION_POLICY_HELP,
   SUBMISSION_POLICY_LABELS,
   TASK_TYPE_LABELS,
@@ -91,6 +92,7 @@ import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
 import { EventDiscordSettings } from "@/components/event-discord";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
+import { parseRosterLimit } from "@/components/event-clan-roster-limits";
 import { EventScheduleBuilder } from "@/components/event-schedule-builder";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
@@ -262,6 +264,25 @@ export function EventSetupWizard({
   useEffect(() => {
     if (isCompetitionKind(kind) && mode !== "standard") setMode("standard");
   }, [kind, mode]);
+  // Staff-hosted clan-vs-clan (web119a, global drafts only): players per clan.
+  const [rosterMin, setRosterMin] = useState(initialEvent?.clan_roster_min?.toString() ?? "");
+  const [rosterMax, setRosterMax] = useState(initialEvent?.clan_roster_max?.toString() ?? "");
+  const [rosterLocked, setRosterLocked] = useState(
+    initialEvent?.clan_roster_locked_at_start ?? true,
+  );
+  const staffCvc = groupId == null && mode === "clan_vs_clan";
+  /** The roster limits as the API takes them, or an error message. */
+  const rosterInput = ():
+    | { clan_roster_min: number | null; clan_roster_max: number | null; clan_roster_locked_at_start: boolean }
+    | string => {
+    const lo = parseRosterLimit(rosterMin);
+    const hi = parseRosterLimit(rosterMax);
+    if (lo === "bad" || hi === "bad") {
+      return "Players per clan must be a whole number from 1 to 500, or blank for no limit.";
+    }
+    if (lo != null && hi != null && lo > hi) return "The minimum can't be larger than the maximum.";
+    return { clan_roster_min: lo, clan_roster_max: hi, clan_roster_locked_at_start: rosterLocked };
+  };
   const [startsAt, setStartsAt] = useState(toLocalInput(initialEvent?.starts_at));
   const [endsAt, setEndsAt] = useState(toLocalInput(initialEvent?.ends_at));
   // Recurring schedule (web82a): null = the continuous event every event was
@@ -482,15 +503,23 @@ export function EventSetupWizard({
             setError("Give the event a name first.");
             return;
           }
+          const roster = staffCvc ? rosterInput() : null;
+          if (typeof roster === "string") {
+            setError(roster);
+            return;
+          }
           if (detail) {
             // An empty description clears it (the backend stores "" as NULL).
-            await updateGroupEvent(groupId, detail.id, {
+            // web119a: a global draft may switch to staff-hosted clan-vs-clan.
+            const updated = await updateGroupEvent(groupId, detail.id, {
               name: name.trim(),
               description,
               ...(kind !== detail.kind ? { kind } : {}),
-              ...(groupId != null && mode !== detail.mode ? { mode } : {}),
+              ...(mode !== detail.mode ? { mode } : {}),
+              ...(roster ?? {}),
             });
-            setDetail({ ...detail, name: name.trim(), description: description || null, kind, mode });
+            setDetail(updated);
+            if (updated.staff_hosted) setFormationMode(updated.formation_mode);
           }
         } else if (step.key === "schedule") {
           // Board-game and competition events can't carry one (the builder
@@ -518,13 +547,19 @@ export function EventSetupWizard({
             // reload fails, retrying "Continue" must resume THAT draft, not
             // silently create a duplicate (audit).
             let eventId = createdEventIdRef.current;
+            const roster = staffCvc ? rosterInput() : null;
+            if (typeof roster === "string") {
+              setError(roster);
+              return;
+            }
             if (eventId == null) {
               const res = await createGroupEvent(groupId, {
                 name: name.trim(),
                 description: description || undefined,
                 starts_at: toUnix(startsAt),
                 ends_at: toUnix(endsAt),
-                ...(groupId != null ? { mode } : {}),
+                mode,
+                ...(roster && typeof roster !== "string" ? roster : {}),
                 kind,
                 discord_event_policy: discordPolicy,
                 ...(scheduleInput ? { schedule: scheduleInput } : {}),
@@ -535,6 +570,7 @@ export function EventSetupWizard({
             }
             const full = await reloadGroupEvent(groupId, eventId);
             setDetail(full);
+            if (full.staff_hosted) setFormationMode(full.formation_mode);
             // The URL-sync effect stamps ?event&step once `detail` lands.
           } else {
             // Take the response rather than merging locally: the compiled
@@ -559,7 +595,8 @@ export function EventSetupWizard({
           // team race picks its formation mode here like any team event.
           const comp = isCompetitionKind(detail.kind) && !isTeamRace(detail.competition);
           await updateGroupEvent(groupId, detail.id, {
-            ...(comp
+            // Staff-hosted clan-vs-clan (web119a) is always a sign-up pool.
+            ...(comp || detail.staff_hosted
               ? {}
               : {
                   formation_mode: formationMode,
@@ -896,6 +933,63 @@ export function EventSetupWizard({
               </div>
             </div>
           )}
+          {groupId == null && !isCompetitionKind(kind) && (
+            <div className="space-y-3">
+              <label className="block text-sm">
+                <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                  Who takes part
+                </span>
+                <select
+                  value={mode}
+                  onChange={(e) => setMode(e.target.value as (typeof EVENT_MODES)[number])}
+                  disabled={detail != null && teams.length > 0}
+                  className={field}
+                >
+                  <option value="standard">Any player, on teams you set up</option>
+                  <option value="clan_vs_clan">Clans you invite (clan vs clan)</option>
+                </select>
+              </label>
+              {mode === "clan_vs_clan" && (
+                <div className="space-y-2">
+                  <p className="text-osrs-parchment-dark/60 text-xs">
+                    You run the event. Invited clans that accept get one team each, and their
+                    leaders pick who plays. A clan with fewer players than the minimum when the
+                    event starts is left out.
+                  </p>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <label className="text-osrs-parchment-dark/70 text-xs">
+                      Min players per clan
+                      <input
+                        inputMode="numeric"
+                        placeholder="None"
+                        value={rosterMin}
+                        onChange={(e) => setRosterMin(e.target.value)}
+                        className={`${field} mt-1 block w-28`}
+                      />
+                    </label>
+                    <label className="text-osrs-parchment-dark/70 text-xs">
+                      Max players per clan
+                      <input
+                        inputMode="numeric"
+                        placeholder="None"
+                        value={rosterMax}
+                        onChange={(e) => setRosterMax(e.target.value)}
+                        className={`${field} mt-1 block w-28`}
+                      />
+                    </label>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={rosterLocked}
+                      onChange={(e) => setRosterLocked(e.target.checked)}
+                    />
+                    Lock clan rosters when the event starts
+                  </label>
+                </div>
+              )}
+            </div>
+          )}
           {groupId != null && isCompetitionKind(kind) && (
             <p className="text-osrs-parchment-dark/60 text-xs">
               Skill/Boss of the Week events run within your clan. To race in squads, choose
@@ -1112,7 +1206,13 @@ export function EventSetupWizard({
       )}
       {step.key === "rules" && detail && (
         <div className="max-w-2xl space-y-4">
-          {(!isCompetitionKind(detail.kind) || teamRace) && (
+          {detail.staff_hosted && (
+            <p className="text-osrs-parchment-dark/70 text-sm">
+              Members sign up for the event, and each clan&apos;s leaders pick who plays from
+              their own sign-ups.
+            </p>
+          )}
+          {(!isCompetitionKind(detail.kind) || teamRace) && !detail.staff_hosted && (
           <div className="text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
               How do players get onto teams?
@@ -1441,6 +1541,22 @@ export function EventSetupWizard({
               </p>
             </>
           )}
+          {detail.staff_hosted && (
+            <>
+              <p className="text-osrs-parchment-dark/60 text-sm">
+                Invite clans here. Each clan that accepts gets one team, and its leaders pick
+                their roster from their members&apos; sign-ups.
+              </p>
+              <EventParticipantsPanel
+                groupId={null}
+                eventId={detail.id}
+                isHost
+                staffHosted
+                rosterMin={detail.clan_roster_min ?? null}
+                rosterMax={detail.clan_roster_max ?? null}
+              />
+            </>
+          )}
           <WizardTeamsStep
             groupId={groupId}
             detail={detail}
@@ -1501,6 +1617,16 @@ export function EventSetupWizard({
                   kinds?.find((k) => k.key === detail.kind)?.label ?? detail.kind,
                 ],
                 ...(groupId != null ? [["Ownership", EVENT_MODE_LABELS[detail.mode]]] : []),
+                ...(detail.staff_hosted
+                  ? [
+                      ["Ownership", "Global clan vs clan, run by staff"],
+                      [
+                        "Players per clan",
+                        rosterSizeText(detail.clan_roster_min, detail.clan_roster_max) ??
+                          "no limit",
+                      ],
+                    ]
+                  : []),
                 [
                   "Starts",
                   detail.starts_at ? (

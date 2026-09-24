@@ -440,6 +440,9 @@ export const eventsApi = {
         | "mode"
         | "kind"
         | "visibility"
+        | "clan_roster_min"
+        | "clan_roster_max"
+        | "clan_roster_locked_at_start"
       >
     > & {
       /** Team-leadership knobs (web48a); partial objects merge server-side. */

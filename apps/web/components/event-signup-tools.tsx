@@ -212,10 +212,15 @@ export function EventSignupTools({
   groupId,
   event,
   teams,
+  clanScopeId,
 }: {
   groupId: number | null;
   event: EventDetail;
   teams: EventTeam[];
+  /** web119a: a staff-hosted event's clan panel — the pool is this clan's
+   * sign-ups, "randomize" fills its one team, and the Discord post goes to
+   * this clan's own channels. */
+  clanScopeId?: number;
 }) {
   const selfSignup =
     event.formation_mode === "self_join" ||
@@ -392,9 +397,11 @@ export function EventSignupTools({
     setNotice(null);
     startTransition(async () => {
       try {
-        const res = await randomizeEventSignups(groupId, eventId);
+        const res = await randomizeEventSignups(groupId, eventId, clanScopeId);
         setNotice(
-          `Shuffled ${res.assigned} player${res.assigned === 1 ? "" : "s"} into teams` +
+          (clanScopeId != null
+            ? `Added ${res.assigned} player${res.assigned === 1 ? "" : "s"} to the roster`
+            : `Shuffled ${res.assigned} player${res.assigned === 1 ? "" : "s"} into teams`) +
             (res.unassigned ? ` (${res.unassigned} had no team for their clan)` : "") +
             ".",
         );
@@ -410,8 +417,12 @@ export function EventSignupTools({
     setNotice(null);
     startTransition(async () => {
       try {
-        await postEventSignupMessage(groupId, eventId);
-        setNotice("Posted a Sign up button to the event's Discord announcements channel.");
+        await postEventSignupMessage(groupId, eventId, clanScopeId);
+        setNotice(
+          clanScopeId != null
+            ? "Posted a Sign up button to your clan's announcements channel."
+            : "Posted a Sign up button to the event's Discord announcements channel.",
+        );
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't post to Discord — is the announcements channel set?"));
       }
@@ -468,9 +479,13 @@ export function EventSignupTools({
               size="sm"
               onClick={onRandomize}
               disabled={pending || !(pool && pool.length) || teams.length === 0}
-              title="Randomly distribute everyone in the pool across the teams — re-roll as often as you like"
+              title={
+                clanScopeId != null
+                  ? "Put everyone who signed up on your roster (only if they all fit)"
+                  : "Randomly distribute everyone in the pool across the teams — re-roll as often as you like"
+              }
             >
-              🎲 Randomize teams
+              {clanScopeId != null ? "Add all sign-ups to the roster" : "🎲 Randomize teams"}
             </Button>
             {pool == null ? (
               <span className="text-osrs-parchment-dark/60 text-xs">Loading…</span>

@@ -7,6 +7,7 @@ import { ChatThreadPanel } from "@/components/chat/chat-thread";
 import { InvitationResponsePanel } from "@/components/event-invitation-response";
 import { EventWindow } from "@/components/local-time";
 import { Card } from "@/components/ui";
+import { rosterSizeText } from "@/lib/events";
 
 export const metadata: Metadata = { title: "Clan challenge" };
 
@@ -70,6 +71,10 @@ export default async function ClanChallengePage({
   }));
 
   const target = participants.find((p) => p.group_id === targetClanId);
+  // web119a: a staff-hosted event has no host clan; staff sent the invite.
+  const staffHosted = Boolean(event.staff_hosted);
+  const hostName = staffHosted ? "The DropTracker" : (host?.group_name ?? null);
+  const perClan = staffHosted ? rosterSizeText(event.clan_roster_min, event.clan_roster_max) : null;
   const status = target?.status ?? thread.participant_status ?? "invited";
   // Only the invited side answers; the host is here to talk, not to accept on
   // somebody else's behalf.
@@ -79,7 +84,7 @@ export default async function ClanChallengePage({
     <div className="space-y-6">
       <header>
         <p className="text-osrs-parchment-dark/60 text-xs uppercase tracking-wide">
-          Clan challenge
+          {staffHosted ? "Global event" : "Clan challenge"}
         </p>
         <h1 className="text-osrs-gold text-2xl font-semibold">{event.name}</h1>
         <p className="text-osrs-parchment-dark/70 mt-1 text-sm">
@@ -91,6 +96,8 @@ export default async function ClanChallengePage({
               </span>{" "}
               about this event.
             </>
+          ) : staffHosted ? (
+            <>The DropTracker invited your clan to a global clan-vs-clan event.</>
           ) : host?.group_name ? (
             <>
               <span className="font-medium">{host.group_name}</span> challenged your clan.
@@ -120,10 +127,17 @@ export default async function ClanChallengePage({
                 <dt className="text-osrs-parchment-dark/60">Status</dt>
                 <dd className="uppercase">{event.status}</dd>
               </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-osrs-parchment-dark/60">Clans</dt>
-                <dd>{participants.length || "—"}</dd>
-              </div>
+              {staffHosted ? (
+                <div className="flex justify-between gap-3">
+                  <dt className="text-osrs-parchment-dark/60">Players per clan</dt>
+                  <dd>{perClan ?? "no limit"}</dd>
+                </div>
+              ) : (
+                <div className="flex justify-between gap-3">
+                  <dt className="text-osrs-parchment-dark/60">Clans</dt>
+                  <dd>{participants.length || "—"}</dd>
+                </div>
+              )}
             </dl>
             {event.description && (
               <p className="text-osrs-parchment-dark/70 mt-3 text-sm whitespace-pre-wrap">
@@ -143,7 +157,9 @@ export default async function ClanChallengePage({
               groupId={groupId}
               eventId={eventId}
               status={status}
-              hostName={host?.group_name ?? null}
+              hostName={hostName}
+              staffHosted={staffHosted}
+              eventStatus={event.status}
             />
           )}
         </div>
@@ -155,7 +171,9 @@ export default async function ClanChallengePage({
           heading={
             isHost
               ? `Talk to ${target?.group_name ?? "this clan"}`
-              : host?.group_name
+              : staffHosted
+                ? "Talk to DropTracker staff"
+                : host?.group_name
                 ? `Talk to ${host.group_name}`
                 : "Talk to the other clan"
           }

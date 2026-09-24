@@ -65,6 +65,7 @@ import { PrizePotManager } from "@/components/prize-pot-manager";
 import { EventClanPointsManager } from "@/components/event-clan-points-manager";
 import { EventMemberList } from "@/components/event-member-list";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
+import { EventClanRosterLimits } from "@/components/event-clan-roster-limits";
 import { formatProgressValue, taskThreshold } from "@/components/event-task-progress";
 import { EventSignupTools } from "@/components/event-signup-tools";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
@@ -159,8 +160,20 @@ function ReadinessPanel({
   onGoto: (target: string) => void;
   onDismiss: () => void;
 }) {
+  // web119a: heads-ups that don't block the start (a clan under the roster
+  // minimum is left out when the event begins).
+  const warnings = readiness.warnings?.length ? (
+    <ul className="border-osrs-ember/40 bg-osrs-ember/5 mt-2 space-y-1 rounded border p-3 text-sm">
+      {readiness.warnings.map((w) => (
+        <li key={`${w.code}-${w.group_id ?? ""}`} className="text-osrs-parchment-dark/80">
+          • {w.message}
+        </li>
+      ))}
+    </ul>
+  ) : null;
   if (readiness.ready) {
     return (
+      <>
       <div className="rounded border border-green-600/40 bg-green-900/10 p-3 text-sm">
         <p className="font-semibold text-green-400">✓ Ready to start</p>
         <p className="text-osrs-parchment-dark/70">
@@ -174,9 +187,12 @@ function ReadinessPanel({
           )}
         </p>
       </div>
+      {warnings}
+      </>
     );
   }
   return (
+    <>
     <div className="border-osrs-red/40 bg-osrs-red/5 space-y-2 rounded border p-3 text-sm">
       <div className="flex items-start justify-between gap-3">
         <p className="text-osrs-red font-semibold">
@@ -210,6 +226,8 @@ function ReadinessPanel({
         ))}
       </ul>
     </div>
+    {warnings}
+    </>
   );
 }
 
@@ -566,14 +584,15 @@ export function EventManager({
     .map((p) => p.group_id);
 
   useEffect(() => {
-    if (!isClanVsClan || groupId == null) {
+    // web119a: a staff-hosted event has no group; staff load its roster too.
+    if (!isClanVsClan || (groupId == null && !event.staff_hosted)) {
       setParticipants([]);
       return;
     }
     listEventParticipants(groupId, event.id)
       .then(setParticipants)
       .catch(() => setParticipants([]));
-  }, [isClanVsClan, groupId, event.id]);
+  }, [isClanVsClan, groupId, event.id, event.staff_hosted]);
 
   /** Per-task manual-review toggle (PRD D3). */
   const onToggleTaskReview = (t: EventTask) => {
@@ -1772,12 +1791,16 @@ export function EventManager({
       )}
 
       {/* Clan-vs-clan participant roster */}
-      {isClanVsClan && groupId != null && (
+      {isClanVsClan && (groupId != null || event.staff_hosted) && (
         <div className={tab === "teams" ? "" : "hidden"}>
+          {event.staff_hosted && groupId == null && <EventClanRosterLimits event={event} />}
           <EventParticipantsPanel
             groupId={groupId}
             eventId={event.id}
-            isHost={event.group_id === groupId}
+            isHost={groupId == null ? Boolean(event.staff_hosted) : event.group_id === groupId}
+            staffHosted={event.staff_hosted}
+            rosterMin={event.clan_roster_min ?? null}
+            rosterMax={event.clan_roster_max ?? null}
           />
         </div>
       )}
@@ -1796,7 +1819,13 @@ export function EventManager({
             while the event is a draft.
           </p>
         )}
-        {isClanVsClan && event.status === "draft" && (
+        {event.staff_hosted && (
+          <p className="text-osrs-parchment/70 mb-3 text-sm">
+            Each clan gets one team when it accepts, and its leaders pick who plays from their
+            sign-ups. You can still add or move players here.
+          </p>
+        )}
+        {isClanVsClan && !event.staff_hosted && event.status === "draft" && (
           <p className="text-osrs-parchment/70 mb-3 text-sm">
             Teams are optional. Leave them empty and, when the event starts, it
             runs whole clan vs whole clan — anyone in each clan competes for it.

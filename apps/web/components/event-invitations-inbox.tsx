@@ -74,10 +74,16 @@ export function EventInvitationsInbox({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <span className="font-medium">{inv.event.name}</span>
-                {inv.host_group_name && (
-                  <span className="text-osrs-parchment-dark/60 ml-2 text-xs">
-                    from {inv.host_group_name}
+                {inv.event.staff_hosted ? (
+                  <span className="bg-osrs-gold/15 text-osrs-gold ml-2 rounded px-1.5 py-0.5 text-xs">
+                    Global event
                   </span>
+                ) : (
+                  inv.host_group_name && (
+                    <span className="text-osrs-parchment-dark/60 ml-2 text-xs">
+                      from {inv.host_group_name}
+                    </span>
+                  )
                 )}
               </div>
               <div className="flex gap-2">
