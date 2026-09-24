@@ -5232,6 +5232,13 @@ export const EventAwardInputSchema = z.object({
   /** Index of a KC/GP metric path on an `any_path` task (item/points paths
    * are credited via `matched_target` instead). Mutually exclusive with it. */
   path: z.number().int().nonnegative().optional(),
+  /** Credit this player (must be on `team_id`'s roster) instead of the team
+   * as a whole. REQUIRED on a sotw/botw race — its standings are per player. */
+  player_id: z.number().int().optional(),
+  /** sotw/botw only: what the award adds — `gained` (XP/kills, the ranked
+   * metric; default) or `bonus` (bonus points, uncapped). On a boss race a
+   * gained award may name the raced boss via `matched_target`. */
+  credit: z.enum(["gained", "bonus"]).optional(),
   note: z.string().max(255).optional(),
 });
 export type EventAwardInput = z.infer<typeof EventAwardInputSchema>;

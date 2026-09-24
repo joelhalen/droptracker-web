@@ -7,6 +7,7 @@ import { getErrorMessage } from "@/lib/errors";
 import {
   completionMatchesFilter,
   restoreOptimisticRow,
+  taskConfig,
   taskConfigItems,
   taskConfigPaths,
 } from "@/lib/events";
@@ -233,18 +234,49 @@ export function EventReview({
   // progress; "complete" always fills the whole task, so the selector only
   // applies in progress mode. `part` encodes the choice: "item:<name>" or
   // "path:<idx>" ("" = whole task).
+  //
+  // Any award may name a player on the chosen team (typed against the team's
+  // roster). A Skill/Boss of the Week race REQUIRES one — its standings are
+  // per player, so a team-only row counts for nobody — and swaps the mode
+  // for what the award adds: XP/kills gained (optionally under one raced
+  // boss) or bonus points.
   const [award, setAward] = useState({
     taskId: 0,
     teamId: 0,
+    player: "",
     mode: "complete" as "complete" | "progress",
+    credit: "gained" as "gained" | "bonus",
     quantity: 1,
     part: "",
     note: "",
   });
+  const awardTask = tasks.find((t) => t.id === award.taskId);
+  const isRace = awardTask?.type === "competition";
+  const raceIsBoss = isRace && awardTask ? taskConfig(awardTask).metric_kind === "boss" : false;
+  const roster = useMemo(
+    () => teams.find((t) => t.id === award.teamId)?.members ?? [],
+    [teams, award.teamId],
+  );
+  const typedPlayer = award.player.trim().toLowerCase();
+  const awardPlayer = typedPlayer
+    ? roster.find((m) => m.player_name.toLowerCase() === typedPlayer)
+    : undefined;
+  const playerInvalid = typedPlayer !== "" && !awardPlayer;
   const partOptions = useMemo(() => {
     const task = tasks.find((t) => t.id === award.taskId);
     if (!task) return [];
     const opts: { value: string; label: string }[] = [];
+    if (task.type === "competition") {
+      // A boss race: a gained award may say which raced boss the kills were at.
+      const cfg = taskConfig(task);
+      if (cfg.metric_kind !== "boss" || !Array.isArray(cfg.npcs)) return [];
+      for (const npc of cfg.npcs) {
+        if (typeof npc !== "string") continue;
+        const label = npc.replace(/\b\w/g, (c) => c.toUpperCase());
+        opts.push({ value: `item:${npc}`, label });
+      }
+      return opts;
+    }
     for (const [idx, p] of taskConfigPaths(task).entries()) {
       if (!p.metric) continue; // item/points paths are credited by item name
       const unit = p.metric === "kc" ? "KC" : "GP";
@@ -264,8 +296,10 @@ export function EventReview({
   }, [tasks, award.taskId]);
   const onAward = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!award.taskId || !award.teamId) return;
-    const part = award.mode === "progress" ? award.part : "";
+    if (!award.taskId || !award.teamId || playerInvalid) return;
+    if (isRace && !awardPlayer) return;
+    const partMode = isRace ? award.credit === "gained" : award.mode === "progress";
+    const part = partMode ? award.part : "";
     setError(null);
     setAwarding(true);
     startTransition(async () => {
@@ -273,8 +307,10 @@ export function EventReview({
         const result = await awardEventCompletion(groupId, eventId, {
           task_id: award.taskId,
           team_id: award.teamId,
-          complete: award.mode === "complete" || undefined,
-          quantity: award.mode === "progress" ? award.quantity || 1 : undefined,
+          player_id: awardPlayer?.player_id,
+          credit: isRace ? award.credit : undefined,
+          complete: (!isRace && award.mode === "complete") || undefined,
+          quantity: isRace || award.mode === "progress" ? award.quantity || 1 : undefined,
           matched_target: part.startsWith("item:") ? part.slice(5) : undefined,
           path: part.startsWith("path:") ? Number(part.slice(5)) : undefined,
           note: award.note.trim() || undefined,
@@ -483,10 +519,12 @@ export function EventReview({
       )}
 
       <form onSubmit={onAward} className="mt-5 grid gap-2">
-        <div className="grid gap-2 sm:grid-cols-[1fr_9rem_9rem_5rem_1fr_auto]">
+        <div className="grid gap-2 sm:grid-cols-[1fr_9rem_10rem_9rem_5rem_1fr_auto]">
         <select
           value={award.taskId}
-          onChange={(e) => setAward((a) => ({ ...a, taskId: Number(e.target.value), part: "" }))}
+          onChange={(e) =>
+            setAward((a) => ({ ...a, taskId: Number(e.target.value), part: "", credit: "gained" }))
+          }
           className={field}
         >
           <option value={0}>Manual award: task…</option>
@@ -498,7 +536,7 @@ export function EventReview({
         </select>
         <select
           value={award.teamId}
-          onChange={(e) => setAward((a) => ({ ...a, teamId: Number(e.target.value) }))}
+          onChange={(e) => setAward((a) => ({ ...a, teamId: Number(e.target.value), player: "" }))}
           className={field}
         >
           <option value={0}>Team…</option>
@@ -508,6 +546,38 @@ export function EventReview({
             </option>
           ))}
         </select>
+        <input
+          value={award.player}
+          onChange={(e) => setAward((a) => ({ ...a, player: e.target.value }))}
+          list={`award-roster-${eventId}`}
+          placeholder={isRace ? "Player (required)" : "Player (optional)"}
+          title={
+            isRace
+              ? "Race standings are per player — choose who this is for"
+              : "Credit one player on the team (leave empty for the team as a whole)"
+          }
+          disabled={!award.teamId}
+          aria-invalid={playerInvalid || undefined}
+          className={`${field} disabled:opacity-40 ${playerInvalid ? "border-osrs-red" : ""}`}
+        />
+        <datalist id={`award-roster-${eventId}`}>
+          {roster.map((m) => (
+            <option key={m.player_id} value={m.player_name} />
+          ))}
+        </datalist>
+        {isRace ? (
+          <select
+            value={award.credit}
+            onChange={(e) =>
+              setAward((a) => ({ ...a, credit: e.target.value as "gained" | "bonus", part: "" }))
+            }
+            title="What this award adds to the player's standing"
+            className={field}
+          >
+            <option value="gained">{raceIsBoss ? "Add kills" : "Add XP"}</option>
+            <option value="bonus">Add bonus points</option>
+          </select>
+        ) : (
         <select
           value={award.mode}
           onChange={(e) =>
@@ -519,12 +589,13 @@ export function EventReview({
           <option value="complete">Mark complete</option>
           <option value="progress">Add progress</option>
         </select>
+        )}
         <QuantityInput
           min={1}
           value={award.quantity}
           onChange={(quantity) => setAward((a) => ({ ...a, quantity }))}
-          title="Quantity added toward the goal"
-          disabled={award.mode === "complete"}
+          title={isRace ? "Amount added (kills, XP or points)" : "Quantity added toward the goal"}
+          disabled={!isRace && award.mode === "complete"}
           className={`${field} disabled:opacity-40`}
         />
         <input
@@ -536,20 +607,30 @@ export function EventReview({
         />
         <button
           type="submit"
-          disabled={awarding || !award.taskId || !award.teamId}
+          disabled={
+            awarding || !award.taskId || !award.teamId || playerInvalid || (isRace && !awardPlayer)
+          }
           className="bg-osrs-bronze text-osrs-parchment hover:bg-osrs-gold hover:text-osrs-brown-dark rounded px-3 py-2 text-sm font-medium disabled:opacity-50"
         >
           {awarding ? "Awarding…" : "Award"}
         </button>
         </div>
-        {partOptions.length > 0 && award.mode === "progress" && (
+        {playerInvalid && (
+          <p className="text-osrs-red text-xs">
+            “{award.player.trim()}” isn’t on this team’s roster — pick a name from the list.
+          </p>
+        )}
+        {partOptions.length > 0 &&
+          (isRace ? award.credit === "gained" : award.mode === "progress") && (
           <select
             value={award.part}
             onChange={(e) => setAward((a) => ({ ...a, part: e.target.value }))}
             title="Which part of the task this award credits"
             className={`${field} sm:max-w-md`}
           >
-            <option value="">Whole task (no specific item/part)</option>
+            <option value="">
+              {isRace ? "No specific boss" : "Whole task (no specific item/part)"}
+            </option>
             {partOptions.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
@@ -557,7 +638,7 @@ export function EventReview({
             ))}
           </select>
         )}
-        {partOptions.length > 0 && award.mode === "complete" && (
+        {!isRace && partOptions.length > 0 && award.mode === "complete" && (
           <p className="text-osrs-parchment-dark/50 text-xs">
             To credit a specific item or path of this task, switch to “Add progress”.
           </p>

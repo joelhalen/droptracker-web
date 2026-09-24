@@ -84,8 +84,18 @@ export function hasBossBreakdown(board: EventCompetitionBoard): boolean {
   return board.standings.some((r) => tagged(r.by_npc)) || (board.teams ?? []).some((t) => tagged(t.by_npc));
 }
 
+/** Rule id the backend files an organiser's manual bonus points under
+ * (`services.competition.MANUAL_RULE_ID` — never a configured rule). */
+const MANUAL_RULE_KEY = "0";
+
+function hasManualBonus(board: EventCompetitionBoard): boolean {
+  return board.standings.some((r) => (r.bonus?.[MANUAL_RULE_KEY]?.points ?? 0) > 0);
+}
+
 export function hasBreakdown(board: EventCompetitionBoard): boolean {
-  return hasBossBreakdown(board) || board.competition.bonus_rules.length > 0;
+  return (
+    hasBossBreakdown(board) || board.competition.bonus_rules.length > 0 || hasManualBonus(board)
+  );
 }
 
 export function CompetitionBreakdown({
@@ -107,7 +117,8 @@ export function CompetitionBreakdown({
   const { competition } = board;
   const teamRace = isTeamRace(competition) && (board.teams?.length ?? 0) > 0;
   const bossAvailable = hasBossBreakdown(board);
-  const bonusAvailable = competition.bonus_rules.length > 0;
+  const manualBonus = hasManualBonus(board);
+  const bonusAvailable = competition.bonus_rules.length > 0 || manualBonus;
   const pointsMode = competition.ranking.mode === "points";
   const canTeams = teamRace && teamId == null;
 
@@ -196,9 +207,12 @@ export function CompetitionBreakdown({
         label: r.label,
         title: r.scope_line ? `${r.label} (${r.scope_line})` : r.label,
       })),
+      ...(manualBonus
+        ? [{ key: `b:${MANUAL_RULE_KEY}`, label: "Manual", title: "Bonus points awarded by an organiser" }]
+        : []),
       { key: "bonus", label: "Bonus total", total: true },
     ],
-    [competition.bonus_rules],
+    [competition.bonus_rules, manualBonus],
   );
 
   const columns = useMemo(() => {
