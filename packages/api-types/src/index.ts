@@ -5577,6 +5577,104 @@ export const BulkLibraryTasksResultSchema = z.object({
 });
 export type BulkLibraryTasksResult = z.infer<typeof BulkLibraryTasksResultSchema>;
 
+// --- Task generator ("Fill for me") ---------------------------------------
+// GET/POST /events/{id}/tasks/generator|generate|bulk (disc
+// web_api/routes/event_task_generator.py, docs/TASK_GENERATOR_PLAN.md). The
+// generator sizes tasks in estimated team-hours against the team's capacity
+// for the event, so "Hard" means hard for THIS event.
+
+export const TASK_GENERATOR_ACTIVITY = ["casual", "normal", "hardcore"] as const;
+export type TaskGeneratorActivity = (typeof TASK_GENERATOR_ACTIVITY)[number];
+export const TASK_GENERATOR_CLAN_FOCUS = ["off", "familiar", "fresh"] as const;
+export type TaskGeneratorClanFocus = (typeof TASK_GENERATOR_CLAN_FOCUS)[number];
+
+const TaskGeneratorMixSchema = z.object({
+  air: z.number().default(0),
+  water: z.number().default(0),
+  earth: z.number().default(0),
+  fire: z.number().default(0),
+});
+export type TaskGeneratorMix = z.infer<typeof TaskGeneratorMixSchema>;
+
+export const TaskGeneratorOptionsSchema = z.object({
+  defaults: z.object({
+    count: z.number().int(),
+    days: z.number(),
+    team_size: z.number().int(),
+    activity: z.enum(TASK_GENERATOR_ACTIVITY).catch("normal"),
+    mix: TaskGeneratorMixSchema,
+    clan_focus: z.enum(TASK_GENERATOR_CLAN_FOCUS).catch("off"),
+  }),
+  categories: z.array(z.object({ key: z.string(), label: z.string() })).default([]),
+  kinds: z.array(z.object({ key: z.string(), label: z.string() })).default([]),
+  difficulties: z
+    .array(z.object({ key: z.enum(EVENT_TASK_DIFFICULTIES), label: z.string(), points: z.number() }))
+    .default([]),
+  encounters: z
+    .array(
+      z.object({
+        key: z.string(),
+        label: z.string(),
+        category: z.string(),
+        /** Distinct members of the owning clan with drops there in the last 90 days. */
+        clan_players: z.number().int().default(0),
+      }),
+    )
+    .default([]),
+  activity_available: z.boolean().default(false),
+  clan_members: z.number().int().default(0),
+});
+export type TaskGeneratorOptions = z.infer<typeof TaskGeneratorOptionsSchema>;
+
+export const TaskGeneratorCriteriaSchema = z.object({
+  count: z.number().int().min(1).max(100),
+  days: z.number().min(0.5).max(120),
+  team_size: z.number().int().min(1).max(500),
+  activity: z.enum(TASK_GENERATOR_ACTIVITY),
+  mix: TaskGeneratorMixSchema,
+  categories: z.array(z.string()).optional(),
+  kinds: z.array(z.string()).optional(),
+  must_include: z.array(z.string()).optional(),
+  exclude_encounters: z.array(z.string()).optional(),
+  clan_focus: z.enum(TASK_GENERATOR_CLAN_FOCUS),
+  seed: z.number().int().optional(),
+  /** Rerolls: keys to leave out, keys still on the board (diversity), and a
+   * pinned tier so a rerolled cell keeps its difficulty. */
+  exclude_keys: z.array(z.string()).optional(),
+  taken_keys: z.array(z.string()).optional(),
+  only_tier: z.enum(EVENT_TASK_DIFFICULTIES).nullable().optional(),
+});
+export type TaskGeneratorCriteria = z.infer<typeof TaskGeneratorCriteriaSchema>;
+
+export const GeneratedTaskSchema = z.object({
+  key: z.string(),
+  kind: z.string(),
+  category: z.string(),
+  encounter: z.string().nullable().optional(),
+  difficulty: z.enum(EVENT_TASK_DIFFICULTIES),
+  /** Estimated team-hours (one player's efficient hours, split any way). */
+  hours: z.number(),
+  /** True when a rate came from our own estimate rather than WOM / the wiki. */
+  estimated: z.boolean().default(false),
+  detail: z.string().default(""),
+  task: EventTaskInputSchema,
+});
+export type GeneratedTask = z.infer<typeof GeneratedTaskSchema>;
+
+export const TaskGeneratorResultSchema = z.object({
+  seed: z.number().int(),
+  capacity_hours: z.number(),
+  total_hours: z.number(),
+  requested: z.number().int().optional(),
+  pool_size: z.number().int().optional(),
+  bounds: z.record(z.string(), z.tuple([z.number(), z.number()])).optional(),
+  /** Tier → slots that borrowed from a neighbouring tier; `unfilled` = slots
+   * nothing could fill. */
+  shortfall: z.record(z.string(), z.number()).default({}),
+  tasks: z.array(GeneratedTaskSchema).default([]),
+});
+export type TaskGeneratorResult = z.infer<typeof TaskGeneratorResultSchema>;
+
 /** GET /events/meta/items | /events/meta/npcs — task-form autocomplete rows.
  * `id` is the game id (itemdb/npcdb icon key), `name` the exact in-game name.
  * Also the row shape of /events/meta/resolve (batch name → id, icon

@@ -96,6 +96,7 @@ import { parseRosterLimit } from "@/components/event-clan-roster-limits";
 import { EventScheduleBuilder } from "@/components/event-schedule-builder";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
+import { EventTaskGenerator } from "@/components/event-task-generator";
 import {
   EMPTY_TASK_FILTER,
   TaskSearchBar,
@@ -1808,6 +1809,12 @@ function WizardTasksStep({
 }) {
   const [adding, setAdding] = useState(false);
   const [showLibrary, setShowLibrary] = useState(false);
+  /** "Fill for me" generator — open by default on an empty non-bingo event,
+   * since an empty task list is where drafts stall. Bingo boards fill from
+   * the board designer below instead. */
+  const [showGenerator, setShowGenerator] = useState(
+    tasks.length === 0 && detail.kind !== "bingo" && detail.kind !== "loot_sweep",
+  );
   /** Task id being edited inline (same flow as the event manager). */
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
   /** Live search/type/sort over the list (t56 — same bar as the manager). */
@@ -1833,14 +1840,29 @@ function WizardTasksStep({
       )}
 
       <div className="flex flex-wrap gap-2">
+        {detail.kind !== "loot_sweep" && (
+          <button
+            type="button"
+            onClick={() => {
+              setShowGenerator((v) => !v);
+              setAdding(false);
+              setShowLibrary(false);
+              setEditingTaskId(null);
+            }}
+            className={primaryBtn}
+          >
+            {showGenerator ? "Close generator" : "Fill for me"}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => {
             setAdding((v) => !v);
             setShowLibrary(false);
+            setShowGenerator(false);
             setEditingTaskId(null);
           }}
-          className={primaryBtn}
+          className={ghostBtn}
         >
           {adding ? "Close task form" : "New task"}
         </button>
@@ -1849,20 +1871,30 @@ function WizardTasksStep({
           onClick={() => {
             setShowLibrary((v) => !v);
             setAdding(false);
+            setShowGenerator(false);
             setEditingTaskId(null);
           }}
           className={ghostBtn}
         >
           From library
         </button>
-        <HelpTip title="Task library">
+        <HelpTip title="Filling the task list">
           <p>
-            Ready-made tasks — curated ones plus anything your clan saved from past events. The
-            fastest way to fill an event.
+            Fill for me builds a balanced set sized to your event from boss drop rates and kill
+            speeds. You can reroll or remove anything before adding. The library has ready-made
+            tasks, including anything your clan saved from past events.
           </p>
         </HelpTip>
       </div>
 
+      {showGenerator && (
+        <EventTaskGenerator
+          groupId={groupId}
+          eventId={detail.id}
+          onAdded={(added) => added.forEach(onTaskSaved)}
+          onClose={() => setShowGenerator(false)}
+        />
+      )}
       {adding && (
         <EventTaskFormWithAi
           groupId={groupId}

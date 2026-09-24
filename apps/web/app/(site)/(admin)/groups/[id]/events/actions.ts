@@ -37,6 +37,10 @@ import {
   type EventTemplateSaveInput,
   type BulkLibraryTasksInput,
   type BulkLibraryTasksResult,
+  TaskGeneratorCriteriaSchema,
+  type TaskGeneratorCriteria,
+  type TaskGeneratorOptions,
+  type TaskGeneratorResult,
   type EventParticipant,
   type EventPrizePot,
   type EventBuyinKind,
@@ -736,6 +740,63 @@ export async function addEventTasksFromLibrary(
   await assertCanManageEvent(groupId);
   try {
     const res = await api.addEventTasksFromLibrary(eventId, input);
+    if (res.created.length) {
+      revalidatePath(eventAdminPath(groupId, eventId));
+      revalidatePath(`/events/${eventId}`);
+    }
+    return { ok: true as const, created: res.created, skipped: res.skipped };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false as const, error: err.message };
+    throw err;
+  }
+}
+
+// --- Task generator ("Fill for me") ----------------------------------------
+
+/** Defaults + vocabularies for the fill form. */
+export async function fetchTaskGeneratorOptions(
+  groupId: EventGroupId,
+  eventId: number,
+): Promise<{ ok: true; options: TaskGeneratorOptions } | { ok: false; error: string }> {
+  await assertCanManageEvent(groupId);
+  try {
+    return { ok: true as const, options: await api.eventTaskGeneratorOptions(eventId) };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false as const, error: err.message };
+    throw err;
+  }
+}
+
+/** Preview a generated set (writes nothing). Rerolls send `count: 1` with the
+ * rest of the board as `taken_keys`/`exclude_keys` and `only_tier`. */
+export async function generateEventTasks(
+  groupId: EventGroupId,
+  eventId: number,
+  criteria: TaskGeneratorCriteria,
+): Promise<{ ok: true; result: TaskGeneratorResult } | { ok: false; error: string }> {
+  await assertCanManageEvent(groupId);
+  const parsed = TaskGeneratorCriteriaSchema.parse(criteria);
+  try {
+    return { ok: true as const, result: await api.generateEventTasks(eventId, parsed) };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false as const, error: err.message };
+    throw err;
+  }
+}
+
+/** Save a generated set as the event's own tasks in one request. */
+export async function addGeneratedEventTasks(
+  groupId: EventGroupId,
+  eventId: number,
+  tasks: EventTaskInput[],
+): Promise<
+  { ok: true; created: BulkLibraryTasksResult["created"]; skipped: string[] }
+  | { ok: false; error: string }
+> {
+  await assertCanManageEvent(groupId);
+  const parsed = tasks.map((t) => EventTaskInputSchema.parse(t));
+  try {
+    const res = await api.bulkCreateEventTasks(eventId, parsed);
     if (res.created.length) {
       revalidatePath(eventAdminPath(groupId, eventId));
       revalidatePath(`/events/${eventId}`);

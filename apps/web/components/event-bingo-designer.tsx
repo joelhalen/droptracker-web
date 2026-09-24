@@ -18,6 +18,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { EventTaskGenerator } from "@/components/event-task-generator";
 import {
   EVENT_BOARD_SIZES,
   EVENT_TASK_TYPES,
@@ -327,6 +328,36 @@ export function EventBingoDesigner({
     markDirty();
   };
 
+  /** "Fill for me": generated tasks go into cells that are free and carry no
+   * label of their own (a deliberately labelled free space stays free). */
+  const [showGenerator, setShowGenerator] = useState(false);
+  const emptyCells = cells.reduce<number[]>((acc, cell, idx) => {
+    if (cell.taskId == null && !cell.library && !cell.newTask && !cell.label.trim()) acc.push(idx);
+    return acc;
+  }, []);
+
+  const fillEmptyCells = (generated: EventTaskInput[]) => {
+    // The generator returns tasks easiest first; shuffle so difficulty is
+    // spread over the board instead of banding easy rows at the top.
+    const pool = generated
+      .map((task) => ({ task, r: Math.random() }))
+      .sort((a, b) => a.r - b.r)
+      .map((x) => x.task);
+    const targets = new Set(emptyCells.slice(0, pool.length));
+    let next = 0;
+    setCells((prev) =>
+      prev.map((cell, idx) => {
+        const task = targets.has(idx) ? pool[next] : undefined;
+        if (!task) return cell;
+        next++;
+        return { ...FREE_CELL, newTask: task };
+      }),
+    );
+    setSelected(null);
+    setShowGenerator(false);
+    markDirty();
+  };
+
   if (!editable) {
     return (
       <div className="space-y-3">
@@ -415,9 +446,35 @@ export function EventBingoDesigner({
           </button>
           <SaveStatus state={saveState} />
         </div>
+        {!showGenerator && emptyCells.length > 0 && (
+          <div className="pb-2">
+            <button
+              type="button"
+              onClick={() => {
+                closeEditor();
+                setShowGenerator(true);
+              }}
+              className="border-osrs-gold/50 text-osrs-gold hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-2 text-sm font-medium"
+              title="Build a balanced set of tasks for the empty cells"
+            >
+              Fill {emptyCells.length === cells.length ? "the board" : `${emptyCells.length} empty cell${emptyCells.length === 1 ? "" : "s"}`} for me
+            </button>
+          </div>
+        )}
       </div>
 
       {error && <Alert variant="error">{error}</Alert>}
+
+      {showGenerator && (
+        <EventTaskGenerator
+          groupId={groupId}
+          eventId={event.id}
+          mode="cells"
+          defaultCount={Math.max(1, emptyCells.length)}
+          onUse={fillEmptyCells}
+          onClose={() => setShowGenerator(false)}
+        />
+      )}
 
       <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}>
         {cells.map((cell, idx) => {

@@ -17,6 +17,11 @@ import {
   BulkLibraryTasksResultSchema,
   type BulkLibraryTasksInput,
   type BulkLibraryTasksResult,
+  TaskGeneratorOptionsSchema,
+  type TaskGeneratorOptions,
+  TaskGeneratorResultSchema,
+  type TaskGeneratorCriteria,
+  type TaskGeneratorResult,
   EventTemplateSummarySchema,
   type EventTemplateSummary,
   EventTemplateDetailSchema,
@@ -99,6 +104,38 @@ export const eventTasksApi = {
     );
   },
 
+
+  // --- Task generator ("Fill for me") ---------------------------------------
+  /** What the fill form can offer for this event: defaults read off the event
+   * (length, team sizes, board size), category/kind vocabularies and every
+   * boss, with how many of the clan's members were active there lately. */
+  async eventTaskGeneratorOptions(eventId: number): Promise<TaskGeneratorOptions> {
+    return TaskGeneratorOptionsSchema.parse(
+      await apiGet(`/events/${eventId}/tasks/generator`, { authed: true }),
+    );
+  },
+
+  /** Preview a generated task set. Writes nothing; every returned task has
+   * already passed the backend's task validation. */
+  async generateEventTasks(
+    eventId: number,
+    criteria: TaskGeneratorCriteria,
+  ): Promise<TaskGeneratorResult> {
+    return TaskGeneratorResultSchema.parse(
+      await apiSend("POST", `/events/${eventId}/tasks/generate`, criteria),
+    );
+  },
+
+  /** Create many tasks in one request (a generated set). Labels already in the
+   * event and payloads that no longer validate come back in `skipped`. */
+  async bulkCreateEventTasks(
+    eventId: number,
+    tasks: EventTaskInput[],
+  ): Promise<BulkLibraryTasksResult> {
+    return BulkLibraryTasksResultSchema.parse(
+      await apiSend("POST", `/events/${eventId}/tasks/bulk`, { tasks }),
+    );
+  },
 
   // --- Task-library management (superadmin CP) ------------------------------
   /** Create a curated site-wide preset (source "curated", group_id null). */

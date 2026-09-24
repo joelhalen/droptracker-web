@@ -70,6 +70,7 @@ import { formatProgressValue, taskThreshold } from "@/components/event-task-prog
 import { EventSignupTools } from "@/components/event-signup-tools";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { EventTaskLibraryPicker } from "@/components/event-task-library-picker";
+import { EventTaskGenerator } from "@/components/event-task-generator";
 import { TaskRequirementsDisclosure } from "@/components/task-requirements";
 import {
   EMPTY_TASK_FILTER,
@@ -536,6 +537,8 @@ export function EventManager({
   }, [tasks, taskFilter, taskFormFor]);
   /** Copy-from-library panel (mutually exclusive with the create form). */
   const [libraryOpen, setLibraryOpen] = useState(false);
+  /** "Fill for me" task generator panel. */
+  const [generatorOpen, setGeneratorOpen] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [teamGroupId, setTeamGroupId] = useState<number | "">("");
   const [participants, setParticipants] = useState<EventParticipant[]>([]);
@@ -1501,10 +1504,24 @@ export function EventManager({
                 Event ended — tasks are locked.
               </span>
             )}
+            {!generatorOpen && !structuralFrozen && event.kind !== "loot_sweep" && !isCompetitionKind(event.kind) && (
+              <button
+                onClick={() => {
+                  setGeneratorOpen(true);
+                  setLibraryOpen(false);
+                  setTaskFormFor(null);
+                }}
+                className="border-osrs-gold/50 text-osrs-gold hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-1.5 text-sm font-medium"
+                title="Build a balanced set of tasks sized to your event"
+              >
+                Fill for me
+              </button>
+            )}
             {!libraryOpen && !structuralFrozen && (
               <button
                 onClick={() => {
                   setLibraryOpen(true);
+                  setGeneratorOpen(false);
                   setTaskFormFor(null);
                 }}
                 className="border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-1.5 text-sm font-medium"
@@ -1520,6 +1537,7 @@ export function EventManager({
                 onClick={() => {
                   setTaskFormFor(-1);
                   setLibraryOpen(false);
+                  setGeneratorOpen(false);
                 }}
               >
                 New task
@@ -1527,6 +1545,16 @@ export function EventManager({
             )}
           </span>
         </div>
+        {generatorOpen && (
+          <div className="mb-4">
+            <EventTaskGenerator
+              groupId={groupId}
+              eventId={event.id}
+              onAdded={(added) => setTasks((prev) => [...prev, ...added])}
+              onClose={() => setGeneratorOpen(false)}
+            />
+          </div>
+        )}
         {libraryOpen && (
           <div className="mb-4">
             <EventTaskLibraryPicker
