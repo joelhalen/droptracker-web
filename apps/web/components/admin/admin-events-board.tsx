@@ -23,7 +23,7 @@ const PAGE = 25;
 const BUCKET_META: Record<AdminEventBucket, { label: string; hint: string }> = {
   live: { label: "Live", hint: "Running now" },
   upcoming: { label: "Upcoming", hint: "Start on their own" },
-  attention: { label: "Needs attention", hint: "Start date passed, still not live" },
+  attention: { label: "Needs attention", hint: "Past start, not live" },
   draft: { label: "Drafts", hint: "No start date yet" },
   past: { label: "Past", hint: "Ended" },
 };
@@ -131,7 +131,7 @@ export function AdminEventsBoard({ events, nowSec }: { events: EventSummary[]; n
           onChange={(e) => set({ query: e.target.value })}
           placeholder="Search by event, group or id…"
           aria-label="Search events"
-          className="min-w-0 flex-1 sm:max-w-xs"
+          className="w-full min-w-0 sm:w-auto sm:max-w-xs sm:flex-1"
         />
         <Select
           fieldSize="sm"
@@ -196,6 +196,9 @@ function EventRow({ event: e, nowSec }: { event: EventSummary; nowSec: number })
   const clanVsClan = e.mode === "clan_vs_clan";
   const teams = e.team_count ?? 0;
   const players = e.player_count ?? 0;
+  // A draft whose end date has passed can never start: it needs new dates or
+  // deleting, not "finish the setup".
+  const expired = bucket === "attention" && e.ends_at != null && e.ends_at <= nowSec;
 
   return (
     <li className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -246,7 +249,10 @@ function EventRow({ event: e, nowSec }: { event: EventSummary; nowSec: number })
           {players === 1 ? "player" : "players"}
           {bucket === "attention" && (
             <span className="text-osrs-ember">
-              {" · "}goes live as soon as its setup is finished
+              {" · "}
+              {expired
+                ? "its end date has passed, so it can't start. Move the dates or delete it"
+                : "goes live as soon as its setup is finished"}
             </span>
           )}
           {bucket === "draft" && " · won't start until someone launches it"}
@@ -262,8 +268,11 @@ function EventRow({ event: e, nowSec }: { event: EventSummary; nowSec: number })
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-3 text-xs">
         {e.status === "draft" && (
-          <Link href={setupHref(e)} className="text-osrs-gold-bright hover:underline">
-            {bucket === "attention" ? "Fix setup" : "Continue setup"}
+          <Link
+            href={(expired ? `${setupHref(e)}&step=1` : setupHref(e)) as Route}
+            className="text-osrs-gold-bright hover:underline"
+          >
+            {expired ? "Fix dates" : bucket === "attention" ? "Fix setup" : "Continue setup"}
           </Link>
         )}
         <Link href={manageHref(e)} className="text-osrs-gold-bright hover:underline">
