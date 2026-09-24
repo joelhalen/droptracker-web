@@ -105,6 +105,19 @@ export async function fetchPublicEventBoard(eventId: number) {
   return api.eventBoard(eventId);
 }
 
+// --- Conquest (conquest, web120a) -----------------------------------------
+
+/** The live Conquest map (tiles, owners, defense, standings, latest battles).
+ * Visibility is enforced by the Web API; anonymous viewers see public events. */
+export async function fetchEventConquest(eventId: number) {
+  return api.eventConquest(eventId);
+}
+
+/** Older battle-log rows for the map's feed ("Show more"). */
+export async function fetchEventConquestBattles(eventId: number, before: number) {
+  return api.eventConquestBattles(eventId, { before, limit: 30 });
+}
+
 // --- Loot Sweep (loot_sweep) -----------------------------------------------
 
 /** The live Loot Sweep board (sets + per-team, per-item receipt counts). Draft

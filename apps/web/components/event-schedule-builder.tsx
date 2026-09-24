@@ -138,6 +138,16 @@ export function EventScheduleBuilder({
       </p>
     );
   }
+  // Conquest (web120a): held tiles keep scoring by the hour, so a closed
+  // window would still pay out. The backend refuses a schedule too.
+  if (kind === "conquest") {
+    return (
+      <p className={`text-osrs-parchment-dark/50 text-xs ${className}`}>
+        Conquest events run continuously. Held tiles keep scoring every hour, so they can&apos;t
+        pause between repeating windows.
+      </p>
+    );
+  }
 
   return (
     <fieldset className={`border-osrs-bronze/20 space-y-3 rounded border p-3 ${className}`}>

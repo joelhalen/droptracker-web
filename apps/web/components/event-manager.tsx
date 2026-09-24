@@ -66,6 +66,7 @@ import {
 import { PlayerAddInput } from "@/components/player-add-input";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
+import { ConquestDesigner } from "@/components/conquest-designer";
 import { EventBoardShopConfig } from "@/components/event-board-shop-config";
 import { EventDiscordSettings } from "@/components/event-discord";
 import { PrizePotManager } from "@/components/prize-pot-manager";
@@ -422,7 +423,8 @@ export function EventManager({
     if (!eventDraft.name.trim()) return;
     // Board-game events are refused a schedule (their turn timers keep running
     // between windows) — send null so a kind change clears any stored rule.
-    const schedule = event.kind === "board_game" ? null : eventDraft.schedule;
+    const schedule =
+      event.kind === "board_game" || event.kind === "conquest" ? null : eventDraft.schedule;
     if (schedule) {
       const problem = materializeSchedule(
         schedule.rule,
@@ -625,7 +627,8 @@ export function EventManager({
   /** web68a: scoring-affecting task edits on a LIVE event prompt for the
    * retroactivity choice (board-game progress is turn-entangled — always
    * forward-only, no prompt). */
-  const liveTaskEvent = event.status === "active" && event.kind !== "board_game";
+  const liveTaskEvent =
+    event.status === "active" && event.kind !== "board_game" && event.kind !== "conquest";
   const acceptedParticipantIds = participants
     .filter((p) => p.status === "accepted")
     .map((p) => p.group_id);
@@ -1462,6 +1465,8 @@ export function EventManager({
             >
               {t.key === "board" && event.kind === "board_game"
                 ? "Game board"
+                : t.key === "board" && event.kind === "conquest"
+                  ? "Map"
                 : t.key === "teams" && individualRace
                   ? "Participants"
                   : t.label}
@@ -2027,7 +2032,12 @@ export function EventManager({
       {/* Board designer: dice board for board_game events (web44a), the
           bingo grid for everything else (Task 20). Loot Sweep has no
           designable board — its icon board is built from the set tasks. */}
-      {event.kind === "loot_sweep" ? null : event.kind === "board_game" ? (
+      {event.kind === "loot_sweep" ? null : event.kind === "conquest" ? (
+        <section className={tab === "board" ? "" : "hidden"}>
+          <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Map</h3>
+          <ConquestDesigner groupId={groupId} event={event} tasks={tasks} onDetail={applyDetail} />
+        </section>
+      ) : event.kind === "board_game" ? (
         <section className={tab === "board" ? "" : "hidden"}>
           <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
             Game board
@@ -2095,6 +2105,7 @@ export function EventManager({
           eventId={event.id}
           hasSchedule={event.schedule != null}
           onDirtyChange={setDiscordDirty}
+          eventKind={event.kind}
         />
       </section>
 

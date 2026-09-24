@@ -227,9 +227,13 @@ export function EventDiscordSettings({
   hasSchedule = false,
   onDirtyChange,
   lockedScope,
+  eventKind,
 }: {
   groupId: number | null;
   eventId: number;
+  /** The event's format — kind-specific message toggles (Conquest) only show
+   * for their own kind. */
+  eventKind?: string;
   /** web119a: edit only this clan's own scope (a staff-hosted event's clan
    * panel — the shared config belongs to staff and isn't readable here). */
   lockedScope?: number;
@@ -568,7 +572,16 @@ export function EventDiscordSettings({
   // EventMessageConfigSchema's closed toggles object, so they're absent from
   // the inferred type — read them defensively with their documented defaults
   // (turn posts on, roll prompts OFF for main channels).
-  const boardToggle = (key: "event_board_turn" | "event_board_roll_prompt", fallback: boolean) =>
+  const boardToggle = (
+    key:
+      | "event_board_turn"
+      | "event_board_roll_prompt"
+      | "event_conquest_capture"
+      | "event_conquest_battle"
+      | "event_conquest_region"
+      | "event_conquest_summary",
+    fallback: boolean,
+  ) =>
     (messages?.toggles as Partial<Record<EventMessageToggleKey, boolean>> | undefined)?.[key] ??
     fallback;
 
@@ -1257,6 +1270,36 @@ export function EventDiscordSettings({
                 onChange={(v) => setToggle("event_board_roll_prompt", v)}
               />
             </div>
+
+            {eventKind === "conquest" && (
+              <div className="space-y-2">
+                <ToggleGroupLabel>Conquest</ToggleGroupLabel>
+                <ToggleRow
+                  label="Tiles taken"
+                  hint="A team claimed an empty tile or captured a rival's."
+                  checked={boardToggle("event_conquest_capture", true)}
+                  onChange={(v) => setToggle("event_conquest_capture", v)}
+                />
+                <ToggleRow
+                  label="Region control"
+                  hint="A team took (or lost) a whole region."
+                  checked={boardToggle("event_conquest_region", true)}
+                  onChange={(v) => setToggle("event_conquest_region", v)}
+                />
+                <ToggleRow
+                  label="Dice battles"
+                  hint="Every attack on a defended tile, with the dice. Off by default: busy events roll a lot."
+                  checked={boardToggle("event_conquest_battle", false)}
+                  onChange={(v) => setToggle("event_conquest_battle", v)}
+                />
+                <ToggleRow
+                  label="Map updates"
+                  hint="The standings post, posted to the Leaderboard channel on the cadence set in the map's rules."
+                  checked={boardToggle("event_conquest_summary", true)}
+                  onChange={(v) => setToggle("event_conquest_summary", v)}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <ToggleGroupLabel>Leaderboard</ToggleGroupLabel>

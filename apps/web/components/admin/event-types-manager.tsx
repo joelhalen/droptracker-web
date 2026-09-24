@@ -151,14 +151,14 @@ function TypeCard({
           disabled={pending}
           onChange={() => patch({ enabled: !row.enabled })}
           label="Enabled"
-          hint="Off: nobody outside staff and the test groups below can create this type. Existing events keep running."
+          hint="Off: hidden from everyone but staff and the test groups below, who are the only ones able to create it. Existing events keep running."
         />
         <Toggle
           checked={row.admin_only}
           disabled={pending}
           onChange={() => patch({ admin_only: !row.admin_only })}
           label="Staff testing only"
-          hint="On (even while enabled): creation stays limited to superadmins and the test groups below — how a new format ships dark."
+          hint="On (even while enabled): creation stays limited to superadmins and the test groups below. Other groups see it marked as staff testing."
         />
       </div>
 

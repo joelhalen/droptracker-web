@@ -597,6 +597,7 @@ export const EVENT_KIND_LABEL: Record<EventSummary["kind"], string> = {
   loot_sweep: "Loot sweep",
   sotw: "Skill of the Week",
   botw: "Boss of the Week",
+  conquest: "Conquest",
 };
 
 /**

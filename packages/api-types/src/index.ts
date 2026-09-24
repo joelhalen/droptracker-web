@@ -2525,8 +2525,27 @@ export const EVENT_KINDS = [
   /** Boss of the Week — individuals race KC gained at one boss, with optional
    * bonus points (pets, sub-threshold kill times). */
   "botw",
+  /** Conquest (web120a) — a Risk-style territory map: playing a tile's tasks
+   * earns troops that claim, fortify or attack it (automatic dice battles),
+   * and teams score for the tiles and whole regions they hold. */
+  "conquest",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number];
+
+/** Keep only registry rows whose `key` this build knows. A backend that
+ * already registers a newer kind (a format still being built) must not fail
+ * the whole list: the strict `key` enum below would reject every row, and the
+ * create form would fall back to its hard-coded three kinds. */
+export function onlyKnownEventKinds(rows: unknown): unknown {
+  if (!Array.isArray(rows)) return rows;
+  const known = new Set<string>(EVENT_KINDS);
+  return rows.filter(
+    (row) =>
+      typeof row === "object" &&
+      row !== null &&
+      known.has(String((row as { key?: unknown }).key)),
+  );
+}
 
 /** The kinds implemented by the competition engine (one hidden race task,
  * individual standings, optional WOM linkage). */
@@ -3193,6 +3212,14 @@ export const EVENT_MESSAGE_TOGGLE_KEYS = [
   "event_competition_bonus",
   /** Reserved (nothing sends it yet). */
   "event_competition_milestone",
+  /** Conquest (web120a): a tile claimed or captured (default ON). */
+  "event_conquest_capture",
+  /** Conquest: a dice battle on a defended tile (default OFF, it is chatty). */
+  "event_conquest_battle",
+  /** Conquest: a team took or lost a whole region (default ON). */
+  "event_conquest_region",
+  /** Conquest: the periodic map update (settings.summary_hours). */
+  "event_conquest_summary",
 ] as const;
 export type EventMessageToggleKey = (typeof EVENT_MESSAGE_TOGGLE_KEYS)[number];
 
@@ -3959,6 +3986,198 @@ export const LootSweepReceiptsSchema = z.object({
 });
 export type LootSweepReceipts = z.infer<typeof LootSweepReceiptsSchema>;
 
+/* ── Conquest (web120a) ─────────────────────────────────────────────────── */
+
+/** Scoring: points per hour a tile/region is held, or the map at the end. */
+export const CONQUEST_SCORING_MODES = ["hold_time", "final"] as const;
+export type ConquestScoringMode = (typeof CONQUEST_SCORING_MODES)[number];
+/** Battles on defended tiles: Risk dice, or a flat point per troop. */
+export const CONQUEST_BATTLE_MODES = ["dice", "attrition"] as const;
+export type ConquestBattleMode = (typeof CONQUEST_BATTLE_MODES)[number];
+/** Who owns the map at the start: nobody (a land grab) or dealt out evenly. */
+export const CONQUEST_START_MODES = ["neutral", "dealt"] as const;
+export type ConquestStartMode = (typeof CONQUEST_START_MODES)[number];
+/** Hours between the periodic Discord map update (0 = never). */
+export const CONQUEST_SUMMARY_HOURS = [0, 6, 12, 24, 48] as const;
+/** Tile roles: a territory, or a respawn point nobody can own. */
+export const CONQUEST_TILE_KINDS = ["normal", "respawn"] as const;
+export type ConquestTileKind = (typeof CONQUEST_TILE_KINDS)[number];
+
+export const ConquestSettingsSchema = z.object({
+  scoring_mode: z.enum(CONQUEST_SCORING_MODES).catch("hold_time"),
+  summary_hours: z.number().int(),
+  battle_mode: z.enum(CONQUEST_BATTLE_MODES).catch("dice"),
+  attack_dice: z.number().int(),
+  defense_dice: z.number().int(),
+  max_defense: z.number().int(),
+  capture_defense: z.number().int(),
+  start_mode: z.enum(CONQUEST_START_MODES).catch("neutral"),
+  start_defense: z.number().int(),
+  neutral_defense: z.number().int(),
+});
+export type ConquestSettings = z.infer<typeof ConquestSettingsSchema>;
+
+/** What earns troops on a tile: every `target` of progress on the task pays
+ * `troops`. `progress` is each team's progress toward its NEXT troop. */
+export const ConquestRuleSchema = z.object({
+  id: z.number().int(),
+  task_id: z.number().int(),
+  label: z.string(),
+  type: z.string(),
+  troops: z.number().int(),
+  target: z.number().int(),
+  progress: z.record(z.string(), z.number()).default({}),
+});
+export type ConquestRule = z.infer<typeof ConquestRuleSchema>;
+
+export const ConquestTileSchema = z.object({
+  id: z.number().int(),
+  idx: z.number().int(),
+  label: z.string(),
+  x: z.number(),
+  y: z.number(),
+  kind: z.string(),
+  value: z.number(),
+  region_id: z.number().int().nullable(),
+  icon_npc_id: z.number().int().nullable(),
+  icon_item_id: z.number().int().nullable(),
+  owner_team_id: z.number().int().nullable(),
+  defense: z.number().int(),
+  owner_since: z.number().int().nullable(),
+  captures: z.number().int(),
+  rules: z.array(ConquestRuleSchema),
+  /** Troops each team has earned on this tile (team id → count). */
+  troops: z.record(z.string(), z.number()).default({}),
+});
+export type ConquestTile = z.infer<typeof ConquestTileSchema>;
+
+export const ConquestRegionSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  color: z.string().nullable(),
+  bonus: z.number(),
+  sort: z.number().int(),
+  label_x: z.number().nullable(),
+  label_y: z.number().nullable(),
+  owner_team_id: z.number().int().nullable(),
+  owner_since: z.number().int().nullable(),
+  tile_ids: z.array(z.number().int()),
+});
+export type ConquestRegion = z.infer<typeof ConquestRegionSchema>;
+
+export const ConquestTeamSchema = z.object({
+  id: z.number().int(),
+  name: z.string(),
+  color: z.string().nullable().optional(),
+  /** Stored score (written by the per-minute settle). */
+  score: z.number(),
+  /** Score recomputed at read time — what the map shows. */
+  live_score: z.number(),
+  tiles: z.number().int(),
+  regions: z.number().int(),
+  /** Points per hour it earns right now (hold_time), or its end result if
+   * the event stopped now (final). */
+  holding: z.number(),
+});
+export type ConquestTeam = z.infer<typeof ConquestTeamSchema>;
+
+/** One troop in the battle log. `outcome`: claim | capture | attack | breach |
+ * repelled | adjust (fortify/full never reach the feed). */
+export const ConquestBattleSchema = z.object({
+  id: z.number().int(),
+  tile_id: z.number().int(),
+  team_id: z.number().int().nullable(),
+  outcome: z.string(),
+  owner_before: z.number().int().nullable(),
+  owner_after: z.number().int().nullable(),
+  defense_before: z.number().int(),
+  defense_after: z.number().int(),
+  attack_dice: z.array(z.number().int()),
+  defense_dice: z.array(z.number().int()),
+  player_id: z.number().int().nullable(),
+  player_name: z.string().nullable(),
+  source: z.string(),
+  at: z.number().int().nullable(),
+});
+export type ConquestBattle = z.infer<typeof ConquestBattleSchema>;
+
+/** GET /events/{id}/conquest — the map and its live state. */
+export const ConquestMapSchema = z.object({
+  event_id: z.number().int(),
+  status: z.string().nullable(),
+  settings: ConquestSettingsSchema,
+  preset: z.string().nullable(),
+  revision: z.number().int(),
+  /** False until the event starts and the map is dealt. */
+  seeded: z.boolean(),
+  background_url: z.string().nullable(),
+  bg_width: z.number().int().nullable(),
+  bg_height: z.number().int().nullable(),
+  rules_hidden: z.boolean(),
+  regions: z.array(ConquestRegionSchema),
+  tiles: z.array(ConquestTileSchema),
+  edges: z.array(z.tuple([z.number().int(), z.number().int()])),
+  teams: z.array(ConquestTeamSchema),
+  battles: z.array(ConquestBattleSchema),
+  window_start: z.number().int().nullable(),
+  window_end: z.number().int().nullable(),
+  now: z.number().int().nullable(),
+  /** Present on a preset build's response only. */
+  preset_summary: z
+    .object({
+      regions: z.number().int(),
+      tiles: z.number().int(),
+      tasks_removed: z.number().int(),
+      skipped: z.array(z.string()),
+      troop_hours: z.number(),
+    })
+    .optional(),
+});
+export type ConquestMap = z.infer<typeof ConquestMapSchema>;
+
+/** GET /events/{id}/conquest/battles — one page of the log, newest first. */
+export const ConquestBattlesPageSchema = z.object({
+  battles: z.array(ConquestBattleSchema),
+  next_before: z.number().int().nullable(),
+});
+export type ConquestBattlesPage = z.infer<typeof ConquestBattlesPageSchema>;
+
+/** GET /events/{id}/conquest/presets — the designer's preset panel. */
+export const ConquestPresetOptionsSchema = z.object({
+  presets: z.array(z.object({ key: z.string(), label: z.string() })),
+  troop_hours_choices: z.array(z.number()),
+  default_troop_hours: z.number(),
+  suggested_troop_hours: z.number(),
+  default_unique_troops: z.number().int(),
+});
+export type ConquestPresetOptions = z.infer<typeof ConquestPresetOptionsSchema>;
+
+/** PUT /events/{id}/conquest/map — the designer's save. Rules either reuse an
+ * event task or create one (`new_task`, the task builder's payload). */
+export type ConquestMapInput = {
+  revision?: number;
+  regions: {
+    key: string;
+    name: string;
+    color?: string | null;
+    bonus?: number;
+    label_x?: number | null;
+    label_y?: number | null;
+  }[];
+  tiles: {
+    key: string;
+    label: string;
+    x: number;
+    y: number;
+    kind?: ConquestTileKind;
+    value?: number;
+    region_key?: string | null;
+    icon_npc_id?: number | null;
+    icon_item_id?: number | null;
+    rules: { task_id?: number; new_task?: Record<string, unknown>; troops: number }[];
+  }[];
+};
+
 /** GET /events/{id}/loot-sweep/summary — the compact standings the Discord
  * board image renders (a leaderboard, NOT the full per-item matrix, which is
  * far too tall to screenshot for a game-wide sweep). */
@@ -4321,9 +4540,10 @@ export const EventSummarySchema = z.object({
   /** clan_vs_clan events keep `group_id` = the HOST clan; opponents live in
    * the participants roster (GET /events/{id}/participants). */
   mode: z.enum(EVENT_MODES).default("standard"),
-  /** Game format (web43a): standard | bingo | board_game. Defaulted for
-   * payloads predating the kind column. */
-  kind: z.enum(EVENT_KINDS).default("standard"),
+  /** Game format (web43a). Defaulted for payloads predating the kind column,
+   * and caught for a kind newer than this build (web120a): one unknown kind
+   * must not fail every event list it appears in. */
+  kind: z.enum(EVENT_KINDS).catch("standard"),
   formation_mode: z.enum(EVENT_FORMATION_MODES).default("admin_assign"),
   /** Event-level force: all completions queue for admin review. */
   requires_confirmation: z.boolean().default(false),
@@ -5322,6 +5542,12 @@ export const EventMessageConfigSchema = z.object({
      * roll prompts are team-channel-first). */
     event_board_turn: z.boolean().optional(),
     event_board_roll_prompt: z.boolean().optional(),
+    /** Conquest (web120a): optional for the same reason (captures, regions
+     * and the map update default ON; dice battles OFF). */
+    event_conquest_capture: z.boolean().optional(),
+    event_conquest_battle: z.boolean().optional(),
+    event_conquest_region: z.boolean().optional(),
+    event_conquest_summary: z.boolean().optional(),
   }),
   task_progress: z.enum(EVENT_TASK_PROGRESS_MODES),
   /** Verbose completion detail: include the item that finished the task and

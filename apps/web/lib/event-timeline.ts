@@ -57,6 +57,8 @@ export function eventTypeLabel(e: Pick<EventSummary, "kind" | "has_bingo">): str
       return COMPETITION_KIND_LABELS[e.kind];
     case "board_game":
       return "Board game";
+    case "conquest":
+      return "Conquest";
     case "loot_sweep":
       return "Loot Sweep";
     case "bingo":

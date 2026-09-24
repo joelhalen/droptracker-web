@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
 import { BingoBoard } from "@/components/bingo-board";
 import { EventBoardView } from "@/components/event-board-view";
+import { ConquestView } from "@/components/conquest-view";
 import { EventJoinPanel } from "@/components/event-join-panel";
 import { EventStandingsStrip } from "@/components/event-standings-strip";
 import { LootSweepMatrix } from "@/components/loot-sweep-matrix";
@@ -55,6 +56,12 @@ export default async function EventDetailPage({ params }: { params: Params }) {
     event.kind === "loot_sweep" && !event.tasks_hidden
       ? await api.eventLootSweep(eventId).catch(() => null)
       : null;
+
+  // Conquest (web120a): the territory map replaces the task list. Its rules
+  // hide themselves for a viewer the organisers keep tasks from (the API
+  // blanks them), so the map is read either way.
+  const conquest =
+    event.kind === "conquest" ? await api.eventConquest(eventId).catch(() => null) : null;
 
   // SOTW/BOTW (web105a): the individual leaderboard replaces teams + tasks.
   const competition = isCompetitionKind(event.kind)
@@ -248,7 +255,29 @@ export default async function EventDetailPage({ params }: { params: Params }) {
         viewerTeamId={event.viewer?.team_id ?? null}
       />
 
-      {lootSweep ? (
+      {conquest ? (
+        // Conquest: the map is the event, full width; the roster and
+        // participate panels sit under it.
+        <div className="space-y-8">
+          <div>
+            <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+              Conquest map
+            </h2>
+            <ConquestView
+              eventId={event.id}
+              initial={conquest}
+              live={event.status === "active"}
+              viewerTeamId={event.viewer?.team_id ?? null}
+            />
+          </div>
+          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+            {participatePanel}
+            {teamsPanel}
+            {potPanel}
+            {clanPointsPanel}
+          </div>
+        </div>
+      ) : lootSweep ? (
         // Loot Sweep: the board is data-dense, so it takes the FULL page width;
         // the roster/participate panels move up top instead of a right rail.
         <div className="space-y-8">

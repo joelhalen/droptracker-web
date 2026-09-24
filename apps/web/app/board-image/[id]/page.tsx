@@ -5,6 +5,7 @@ import { BingoBoard } from "@/components/bingo-board";
 import { EventBoardView } from "@/components/event-board-view";
 import { LootSweepStandings } from "@/components/loot-sweep-standings";
 import { CompetitionStandingsSnapshot } from "@/components/competition-standings-snapshot";
+import { ConquestSnapshot } from "@/components/conquest-snapshot";
 
 /**
  * Chrome-less render of an event's live board, sized for a 1:1 screenshot the
@@ -59,9 +60,15 @@ export default async function BoardImagePage({
       ? await api.eventCompetitionForRender(eventId, token).catch(() => null)
       : null;
 
-  // Only bingo / board-game / loot-sweep / competition events have a visual
-  // board; anything else (a plain task-list event) has nothing to screenshot.
-  if (!board && !event.bingo && !sweep && !competition) notFound();
+  // Conquest (web120a): the territory map with the standings under it.
+  const conquest =
+    event.kind === "conquest"
+      ? await api.eventConquestForRender(eventId, token).catch(() => null)
+      : null;
+
+  // Only bingo / board-game / loot-sweep / competition / conquest events have
+  // a visual board; a plain task-list event has nothing to screenshot.
+  if (!board && !event.bingo && !sweep && !competition && !conquest) notFound();
 
   const teams = event.teams.map((t) => ({ id: t.id, name: t.name, color: t.color }));
   // Team-scoped render (web54a): the per-team Discord channel posts screenshot
@@ -100,6 +107,7 @@ export default async function BoardImagePage({
         )}
         {sweep && <LootSweepStandings summary={sweep} highlightTeamId={selectedTeam} />}
         {competition && <CompetitionStandingsSnapshot board={competition} />}
+        {conquest && <ConquestSnapshot map={conquest} highlightTeamId={selectedTeam} />}
       </div>
     </>
   );

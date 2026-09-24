@@ -28,6 +28,7 @@ import {
   EventDetailSchema,
   EventReadinessSchema,
   EventKindMetaSchema,
+  onlyKnownEventKinds,
   type EventKindMeta,
   EventTeamDetailSchema,
   EventTeamsResponseSchema,
@@ -404,7 +405,7 @@ export const eventsApi = {
     return withFallback(
       async () =>
         EventKindMetaSchema.array().parse(
-          await apiGet(`/events/meta/types${qs}`, { authed: true }),
+          onlyKnownEventKinds(await apiGet(`/events/meta/types${qs}`, { authed: true })),
         ),
       () => [
         { key: "standard", label: "Standard", description: null, enabled: true, admin_only: false, creatable: true },

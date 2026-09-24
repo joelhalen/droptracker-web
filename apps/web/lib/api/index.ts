@@ -39,6 +39,7 @@ import { chatApi } from "./chat";
 import { staffApi } from "./staff";
 import { fileTransfersApi } from "./file-transfers";
 import { noticesApi } from "./notices";
+import { eventConquestApi } from "./event-conquest";
 
 export const api = {
   ...leaderboardsApi,
@@ -74,6 +75,7 @@ export const api = {
   ...staffApi,
   ...fileTransfersApi,
   ...noticesApi,
+  ...eventConquestApi,
 };
 
 export * from "./types";

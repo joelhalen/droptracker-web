@@ -20,7 +20,10 @@ export function isForwardOnlyTask(
 ): boolean {
   return (
     (FORWARD_ONLY_TASK_TYPES as readonly string[]).includes(taskType) ||
-    (eventKind ?? "standard") === "board_game"
+    (eventKind ?? "standard") === "board_game" ||
+    // Conquest (web120a): troops already fought their battles; a new target
+    // only changes what the next troop costs.
+    (eventKind ?? "standard") === "conquest"
   );
 }
 

@@ -11,6 +11,7 @@ import {
   PbBlockSearchResponseSchema,
   PbBlockMutationSchema,
   AdminEventTypeSchema,
+  onlyKnownEventKinds,
   type AdminEventType,
   AdminEventRateLimitSchema,
   type AdminEventRateLimit,
@@ -162,7 +163,7 @@ export const adminApi = {
     return withFallback(
       async () =>
         AdminEventTypeSchema.array().parse(
-          await apiGet(`/admin/event-types`, { authed: true }),
+          onlyKnownEventKinds(await apiGet(`/admin/event-types`, { authed: true })),
         ),
       () => [],
     );

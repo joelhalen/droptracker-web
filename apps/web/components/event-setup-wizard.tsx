@@ -90,6 +90,7 @@ import { CompetitionSetup } from "@/components/competition-setup";
 import { DiscordRolePicker } from "@/components/discord-role-picker";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
+import { ConquestDesigner } from "@/components/conquest-designer";
 import { EventDiscordSettings } from "@/components/event-discord";
 import { EventParticipantsPanel } from "@/components/event-participants-panel";
 import { parseRosterLimit } from "@/components/event-clan-roster-limits";
@@ -529,7 +530,9 @@ export function EventSetupWizard({
           // clears it. Competitions run one continuous window (a linked WOM
           // comp certainly does).
           const scheduleInput =
-            kind === "board_game" || isCompetitionKind(kind) ? null : schedule;
+            kind === "board_game" || kind === "conquest" || isCompetitionKind(kind)
+              ? null
+              : schedule;
           if (scheduleInput) {
             // Refuse a rule that produces nothing here rather than round-trip
             // to the same 422: the API is the authority, this is just courtesy.
@@ -1813,7 +1816,11 @@ function WizardTasksStep({
    * since an empty task list is where drafts stall. Bingo boards fill from
    * the board designer below instead. */
   const [showGenerator, setShowGenerator] = useState(
-    tasks.length === 0 && detail.kind !== "bingo" && detail.kind !== "loot_sweep",
+    tasks.length === 0 &&
+      detail.kind !== "bingo" &&
+      detail.kind !== "loot_sweep" &&
+      // Conquest tiles bring their own tasks (the map preset builds them).
+      detail.kind !== "conquest",
   );
   /** Task id being edited inline (same flow as the event manager). */
   const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
@@ -1835,7 +1842,9 @@ function WizardTasksStep({
             ? "Bingo boards are built from tasks: add tasks here (or let the board designer create them), then lay out the grid below."
             : detail.kind === "loot_sweep"
               ? "A Loot Sweep is a set of “Loot Sweep set” tasks — one per boss. Add them here; the live board is built from them automatically (no board to lay out)."
-              : "The dice board draws from a task pool: add tasks here, then lay out the track below."}
+              : detail.kind === "conquest"
+                ? "Conquest tiles bring their own tasks. Build the map below: the ready-made Gielinor map fills every tile. Any task you add here can be attached to a tile in the map designer."
+                : "The dice board draws from a task pool: add tasks here, then lay out the track below."}
         </p>
       )}
 
@@ -2016,6 +2025,12 @@ function WizardTasksStep({
             tasks={tasks}
             onTaskUpdated={onTaskSaved}
           />
+        </div>
+      )}
+      {detail.kind === "conquest" && (
+        <div className="border-osrs-bronze/20 border-t pt-4">
+          <h4 className="text-osrs-gold mb-3 text-base font-semibold">Map</h4>
+          <ConquestDesigner groupId={groupId} event={detail} tasks={tasks} onDetail={onDetail} />
         </div>
       )}
     </div>
