@@ -2,10 +2,13 @@ import type {
   EventDetail,
   EventEffort,
   EventEffortBoss,
+  EventMember,
   EventMemberLastContribution,
   EventSummary,
   EventTask,
   EventTaskDifficulty,
+  EventTeam,
+  EventTeamRole,
 } from "@droptracker/api-types";
 import { EVENT_TASK_DIFFICULTIES } from "@droptracker/api-types";
 import { formatGp } from "@/lib/format";
@@ -93,6 +96,35 @@ export function rosterSizeText(
   if (min) return `at least ${min}`;
   if (max) return `up to ${max}`;
   return null;
+}
+
+/** Team leadership (web48a): the teams after `playerId` takes `role` on
+ * `teamId`, or loses their role (role null). A team has one holder per role,
+ * so an appointment also demotes the previous holder, as the Web API's
+ * set_team_role does. Other teams come back as the same objects. */
+export function withTeamRole(
+  teams: EventTeam[],
+  teamId: number,
+  playerId: number,
+  role: EventTeamRole | null,
+): EventTeam[] {
+  return teams.map((t) => {
+    if (t.id !== teamId) return t;
+    const members = (t.members ?? []).map((m) =>
+      m.player_id === playerId
+        ? { ...m, role }
+        : role && m.role === role
+          ? { ...m, role: null }
+          : m,
+    );
+    return { ...t, members };
+  });
+}
+
+/** Whether anyone holds a team's authority. A co-leader alone counts, since
+ * the Web API accepts either role for the team's turn actions. */
+export function teamHasLeadership(members: readonly Pick<EventMember, "role">[]): boolean {
+  return members.some((m) => m.role != null);
 }
 
 /** Submission policies as shown in the admin settings form. */

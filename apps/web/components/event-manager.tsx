@@ -15,6 +15,7 @@ import {
   type EventTask,
   type EventTeam,
   type EventTeamBulkAddResult,
+  type EventTeamRole,
 } from "@droptracker/api-types";
 import {
   competitionBlockToInput,
@@ -32,6 +33,8 @@ import {
   TEAM_COLORS,
   taskGoal,
   teamColorMap,
+  teamHasLeadership,
+  withTeamRole,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { materializeSchedule } from "@/lib/event-schedule";
@@ -56,6 +59,10 @@ import {
   updateEventTeam,
   updateGroupEvent,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
+import {
+  assignTeamLeadership,
+  removeTeamLeadership,
+} from "@/app/(site)/(public)/events/[id]/actions";
 import { PlayerAddInput } from "@/components/player-add-input";
 import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
@@ -87,6 +94,15 @@ import { useDetailCrumb } from "@/components/tab-nav";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
+
+/** Team leadership (web48a) roster badges, styled as on the public team page. */
+const ROLE_BADGE: Record<EventTeamRole, { label: string; className: string }> = {
+  leader: { label: "👑 Leader", className: "border-osrs-gold/40 bg-osrs-gold/15 text-osrs-gold" },
+  co_leader: {
+    label: "⭐ Co-leader",
+    className: "border-osrs-bronze/40 bg-osrs-bronze/15 text-osrs-parchment-dark/80",
+  },
+};
 
 /** Convert a datetime-local value to unix seconds (or null). */
 const toUnix = (v: string): number | null => (v ? Math.floor(new Date(v).getTime() / 1000) : null);
@@ -520,6 +536,22 @@ export function EventManager({
     });
   };
 
+  /** Team leadership (web48a): appoint a leader/co-leader, or clear the
+   * player's role (role null). A team has one holder per role, so an
+   * appointment demotes the previous holder, the same as the Web API. */
+  const onSetMemberRole = (teamId: number, playerId: number, role: EventTeamRole | null) => {
+    setError(null);
+    startTransition(async () => {
+      try {
+        if (role) await assignTeamLeadership(event.id, teamId, playerId, role);
+        else await removeTeamLeadership(event.id, teamId, playerId);
+        setTeams((prev) => withTeamRole(prev, teamId, playerId, role));
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't update the team's leader. Please try again."));
+      }
+    });
+  };
+
   /** Task id being edited inline, or -1 for the create form, or null. */
   const [taskFormFor, setTaskFormFor] = useState<number | null>(null);
   /** Live search/type/sort over the task list (t56 — this list used to be an
@@ -578,6 +610,18 @@ export function EventManager({
   /** web68a: an ended event is a frozen record — task/team structure locks
    * (the backend 409s `event_past`; this mirrors it client-side). */
   const structuralFrozen = event.status === "past";
+  /** Leadership controls on each roster row, when the event runs team
+   * leaders. An individual race's roster is not a team, so it gets none. */
+  const teamLeadership =
+    event.leadership.enabled && !individualRace
+      ? {
+          coLeaders: event.leadership.co_leaders,
+          editable: !structuralFrozen,
+          // On a board game the leader takes the team's turn actions (rolls,
+          // the shop), so a team without one is stuck on admins.
+          gatesTurns: event.kind === "board_game",
+        }
+      : null;
   /** web68a: scoring-affecting task edits on a LIVE event prompt for the
    * retroactivity choice (board-game progress is turn-entangled — always
    * forward-only, no prompt). */
@@ -990,8 +1034,9 @@ export function EventManager({
               <span>
                 Teams have a leader
                 <span className="text-osrs-parchment-dark/60 block text-xs">
-                  The leader makes the executive calls for their team — on board-game events
-                  only they can trigger dice rolls and buy or use shop items.
+                  The leader makes the executive calls for their team — on board-game events only
+                  they can trigger dice rolls and buy or use shop items. Pick each team&apos;s
+                  leader on the Teams tab.
                 </span>
               </span>
             </label>
@@ -1960,6 +2005,8 @@ export function EventManager({
                 onAddMember={onAddMember}
                 onBulkAdd={onBulkAddMembers}
                 onRemoveMember={onRemoveMember}
+                leadership={teamLeadership}
+                onSetRole={onSetMemberRole}
                 onRename={onRenameTeam}
                 onColor={onColorTeam}
                 onTag={onTagTeam}
@@ -2079,6 +2126,8 @@ function TeamRoster({
   onAddMember,
   onBulkAdd,
   onRemoveMember,
+  leadership,
+  onSetRole,
   onRename,
   onColor,
   onTag,
@@ -2101,6 +2150,9 @@ function TeamRoster({
   onAddMember: (teamId: number, player: { id: number; name: string }) => void;
   onBulkAdd: (teamId: number, names: string[]) => Promise<EventTeamBulkAddResult>;
   onRemoveMember: (teamId: number, playerId: number) => void;
+  /** Team leadership (web48a); null when the event doesn't run it. */
+  leadership: { coLeaders: boolean; editable: boolean; gatesTurns: boolean } | null;
+  onSetRole: (teamId: number, playerId: number, role: EventTeamRole | null) => void;
   onRename: (teamId: number, name: string) => void;
   onColor: (teamId: number, color: string | null) => void;
   onTag: (teamId: number, shortTag: string | null) => void;
@@ -2383,6 +2435,15 @@ function TeamRoster({
         </div>
       )}
 
+      {leadership?.editable &&
+        leadership.gatesTurns &&
+        members.length > 0 &&
+        !teamHasLeadership(members) && (
+          <p className="text-osrs-gold/80 mt-2 text-xs">
+            No leader yet. Until you pick one, only event admins can use the shop for this team.
+          </p>
+        )}
+
       {members.length > 0 && (
         <div className="mt-2">
           <EventMemberList
@@ -2390,25 +2451,70 @@ function TeamRoster({
             pageSize={8}
             unit="member"
             listClassName="divide-osrs-bronze/10 divide-y"
-            renderRow={(m) => (
-              <li key={m.player_id} className="flex items-center justify-between py-1.5 text-sm">
-                <span>
-                  {m.player_name}
-                  {m.joined_at && (
-                    <span className="text-osrs-parchment-dark/40 ml-2 text-xs">
-                      joined {new Date(m.joined_at * 1000).toLocaleDateString()}
-                    </span>
-                  )}
-                </span>
-                <button
-                  onClick={() => onRemoveMember(team.id, m.player_id)}
-                  disabled={pending}
-                  className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+            renderRow={(m) => {
+              const role = leadership ? (m.role ?? null) : null;
+              return (
+                <li
+                  key={m.player_id}
+                  className="flex flex-wrap items-center justify-between gap-x-2 py-1.5 text-sm"
                 >
-                  Remove
-                </button>
-              </li>
-            )}
+                  <span className="min-w-0">
+                    {m.player_name}
+                    {role && (
+                      <span
+                        className={`ml-2 rounded border px-1.5 py-px text-[10px] font-semibold ${ROLE_BADGE[role].className}`}
+                      >
+                        {ROLE_BADGE[role].label}
+                      </span>
+                    )}
+                    {m.joined_at && (
+                      <span className="text-osrs-parchment-dark/40 ml-2 text-xs">
+                        joined {new Date(m.joined_at * 1000).toLocaleDateString()}
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex shrink-0 items-center">
+                    {leadership?.editable && role == null && (
+                      <button
+                        type="button"
+                        onClick={() => onSetRole(team.id, m.player_id, "leader")}
+                        disabled={pending}
+                        className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright rounded px-2 py-1 text-xs disabled:opacity-50"
+                      >
+                        Make leader
+                      </button>
+                    )}
+                    {leadership?.editable && leadership.coLeaders && role == null && (
+                      <button
+                        type="button"
+                        onClick={() => onSetRole(team.id, m.player_id, "co_leader")}
+                        disabled={pending}
+                        className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright rounded px-2 py-1 text-xs disabled:opacity-50"
+                      >
+                        Make co-leader
+                      </button>
+                    )}
+                    {leadership?.editable && role != null && (
+                      <button
+                        type="button"
+                        onClick={() => onSetRole(team.id, m.player_id, null)}
+                        disabled={pending}
+                        className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright rounded px-2 py-1 text-xs disabled:opacity-50"
+                      >
+                        Remove role
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onRemoveMember(team.id, m.player_id)}
+                      disabled={pending}
+                      className="text-osrs-red hover:bg-osrs-red/10 rounded px-2 py-1 text-xs disabled:opacity-50"
+                    >
+                      Remove
+                    </button>
+                  </span>
+                </li>
+              );
+            }}
           />
         </div>
       )}
