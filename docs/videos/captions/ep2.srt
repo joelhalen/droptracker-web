@@ -1,0 +1,219 @@
+1
+00:00:00,350 --> 00:00:02,350
+A task is a promise.
+
+2
+00:00:02,350 --> 00:00:03,550
+You promise points.
+
+3
+00:00:03,550 --> 00:00:05,150
+The game promises drops.
+
+4
+00:00:05,150 --> 00:00:07,550
+Only one of you is lying.
+
+5
+00:00:13,150 --> 00:00:16,350
+Tasks live in your event's manager, under Tasks.
+
+6
+00:00:16,350 --> 00:00:19,550
+Click New task and you get this form.
+
+7
+00:00:19,550 --> 00:00:21,550
+It looks like a lot.
+
+8
+00:00:21,550 --> 00:00:23,150
+It is a lot.
+
+9
+00:00:23,150 --> 00:00:26,350
+But it's the good kind of a lot.
+
+10
+00:00:27,150 --> 00:00:28,350
+First, the type.
+
+11
+00:00:28,350 --> 00:00:31,550
+Items, kill count, XP, skill levels, personal bests,
+
+12
+00:00:31,550 --> 00:00:34,750
+pets, combat achievements, slayer tasks, total loot value.
+
+13
+00:00:34,750 --> 00:00:38,750
+Nearly all of them are scored automatically from the plugin.
+
+14
+00:00:38,750 --> 00:00:43,150
+The ones that aren't, like custom tasks, wait for an admin.
+
+15
+00:00:43,950 --> 00:00:45,550
+Item tasks have modes.
+
+16
+00:00:45,550 --> 00:00:46,750
+One specific item.
+
+17
+00:00:46,750 --> 00:00:48,750
+Any items from a list.
+
+18
+00:00:48,750 --> 00:00:53,950
+Different items, so the fifth Bandos tasset in a row doesn't count five
+
+19
+00:00:53,950 --> 00:00:54,350
+times.
+
+20
+00:00:54,350 --> 00:00:55,950
+All of a list.
+
+21
+00:00:55,950 --> 00:00:57,150
+Points per item.
+
+22
+00:00:57,150 --> 00:01:00,750
+Combined requirements, like every godsword shard plus any hilt.
+
+23
+00:01:00,750 --> 00:01:04,350
+Or either-or: a boss pet, or five thousand kills.
+
+24
+00:01:04,350 --> 00:01:05,550
+Whichever comes first.
+
+25
+00:01:05,550 --> 00:01:07,550
+It won't be the pet.
+
+26
+00:01:08,350 --> 00:01:12,350
+Search for the item, drop it in, set the points.
+
+27
+00:01:12,350 --> 00:01:15,550
+Fifty points for a twisted bow feels fair.
+
+28
+00:01:15,550 --> 00:01:17,150
+It is not fair.
+
+29
+00:01:17,150 --> 00:01:19,950
+Nothing about a twisted bow is fair.
+
+30
+00:01:20,750 --> 00:01:22,350
+Every task explains itself.
+
+31
+00:01:22,350 --> 00:01:26,750
+Open What counts and it tells you exactly what gets credited.
+
+32
+00:01:26,750 --> 00:01:31,950
+And it's been stress-tested by clan members, who are the most creative people
+
+33
+00:01:31,950 --> 00:01:33,950
+alive when points are involved.
+
+34
+00:01:34,750 --> 00:01:39,550
+Kill count from the plugin and from Wise Old Man is merged,
+
+35
+00:01:39,550 --> 00:01:42,350
+never added, so no kill counts twice.
+
+36
+00:01:42,350 --> 00:01:45,950
+A drop and its collection log entry count once.
+
+37
+00:01:45,950 --> 00:01:49,150
+Slayer tasks skip Turael and Spria by default,
+
+38
+00:01:49,150 --> 00:01:51,950
+so Turael skipping will not save you.
+
+39
+00:01:51,950 --> 00:01:55,150
+And only things you do after joining count.
+
+40
+00:01:55,150 --> 00:01:56,350
+Yes, we checked.
+
+41
+00:01:57,150 --> 00:01:59,550
+Want a human in the loop?
+
+42
+00:01:59,550 --> 00:02:03,550
+Tick review on a task, or on the whole event,
+
+43
+00:02:03,550 --> 00:02:06,750
+and completions land here, in the review queue.
+
+44
+00:02:06,750 --> 00:02:09,550
+Confirm, reject, or hand out points manually.
+
+45
+00:02:09,550 --> 00:02:14,750
+Loot value tasks can auto-accept small drops, because nobody should have to approve
+
+46
+00:02:14,750 --> 00:02:15,950
+three hundred bones.
+
+47
+00:02:16,750 --> 00:02:20,750
+Every task you make is saved to a reusable library,
+
+48
+00:02:20,750 --> 00:02:24,350
+and there are a few hundred public presets already.
+
+49
+00:02:24,350 --> 00:02:28,350
+Or press Fill for me, answer a couple of questions,
+
+50
+00:02:28,350 --> 00:02:31,550
+and get a balanced list you can lock,
+
+51
+00:02:31,550 --> 00:02:33,950
+reroll, and pretend you wrote yourself.
+
+52
+00:02:34,750 --> 00:02:35,550
+That's tasks.
+
+53
+00:02:35,550 --> 00:02:36,750
+Next episode: points.
+
+54
+00:02:36,750 --> 00:02:41,950
+Who gets them, how bingo lines work, and why the person who went
+
+55
+00:02:41,950 --> 00:02:44,750
+AFK on the winning team gets nothing.

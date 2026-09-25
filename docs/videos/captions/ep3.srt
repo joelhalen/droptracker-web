@@ -1,0 +1,163 @@
+1
+00:00:00,350 --> 00:00:00,750
+Points.
+
+2
+00:00:00,750 --> 00:00:05,550
+The only thing clans love more than drops, and arguing about drops.
+
+3
+00:00:11,150 --> 00:00:13,550
+Every task is worth some points.
+
+4
+00:00:13,550 --> 00:00:17,550
+When a team finishes it, the team gets those points.
+
+5
+00:00:17,550 --> 00:00:17,950
+Simple.
+
+6
+00:00:17,950 --> 00:00:22,350
+What's less simple is who on the team gets the credit.
+
+7
+00:00:23,150 --> 00:00:25,150
+Points are split by contribution.
+
+8
+00:00:25,150 --> 00:00:29,950
+If two of you each got half of a five point task,
+
+9
+00:00:29,950 --> 00:00:32,750
+you each get two and a half.
+
+10
+00:00:32,750 --> 00:00:37,550
+So yes, the person who carried the team gets to prove it,
+
+11
+00:00:37,550 --> 00:00:38,350
+with decimals.
+
+12
+00:00:39,150 --> 00:00:40,350
+Bingo adds bonuses.
+
+13
+00:00:40,350 --> 00:00:45,550
+Finish a row, a column, or a diagonal and your team gets line
+
+14
+00:00:45,550 --> 00:00:46,750
+points on top.
+
+15
+00:00:46,750 --> 00:00:49,950
+Fill the whole board for the blackout bonus.
+
+16
+00:00:49,950 --> 00:00:54,750
+Empty cells are free spaces, already done for everyone, as a treat.
+
+17
+00:00:55,550 --> 00:01:00,750
+Filter the board by team to see exactly who's close to a line,
+
+18
+00:01:00,750 --> 00:01:04,350
+and who's one Vorkath kill away from a breakdown.
+
+19
+00:01:05,150 --> 00:01:07,950
+Standings update live, here and in Discord.
+
+20
+00:01:07,950 --> 00:01:11,550
+The Discord leaderboard is one message, edited in place,
+
+21
+00:01:11,550 --> 00:01:15,550
+so your channel doesn't turn into a wall of scoreboards.
+
+22
+00:01:16,350 --> 00:01:18,350
+Every point has a receipt.
+
+23
+00:01:18,350 --> 00:01:23,150
+The completion history shows who pulled what, for which team, and when.
+
+24
+00:01:23,150 --> 00:01:27,950
+It is very useful for settling arguments, and for starting new ones.
+
+25
+00:01:28,750 --> 00:01:29,950
+Then there's effort.
+
+26
+00:01:29,950 --> 00:01:33,550
+Hours spent on things that actually move the board,
+
+27
+00:01:33,550 --> 00:01:37,550
+not hours spent five-manning a boss that isn't on it.
+
+28
+00:01:37,550 --> 00:01:39,950
+Busy isn't the same as helpful.
+
+29
+00:01:40,750 --> 00:01:43,550
+When it ends, you can pay out.
+
+30
+00:01:43,550 --> 00:01:47,950
+The prize pot tracks buy-ins and donations, but it's advertised only.
+
+31
+00:01:47,950 --> 00:01:51,950
+No real gold moves, you still trade it in game.
+
+32
+00:01:51,950 --> 00:01:55,150
+Clan points go out for placement and participation.
+
+33
+00:01:55,150 --> 00:02:00,350
+And by default, the person who signed up and went AFK on the
+
+34
+00:02:00,350 --> 00:02:01,950
+winning team gets nothing.
+
+35
+00:02:01,950 --> 00:02:02,350
+Justice.
+
+36
+00:02:02,350 --> 00:02:02,750
+Finally.
+
+37
+00:02:03,550 --> 00:02:05,550
+That's the core of it.
+
+38
+00:02:05,550 --> 00:02:10,750
+Next up, the fancier formats: loot sweeps, skill and boss of the week,
+
+39
+00:02:10,750 --> 00:02:15,950
+the board game, and Conquest, where your clan fights over a map of
+
+40
+00:02:15,950 --> 00:02:16,350
+Gielinor.
+
+41
+00:02:16,350 --> 00:02:17,150
+Bring snacks.
