@@ -16,8 +16,14 @@
  *
  * Presentational only: callers pass tiles/regions in a neutral shape (the
  * view maps the API payload, the designer its draft), plus callbacks.
+ *
+ * A map whose tiles carry territory shapes (the drawn Gielinor preset,
+ * web121a) is drawn by ConquestTerritoryMap instead: real territories over
+ * the terrain art rather than soft blobs around badges.
  */
 import { useRef, type CSSProperties, type ReactNode } from "react";
+import type { ConquestMap } from "@droptracker/api-types";
+import { ConquestTerritoryMap } from "@/components/conquest-territory-map";
 import { HoverCard } from "@/components/hover-card";
 import { CONQUEST_CANVAS, NEUTRAL_COLOR, REGION_COLORS, regionLabelPoint } from "@/lib/conquest";
 
@@ -32,6 +38,8 @@ export type CanvasTile = {
   owner_team_id: number | null;
   defense: number;
   region_key: string | null;
+  /** Territory outline in the map's shape space (drawn maps only). */
+  shape?: string | null;
 };
 
 export type CanvasRegion = {
@@ -42,7 +50,58 @@ export type CanvasRegion = {
   label_x: number | null;
   label_y: number | null;
   owner_team_id: number | null;
+  shape?: string | null;
 };
+
+/** The API payload in the canvas's neutral shape (tile/region keys are the
+ * row ids as strings, unless a prefix is asked for). */
+export function canvasFromMap(map: ConquestMap, prefix = { tile: "", region: "" }) {
+  return {
+    tiles: map.tiles.map(
+      (t): CanvasTile => ({
+        key: `${prefix.tile}${t.id}`,
+        label: t.label,
+        x: t.x,
+        y: t.y,
+        kind: t.kind,
+        icon_npc_id: t.icon_npc_id,
+        icon_item_id: t.icon_item_id,
+        owner_team_id: t.owner_team_id,
+        defense: t.defense,
+        region_key: t.region_id != null ? `${prefix.region}${t.region_id}` : null,
+        shape: t.shape ?? null,
+      }),
+    ),
+    regions: map.regions.map(
+      (r): CanvasRegion => ({
+        key: `${prefix.region}${r.id}`,
+        name: r.name,
+        color: r.color,
+        bonus: r.bonus,
+        label_x: r.label_x,
+        label_y: r.label_y,
+        owner_team_id: r.owner_team_id,
+        shape: r.shape ?? null,
+      }),
+    ),
+    edges: map.edges.map(
+      ([a, b]) => [`${prefix.tile}${a}`, `${prefix.tile}${b}`] as [string, string],
+    ),
+    background: map.background_url
+      ? { url: map.background_url, width: map.bg_width ?? 1600, height: map.bg_height ?? 1000 }
+      : null,
+    space: shapeSpace(map),
+  };
+}
+
+/** The drawn map's coordinate space, when it has one. */
+export function shapeSpace(
+  map: Pick<ConquestMap, "shape_width" | "shape_height">,
+): { width: number; height: number } | null {
+  return map.shape_width && map.shape_height
+    ? { width: map.shape_width, height: map.shape_height }
+    : null;
+}
 
 /** Tile diameter as a share of the canvas width (the preset packs tiles
  * 108 canvas units apart, so a ~62-unit tile leaves room for its name). */
@@ -96,12 +155,22 @@ export function ConquestMapCanvas({
   editable = false,
   onMove,
   coarse = false,
+  space = null,
+  highlightRegionKey = null,
+  onHoverRegion,
+  controls = true,
   className = "",
 }: {
   tiles: CanvasTile[];
   regions: CanvasRegion[];
   edges?: [string, string][];
   background: { url: string; width: number; height: number } | null;
+  /** Drawn maps: the territory shapes' coordinate space. */
+  space?: { width: number; height: number } | null;
+  highlightRegionKey?: string | null;
+  onHoverRegion?: (key: string | null) => void;
+  /** Zoom buttons on a drawn map (off for the Discord image). */
+  controls?: boolean;
   colors: Map<number, string>;
   maxDefense: number;
   viewerTeamId?: number | null;
@@ -120,6 +189,29 @@ export function ConquestMapCanvas({
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ key: string; moved: boolean } | null>(null);
+  if (space && tiles.some((t) => t.shape)) {
+    return (
+      <ConquestTerritoryMap
+        tiles={tiles}
+        regions={regions}
+        space={space}
+        background={background}
+        colors={colors}
+        viewerTeamId={viewerTeamId}
+        selectedKey={selectedKey}
+        flashKeys={flashKeys}
+        highlightRegionKey={highlightRegionKey}
+        onHoverRegion={onHoverRegion}
+        onSelect={onSelect}
+        renderCard={renderCard}
+        editable={editable}
+        onMove={onMove}
+        coarse={coarse}
+        controls={controls}
+        className={className}
+      />
+    );
+  }
   const width = background?.width || CONQUEST_CANVAS.width;
   const height = background?.height || CONQUEST_CANVAS.height;
 

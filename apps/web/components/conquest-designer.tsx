@@ -29,7 +29,12 @@ import {
   uploadConquestBackground,
 } from "@/app/(site)/(admin)/groups/[id]/events/conquest-actions";
 import { reloadGroupEvent } from "@/app/(site)/(admin)/groups/[id]/events/actions";
-import { ConquestMapCanvas, type CanvasRegion, type CanvasTile } from "@/components/conquest-map";
+import {
+  ConquestMapCanvas,
+  canvasFromMap,
+  type CanvasRegion,
+  type CanvasTile,
+} from "@/components/conquest-map";
 import { ConquestLiveTools, ConquestSettingsForm } from "@/components/conquest-settings";
 import { Alert, Button } from "@/components/ui";
 import {
@@ -131,6 +136,7 @@ export function ConquestDesigner({
   }
 
   const colors = conquestTeamColors(event.teams, TEAM_COLORS);
+  const fromMap = canvasFromMap(map, { tile: "t", region: "r" });
   const canvasTiles: CanvasTile[] = editable
     ? draft.tiles.map((t) => ({
         key: t.key,
@@ -143,30 +149,12 @@ export function ConquestDesigner({
         owner_team_id: null,
         defense: 0,
         region_key: t.region_key,
+        shape: t.shape,
       }))
-    : map.tiles.map((t) => ({
-        key: `t${t.id}`,
-        label: t.label,
-        x: t.x,
-        y: t.y,
-        kind: t.kind,
-        icon_npc_id: t.icon_npc_id,
-        icon_item_id: t.icon_item_id,
-        owner_team_id: t.owner_team_id,
-        defense: t.defense,
-        region_key: t.region_id != null ? `r${t.region_id}` : null,
-      }));
+    : fromMap.tiles;
   const canvasRegions: CanvasRegion[] = editable
     ? draft.regions.map((r) => ({ ...r, owner_team_id: null }))
-    : map.regions.map((r) => ({
-        key: `r${r.id}`,
-        name: r.name,
-        color: r.color,
-        bonus: r.bonus,
-        label_x: r.label_x,
-        label_y: r.label_y,
-        owner_team_id: r.owner_team_id,
-      }));
+    : fromMap.regions;
   const selectedTile = draft.tiles.find((t) => t.key === selected) ?? null;
 
   const onBuildPreset = (form: FormData) => {
@@ -237,6 +225,7 @@ export function ConquestDesigner({
           region_key: d.regions[0]?.key ?? null,
           icon_npc_id: null,
           icon_item_id: null,
+          shape: null,
           rules: [],
         },
       ],
@@ -260,6 +249,7 @@ export function ConquestDesigner({
           bonus: 1,
           label_x: null,
           label_y: null,
+          shape: null,
         },
       ],
     }));
@@ -410,15 +400,8 @@ export function ConquestDesigner({
       <ConquestMapCanvas
         tiles={canvasTiles}
         regions={canvasRegions}
-        background={
-          map.background_url
-            ? {
-                url: map.background_url,
-                width: map.bg_width ?? 1600,
-                height: map.bg_height ?? 1000,
-              }
-            : null
-        }
+        background={fromMap.background}
+        space={fromMap.space}
         colors={colors}
         maxDefense={map.settings.max_defense}
         selectedKey={selected}

@@ -6,7 +6,7 @@
  * standings table under it. Static (no hover, no live updates).
  */
 import type { ConquestMap } from "@droptracker/api-types";
-import { ConquestMapCanvas } from "@/components/conquest-map";
+import { ConquestMapCanvas, canvasFromMap } from "@/components/conquest-map";
 import { NEUTRAL_COLOR, conquestTeamColors, fmtPoints, holdingText } from "@/lib/conquest";
 import { TEAM_COLORS } from "@/lib/events";
 
@@ -18,43 +18,19 @@ export function ConquestSnapshot({
   highlightTeamId?: number | null;
 }) {
   const colors = conquestTeamColors(map.teams, TEAM_COLORS);
+  const canvas = canvasFromMap(map);
   const standings = [...map.teams]
     .sort((a, b) => b.live_score - a.live_score || b.tiles - a.tiles || a.id - b.id)
     .slice(0, 8);
   return (
     <div className="space-y-4">
       <ConquestMapCanvas
-        tiles={map.tiles.map((t) => ({
-          key: String(t.id),
-          label: t.label,
-          x: t.x,
-          y: t.y,
-          kind: t.kind,
-          icon_npc_id: t.icon_npc_id,
-          icon_item_id: t.icon_item_id,
-          owner_team_id: t.owner_team_id,
-          defense: t.defense,
-          region_key: t.region_id != null ? String(t.region_id) : null,
-        }))}
-        regions={map.regions.map((r) => ({
-          key: String(r.id),
-          name: r.name,
-          color: r.color,
-          bonus: r.bonus,
-          label_x: r.label_x,
-          label_y: r.label_y,
-          owner_team_id: r.owner_team_id,
-        }))}
-        edges={map.edges.map(([a, b]) => [String(a), String(b)] as [string, string])}
-        background={
-          map.background_url
-            ? {
-                url: map.background_url,
-                width: map.bg_width ?? 1600,
-                height: map.bg_height ?? 1000,
-              }
-            : null
-        }
+        tiles={canvas.tiles}
+        regions={canvas.regions}
+        edges={canvas.edges}
+        background={canvas.background}
+        space={canvas.space}
+        controls={false}
         colors={colors}
         maxDefense={map.settings.max_defense}
         viewerTeamId={highlightTeamId}

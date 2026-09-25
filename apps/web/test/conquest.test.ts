@@ -16,9 +16,13 @@ import {
   fmtPoints,
   holdingText,
   newKey,
+  regionBonusText,
   regionLabelPoint,
+  regionStanding,
+  regionStatusText,
   ruleEligible,
   settingsSummary,
+  tilesToControl,
 } from "@/lib/conquest";
 
 const SETTINGS = {
@@ -190,6 +194,7 @@ test("draft round trip keeps regions, tiles and rules", () => {
     bonus: 3,
     label_x: null,
     label_y: null,
+    shape: null,
   });
   assert.deepEqual(body.tiles[0]!.rules, [{ task_id: 101, troops: 1 }]);
   assert.equal(body.tiles[0]!.region_key, "r4");
@@ -218,4 +223,70 @@ test("new keys never collide", () => {
 test("unknown event kinds are dropped before the strict enum parse", () => {
   const rows = [{ key: "bingo" }, { key: "some_future_kind" }, { key: "conquest" }];
   assert.deepEqual(onlyKnownEventKinds(rows), [{ key: "bingo" }, { key: "conquest" }]);
+});
+
+test("a drawn map's shapes survive a designer save untouched", () => {
+  const map = mapFixture();
+  map.tiles[0]!.shape = "M10 20l5 0 0 5-5 0z";
+  map.regions[0]!.shape = "M0 0l30 0 0 30z";
+  const body = draftToInput(draftFromMap(map), 3);
+  assert.equal(body.tiles[0]!.shape, "M10 20l5 0 0 5-5 0z");
+  assert.equal(body.regions[0]!.shape, "M0 0l30 0 0 30z");
+});
+
+const t = (id: number, owner: number | null, kind = "normal") => ({
+  id,
+  label: `T${id}`,
+  kind,
+  owner_team_id: owner,
+});
+const TEAM_NAMES = new Map([
+  [1, "Red"],
+  [2, "Blue"],
+]);
+
+test("region standing: leader, ties, control, respawns never count", () => {
+  const lead = regionStanding([t(1, 1), t(2, 1), t(3, 2), t(4, null), t(5, null, "respawn")]);
+  assert.equal(lead.total, 4);
+  assert.equal(lead.leader, 1);
+  assert.equal(lead.controller, null);
+  assert.equal(lead.unowned, 1);
+  assert.deepEqual(lead.counts, [
+    { teamId: 1, tiles: 2 },
+    { teamId: 2, tiles: 1 },
+  ]);
+  assert.equal(
+    regionStatusText(lead, TEAM_NAMES),
+    "Red leads with 2 of 4, 2 more to take control.",
+  );
+
+  const tie = regionStanding([t(1, 1), t(2, 2), t(3, null)]);
+  assert.equal(tie.leader, null);
+  assert.equal(regionStatusText(tie, TEAM_NAMES), "Contested: Red, Blue hold 1 of 3 each.");
+
+  const held = regionStanding([t(1, 2), t(2, 2), t(9, null, "respawn")]);
+  assert.equal(held.controller, 2);
+  assert.equal(regionStatusText(held, TEAM_NAMES), "Blue controls it, all 2 tiles.");
+
+  const empty = regionStanding([t(1, null), t(2, null)]);
+  assert.equal(regionStatusText(empty, TEAM_NAMES), "Unclaimed. Hold all 2 tiles to take control.");
+});
+
+test("what a team still has to take", () => {
+  const tiles = [t(1, 1), t(2, 2), t(3, null), t(4, null, "respawn")];
+  assert.deepEqual(
+    tilesToControl(tiles, 1).map((x) => x.id),
+    [2, 3],
+  );
+});
+
+test("region bonus wording follows the scoring mode, no em-dashes", () => {
+  assert.equal(regionBonusText(3, "hold_time", 5), "Hold all 5 for +3 points an hour.");
+  assert.equal(regionBonusText(1, "final", 2), "Hold all 2 at the end for +1 point.");
+  for (const line of [
+    regionBonusText(2, "final", 4),
+    regionStatusText(regionStanding([]), TEAM_NAMES),
+  ]) {
+    assert.ok(!line.includes("\u2014"));
+  }
 });

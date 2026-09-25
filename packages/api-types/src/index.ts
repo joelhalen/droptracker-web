@@ -4048,6 +4048,10 @@ export const ConquestTileSchema = z.object({
   rules: z.array(ConquestRuleSchema),
   /** Troops each team has earned on this tile (team id → count). */
   troops: z.record(z.string(), z.number()).default({}),
+  /** The territory it covers (web121a): SVG path data in the map's shape
+   * space (`shape_width` × `shape_height`). Null = drawn as a badge only.
+   * Tolerant so the site can ship before the API does. */
+  shape: z.string().nullable().optional().catch(null),
 });
 export type ConquestTile = z.infer<typeof ConquestTileSchema>;
 
@@ -4062,6 +4066,8 @@ export const ConquestRegionSchema = z.object({
   owner_team_id: z.number().int().nullable(),
   owner_since: z.number().int().nullable(),
   tile_ids: z.array(z.number().int()),
+  /** The region's whole outline (web121a), same space as the tile shapes. */
+  shape: z.string().nullable().optional().catch(null),
 });
 export type ConquestRegion = z.infer<typeof ConquestRegionSchema>;
 
@@ -4113,6 +4119,10 @@ export const ConquestMapSchema = z.object({
   background_url: z.string().nullable(),
   bg_width: z.number().int().nullable(),
   bg_height: z.number().int().nullable(),
+  /** The coordinate space tile/region shapes are drawn in (web121a); kept
+   * apart from the background's size. Null on a map without shapes. */
+  shape_width: z.number().int().nullable().optional().catch(null),
+  shape_height: z.number().int().nullable().optional().catch(null),
   rules_hidden: z.boolean(),
   regions: z.array(ConquestRegionSchema),
   tiles: z.array(ConquestTileSchema),
@@ -4163,6 +4173,7 @@ export type ConquestMapInput = {
     bonus?: number;
     label_x?: number | null;
     label_y?: number | null;
+    shape?: string | null;
   }[];
   tiles: {
     key: string;
@@ -4174,6 +4185,7 @@ export type ConquestMapInput = {
     region_key?: string | null;
     icon_npc_id?: number | null;
     icon_item_id?: number | null;
+    shape?: string | null;
     rules: { task_id?: number; new_task?: Record<string, unknown>; troops: number }[];
   }[];
 };

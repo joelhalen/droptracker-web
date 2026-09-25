@@ -172,6 +172,80 @@ export function regionLabelPoint(
   return { x, y: Math.max(top - 0.08, 0.03) };
 }
 
+/* ── Region control (the Risk part) ─────────────────────────────────────── */
+
+export type RegionStanding = {
+  /** Tiles that count toward control (respawn points never do). */
+  total: number;
+  /** Tiles each team holds here, most first. */
+  counts: { teamId: number; tiles: number }[];
+  unowned: number;
+  /** The team holding every tile, if one does. */
+  controller: number | null;
+  /** The team holding the most tiles, when no other team ties it. */
+  leader: number | null;
+};
+
+type StandingTile = Pick<ConquestTile, "id" | "kind" | "owner_team_id">;
+
+/** Who holds what in one region. */
+export function regionStanding(tiles: StandingTile[]): RegionStanding {
+  const counted = tiles.filter((t) => t.kind !== "respawn");
+  const by = new Map<number, number>();
+  let unowned = 0;
+  for (const t of counted) {
+    if (t.owner_team_id == null) unowned += 1;
+    else by.set(t.owner_team_id, (by.get(t.owner_team_id) ?? 0) + 1);
+  }
+  const counts = [...by.entries()]
+    .map(([teamId, n]) => ({ teamId, tiles: n }))
+    .sort((a, b) => b.tiles - a.tiles || a.teamId - b.teamId);
+  const top = counts[0];
+  const tied = counts.length > 1 && counts[1]!.tiles === top?.tiles;
+  const total = counted.length;
+  return {
+    total,
+    counts,
+    unowned,
+    controller: top && total > 0 && top.tiles === total ? top.teamId : null,
+    leader: top && !tied ? top.teamId : null,
+  };
+}
+
+/** The tiles a team still has to take to control the region. */
+export function tilesToControl<T extends StandingTile>(tiles: T[], teamId: number): T[] {
+  return tiles.filter((t) => t.kind !== "respawn" && t.owner_team_id !== teamId);
+}
+
+/** One plain line on where a region stands. No em-dashes (site copy). */
+export function regionStatusText(standing: RegionStanding, names: Map<number, string>): string {
+  const name = (id: number) => names.get(id) ?? "A team";
+  const { total, counts, controller, leader } = standing;
+  if (!total) return "No tiles to hold here.";
+  if (controller != null) return `${name(controller)} controls it, all ${total} tiles.`;
+  if (!counts.length) return `Unclaimed. Hold all ${total} tiles to take control.`;
+  if (leader != null) {
+    const have = counts[0]!.tiles;
+    const need = total - have;
+    return `${name(leader)} leads with ${have} of ${total}, ${need} more to take control.`;
+  }
+  const tiedAt = counts[0]!.tiles;
+  const tiedNames = counts.filter((c) => c.tiles === tiedAt).map((c) => name(c.teamId));
+  return `Contested: ${tiedNames.join(", ")} hold ${tiedAt} of ${total} each.`;
+}
+
+/** What control is worth, in the event's scoring terms. */
+export function regionBonusText(
+  bonus: number,
+  mode: ConquestSettings["scoring_mode"],
+  total: number,
+): string {
+  const pts = `${fmtPoints(bonus)} ${bonus === 1 ? "point" : "points"}`;
+  return mode === "hold_time"
+    ? `Hold all ${total} for +${pts} an hour.`
+    : `Hold all ${total} at the end for +${pts}.`;
+}
+
 /* ── The designer's draft model ─────────────────────────────────────────── */
 
 export type DraftRule = { task_id: number; troops: number; label: string };
@@ -182,6 +256,8 @@ export type DraftRegion = {
   bonus: number;
   label_x: number | null;
   label_y: number | null;
+  /** Outline on a drawn map (web121a); carried through saves untouched. */
+  shape: string | null;
 };
 export type DraftTile = {
   key: string;
@@ -193,6 +269,8 @@ export type DraftTile = {
   region_key: string | null;
   icon_npc_id: number | null;
   icon_item_id: number | null;
+  /** Territory on a drawn map (web121a); carried through saves untouched. */
+  shape: string | null;
   rules: DraftRule[];
 };
 export type ConquestDraft = { regions: DraftRegion[]; tiles: DraftTile[] };
@@ -208,6 +286,7 @@ export function draftFromMap(map: ConquestMap): ConquestDraft {
       bonus: r.bonus,
       label_x: r.label_x,
       label_y: r.label_y,
+      shape: r.shape ?? null,
     })),
     tiles: map.tiles.map((t) => ({
       key: `t${t.id}`,
@@ -219,6 +298,7 @@ export function draftFromMap(map: ConquestMap): ConquestDraft {
       region_key: t.region_id != null ? (regionKey.get(t.region_id) ?? null) : null,
       icon_npc_id: t.icon_npc_id,
       icon_item_id: t.icon_item_id,
+      shape: t.shape ?? null,
       rules: t.rules.map((r) => ({ task_id: r.task_id, troops: r.troops, label: r.label })),
     })),
   };
@@ -235,6 +315,7 @@ export function draftToInput(draft: ConquestDraft, revision: number): ConquestMa
       bonus: r.bonus,
       label_x: r.label_x,
       label_y: r.label_y,
+      shape: r.shape,
     })),
     tiles: draft.tiles.map((t) => ({
       key: t.key,
@@ -246,6 +327,7 @@ export function draftToInput(draft: ConquestDraft, revision: number): ConquestMa
       region_key: t.region_key,
       icon_npc_id: t.icon_npc_id,
       icon_item_id: t.icon_item_id,
+      shape: t.shape,
       rules:
         t.kind === "respawn" ? [] : t.rules.map((r) => ({ task_id: r.task_id, troops: r.troops })),
     })),

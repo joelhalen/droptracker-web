@@ -22,7 +22,7 @@ import {
   fetchEventConquest,
   fetchEventConquestBattles,
 } from "@/app/(site)/(public)/events/[id]/actions";
-import { ConquestMapCanvas, type CanvasRegion, type CanvasTile } from "@/components/conquest-map";
+import { ConquestMapCanvas, canvasFromMap } from "@/components/conquest-map";
 import { TaskDetailSheet, useCoarsePointer } from "@/components/task-detail";
 import { EmptyState } from "@/components/ui";
 import {
@@ -32,7 +32,12 @@ import {
   diceText,
   fmtPoints,
   holdingText,
+  regionBonusText,
+  regionStanding,
+  regionStatusText,
   settingsSummary,
+  tilesToControl,
+  type RegionStanding,
 } from "@/lib/conquest";
 import { TEAM_COLORS } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/format";
@@ -69,6 +74,8 @@ export function ConquestView({
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [flash, setFlash] = useState<Set<string>>(new Set());
   const [sheetKey, setSheetKey] = useState<string | null>(null);
+  /** The region lit on the map: hovered there, or in the regions list. */
+  const [litRegion, setLitRegion] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const coarse = useCoarsePointer();
 
@@ -134,28 +141,14 @@ export function ConquestView({
   const tileById = useMemo(() => new Map(map.tiles.map((t) => [t.id, t])), [map.tiles]);
   const regionById = useMemo(() => new Map(map.regions.map((r) => [r.id, r])), [map.regions]);
 
-  const canvasTiles: CanvasTile[] = map.tiles.map((t) => ({
-    key: String(t.id),
-    label: t.label,
-    x: t.x,
-    y: t.y,
-    kind: t.kind,
-    icon_npc_id: t.icon_npc_id,
-    icon_item_id: t.icon_item_id,
-    owner_team_id: t.owner_team_id,
-    defense: t.defense,
-    region_key: t.region_id != null ? String(t.region_id) : null,
-  }));
-  const canvasRegions: CanvasRegion[] = map.regions.map((r) => ({
-    key: String(r.id),
-    name: r.name,
-    color: r.color,
-    bonus: r.bonus,
-    label_x: r.label_x,
-    label_y: r.label_y,
-    owner_team_id: r.owner_team_id,
-  }));
-  const edges = map.edges.map(([a, b]) => [String(a), String(b)] as [string, string]);
+  const canvas = canvasFromMap(map);
+  const regionStandings = useMemo(() => {
+    const out = new Map<number, RegionStanding>();
+    for (const r of map.regions) {
+      out.set(r.id, regionStanding(map.tiles.filter((t) => t.region_id === r.id)));
+    }
+    return out;
+  }, [map.regions, map.tiles]);
 
   const standings = [...map.teams].sort(
     (a, b) =>
@@ -180,10 +173,20 @@ export function ConquestView({
 
   const renderCard = (key: string) => {
     const tile = tileById.get(Number(key));
+    const region = tile?.region_id != null ? regionById.get(tile.region_id) : undefined;
     return tile ? (
       <TileDetail
         tile={tile}
-        regionName={tile.region_id != null ? regionById.get(tile.region_id)?.name : undefined}
+        region={
+          region
+            ? {
+                name: region.name,
+                bonus: region.bonus,
+                standing: regionStandings.get(region.id)!,
+                tiles: map.tiles.filter((t) => t.region_id === region.id),
+              }
+            : undefined
+        }
         names={names}
         colors={colors}
         maxDefense={map.settings.max_defense}
@@ -217,18 +220,13 @@ export function ConquestView({
       )}
 
       <ConquestMapCanvas
-        tiles={canvasTiles}
-        regions={canvasRegions}
-        edges={edges}
-        background={
-          map.background_url
-            ? {
-                url: map.background_url,
-                width: map.bg_width ?? 1600,
-                height: map.bg_height ?? 1000,
-              }
-            : null
-        }
+        tiles={canvas.tiles}
+        regions={canvas.regions}
+        edges={canvas.edges}
+        background={canvas.background}
+        space={canvas.space}
+        highlightRegionKey={litRegion}
+        onHoverRegion={setLitRegion}
         colors={colors}
         maxDefense={map.settings.max_defense}
         viewerTeamId={viewerTeamId}
@@ -289,33 +287,45 @@ export function ConquestView({
             </table>
           </div>
 
-          <h3 className="text-osrs-gold mb-2 mt-6 text-base font-semibold">Regions</h3>
+          <h3 className="text-osrs-gold mb-1 mt-6 text-base font-semibold">Regions</h3>
+          <p className="text-osrs-parchment-dark/60 mb-2 text-xs">
+            Hold every tile in a region to control it and earn its bonus. Point at a region to find
+            it on the map.
+          </p>
           <ul className="grid gap-1.5 sm:grid-cols-2">
-            {map.regions.map((r) => (
-              <li
-                key={r.id}
-                className="border-osrs-bronze/20 flex items-center justify-between gap-2 rounded border px-2.5 py-1.5 text-sm"
-              >
-                <span className="text-osrs-parchment truncate">{r.name}</span>
-                <span className="text-osrs-parchment-dark/70 flex shrink-0 items-center gap-1.5 text-xs">
-                  {r.owner_team_id != null ? (
-                    <>
-                      <span
-                        className="inline-block size-2.5 rounded-full"
-                        style={{ background: colors.get(r.owner_team_id) ?? NEUTRAL_COLOR }}
-                      />
-                      {names.get(r.owner_team_id) ?? "A team"}
-                    </>
-                  ) : (
-                    "Contested"
-                  )}
-                  <span className="text-osrs-gold/80">
-                    +{fmtPoints(r.bonus)}
-                    {map.settings.scoring_mode === "hold_time" ? "/h" : ""}
-                  </span>
-                </span>
-              </li>
-            ))}
+            {map.regions.map((r) => {
+              const standing = regionStandings.get(r.id)!;
+              const members = map.tiles.filter((t) => t.region_id === r.id && t.kind !== "respawn");
+              const lit = litRegion === String(r.id);
+              return (
+                <li
+                  key={r.id}
+                  onPointerEnter={() => setLitRegion(String(r.id))}
+                  onPointerLeave={() => setLitRegion(null)}
+                  className={`rounded border px-2.5 py-2 text-sm transition-colors ${
+                    lit ? "border-osrs-gold/70 bg-osrs-gold/10" : "border-osrs-bronze/20"
+                  }`}
+                  style={{ borderLeft: `4px solid ${r.color ?? NEUTRAL_COLOR}` }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-osrs-parchment flex min-w-0 items-center gap-1.5 truncate font-medium">
+                      {standing.controller != null && (
+                        <Crown color={colors.get(standing.controller) ?? NEUTRAL_COLOR} />
+                      )}
+                      {r.name}
+                    </span>
+                    <span className="text-osrs-gold/80 shrink-0 text-xs">
+                      +{fmtPoints(r.bonus)}
+                      {map.settings.scoring_mode === "hold_time" ? "/h" : ""}
+                    </span>
+                  </div>
+                  <OwnershipBar tiles={members} colors={colors} />
+                  <p className="text-osrs-parchment-dark/70 mt-1 text-xs">
+                    {regionStatusText(standing, names)}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </section>
 
@@ -408,9 +418,55 @@ export function ConquestView({
   );
 }
 
+/** One segment per tile in the region, in its holder's colour. */
+function OwnershipBar({
+  tiles,
+  colors,
+}: {
+  tiles: Pick<ConquestTile, "id" | "label" | "owner_team_id">[];
+  colors: Map<number, string>;
+}) {
+  if (!tiles.length) return null;
+  const sorted = [...tiles].sort(
+    (a, b) => (a.owner_team_id ?? Infinity) - (b.owner_team_id ?? Infinity) || a.id - b.id,
+  );
+  return (
+    <div className="mt-1.5 flex h-2 gap-[2px]" aria-hidden="true">
+      {sorted.map((t) => (
+        <span
+          key={t.id}
+          title={t.label}
+          className="flex-1 rounded-sm"
+          style={{
+            background:
+              t.owner_team_id != null
+                ? (colors.get(t.owner_team_id) ?? NEUTRAL_COLOR)
+                : "rgba(243,230,196,0.18)",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/** A drawn crown (no emoji anywhere Conquest is shown). */
+function Crown({ color }: { color: string }) {
+  return (
+    <svg viewBox="0 0 28 18" className="h-3 w-4 shrink-0" aria-label="Controlled">
+      <path
+        d="M0 18 L2 4 L8 11 L14 0 L20 11 L26 4 L28 18 Z"
+        fill={color}
+        stroke="rgba(0,0,0,0.8)"
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function TileDetail({
   tile,
-  regionName,
+  region,
   names,
   colors,
   maxDefense,
@@ -419,7 +475,12 @@ function TileDetail({
   viewerTeamId,
 }: {
   tile: ConquestTile;
-  regionName?: string;
+  region?: {
+    name: string;
+    bonus: number;
+    standing: RegionStanding;
+    tiles: ConquestTile[];
+  };
   names: Map<number, string>;
   colors: Map<number, string>;
   maxDefense: number;
@@ -442,7 +503,7 @@ function TileDetail({
     <div className="space-y-2 text-sm">
       <div>
         <p className="text-osrs-gold font-semibold">{tile.label}</p>
-        {regionName && <p className="text-osrs-parchment-dark/60 text-xs">{regionName}</p>}
+        {region && <p className="text-osrs-parchment-dark/60 text-xs">In {region.name}</p>}
       </div>
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="flex items-center gap-1.5">
@@ -470,6 +531,15 @@ function TileDetail({
         {scoringMode === "hold_time" ? "per hour held" : "at the end"}
         {tile.captures ? ` · taken ${tile.captures} time${tile.captures === 1 ? "" : "s"}` : ""}
       </p>
+      {region && (
+        <RegionBlock
+          region={region}
+          names={names}
+          colors={colors}
+          scoringMode={scoringMode}
+          viewerTeamId={viewerTeamId}
+        />
+      )}
       {rulesHidden ? (
         <p className="text-osrs-parchment-dark/60 text-xs">
           The organisers keep the tile rules hidden.
@@ -520,6 +590,60 @@ function TileDetail({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/** The tile's region in Risk terms: who holds what, who is closest to
+ * control, and what the viewer's team still has to take. */
+function RegionBlock({
+  region,
+  names,
+  colors,
+  scoringMode,
+  viewerTeamId,
+}: {
+  region: { name: string; bonus: number; standing: RegionStanding; tiles: ConquestTile[] };
+  names: Map<number, string>;
+  colors: Map<number, string>;
+  scoringMode: "hold_time" | "final";
+  viewerTeamId: number | null;
+}) {
+  const { standing } = region;
+  const counted = region.tiles.filter((t) => t.kind !== "respawn");
+  const missing =
+    viewerTeamId != null && standing.controller !== viewerTeamId
+      ? tilesToControl(region.tiles, viewerTeamId)
+      : [];
+  return (
+    <div className="border-osrs-bronze/25 space-y-1.5 border-t pt-2">
+      <p className="text-osrs-parchment-dark/60 text-[11px] font-semibold uppercase tracking-wide">
+        {region.name}
+      </p>
+      <OwnershipBar tiles={counted} colors={colors} />
+      <p className="text-osrs-parchment text-xs">{regionStatusText(standing, names)}</p>
+      {standing.counts.length > 1 && (
+        <p className="text-osrs-parchment-dark/70 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[11px]">
+          {standing.counts.map((c) => (
+            <span key={c.teamId} className="flex items-center gap-1">
+              <span
+                className="inline-block size-2 rounded-full"
+                style={{ background: colors.get(c.teamId) ?? NEUTRAL_COLOR }}
+              />
+              {names.get(c.teamId) ?? "Team"} {c.tiles}
+            </span>
+          ))}
+          {standing.unowned > 0 && <span>Unowned {standing.unowned}</span>}
+        </p>
+      )}
+      {missing.length > 0 && missing.length < counted.length && (
+        <p className="text-osrs-gold/90 text-[11px]">
+          Your team needs {missing.length} more: {missing.map((t) => t.label).join(", ")}.
+        </p>
+      )}
+      <p className="text-osrs-parchment-dark/60 text-[11px]">
+        {regionBonusText(region.bonus, scoringMode, standing.total)}
+      </p>
     </div>
   );
 }
