@@ -67,12 +67,12 @@ One specific item.
 Any items from a list.
 
 18
-00:00:48,750 --> 00:00:53,950
-Different items, so the fifth Bandos tasset in a row doesn't count five
+00:00:48,750 --> 00:00:51,550
+Different items, so the fifth Bandos tasset
 
 19
-00:00:53,950 --> 00:00:54,350
-times.
+00:00:51,550 --> 00:00:54,350
+in a row doesn't count five times.
 
 20
 00:00:54,350 --> 00:00:55,950
@@ -123,12 +123,12 @@ Every task explains itself.
 Open What counts and it tells you exactly what gets credited.
 
 32
-00:01:26,750 --> 00:01:31,950
-And it's been stress-tested by clan members, who are the most creative people
+00:01:26,750 --> 00:01:29,550
+And it's been stress-tested by clan members,
 
 33
-00:01:31,950 --> 00:01:33,950
-alive when points are involved.
+00:01:29,550 --> 00:01:33,950
+who are the most creative people alive when points are involved.
 
 34
 00:01:34,750 --> 00:01:39,550
@@ -175,12 +175,12 @@ and completions land here, in the review queue.
 Confirm, reject, or hand out points manually.
 
 45
-00:02:09,550 --> 00:02:14,750
-Loot value tasks can auto-accept small drops, because nobody should have to approve
+00:02:09,550 --> 00:02:12,350
+Loot value tasks can auto-accept small drops,
 
 46
-00:02:14,750 --> 00:02:15,950
-three hundred bones.
+00:02:12,350 --> 00:02:15,950
+because nobody should have to approve three hundred bones.
 
 47
 00:02:16,750 --> 00:02:20,750
@@ -211,9 +211,9 @@ That's tasks.
 Next episode: points.
 
 54
-00:02:36,750 --> 00:02:41,950
-Who gets them, how bingo lines work, and why the person who went
+00:02:36,750 --> 00:02:39,550
+Who gets them, how bingo lines work,
 
 55
-00:02:41,950 --> 00:02:44,750
-AFK on the winning team gets nothing.
+00:02:39,550 --> 00:02:44,750
+and why the person who went AFK on the winning team gets nothing.

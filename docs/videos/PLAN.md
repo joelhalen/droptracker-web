@@ -7,17 +7,17 @@ and dry jokes that are still true.
 
 **What exists now**
 
-|                           |                                                                              |
-| ------------------------- | ---------------------------------------------------------------------------- |
-| Series plan (this file)   | 8 episodes. Episodes 1–3 are scripted and filmed, 4–8 are outlined below     |
-| `episodes.mjs`            | The single source for every line of voice-over, every beat and every clip id |
-| `scripts/ep{1,2,3}.md`    | Shooting scripts: timecode, clip, what's on screen, voice-over               |
-| `scripts/ep{1,2,3}-vo.md` | Voice-over read sheets: numbered lines, each with a time target              |
-| `captions/ep{1,2,3}.srt`  | The voice-over as captions, on the rough-cut timeline                        |
-| `tooling/`                | Records the clips from the live web app and assembles captioned rough cuts   |
+|                           |                                                                                  |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| Series plan (this file)   | 8 episodes. 1 is finished; 2–3 are scripted and filmed; 4–8 are outlined below   |
+| `episodes.mjs`            | The single source for every line of voice-over, every beat and every clip id     |
+| `scripts/ep{1,2,3}.md`    | Shooting scripts: timecode, clip, what's on screen, voice-over                   |
+| `scripts/ep{1,2,3}-vo.md` | Voice-over read sheets: numbered lines, with each take's length (or a target)    |
+| `captions/ep{1,2,3}.srt`  | The voice-over as captions, timed to the recorded takes where they exist (ep1)   |
+| `tooling/`                | Voices the lines, records the clips to the voice, and renders the finished video |
 
-The rough cuts and clips are build output and are not committed (see "Producing
-it" below). Rebuild them with two commands.
+Clips, takes, music and videos are build output and are not committed (see
+"Producing it" below). Everything is reproducible from this folder.
 
 ---
 
@@ -55,7 +55,7 @@ it" below). Rebuild them with two commands.
 
 | #   | Title                    | Status                          | Runtime | Covers                                                                                     |
 | --- | ------------------------ | ------------------------------- | ------- | ------------------------------------------------------------------------------------------ |
-| 1   | Your First Event         | scripted + filmed + rough cut   | ~3:20   | Events tab → 7-step wizard → launch → what players see                                     |
+| 1   | Your First Event         | **finished** (voiced, scored)   | ~3:45   | Events tab → 7-step wizard → launch → what players see                                     |
 | 2   | What Actually Counts     | scripted + filmed               | ~2:50   | Task types, item modes, anti-cheese rules, review queue, library / Fill for me             |
 | 3   | How Scoring Works        | scripted + filmed               | ~2:20   | Task points, contribution split, bingo lines/blackout, standings, history, effort, payouts |
 | 4   | Running It               | outline                         | ~3:00   | Review queue in anger, Discord surfaces, in-game HUD, ending an event, templates           |
@@ -163,86 +163,107 @@ clans, so the video doesn't advertise something viewers can't click.
 
 ## Producing it
 
-### Record the clips
+One pass, in order. Each step is repeatable on its own; the finished episode is
+`tooling/out/<ep>.mp4` (clean, for YouTube with `captions/<ep>.srt` uploaded as
+subtitles) and `tooling/out/<ep>-captioned.mp4` (captions burned in, for
+Discord and socials).
+
+```bash
+cd docs/videos/tooling
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+npm install                          # Playwright; ffmpeg must be on PATH
+
+.venv/bin/python voice.py ep1 --check   # 1. the voice-over → vo/ep1/NN.wav (+ timings)
+.venv/bin/python music.py               # 2. music/bed.wav + music/sting.wav
+.venv/bin/python fonts.py               # 3. fonts/ for cards and captions
+
+# 4. the site in mock mode, and the stand-in API beside it
+(cd ../../../apps/web && USE_MOCK_API=true PORT=3001 pnpm dev) &
+python3 meta-server.py &
+node shots.mjs e1_cold_open e1_basics …  # 5. clips, cut to the voice (default: all)
+
+node build.mjs --video ep1           # 6. scripts, captions and the finished video
+```
+
+### 1. Voice-over
+
+`voice.py` reads each numbered line of the read sheet with **Kokoro-82M**
+(Apache-2.0, open weights, runs on CPU at about 4× real time; the model
+downloads to `models/` on first run). The voice is `bm_fable` at speed 0.9:
+British, low, and the clearest of the six voices tried. `VOICE=` and `SPEED=`
+change them; the takes, their timings and every clip that follows them
+regenerate from there.
+
+- Lines are read one sentence at a time and joined with measured silence:
+  0.25 s between sentences, 0.5 s before a short punchline ("Bravely.", "A
+  butler who pings."). The deadpan is in those gaps.
+- Words the phonemizer gets wrong have their IPA in `PRONOUNCE` ("Turael").
+- `--check` transcribes every take with Whisper and compares its letters with
+  the script; anything over 5% needs a listen.
+- A take is tied to its line's text. Change a line in `episodes.mjs` and the
+  build warns until that line is re-voiced.
+- A human read replaces any take: drop `NN.wav` in, delete its `NN.json`.
+
+### 2. Music
+
+`music.py` synthesizes the bed and the card sting, so the episodes carry no
+licence question: plucked-lute arpeggios (Karplus-Strong) over a soft pad in D
+dorian, 80 bpm, a seamless 96-second loop. It is texture, not a tune. To use a
+licensed track instead, drop it in as `music/bed.{wav,mp3,m4a}` (and
+`music/sting.*`); the build loops it to length.
+
+### 3. Recording the clips
 
 The clips come from the web app in mock mode, which has a full bingo, a draft,
 loot sweeps and competitions, and a mock superadmin.
 
-```bash
-# 1. the site, in mock mode
-cd apps/web && USE_MOCK_API=true PORT=3001 pnpm dev
+- **Cut to the voice.** A shot calls `on("Bingo is a grid")` to wait for the
+  moment the narrator says it (from the take's sentence timings), so the
+  cursor lands on the thing as it's named. The runner keeps rolling until the
+  beat is covered and warns when a shot falls behind its cue. Without takes,
+  shots play at their own pace, as before.
+- **Framing.** The wizard steps are filmed at a 1.3× page zoom (`zoom()` in
+  `lib.mjs`, CSS zoom on `<main>` only, so the header stays desktop and text
+  stays sharp). The form is only 768 px wide and otherwise fills half the frame.
+- **Real images.** Item, NPC and skill images are fetched from droptracker.io
+  on first use and cached in `icons/`. `OFFLINE=1` films the old way:
+  the osrsbox extract from `icons/itemdb/`, with skillcape/pet stand-ins and
+  blanks for anything else.
+- It uses Chrome's screencast (CDP): a 1280×720 viewport at 1.5× scale,
+  1920×1080 at about 45 fps, encoded to 30 fps H.264 at CRF 18. Page loads
+  mid-shot are cut out of the tape. A drawn cursor with click pulses is
+  injected (headless Chrome has no cursor); the Next.js dev badge and chat
+  bubble are hidden.
 
-# 2. the recorder (Playwright + Chromium, and ffmpeg on PATH)
-cd docs/videos/tooling && npm install
-node shots.mjs                    # every clip → tooling/clips/*.mp4
-node shots.mjs e1_basics e2_review   # or just some
-```
+`meta-server.py` is a stand-in Web API on `:31325` for the reads mock mode
+leaves empty on camera: the "Fill for me" generator form, completion history,
+prize pot, clan-point payouts and task requirements (event 1), and item/NPC
+search. It answers 503 to everything else, so the rest falls back to the normal
+mocks. Search needs `meta.json` (`{"items": {name: id}, "npcs": {name: id}}`,
+built from the osrsbox package's `items-complete.json` and
+`monsters-complete.json`); episode 1 doesn't use it. To film real data instead,
+set `BASE` to a dev instance.
 
-How the recorder works:
+### 4. Assembly
 
-- It uses Chrome's screencast (CDP), not Playwright's built-in video. That
-  gives sharp 1920×1080 at about 45 fps (a 1280×720 viewport at 1.5× scale),
-  encoded to 30 fps H.264 at CRF 18.
-- Page loads mid-shot are cut out of the tape.
-- A drawn cursor with click pulses is injected, because headless Chrome has no
-  cursor.
-- The Next.js dev badge and the chat bubble are hidden.
+`build.mjs` writes the scripts and captions for every episode, and with
+`--video` renders:
 
-A few reads are empty in mock mode but needed on camera: item/NPC search,
-completion history, prize pot and clan-point payouts. `tooling/meta-server.py`
-is a stand-in Web API on `:31325` that serves just those, for event 1, and
-answers 503 to everything else so the rest falls back to the normal mocks.
-Start it before recording:
+- **Timing.** Each beat lasts its take plus a breath either side and its
+  `hold`. A clip that runs long is sped up by at most 1.25×, then trimmed; one
+  that runs short holds its last frame (and the build says so).
+- **Picture.** 0.3 s dissolves between beats, placed so the picture stays in
+  step with the voice. Title cards in Cinzel and Figtree with the logo, a fade
+  in and out.
+- **Sound.** The voice (high-passed at 70 Hz), the bed 12 dB down and ducked
+  about 7 dB under the voice, a sting on each card. Two-pass linear loudnorm
+  to −14 LUFS / −2 dBTP, YouTube's target.
+- **Captions** follow each sentence where it is spoken, in chunks of about 13
+  words split at the comma nearest the middle. They are within ±0.4 s of the
+  spoken words on ep1.
 
-```bash
-python3 meta-server.py meta.json   # meta.json: {"items": {name: id}, "npcs": {name: id}}
-```
-
-Build `meta.json` from the osrsbox package: the `name` and id of each
-non-noted item in `items-complete.json`, and each monster in
-`monsters-complete.json`.
-
-Item icons in mock data point at `droptracker.io/img/itemdb/<id>.png`. On a box
-without internet access, drop the icons into `tooling/icons/itemdb/`. For
-example, `pip download osrsbox` ships every item icon as base64 in
-`items-complete.json`. The recorder serves those in place of the network.
-Skills and bosses have no icons there, so the recorder films in-game
-stand-ins: the skillcape for a skill (`/img/metrics/slayer.png` → Slayer cape)
-and the pet for a boss (`/img/npcdb/8060.png` → Vorki). This stand-in table is
-in `lib.mjs`. With internet access, nothing is needed. To film real data
-instead, set `BASE` to a dev instance.
-
-### Assemble
-
-```bash
-node build.mjs                     # scripts/*.md, captions/*.srt from episodes.mjs
-node build.mjs --video ep1 ep2 ep3 # + tooling/out/<ep>-roughcut.mp4
-```
-
-`build.mjs` needs `tooling/fonts/` to contain static TTFs of Cinzel and Figtree,
-with family names `DT Cinzel` and `DT Figtree`. They are instanced from
-`apps/web/app/fonts/*.woff2` with fontTools (`varLib.instancer`, weight 700 and
-600).
-
-The rough cut gives each beat the time its line needs at about 150 wpm:
-
-- A clip that runs long is sped up by at most 1.25×, then trimmed.
-- A clip that runs short holds its last frame.
-- Captions are burned in, and every frame carries a "ROUGH CUT" tag.
-
-### Voice-over and the final edit
-
-1. Record one take per numbered line in `scripts/<ep>-vo.md`.
-2. In the editor (Resolve, Premiere or CapCut), lay the clips down in beat
-   order, then cut or slip each clip to its take.
-3. Hold the picture wherever a beat has a `hold`.
-4. Add a music bed and card stings.
-5. Import `captions/<ep>.srt` as a starting point, then re-time it to the real
-   voice.
-
-For an AI voice, feed the read sheet line by line to ElevenLabs or a similar
-tool. Use a calm, low-energy, dry British or mid-Atlantic voice. Pick
-stability over expressiveness: deadpan is the joke.
+Without takes, the render is a silent rough cut timed at about 150 wpm and
+stamped "ROUGH CUT", as before.
 
 ---
 

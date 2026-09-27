@@ -35,24 +35,24 @@ If two of you each got half of a five point task,
 you each get two and a half.
 
 10
-00:00:32,750 --> 00:00:37,550
-So yes, the person who carried the team gets to prove it,
+00:00:32,750 --> 00:00:35,550
+So yes, the person who carried the
 
 11
-00:00:37,550 --> 00:00:38,350
-with decimals.
+00:00:35,550 --> 00:00:38,350
+team gets to prove it, with decimals.
 
 12
 00:00:39,150 --> 00:00:40,350
 Bingo adds bonuses.
 
 13
-00:00:40,350 --> 00:00:45,550
-Finish a row, a column, or a diagonal and your team gets line
+00:00:40,350 --> 00:00:42,350
+Finish a row, a column,
 
 14
-00:00:45,550 --> 00:00:46,750
-points on top.
+00:00:42,350 --> 00:00:46,750
+or a diagonal and your team gets line points on top.
 
 15
 00:00:46,750 --> 00:00:49,950
@@ -127,12 +127,12 @@ No real gold moves, you still trade it in game.
 Clan points go out for placement and participation.
 
 33
-00:01:55,150 --> 00:02:00,350
-And by default, the person who signed up and went AFK on the
+00:01:55,150 --> 00:01:58,750
+And by default, the person who signed up and
 
 34
-00:02:00,350 --> 00:02:01,950
-winning team gets nothing.
+00:01:58,750 --> 00:02:01,950
+went AFK on the winning team gets nothing.
 
 35
 00:02:01,950 --> 00:02:02,350
@@ -147,16 +147,16 @@ Finally.
 That's the core of it.
 
 38
-00:02:05,550 --> 00:02:10,750
-Next up, the fancier formats: loot sweeps, skill and boss of the week,
+00:02:05,550 --> 00:02:08,350
+Next up, the fancier formats: loot sweeps,
 
 39
-00:02:10,750 --> 00:02:15,950
-the board game, and Conquest, where your clan fights over a map of
+00:02:08,350 --> 00:02:12,750
+skill and boss of the week, the board game, and Conquest,
 
 40
-00:02:15,950 --> 00:02:16,350
-Gielinor.
+00:02:12,750 --> 00:02:16,350
+where your clan fights over a map of Gielinor.
 
 41
 00:02:16,350 --> 00:02:17,150

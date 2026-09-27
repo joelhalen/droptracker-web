@@ -1,7 +1,8 @@
 """Stand-in Web API for filming in mock mode. Answers the few reads the web
 app's mocks leave empty on camera: the task form's item / NPC autocomplete and
 the event page's completion history, and event 1's prize pot and clan-point
-payout (manager tabs), and the "What counts" answer for its five tasks.
+payout (manager tabs), the "What counts" answer for its five tasks, and the
+"Fill for me" task generator's form (any event).
 Everything else gets a 503, so the web
 app's `withFallback` serves its normal mock data.
 
@@ -11,12 +12,16 @@ meta.json = {"items": {name: id}, "npcs": {name: id}}; build it from the
 osrsbox package's items-complete.json / monsters-complete.json (see PLAN.md).
 """
 import json
+import os
+import re
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-META = json.load(open(sys.argv[1] if len(sys.argv) > 1 else "meta.json"))
+# meta.json is only needed for the item / NPC autocomplete (episode 2 on).
+_meta = sys.argv[1] if len(sys.argv) > 1 else "meta.json"
+META = json.load(open(_meta)) if os.path.exists(_meta) else {"items": {}, "npcs": {}}
 
 
 def search(table, q, limit=12):
@@ -126,6 +131,34 @@ def requirements(task_id):
     }.get(task_id, {"label": None, "type": "custom", "summary": ""})}
 
 
+# Shaped like web_api/routes/event_task_generator.py's generator_options, with
+# its vocabularies copied from services/task_generator.py and a sample of the
+# boss catalog. Defaults are what _event_defaults gives a 2-week standard event.
+def generator_options():
+    enc = [("vorkath", "Vorkath", "bosses", 14), ("zulrah", "Zulrah", "bosses", 11),
+           ("cox", "Chambers of Xeric", "raids", 9), ("tob", "Theatre of Blood", "raids", 6),
+           ("toa", "Tombs of Amascut", "raids", 12), ("gwd_bandos", "General Graardor", "gwd", 5),
+           ("gwd_zamorak", "K'ril Tsutsaroth", "gwd", 3), ("vardorvis", "Vardorvis", "dt2", 7),
+           ("barrows", "Barrows", "group", 8), ("hydra", "Alchemical Hydra", "slayer", 6)]
+    return {
+        "defaults": {"count": 12, "days": 14.0, "team_size": 5, "activity": "normal",
+                     "mix": {"air": 3, "water": 3, "earth": 2, "fire": 1}, "clan_focus": "off"},
+        "categories": [{"key": k, "label": v} for k, v in [
+            ("raids", "Raids"), ("gwd", "God Wars Dungeon"), ("dt2", "Desert Treasure II bosses"),
+            ("bosses", "Other bosses"), ("slayer", "Slayer bosses & tasks"), ("wilderness", "Wilderness"),
+            ("group", "Barrows, Dagannoth Kings & Moons"), ("skilling", "Skilling"),
+            ("general", "Anywhere (loot value)")]],
+        "kinds": [{"key": k, "label": v} for k, v in [
+            ("uniques", "Boss uniques"), ("kc", "Kill counts"), ("pets", "Pets"), ("ca", "Combat achievements"),
+            ("xp", "Skill XP"), ("slayer", "Slayer tasks"), ("loot", "Loot value")]],
+        "difficulties": [{"key": k, "label": l, "points": p} for k, l, p in [
+            ("air", "Easy", 1), ("water", "Medium", 2), ("earth", "Hard", 3), ("fire", "Elite", 5)]],
+        "encounters": [{"key": k, "label": l, "category": c, "clan_players": n} for k, l, c, n in enc],
+        "activity_available": True,
+        "clan_members": 128,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         u = urlparse(self.path)
@@ -144,6 +177,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, pot())
         if u.path.endswith("/events/1/clan-points"):
             return self.reply(200, clan_points())
+        if re.search(r"/events/\d+/tasks/generator$", u.path):
+            return self.reply(200, generator_options())
         self.reply(503, {"error": "stand-in: not served"})
 
     do_POST = do_PUT = do_PATCH = do_DELETE = lambda self: self.reply(503, {"error": "stand-in"})

@@ -1,0 +1,9 @@
+# Python side of the video tooling (voice.py, music.py, fonts.py).
+# python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+kokoro-onnx==0.6.1
+soundfile
+numpy
+fonttools
+brotli
+# Optional: `voice.py --check` transcribes each take and diffs it with the script.
+faster-whisper

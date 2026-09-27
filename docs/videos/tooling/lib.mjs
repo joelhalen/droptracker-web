@@ -5,6 +5,12 @@ import path from "node:path";
 
 export const BASE = process.env.BASE || "http://localhost:3001";
 const ICONS = process.env.ICONS || path.resolve("icons");
+const OFFLINE = process.env.OFFLINE === "1";
+const IMG_ORIGIN = process.env.IMG_ORIGIN || "https://www.droptracker.io";
+const mime = (f) =>
+  ({ ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml" })[
+    path.extname(f).toLowerCase()
+  ] || "image/jpeg";
 const W = 1920,
   H = 1080;
 
@@ -98,36 +104,50 @@ export async function open({ record = null, width = W, height = H, scale = 1 } =
     { name: "dt_session", value: "mock-session", domain: "localhost", path: "/" },
   ]);
   await ctx.addInitScript(CURSOR_JS);
-  // Item icons: served from the local osrsbox extract. Everything else image-ish off-box: blank.
-  await ctx.route(/\/img\/itemdb\/(\d+)\.png/, (route, req) => {
-    const id = req.url().match(/\/img\/itemdb\/(\d+)\.png/)[1];
-    const f = path.join(ICONS, "itemdb", `${id}.png`);
-    return fs.existsSync(f)
-      ? route.fulfill({ status: 200, contentType: "image/png", body: fs.readFileSync(f) })
-      : route.fulfill({ status: 200, contentType: "image/png", body: BLANK });
-  });
-  await ctx.route(
-    /^https?:\/\/(?!localhost)[^/]+\/.*\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i,
-    (route) => route.fulfill({ status: 200, contentType: "image/png", body: BLANK }),
-  );
-  // Skills and bosses have no icons in the item extract, so film in-game
-  // stand-ins: the skillcape for a skill, the boss's pet for a boss.
+  // Game images (/img/itemdb, npcdb, metrics, ...) live on droptracker.io, not
+  // on the dev server. Online: fetch the real image once and keep it under
+  // icons/ so re-takes are fast and identical. OFFLINE=1: film the local
+  // osrsbox extract, with in-game stand-ins for skills and bosses (the
+  // skillcape for a skill, the boss's pet for a boss) and a blank otherwise.
   const iconFile = (id) => path.join(ICONS, "itemdb", `${id}.png`);
-  const serve = (route, id) =>
-    route.fulfill({
+  const standin = (kind, key) => {
+    const id =
+      kind === "npcdb" ? NPC_STANDINS[key] : kind === "metrics" ? METRIC_STANDINS[key] : key;
+    return id && fs.existsSync(iconFile(id)) ? fs.readFileSync(iconFile(id)) : BLANK;
+  };
+  await ctx.route(/\/img\/([a-z_]+)\/([^?#]+)/, async (route, req) => {
+    const [, kind, rest] = new URL(req.url()).pathname.match(/\/img\/([a-z_]+)\/(.+)/);
+    const cached = path.join(ICONS, kind, rest);
+    if (fs.existsSync(cached))
+      return route.fulfill({
+        status: 200,
+        body: fs.readFileSync(cached),
+        contentType: mime(cached),
+      });
+    if (!OFFLINE) {
+      const res = await fetch(`${IMG_ORIGIN}/img/${kind}/${rest}`).catch(() => null);
+      if (res?.ok) {
+        const body = Buffer.from(await res.arrayBuffer());
+        fs.mkdirSync(path.dirname(cached), { recursive: true });
+        fs.writeFileSync(cached, body);
+        return route.fulfill({
+          status: 200,
+          body,
+          contentType: res.headers.get("content-type") || mime(cached),
+        });
+      }
+    }
+    return route.fulfill({
       status: 200,
       contentType: "image/png",
-      body: id && fs.existsSync(iconFile(id)) ? fs.readFileSync(iconFile(id)) : BLANK,
+      body: standin(kind, rest.replace(/\.png$/, "")),
     });
-  await ctx.route(/\/img\/npcdb\/(\d+)\.png/, (route, req) =>
-    serve(route, NPC_STANDINS[req.url().match(/npcdb\/(\d+)/)[1]]),
-  );
-  await ctx.route(/\/img\/metrics\/([a-z_]+)\.png/, (route, req) =>
-    serve(route, METRIC_STANDINS[req.url().match(/metrics\/([a-z_]+)/)[1]]),
-  );
-  await ctx.route(/\/img\/(proofs|lootboard)\//, (route) =>
-    route.fulfill({ status: 200, contentType: "image/png", body: BLANK }),
-  );
+  });
+  if (OFFLINE)
+    await ctx.route(
+      /^https?:\/\/(?!localhost)[^/]+\/.*\.(png|jpe?g|gif|webp|svg)(\?.*)?$/i,
+      (route) => route.fulfill({ status: 200, contentType: "image/png", body: BLANK }),
+    );
   const page = await ctx.newPage();
   page.setDefaultTimeout(60000);
   return { browser, ctx, page };
@@ -177,6 +197,21 @@ export async function glide(
     await page.mouse.up();
     await page.waitForTimeout(pause);
   }
+}
+
+// Enlarge the page body (not the site header) like a browser zoom, so a
+// narrow form fills the frame. Rendered at full resolution, not upscaled.
+export async function zoom(page, factor) {
+  await page.evaluate((z) => {
+    let st = document.getElementById("dt-zoom");
+    if (!st) {
+      st = document.createElement("style");
+      st.id = "dt-zoom";
+      document.head.appendChild(st);
+    }
+    st.textContent = z === 1 ? "" : `main { zoom: ${z} }`;
+  }, factor);
+  await page.waitForTimeout(300);
 }
 
 export async function typeSlow(page, text, delay = 55) {
