@@ -266,7 +266,7 @@ export const episodes = [
       {
         clip: "p1_settings",
         screen: "Slide: minimum value 2.5M, a channel per type, the type toggles.",
-        vo: "And you decide what's worth one. Drops under two and a half million stay quiet by default, so nobody's announcing rune scimitars. Personal bests, pets and collection logs can each get their own channel. Deaths are available too, if your clan enjoys that.",
+        vo: "And you decide what deserves one. Drops under two and a half million stay quiet by default, so nobody's announcing rune scimitars. Personal bests, pets and collection logs can each get their own channel. Deaths are available too, if your clan enjoys that.",
       },
       {
         clip: "p1_pages",

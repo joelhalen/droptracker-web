@@ -112,13 +112,28 @@ def level(audio):
     return audio * (0.97 / peak) if peak > 0.97 else audio
 
 
-NUMBERS = dict(zip("1 2 3 4 5 6 7 8 9 10".split(), "one two three four five six seven eight nine ten".split()))
+ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split()
+TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def spell(n):
+    """1204 -> "one thousand two hundred four": Whisper writes numbers as
+    digits ("40") that the script spells out ("forty")."""
+    if n < 20:
+        return ONES[n]
+    if n < 100:
+        return TENS[n // 10] + ("" if n % 10 == 0 else ONES[n % 10])
+    if n < 1000:
+        return ONES[n // 100] + "hundred" + ("" if n % 100 == 0 else spell(n % 100))
+    if n < 1_000_000:
+        return spell(n // 1000) + "thousand" + ("" if n % 1000 == 0 else spell(n % 1000))
+    return str(n)
 
 
 def letters(s):
     """Spelling-blind form for comparing a transcript to the script: "Step 4 –
     pre-flight" and "step four, preflight" both become "stepfourpreflight"."""
-    s = re.sub(r"\d+", lambda m: NUMBERS.get(m.group(), m.group()), s.lower())
+    s = re.sub(r"\d[\d,]*", lambda m: spell(int(m.group().replace(",", ""))), s.lower())
     return re.sub(r"[^a-z]", "", s)
 
 
@@ -151,6 +166,47 @@ def word_slips(ref, hyp):
         kind = op
         longest = max(longest, run)
     return longest
+
+
+def tighten(audio, sr, words):
+    """Shorten silences Chatterbox holds too long, down to the allowed pause
+    (see overlong_pause), and move the word clock to match. The cut is taken
+    from the middle of the gap with a short crossfade, so no breath or
+    syllable is touched. Returns (audio, words, seconds removed)."""
+    cuts, since = [], 0
+    for a, b in zip(words, words[1:]):
+        since += 1
+        ends = a[2].endswith((".", "!", "?"))
+        allowed = (PUNCHLINE_PAUSE if ends and since <= PUNCHLINE_WORDS else MAX_PAUSE) - 0.1
+        gap = b[0] - a[1]
+        if gap > allowed:
+            mid = (a[1] + b[0]) / 2
+            cuts.append((mid - (gap - allowed) / 2, mid + (gap - allowed) / 2))
+        if ends:
+            since = 0
+    if not cuts:
+        return audio, words, 0.0
+    fade = int(0.01 * sr)
+    out, pos = [], 0
+    for c0, c1 in cuts:
+        i0, i1 = int(c0 * sr), int(c1 * sr)
+        seg = audio[pos:i0].copy()
+        if out and len(seg) > fade:
+            seg[:fade] *= np.linspace(0, 1, fade)
+        if len(seg) > fade:
+            seg[-fade:] *= np.linspace(1, 0, fade)
+        out.append(seg)
+        pos = i1
+    tail = audio[pos:].copy()
+    if len(tail) > fade:
+        tail[:fade] *= np.linspace(0, 1, fade)
+    out.append(tail)
+
+    def shift(t):
+        return t - sum(min(max(t - c0, 0.0), c1 - c0) for c0, c1 in cuts)
+
+    moved = [(shift(a), shift(b), w) for a, b, w in words]
+    return np.concatenate(out), moved, sum(c1 - c0 for c0, c1 in cuts)
 
 
 def overlong_pause(words):
@@ -294,7 +350,12 @@ def chatterbox_line(m, text, key, tmp, only=None):
         heard = " ".join(w for _, _, w in words)
         err = cer(text, heard)
         slip = word_slips(text, heard)
+        # A read that's right but lingers too long between words is kept and
+        # its silences shortened, instead of thrown away.
         stall = max((b[0] - a[1] for a, b in zip(words, words[1:])), default=0.0)
+        audio, words, cut = tighten(audio, m.sr, words)
+        if cut:
+            sf.write(tmp, audio, m.sr, subtype="PCM_16")
         over = overlong_pause(words)
         wpm = len(text.split()) * 60 / (len(audio) / m.sr)
         ok = err <= LIMIT and slip < MAX_RUN and over <= 0 and wpm <= MAX_WPM
@@ -303,7 +364,8 @@ def chatterbox_line(m, text, key, tmp, only=None):
         score = (0 if words_ok else 100 + err) + max(0.0, over) + max(0.0, wpm - MAX_WPM) / 100
         print(
             f"      take {take + 1}: {len(audio) / m.sr:.1f}s in {spent:.0f}s · CER {err:4.1%} · "
-            f"slip {slip} · pause {stall:.1f}s · {wpm:.0f} wpm{'' if ok else '  ✗'}",
+            f"slip {slip} · pause {stall:.1f}s{f' (cut {cut:.1f}s)' if cut else ''} · {wpm:.0f} wpm"
+            f"{'' if ok else '  ✗'}",
             flush=True,
         )
         if best is None or score < best["score"]:

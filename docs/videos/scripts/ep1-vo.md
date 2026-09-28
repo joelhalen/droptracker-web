@@ -56,3 +56,4 @@ The times below are the current takes in `tooling/vo/ep1/`; a human read can run
 **14** · take 7.7s (+1.5s hold after)
 
 > Next time: tasks. What counts, what doesn't, and why Turael skipping will not save you.
+

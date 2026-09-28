@@ -113,14 +113,21 @@ export const RENAMES = {
   "C Engineer": "Chompy Chad",
   SkillSpecs: "Spec Sam",
   // ...and the placeholder clan, as the clan the trailer's setup creates.
+  "Mock Clan's": "Iron Wolves'",
   "Mock Clan": "Iron Wolves",
   "Clan 101": "Iron Wolves",
+  // ...and mock mode's own giveaways.
+  "A mock clan profile served while the Web API is unavailable.":
+    "Weekly raids, monthly bingos, zero spreadsheets.",
+  MockUser: "Iron Ingrid",
 };
 // Runs in the page (Playwright serializes it): rewrite matching text now and
 // whenever the page renders more.
 function renameInPage(map) {
   const esc = (k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp("\\b(" + Object.keys(map).map(esc).join("|") + ")\\b", "g");
+  // Longest first, so "Mock Clan's" wins over "Mock Clan".
+  const keys = Object.keys(map).sort((a, b) => b.length - a.length);
+  const re = new RegExp("\\b(" + keys.map(esc).join("|") + ")\\b", "g");
   const fix = (s) => (typeof s === "string" ? s.replace(re, (m) => map[m]) : s);
   const walk = (root) => {
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -322,30 +329,38 @@ export async function cast(page, outMp4, { quality = 88 } = {}) {
   const dir = outMp4.replace(/\.mp4$/, "_frames");
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
-  const cdp = await page.context().newCDPSession(page);
   const frames = [];
   let n = 0,
     stopped = false,
     paused = false,
     pauseAt = 0,
     offset = 0,
-    t0 = null;
-  cdp.on("Page.screencastFrame", async ({ data, metadata, sessionId }) => {
-    cdp.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
-    if (paused || stopped) return;
-    const t = metadata.timestamp - offset;
-    if (t0 === null) t0 = t;
-    const f = path.join(dir, `f${String(n++).padStart(6, "0")}.jpg`);
-    fs.writeFileSync(f, Buffer.from(data, "base64"));
-    frames.push({ f, t: t - t0 });
-  });
-  await cdp.send("Page.startScreencast", {
-    format: "jpeg",
-    quality,
-    maxWidth: 1920,
-    maxHeight: 1080,
-    everyNthFrame: 1,
-  });
+    t0 = null,
+    cdp = null;
+  // A navigation to another origin moves the tab to a new renderer, which
+  // ends a screencast; attach() starts one on whatever renders the tab now.
+  const attach = async () => {
+    if (cdp) await cdp.detach().catch(() => {});
+    const session = await page.context().newCDPSession(page);
+    cdp = session;
+    session.on("Page.screencastFrame", async ({ data, metadata, sessionId }) => {
+      session.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
+      if (paused || stopped || session !== cdp) return;
+      const t = metadata.timestamp - offset;
+      if (t0 === null) t0 = t;
+      const f = path.join(dir, `f${String(n++).padStart(6, "0")}.jpg`);
+      fs.writeFileSync(f, Buffer.from(data, "base64"));
+      frames.push({ f, t: t - t0 });
+    });
+    await session.send("Page.startScreencast", {
+      format: "jpeg",
+      quality,
+      maxWidth: 1920,
+      maxHeight: 1080,
+      everyNthFrame: 1,
+    });
+  };
+  await attach();
   const now = () => Date.now() / 1000;
   const nudge = async () => {
     const p = await page
@@ -360,19 +375,35 @@ export async function cast(page, outMp4, { quality = 88 } = {}) {
       pauseAt = now();
     },
     async resume() {
+      await attach();
       await page.waitForTimeout(150);
       offset += now() - pauseAt;
       paused = false;
       await nudge();
+      // A still page sends no frame until something repaints (and a slide
+      // hides the cursor the nudge moves), so paint one invisible pixel.
+      await page
+        .evaluate(() => {
+          const d = document.createElement("div");
+          d.style.cssText =
+            "position:fixed;left:0;top:0;width:2px;height:2px;background:rgba(0,0,0,.01)";
+          document.body.appendChild(d);
+          setTimeout(() => d.remove(), 120);
+        })
+        .catch(() => {});
     },
     async stop(tail = 0.6) {
       await page.waitForTimeout(tail * 1000);
       stopped = true;
       await cdp.send("Page.stopScreencast").catch(() => {});
-      const end = (frames.at(-1)?.t ?? 0) + 0.04;
+      // Chrome only sends a frame when the page changes, so a still page
+      // (a slide between steps) ends on its last change. Hold that frame to
+      // the time actually spent on tape.
+      const onTape = t0 === null ? 0 : now() - offset - t0;
+      const end = Math.max((frames.at(-1)?.t ?? 0) + 0.04, onTape);
       const lines = ["ffconcat version 1.0"];
       frames.forEach((fr, i) => {
-        const d = (i + 1 < frames.length ? frames[i + 1].t : end + tail) - fr.t;
+        const d = (i + 1 < frames.length ? frames[i + 1].t : end) - fr.t;
         lines.push(`file '${fr.f}'`, `duration ${Math.max(d, 0.001).toFixed(4)}`);
       });
       lines.push(`file '${frames.at(-1).f}'`);

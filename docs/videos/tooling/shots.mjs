@@ -78,7 +78,10 @@ const G = "/groups/101/events";
 const EV = "/events/1";
 const MGR = `${G}/1`;
 const WIZ = (step) => `${G}/new?event=5&step=${step}`;
-const SLIDES = new URL("../slides/trailer.html", import.meta.url).href;
+// Slides are served over http from localhost (see serveRepo in the runner):
+// a file:// page runs in another renderer process, and the screencast loses
+// the tab when a shot cuts from the site to a slide.
+let SLIDES = "";
 // Move the open slide scene to its nth state.
 const step = (page, n) => page.evaluate((n) => window.step(n), n);
 
@@ -505,7 +508,7 @@ export const shots = {
     await on("post a Hall of Fame", 0.3);
     await cut(`${SLIDES}#hof`);
   },
-  async p1_setup({ page, rec, on }) {
+  async p1_setup({ page, rec, on, offTape }) {
     await go(page, "/groups/new", 3000);
     await zoom(page, 1.3);
     await frame(page, "text=Create a group", 110);
@@ -520,13 +523,16 @@ export const shots = {
     await glide(page, page.locator("main input").first(), { click: true, pause: 100, ms: 450 });
     await typeSlow(page, "4521", 60);
     await glide(page, btn(/look up/i), { click: true, pause: 150, ms: 420 });
-    await page.waitForTimeout(600);
-    await glide(page, btn(/^continue/i), { click: true, pause: 150, ms: 420 });
-    await page.locator("main input").first().fill("");
-    await glide(page, page.locator("main input").first(), { click: true, pause: 80, ms: 380 });
-    await typeSlow(page, "Iron Wolves", 35);
-    await glide(page, btn(/create group/i), { click: true, pause: 150, ms: 420 });
-    await on("choose a channel", 0.6);
+    await on("choose a channel", 0.9);
+    // Jump cut past naming the group: the line moves faster than the form.
+    await offTape(async () => {
+      await btn(/^continue/i).click();
+      await page.waitForTimeout(700);
+      await page.locator("main input").first().fill("Iron Wolves");
+      await btn(/create group/i).click();
+      await page.getByText("Drop notifications channel").waitFor();
+      await page.waitForTimeout(500);
+    });
     await soft("channel", async () => {
       // The drop-notifications picker: a searchable list of the server's channels.
       await glide(page, page.locator('main input[placeholder^="Search channels"]').last(), {
@@ -856,11 +862,37 @@ export const shots = {
   },
 };
 
+// A static server over the repo on a free localhost port, for the slides
+// (they load the site's fonts and icon from apps/web by relative path).
+async function serveRepo() {
+  const http = await import("node:http");
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../..");
+  const types = {
+    ".html": "text/html",
+    ".woff2": "font/woff2",
+    ".ttf": "font/ttf",
+    ".png": "image/png",
+    ".css": "text/css",
+    ".js": "text/javascript",
+  };
+  const server = http.createServer((req, res) => {
+    const f = path.join(root, decodeURIComponent(new URL(req.url, "http://x").pathname));
+    if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory())
+      return res.writeHead(404).end();
+    res.writeHead(200, { "Content-Type": types[path.extname(f)] || "application/octet-stream" });
+    fs.createReadStream(f).pipe(res);
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  server.unref();
+  return `http://localhost:${server.address().port}`;
+}
+
 // ------------------------------------------------------------------ runner
 if (import.meta.url === `file://${process.argv[1]}`) {
   fs.mkdirSync(OUT, { recursive: true });
   const want = process.argv.slice(2);
   const ids = want.length ? want : Object.keys(shots);
+  SLIDES = `${await serveRepo()}/docs/videos/slides/trailer.html`;
   const { browser, page } = await openHD();
   // The trailer never shows a real player's name.
   if (ids.some((id) => id.startsWith("p1_"))) await renamePlayers(page.context());
@@ -898,6 +930,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       camera = await cast(page, path.join(OUT, `${id}.mp4`));
       t0 = Date.now();
     };
+    // Do something with the camera off: a jump cut inside one page.
+    const offTape = async (fn) => {
+      const p0 = Date.now();
+      camera?.pause();
+      await fn();
+      await camera?.resume();
+      paused += (Date.now() - p0) / 1000;
+    };
     const cut = async (url) => {
       const p0 = Date.now();
       camera?.pause();
@@ -919,7 +959,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     try {
       await page.mouse.move(640, 360);
       setCursor(640, 360);
-      await fn({ page, rec, cut, at, until, on });
+      await fn({ page, rec, cut, offTape, at, until, on });
       if (sheet) await until(sheet.length - 0.2);
       const r = await camera.stop(0.2);
       console.log(
