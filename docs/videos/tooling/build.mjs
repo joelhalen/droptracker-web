@@ -20,6 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { episodes, upcoming } from "../episodes.mjs";
+import { wordClock, wordCount } from "./timing.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const TOOLING = path.join(ROOT, "tooling");
@@ -46,7 +47,8 @@ function take(ep, i) {
   if (fs.existsSync(meta)) {
     const m = JSON.parse(fs.readFileSync(meta, "utf8"));
     // A take is only good for the line it read.
-    if (m.text === ep.beats[i].vo) return { wav, duration: m.duration, sentences: m.sentences };
+    if (m.text === ep.beats[i].vo)
+      return { wav, duration: m.duration, sentences: m.sentences, words: m.words };
     console.warn(`  ${ep.id}/${num(i)}: the line changed since it was voiced — re-run voice.py`);
     return null;
   }
@@ -103,15 +105,25 @@ function split(sentence) {
   return out;
 }
 
-// Caption cues on the episode timeline. With a take, each sentence is placed
-// where it is actually spoken and its chunks share that span by length;
-// otherwise chunks are timed at WPS.
+// Caption cues on the episode timeline. With a take's word clock, each chunk
+// sits exactly where it is spoken; with only sentence timings, a sentence's
+// chunks share its span by length; otherwise chunks are timed at WPS.
 function captionCues(ep) {
   const cues = [];
   for (const b of beatTimes(ep)) {
     if (!b.vo) continue;
     const at = b.start + LEAD;
-    if (b.take?.sentences) {
+    const clock = b.take ? wordClock(b.vo, b.take.words) : null;
+    if (clock) {
+      // Each chunk starts on its first word and ends on its last.
+      let k = 0;
+      for (const p of sentencesOf(b.vo).flatMap(split)) {
+        const n = wordCount(p);
+        const [s, e] = clock.span(k, k + n - 1);
+        cues.push({ start: at + s, end: at + e, text: p });
+        k += n;
+      }
+    } else if (b.take?.sentences) {
       for (const s of b.take.sentences) {
         const parts = split(s.text);
         const total = parts.reduce((n, p) => n + p.length, 0);

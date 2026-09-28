@@ -1,255 +1,255 @@
 1
-00:00:00,350 --> 00:00:03,700
+00:00:00,350 --> 00:00:02,910
 Every clan event starts the same way.
 
 2
-00:00:03,700 --> 00:00:06,900
+00:00:03,550 --> 00:00:05,810
 Someone says, "we should do a bingo."
 
 3
-00:00:06,900 --> 00:00:08,920
+00:00:06,670 --> 00:00:07,410
 Everyone agrees.
 
 4
-00:00:08,920 --> 00:00:12,501
+00:00:08,230 --> 00:00:12,830
 And then one person spends the next two weeks in a spreadsheet,
 
 5
-00:00:12,501 --> 00:00:15,740
+00:00:12,830 --> 00:00:15,850
 squinting at screenshots of other people's Vorkath kills.
 
 6
-00:00:16,540 --> 00:00:19,170
+00:00:16,970 --> 00:00:19,510
 Today, that person retires.
 
 7
-00:00:24,970 --> 00:00:29,080
+00:00:25,530 --> 00:00:28,210
 Open your clan's Manage page, then Events.
 
 8
-00:00:29,080 --> 00:00:31,510
+00:00:28,870 --> 00:00:30,710
 This is mission control.
 
 9
-00:00:31,510 --> 00:00:34,613
+00:00:30,710 --> 00:00:34,050
 Live events, drafts, things that already ended,
 
 10
-00:00:34,613 --> 00:00:37,240
+00:00:34,050 --> 00:00:36,070
 and a button that says Create event.
 
 11
-00:00:37,240 --> 00:00:39,590
+00:00:36,810 --> 00:00:38,290
 We're going to press it.
 
 12
-00:00:39,590 --> 00:00:40,600
+00:00:38,290 --> 00:00:38,870
 Bravely.
 
 13
-00:00:41,400 --> 00:00:43,830
+00:00:39,700 --> 00:00:41,180
 Step one: a name.
 
 14
-00:00:43,830 --> 00:00:47,290
+00:00:42,020 --> 00:00:44,680
 Something inspiring, like "Autumn Ladder."
 
 15
-00:00:47,290 --> 00:00:50,660
+00:00:45,400 --> 00:00:47,860
 Nobody has ever been this creative.
 
 16
-00:00:50,660 --> 00:00:52,320
+00:00:47,860 --> 00:00:48,860
 Then a format.
 
 17
-00:00:52,320 --> 00:00:55,600
+00:00:49,720 --> 00:00:52,060
 Standard is a plain list of tasks.
 
 18
-00:00:55,600 --> 00:00:59,940
+00:00:52,800 --> 00:00:56,120
 Bingo is a grid, with bonus points for finishing lines.
 
 19
-00:00:59,940 --> 00:01:05,270
+00:00:56,960 --> 00:01:01,380
 The fancier formats get their own episodes, because they need the emotional support.
 
 20
-00:01:06,070 --> 00:01:08,570
+00:01:02,370 --> 00:01:03,730
 Step two: when it runs.
 
 21
-00:01:08,570 --> 00:01:11,170
+00:01:03,730 --> 00:01:06,290
 A start, an end, done.
 
 22
-00:01:11,170 --> 00:01:14,282
+00:01:06,290 --> 00:01:10,010
 Or make it repeat, say every weekend this month,
 
 23
-00:01:14,282 --> 00:01:17,830
+00:01:10,010 --> 00:01:12,690
 and between windows it simply ignores everyone.
 
 24
-00:01:17,830 --> 00:01:20,780
+00:01:12,690 --> 00:01:14,670
 All times are UTC.
 
 25
-00:01:20,780 --> 00:01:22,720
+00:01:14,670 --> 00:01:16,650
 Game time.
 
 26
-00:01:22,720 --> 00:01:25,770
+00:01:16,650 --> 00:01:19,430
 No daylight savings surprises.
 
 27
-00:01:26,570 --> 00:01:29,880
+00:01:20,560 --> 00:01:23,380
 Step three: how people get on teams.
 
 28
-00:01:29,880 --> 00:01:35,290
+00:01:23,380 --> 00:01:28,020
 They pick their own, get auto-balanced, drop into a sign-up pool you sort out later,
 
 29
-00:01:35,290 --> 00:01:39,340
+00:01:28,020 --> 00:01:31,780
 or you assign everyone by hand, like a benevolent dictator.
 
 30
-00:01:39,340 --> 00:01:42,710
+00:01:31,780 --> 00:01:35,780
 Down here you choose which submissions count.
 
 31
-00:01:42,710 --> 00:01:48,770
+00:01:35,780 --> 00:01:42,360
 Everything, plugin only, or anything typed in manually needs an admin's thumbs up.
 
 32
-00:01:48,770 --> 00:01:51,020
+00:01:42,360 --> 00:01:44,480
 Trust is a spectrum.
 
 33
-00:01:51,820 --> 00:01:54,270
+00:01:45,590 --> 00:01:47,550
 Step four: tasks.
 
 34
-00:01:54,270 --> 00:01:57,600
+00:01:47,550 --> 00:01:51,070
 Build them one at a time, grab presets from the library,
 
 35
-00:01:57,600 --> 00:02:01,584
+00:01:51,070 --> 00:01:55,670
 or hit Fill for me, and DropTracker drafts a balanced list based on
 
 36
-00:02:01,584 --> 00:02:05,520
+00:01:55,670 --> 00:01:59,090
 how long the event runs and how much your clan actually plays.
 
 37
-00:02:05,520 --> 00:02:09,900
+00:01:59,810 --> 00:02:03,230
 The options are casual, regular, and very active.
 
 38
-00:02:09,900 --> 00:02:11,260
+00:02:03,930 --> 00:02:04,390
 Be honest.
 
 39
-00:02:11,260 --> 00:02:14,460
+00:02:05,950 --> 00:02:09,430
 Episode two covers tasks properly.
 
 40
-00:02:15,260 --> 00:02:17,630
+00:02:10,330 --> 00:02:11,870
 Step five: teams.
 
 41
-00:02:17,630 --> 00:02:18,924
+00:02:12,630 --> 00:02:14,350
 Type a name, add it,
 
 42
-00:02:18,924 --> 00:02:22,860
+00:02:14,350 --> 00:02:17,790
 paste in a list of players if you already know who's who.
 
 43
-00:02:22,860 --> 00:02:26,480
+00:02:17,790 --> 00:02:21,050
 Or skip it and let people sign themselves up.
 
 44
-00:02:26,480 --> 00:02:29,860
+00:02:21,050 --> 00:02:24,030
 Your clan, your call, your group chat drama.
 
 45
-00:02:30,660 --> 00:02:33,160
+00:02:25,080 --> 00:02:26,860
 Step six: Discord.
 
 46
-00:02:33,160 --> 00:02:38,790
+00:02:27,640 --> 00:02:32,860
 Pick where announcements go, where completions go, and where the live leaderboard lives.
 
 47
-00:02:38,790 --> 00:02:42,810
+00:02:32,860 --> 00:02:36,920
 It can even create a private channel and a role for every team,
 
 48
-00:02:42,810 --> 00:02:45,160
+00:02:36,920 --> 00:02:38,360
 then tidy them up afterwards.
 
 49
-00:02:45,160 --> 00:02:47,100
+00:02:38,980 --> 00:02:40,020
 Like a butler.
 
 50
-00:02:47,100 --> 00:02:49,120
+00:02:40,020 --> 00:02:40,960
 A butler who pings.
 
 51
-00:02:49,920 --> 00:02:52,760
+00:02:42,180 --> 00:02:44,440
 Last step: the pre-flight check.
 
 52
-00:02:52,760 --> 00:02:55,780
+00:02:45,420 --> 00:02:47,540
 If it's all green, launch it now.
 
 53
-00:02:55,780 --> 00:02:59,130
+00:02:48,280 --> 00:02:50,420
 Or keep it as a draft and walk away.
 
 54
-00:02:59,130 --> 00:03:03,870
+00:02:51,620 --> 00:02:55,400
 Drafts don't expire, don't cost anything, and never ask how you're doing.
 
 55
-00:03:04,670 --> 00:03:07,340
+00:02:56,330 --> 00:02:57,930
 Here's what your players see.
 
 56
-00:03:07,340 --> 00:03:11,830
+00:02:57,930 --> 00:03:02,670
 The board, the standings, their team, and a big sign up button.
 
 57
-00:03:11,830 --> 00:03:15,050
+00:03:02,670 --> 00:03:04,870
 And from then on, they just play the game.
 
 58
-00:03:15,050 --> 00:03:20,094
+00:03:05,670 --> 00:03:10,210
 The RuneLite plugin sends their drops, kills and personal bests to DropTracker,
 
 59
-00:03:20,094 --> 00:03:22,010
+00:03:10,210 --> 00:03:12,250
 and the board fills itself in.
 
 60
-00:03:22,810 --> 00:03:25,860
+00:03:13,170 --> 00:03:15,210
 Nobody posts screenshots.
 
 61
-00:03:25,860 --> 00:03:28,180
+00:03:15,210 --> 00:03:16,770
 Nobody checks them.
 
 62
-00:03:28,180 --> 00:03:30,780
+00:03:16,770 --> 00:03:18,790
 The spreadsheet person is free.
 
 63
-00:03:32,580 --> 00:03:35,130
+00:03:20,730 --> 00:03:21,910
 Next time: tasks.
 
 64
-00:03:35,130 --> 00:03:39,550
+00:03:22,870 --> 00:03:28,310
 What counts, what doesn't, and why Turael skipping will not save you.

@@ -27,6 +27,7 @@ import {
   zoom,
 } from "./lib.mjs";
 import { episodes } from "../episodes.mjs";
+import { wordClock } from "./timing.mjs";
 
 const OUT = process.env.CLIPS || path.resolve("clips");
 const VO = process.env.VO || path.resolve("vo");
@@ -46,17 +47,25 @@ function cueSheet(clipId) {
       const take = JSON.parse(fs.readFileSync(f, "utf8"));
       if (take.text !== b.vo) return null;
       return {
+        line: b.vo,
         sentences: take.sentences,
+        clock: wordClock(b.vo, take.words),
         length: LEAD + take.duration + TAIL + (b.hold || 0) + XF,
       };
     }
   return null;
 }
 
-// When `phrase` is spoken: the start of its sentence, plus its share of the
-// sentence by position (a fair guess for one steady read).
+// When `phrase` is spoken: from the take's word clock when it has one;
+// otherwise the start of its sentence plus its share of the sentence by
+// position (a fair guess for one steady read).
 function cueAt(sheet, phrase) {
   if (!sheet) return null;
+  if (sheet.clock) {
+    const k = sheet.line.toLowerCase().indexOf(phrase.toLowerCase());
+    if (k < 0) throw new Error(`no cue "${phrase}" in the take`);
+    return LEAD + sheet.clock.at(k);
+  }
   for (const s of sheet.sentences) {
     const k = s.text.toLowerCase().indexOf(phrase.toLowerCase());
     if (k < 0) continue;
@@ -151,10 +160,10 @@ export const shots = {
     await rec();
     await glide(page, 'input[placeholder*="Winter Bingo"]', { click: true, pause: 200 });
     await on("like", 0.1);
-    await typeSlow(page, "Autumn Ladder", 95);
-    await on("Nobody has ever", 0.3);
-    await glide(page, "textarea", { click: true, pause: 200 });
-    await typeSlow(page, "Two weeks. Five bosses. Zero spreadsheets.", 45);
+    await typeSlow(page, "Autumn Ladder", 65);
+    await on("Nobody has ever", 0.5);
+    await glide(page, "textarea", { click: true, pause: 100, ms: 450 });
+    await typeSlow(page, "Two weeks. Five bosses. Zero spreadsheets.", 26);
     await on("Then a format");
     await glide(page, "text=Format >> nth=0", { pause: 200 });
     await on("Standard is");
@@ -351,9 +360,9 @@ export const shots = {
     await frame(page, "text=KILL COUNT", 150);
     await rec();
     await glide(page, { x: 500, y: 250 }, { steps: 30, pause: 100 });
-    await scroll(page, 200, 1900);
+    await scroll(page, 200, 1200);
     await on("Nobody checks them", 0.2);
-    await scroll(page, 180, 1800);
+    await scroll(page, 180, 1200);
     await on("spreadsheet person is free", 0.2);
     await scroll(page, 120, 2600);
   },

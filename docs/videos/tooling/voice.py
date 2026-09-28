@@ -2,6 +2,8 @@
 
     python3 voice.py ep1                 every line of ep1 -> vo/ep1/NN.wav
     python3 voice.py ep1 --lines 4 12    just those lines (numbers = read sheet)
+    python3 voice.py ep1 --lines 8 --take 6   (chatterbox) that exact take, e.g.
+                                         to prefer another read of a line
     python3 voice.py ep1 --check         (kokoro) transcribe each take and diff it
                                          against the script
 
@@ -13,7 +15,8 @@ read, so the voice is ours to use), at exaggeration 0.65 / cfg 0.3: dry, but
 it acts a quote or a punchline. Its reads vary take to take, so each line is
 rendered until a take passes review: Whisper transcribes it, and it must match
 the script (letter error rate <= 5%, no word added or dropped), with no stall
-longer than MAX_PAUSE and no faster than MAX_WPM.
+longer than MAX_PAUSE (PUNCHLINE_PAUSE after a short sentence) and no faster
+than MAX_WPM.
 Takes are seeded, so a rerun gives the same reads. ~3.5x real time on 4 CPU
 cores: about 15 minutes an episode. Deps: requirements-chatterbox.txt.
 Chatterbox marks its output with Resemble's inaudible Perth watermark.
@@ -25,8 +28,7 @@ VOICE=bm_fable and SPEED=0.9 by default. Deps: requirements.txt.
 Each take's sentence timings go next to it (vo/<ep>/NN.json) so shots.mjs and
 build.mjs cut the picture and time the captions to the real read. The numbers
 match scripts/<ep>-vo.md, so a human read can replace any take: drop your own
-NN.wav in and delete its NN.json (the build then times its captions by word
-count within the take).
+NN.wav in and run `voice.py <ep> --retime --lines NN` to time it.
 """
 import argparse
 import json
@@ -52,6 +54,7 @@ EXAGGERATION = float(os.environ.get("EXAGGERATION", "0.65"))
 CFG_WEIGHT = float(os.environ.get("CFG_WEIGHT", "0.3"))
 MAX_TAKES = int(os.environ.get("MAX_TAKES", "4"))
 MAX_PAUSE = 1.4  # seconds of silence inside a line before it reads as a stall
+PUNCHLINE_PAUSE = 2.0  # ...except after a short sentence ("Be honest."), where it's the joke
 MAX_WPM = 170  # faster than this reads as rushed
 MAX_RUN = 4  # letters in a row added or dropped: a whole word, not a spelling
 
@@ -149,6 +152,20 @@ def word_slips(ref, hyp):
     return longest
 
 
+def overlong_pause(words):
+    """Seconds past the allowed pause at the worst gap between words. A beat
+    after a short sentence ("Be honest." / "Bravely.") may run longer."""
+    worst, since = 0.0, 0
+    for a, b in zip(words, words[1:]):
+        since += 1
+        ends = a[2].endswith((".", "!", "?"))
+        allowed = PUNCHLINE_PAUSE if ends and since <= PUNCHLINE_WORDS else MAX_PAUSE
+        worst = max(worst, (b[0] - a[1]) - allowed)
+        if ends:
+            since = 0
+    return worst
+
+
 def cer(ref, hyp):
     r, h = letters(ref), letters(hyp)
     d = list(range(len(h) + 1))
@@ -173,36 +190,73 @@ def whisper():
 
 
 def transcribe(path):
-    segs, _ = whisper().transcribe(path, beam_size=5, word_timestamps=True)
-    return [(w.start, w.end, w.word.strip()) for s in segs for w in s.words]
+    """Words with start/end seconds. The take is heard with a second of
+    silence either side: Whisper's word timestamps drift by a second or more
+    when speech starts on the first sample, as a trimmed take does."""
+    audio, sr = sf.read(path, dtype="float32")
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
+    if sr != 16000:
+        import librosa
+
+        audio = librosa.resample(audio, orig_sr=sr, target_sr=16000)
+    pad = np.zeros(16000, dtype=np.float32)
+    segs, _ = whisper().transcribe(np.concatenate([pad, audio, pad]), beam_size=5, word_timestamps=True)
+    dur = len(audio) / 16000
+    return [(min(max(w.start - 1, 0.0), dur), min(max(w.end - 1, 0.0), dur), w.word.strip()) for s in segs for w in s.words]
 
 
-def sentence_times(text, words):
-    """Place each script sentence on the take: walk the transcript's letters
-    against the script's, so a sentence starts at the word holding its first
-    letter and ends at the word holding its last."""
-    spans, pos = [], 0
-    for s in sentences(text):
-        n = len(letters(s))
-        spans.append((s, pos, pos + max(n, 1) - 1))
-        pos += n
-    total = max(pos, 1)
-    heard = sum(len(letters(w)) for _, _, w in words) or 1
-    scale = heard / total  # absorbs small misspellings in the transcript
-    marks, acc = [], 0
-    for start, end, w in words:
+def align_words(text, heard):
+    """Time every word of the script from the transcript's words: align the
+    two letter by letter (edit distance, so "saving" for "savings" or
+    "sought" for "sort" costs a letter, not a word), then give each script
+    word the start of the heard word under its first letter and the end of
+    the one under its last. Returns [[start, end, word], ...], one per
+    whitespace-separated word of `text`."""
+    r = []  # script letters -> script word index
+    for k, w in enumerate(text.split()):
+        r += [k] * len(letters(w))
+    h, hw = [], []  # heard letters -> heard word index
+    for k, (_, _, w) in enumerate(heard):
         n = len(letters(w))
-        marks.append((acc, acc + max(n, 1) - 1, start, end))
-        acc += n
+        h += list(letters(w))
+        hw += [k] * n
+    rl = letters(text)
+    n, m = len(rl), len(h)
+    d = np.zeros((n + 1, m + 1), dtype=np.int32)
+    d[:, 0] = np.arange(n + 1)
+    d[0, :] = np.arange(m + 1)
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            d[i, j] = min(d[i - 1, j] + 1, d[i, j - 1] + 1, d[i - 1, j - 1] + (rl[i - 1] != h[j - 1]))
+    under = [None] * n  # script letter -> heard letter
+    i, j = n, m
+    while i and j:
+        if d[i, j] == d[i - 1, j - 1] + (rl[i - 1] != h[j - 1]):
+            under[i - 1] = j - 1
+            i, j = i - 1, j - 1
+        elif d[i, j] == d[i - 1, j] + 1:
+            i -= 1
+        else:
+            j -= 1
+    words = text.split()
+    out, last = [], [0.0, 0.0]
+    for k, w in enumerate(words):
+        idx = [under[x] for x in range(n) if r[x] == k and under[x] is not None]
+        if idx:
+            last = [heard[hw[idx[0]]][0], heard[hw[idx[-1]]][1]]
+        out.append([round(last[0], 3), round(last[1], 3), w])
+    return out
 
-    def at(i, edge):
-        i = min(int(i * scale), acc - 1)
-        for lo, hi, start, end in marks:
-            if lo <= i <= hi or lo > i:
-                return start if edge == "start" else end
-        return marks[-1][3]
 
-    return [{"text": s, "start": round(at(a, "start"), 3), "end": round(at(b, "end"), 3)} for s, a, b in spans]
+def sentence_times(text, script_words):
+    out, k = [], 0
+    for s in sentences(text):
+        n = len(s.split())
+        span = script_words[k : k + n]
+        out.append({"text": s, "start": span[0][0], "end": span[-1][1]})
+        k += n
+    return out
 
 
 # ---------------------------------------------------------------- engines
@@ -216,14 +270,15 @@ def load_chatterbox():
     return m
 
 
-def chatterbox_line(m, text, key, tmp):
-    """Render takes until one passes review; return the best one."""
+def chatterbox_line(m, text, key, tmp, only=None):
+    """Render takes until one passes review; return the best one. `only`
+    renders just that take (1-based), whatever the review says."""
     import time
 
     import torch
 
     best = None
-    for take in range(MAX_TAKES):
+    for take in [only - 1] if only else range(MAX_TAKES):
         seed = zlib.crc32(f"{key}:{take}".encode())
         torch.manual_seed(seed)
         t0 = time.time()
@@ -239,9 +294,12 @@ def chatterbox_line(m, text, key, tmp):
         err = cer(text, heard)
         slip = word_slips(text, heard)
         stall = max((b[0] - a[1] for a, b in zip(words, words[1:])), default=0.0)
+        over = overlong_pause(words)
         wpm = len(text.split()) * 60 / (len(audio) / m.sr)
-        ok = err <= LIMIT and slip < MAX_RUN and stall <= MAX_PAUSE and wpm <= MAX_WPM
-        score = err + 0.02 * max(0, slip - MAX_RUN + 1) + max(0.0, stall - MAX_PAUSE) + max(0.0, wpm - MAX_WPM) / 100
+        ok = err <= LIMIT and slip < MAX_RUN and over <= 0 and wpm <= MAX_WPM
+        # Wrong words always lose to right words read a little slowly or fast.
+        words_ok = err <= LIMIT and slip < MAX_RUN
+        score = (0 if words_ok else 100 + err) + max(0.0, over) + max(0.0, wpm - MAX_WPM) / 100
         print(
             f"      take {take + 1}: {len(audio) / m.sr:.1f}s in {spent:.0f}s · CER {err:4.1%} · "
             f"slip {slip} · pause {stall:.1f}s · {wpm:.0f} wpm{'' if ok else '  ✗'}",
@@ -250,7 +308,9 @@ def chatterbox_line(m, text, key, tmp):
         if best is None or score < best["score"]:
             best = {"audio": audio, "words": words, "heard": heard, "cer": err, "stall": stall,
                     "seed": seed, "take": take + 1, "score": score, "ok": ok, "slip": slip}
-        if ok:
+        if only:
+            best["ok"] = True  # chosen by hand
+        if ok or only:
             break
     return best, m.sr
 
@@ -289,13 +349,38 @@ def kokoro_line(k, text):
     return level(np.concatenate(parts)), sr, timings
 
 
+def retime(eps, args):
+    """Word clock and sentence timings for takes already on disk — a human
+    read dropped in as NN.wav, or a take from before the clock was kept."""
+    for ep_id in args.episodes:
+        for i, beat in enumerate(eps[ep_id]["beats"]):
+            num = f"{i + 1:02d}"
+            wav = os.path.join(HERE, "vo", ep_id, f"{num}.wav")
+            if not beat.get("vo") or not os.path.exists(wav) or (args.lines and i + 1 not in args.lines):
+                continue
+            path = os.path.join(HERE, "vo", ep_id, f"{num}.json")
+            meta = json.load(open(path)) if os.path.exists(path) else {"engine": "recorded"}
+            words = transcribe(wav)
+            heard = " ".join(w for _, _, w in words)
+            script_words = align_words(beat["vo"], words)
+            meta.update({"text": beat["vo"], "duration": round(sf.info(wav).duration, 3), "heard": heard,
+                         "sentences": sentence_times(beat["vo"], script_words), "words": script_words})
+            with open(path, "w") as f:
+                json.dump(meta, f, indent=1, ensure_ascii=False)
+            print(f"  {ep_id}/{num}  CER {cer(beat['vo'], heard):4.1%}  {len(words)} words")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("episodes", nargs="+")
     ap.add_argument("--lines", nargs="*", type=int)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--take", type=int, help="(chatterbox) render exactly this take of the given --lines")
+    ap.add_argument("--retime", action="store_true", help="re-derive timings for the takes already on disk")
     args = ap.parse_args()
     eps = episodes()
+    if args.retime:
+        return retime(eps, args)
     model = load_chatterbox() if ENGINE == "chatterbox" else load_kokoro()
     if ENGINE == "chatterbox":
         print(f"chatterbox · narrator {os.path.basename(NARRATOR)} · exaggeration {EXAGGERATION} · cfg {CFG_WEIGHT}")
@@ -314,12 +399,15 @@ def main():
             wav = os.path.join(out, f"{num}.wav")
             print(f"  {ep_id}/{num}", flush=True)
             if ENGINE == "chatterbox":
-                best, sr = chatterbox_line(model, text, f"{ep_id}/{num}", wav)
+                best, sr = chatterbox_line(model, text, f"{ep_id}/{num}", wav, args.take)
                 audio = best["audio"]
-                timings = sentence_times(text, best["words"])
+                script_words = align_words(text, best["words"])
+                timings = sentence_times(text, script_words)
                 meta = {"engine": "chatterbox", "narrator": os.path.basename(NARRATOR),
                         "exaggeration": EXAGGERATION, "cfg_weight": CFG_WEIGHT, "seed": best["seed"],
-                        "take": best["take"], "cer": round(best["cer"], 4), "heard": best["heard"]}
+                        "take": best["take"], "cer": round(best["cer"], 4), "heard": best["heard"],
+                        # Each script word's time in the take, for captions and shot cues.
+                        "words": script_words}
                 if not best["ok"]:
                     flagged.append(f"{ep_id}/{num} (CER {best['cer']:.0%}, pause {best['stall']:.1f}s): {best['heard']}")
             else:

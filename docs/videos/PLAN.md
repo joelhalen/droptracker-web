@@ -203,19 +203,30 @@ acts a quote ("we should do a _bingo_!") and takes a beat before a punchline.
   `CFG_WEIGHT=`). Each line is read whole, which is where the phrasing comes
   from.
 - **Takes are reviewed automatically.** Chatterbox's reads vary, so each line
-  is rendered until a take passes: Whisper transcribes it, it must match the
-  script (letter error rate ≤ 5%), and no pause inside it may run past 1.4 s.
-  Up to 4 takes (`MAX_TAKES=`); a line where none pass is listed at the end.
-  Takes are seeded, so a rerun gives the same reads.
-- **Timings:** the sentences are placed on the take from Whisper's word
-  timestamps, and written to `NN.json` with the take's seed and transcript.
+  is rendered until a take passes. Whisper transcribes it, and it must:
+  - match the script (letter error rate ≤ 5%);
+  - neither add nor drop a word (it once invented "Step 5." after "Be honest.");
+  - have no pause over 1.4 s, or 2 s right after a short punchline sentence,
+    where the beat is the joke;
+  - read no faster than 170 wpm.
+
+  Up to 4 takes (`MAX_TAKES=`). A line where none pass is listed at the end,
+  and a take with the right words always beats one with the wrong words.
+  Takes are seeded, so a rerun gives the same reads, and
+  `voice.py ep1 --lines 8 --take 6` renders one particular read.
+
+- **Names** it mispronounces are respelled for it in `SAY` ("Turael").
+- **Timings:** the script is aligned to the take's transcript letter by
+  letter, and every script word gets its time in `NN.json`. Captions and shot
+  cues count words from there, so they land on the word, not near it.
 - About 3.5× slower than real time on 4 CPU cores: ~15 minutes an episode.
 - Chatterbox embeds Resemble's inaudible Perth watermark in its output.
 - `ENGINE=kokoro` is the first voice: Kokoro-82M, one sentence at a time with
   measured gaps, IPA fixes in `PRONOUNCE`, and `--check` for the Whisper diff.
 - A take is tied to its line's text. Change a line in `episodes.mjs` and the
   build warns until that line is re-voiced.
-- A human read replaces any take: drop `NN.wav` in, delete its `NN.json`.
+- A human read replaces any take: drop `NN.wav` in and run
+  `voice.py <ep> --retime --lines NN` to time it.
 
 ### 2. Music
 
