@@ -3623,6 +3623,15 @@ const BoardTileKindSchema = z.preprocess(
   z.enum(EVENT_BOARD_TILE_KINDS),
 );
 export const BOARD_TILE_RENDER_MODES = ["rune", "invisible", "outline"] as const;
+/** Where the live standings banner sits over the board, or "hidden". */
+export const BOARD_STANDINGS_POSITIONS = [
+  "bottom-right",
+  "bottom-left",
+  "top-right",
+  "top-left",
+  "hidden",
+] as const;
+export type BoardStandingsPosition = (typeof BOARD_STANDINGS_POSITIONS)[number];
 /** Board styles (settings.style): a designer/copy preset — the engine reads
  * tiles. `chutes_ladders` = the numbered grid with tile links. */
 export const BOARD_STYLES = ["race", "chutes_ladders"] as const;
@@ -3656,6 +3665,8 @@ export const BoardSettingsSchema = z.object({
     /** Rune-icon px size (rune render mode only). Backend returns this
      * fully-defaulted; older payloads without it fall back to 20. */
     icon_size: z.number().int().min(8).max(64).default(20),
+    /** Standings banner corner over the board; older payloads lack it. */
+    standings_position: z.enum(BOARD_STANDINGS_POSITIONS).default("bottom-right"),
   }),
   coins: z.object({
     enabled: z.boolean(),

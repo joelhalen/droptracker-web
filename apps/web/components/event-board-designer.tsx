@@ -1660,6 +1660,20 @@ function BoardSettingsSection({
             <option value="outline">Outline hotspots</option>
           </select>
         </label>
+        <label className="block text-sm">
+          <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Standings banner</span>
+          <select
+            value={r.standings_position ?? "bottom-right"}
+            onChange={(e) => patch({ tile_render: { standings_position: e.target.value } })}
+            className={`${field} w-full`}
+          >
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="top-right">Top right</option>
+            <option value="top-left">Top left</option>
+            <option value="hidden">Hidden (standings still show below the board)</option>
+          </select>
+        </label>
         {r.mode === "outline" && (
           <label className="block text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Outline</span>

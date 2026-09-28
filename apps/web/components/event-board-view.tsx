@@ -16,6 +16,7 @@ import type {
   BoardPosition,
   BoardRollResult,
   BoardShopState,
+  BoardStandingsPosition,
   BoardTile,
   EventDetail,
   RealtimeEvent,
@@ -95,6 +96,14 @@ const TEAM_TARGET_EFFECTS = new Set([
   "knockback",
   "freeze_opponent",
 ]);
+/** Tailwind placement for each standings-banner corner. */
+const STANDINGS_CORNER: Record<Exclude<BoardStandingsPosition, "hidden">, string> = {
+  "bottom-right": "bottom-2 right-2",
+  "bottom-left": "bottom-2 left-2",
+  "top-right": "top-2 right-2",
+  "top-left": "top-2 left-2",
+};
+
 /** Effects whose USE takes a numeric value (choose_roll — pick your move). */
 const VALUE_EFFECTS = new Set(["choose_roll"]);
 
@@ -231,6 +240,7 @@ export function EventBoardView({
   const colors = useMemo(() => teamColorMap(event.teams ?? []), [event.teams]);
   const render = board.settings.tile_render;
   const iconSize = render.icon_size ?? 20;
+  const standingsPosition = render.standings_position ?? "bottom-right";
   // The totals a choose_roll (Wizard's Mind Bomb) may pick, mirroring the
   // server's range in boardgame_shop._use_choose_roll. A fixed_step board —
   // which is also what a 1-sided die normalizes to — has exactly one.
@@ -519,10 +529,11 @@ export function EventBoardView({
         {/* Live standings banner — parchment scroll styled to match the
             server-side title scroll baked into the Discord board export.
             Hidden on the smallest screens; the standings grid below covers
-            those. */}
-        {standings.length > 0 && (
+            those. The board's settings pick the corner, or hide it where
+            it would cover the art. */}
+        {standings.length > 0 && standingsPosition !== "hidden" && (
           <div
-            className="absolute bottom-2 right-2 z-30 hidden w-[200px] max-w-[45%] overflow-hidden rounded-sm sm:block"
+            className={`absolute ${STANDINGS_CORNER[standingsPosition]} z-30 hidden w-[200px] max-w-[45%] overflow-hidden rounded-sm sm:block`}
             style={{
               background: "linear-gradient(180deg, #efe0bd 0%, #d8c194 100%)",
               border: "1px solid #7c6132",
