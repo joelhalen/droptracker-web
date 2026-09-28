@@ -3197,7 +3197,8 @@ export const EVENT_MESSAGE_TOGGLE_KEYS = [
   /** Board game: "task done — roll the dice" nudge (default OFF for the
    * event's main channels; per-team channels carry it by default). */
   "event_board_roll_prompt",
-  /** Board game: an offensive/defensive item hit a rival (or was blocked). */
+  /** Board game: a team used an item (an attack on a rival, a block, or a
+   * self item), picked a task, or ran out of time on one. */
   "event_board_action",
   /** Loot Sweep verbosity: per-item receipts (default OFF), subset and
    * whole-set completions (default ON). */
@@ -5656,6 +5657,7 @@ export const TEAM_MESSAGE_TOGGLE_KEYS = [
   "event_lead_change",
   "event_board_turn",
   "event_board_roll_prompt",
+  "event_board_action",
 ] as const;
 export type TeamMessageToggleKey = (typeof TEAM_MESSAGE_TOGGLE_KEYS)[number];
 

@@ -576,6 +576,7 @@ export function EventDiscordSettings({
     key:
       | "event_board_turn"
       | "event_board_roll_prompt"
+      | "event_board_action"
       | "event_conquest_capture"
       | "event_conquest_battle"
       | "event_conquest_region"
@@ -1268,6 +1269,12 @@ export function EventDiscordSettings({
                 hint="Nudge when a team finishes its task and can roll — off by default here; team channels carry it by default."
                 checked={boardToggle("event_board_roll_prompt", false)}
                 onChange={(v) => setToggle("event_board_roll_prompt", v)}
+              />
+              <ToggleRow
+                label="Board: items & attacks"
+                hint="Board-game events: a post whenever a team uses an item, picks a task, or runs out of time on one, naming any new task."
+                checked={boardToggle("event_board_action", true)}
+                onChange={(v) => setToggle("event_board_action", v)}
               />
             </div>
 
