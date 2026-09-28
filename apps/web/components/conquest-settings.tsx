@@ -31,6 +31,11 @@ const SCORING_LABELS: Record<(typeof CONQUEST_SCORING_MODES)[number], string> = 
   hold_time: "Points for every hour a tile or region is held",
   final: "Only the map at the end counts",
 };
+const SCORING_HINTS: Record<(typeof CONQUEST_SCORING_MODES)[number], string> = {
+  hold_time: "Points build up while a team holds land and are kept after losing it.",
+  final:
+    "Nothing builds up. Losing a tile loses its points. Standings are settled when the event ends.",
+};
 const BATTLE_LABELS: Record<(typeof CONQUEST_BATTLE_MODES)[number], string> = {
   dice: "Dice battles (Risk rules)",
   attrition: "No dice: each attack removes one defense",
@@ -113,7 +118,8 @@ export function ConquestSettingsForm({
       <div>
         <h4 className="text-osrs-gold text-base font-semibold">Rules</h4>
         <p className="text-osrs-parchment-dark/60 text-xs">
-          These can change at any time. Changes apply from the next troop.
+          Battle rules apply from the next troop. Changing the scoring recalculates every
+          team&apos;s score for the whole event, and it locks once the event ends.
         </p>
       </div>
       {error && <Alert>{error}</Alert>}
@@ -122,14 +128,20 @@ export function ConquestSettingsForm({
         <fieldset className="space-y-1.5 text-sm">
           <legend className="text-osrs-parchment-dark/70 mb-1 text-xs">Scoring</legend>
           {CONQUEST_SCORING_MODES.map((mode) => (
-            <label key={mode} className="flex items-center gap-2">
+            <label key={mode} className="flex items-start gap-2">
               <input
                 type="radio"
                 name="scoring_mode"
+                className="mt-1"
                 checked={form.scoring_mode === mode}
                 onChange={() => set("scoring_mode", mode)}
               />
-              <span className="text-osrs-parchment">{SCORING_LABELS[mode]}</span>
+              <span>
+                <span className="text-osrs-parchment block">{SCORING_LABELS[mode]}</span>
+                <span className="text-osrs-parchment-dark/50 block text-[11px]">
+                  {SCORING_HINTS[mode]}
+                </span>
+              </span>
             </label>
           ))}
         </fieldset>
