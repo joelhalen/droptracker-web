@@ -12,7 +12,8 @@ whole, in the narrator's voice (voices/narrator.flac, a 12 s Kokoro bm_fable
 read, so the voice is ours to use), at exaggeration 0.65 / cfg 0.3: dry, but
 it acts a quote or a punchline. Its reads vary take to take, so each line is
 rendered until a take passes review: Whisper transcribes it, and it must match
-the script (letter error rate <= 5%) with no stall longer than MAX_PAUSE.
+the script (letter error rate <= 5%, no word added or dropped), with no stall
+longer than MAX_PAUSE and no faster than MAX_WPM.
 Takes are seeded, so a rerun gives the same reads. ~3.5x real time on 4 CPU
 cores: about 15 minutes an episode. Deps: requirements-chatterbox.txt.
 Chatterbox marks its output with Resemble's inaudible Perth watermark.
@@ -51,6 +52,14 @@ EXAGGERATION = float(os.environ.get("EXAGGERATION", "0.65"))
 CFG_WEIGHT = float(os.environ.get("CFG_WEIGHT", "0.3"))
 MAX_TAKES = int(os.environ.get("MAX_TAKES", "4"))
 MAX_PAUSE = 1.4  # seconds of silence inside a line before it reads as a stall
+MAX_WPM = 170  # faster than this reads as rushed
+MAX_RUN = 4  # letters in a row added or dropped: a whole word, not a spelling
+
+# Chatterbox reads plain text, so names it gets wrong are respelled for it
+# (the script, captions and review keep the real spelling).
+SAY = {
+    "Turael": "Tur-ay-el",  # otherwise "Toriel"
+}
 
 # ---------------------------------------------------------------- kokoro
 MODEL_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/"
@@ -107,6 +116,37 @@ def letters(s):
     pre-flight" and "step four, preflight" both become "stepfourpreflight"."""
     s = re.sub(r"\d+", lambda m: NUMBERS.get(m.group(), m.group()), s.lower())
     return re.sub(r"[^a-z]", "", s)
+
+
+def word_slips(ref, hyp):
+    """Longest run of letters the take added or left out. A misheard word
+    ("sought" for "sort") is a substitution and doesn't count; an invented
+    phrase ("Step 5.") or a skipped one does."""
+    r, h = letters(ref), letters(hyp)
+    n, m = len(r), len(h)
+    d = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(n + 1):
+        d[i][0] = i
+    for j in range(m + 1):
+        d[0][j] = j
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            d[i][j] = min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (r[i - 1] != h[j - 1]))
+    i, j, run, longest, kind = n, m, 0, 0, None
+    while i or j:
+        if i and j and d[i][j] == d[i - 1][j - 1] + (r[i - 1] != h[j - 1]):
+            op = "sub"
+            i, j = i - 1, j - 1
+        elif j and d[i][j] == d[i][j - 1] + 1:
+            op = "ins"
+            j -= 1
+        else:
+            op = "del"
+            i -= 1
+        run = run + 1 if op != "sub" and op == kind else (1 if op != "sub" else 0)
+        kind = op
+        longest = max(longest, run)
+    return longest
 
 
 def cer(ref, hyp):
@@ -187,24 +227,29 @@ def chatterbox_line(m, text, key, tmp):
         seed = zlib.crc32(f"{key}:{take}".encode())
         torch.manual_seed(seed)
         t0 = time.time()
-        wav = m.generate(text, exaggeration=EXAGGERATION, cfg_weight=CFG_WEIGHT)
+        said = text
+        for word, respelled in SAY.items():
+            said = said.replace(word, respelled)
+        wav = m.generate(said, exaggeration=EXAGGERATION, cfg_weight=CFG_WEIGHT)
         spent = time.time() - t0
         audio = level(trim(wav.squeeze(0).numpy().astype(np.float32), m.sr))
         sf.write(tmp, audio, m.sr, subtype="PCM_16")
         words = transcribe(tmp)
         heard = " ".join(w for _, _, w in words)
         err = cer(text, heard)
+        slip = word_slips(text, heard)
         stall = max((b[0] - a[1] for a, b in zip(words, words[1:])), default=0.0)
-        ok = err <= LIMIT and stall <= MAX_PAUSE
-        score = err + max(0.0, stall - MAX_PAUSE)
+        wpm = len(text.split()) * 60 / (len(audio) / m.sr)
+        ok = err <= LIMIT and slip < MAX_RUN and stall <= MAX_PAUSE and wpm <= MAX_WPM
+        score = err + 0.02 * max(0, slip - MAX_RUN + 1) + max(0.0, stall - MAX_PAUSE) + max(0.0, wpm - MAX_WPM) / 100
         print(
             f"      take {take + 1}: {len(audio) / m.sr:.1f}s in {spent:.0f}s · CER {err:4.1%} · "
-            f"longest pause {stall:.1f}s{'' if ok else '  ✗'}",
+            f"slip {slip} · pause {stall:.1f}s · {wpm:.0f} wpm{'' if ok else '  ✗'}",
             flush=True,
         )
         if best is None or score < best["score"]:
             best = {"audio": audio, "words": words, "heard": heard, "cer": err, "stall": stall,
-                    "seed": seed, "take": take + 1, "score": score, "ok": ok}
+                    "seed": seed, "take": take + 1, "score": score, "ok": ok, "slip": slip}
         if ok:
             break
     return best, m.sr
