@@ -9,6 +9,7 @@ import type { ConquestBattle, ConquestMap, EventTask } from "@droptracker/api-ty
 import { onlyKnownEventKinds } from "@droptracker/api-types";
 import {
   autoConnect,
+  planHotZones,
   battleText,
   diceText,
   draftFromMap,
@@ -47,6 +48,14 @@ const SETTINGS = {
   neutral_defense: 0,
   attack_range: "adjacent" as const,
   out_of_reach: "ignore",
+  retreat_defense: 1,
+  capitals: "normal" as const,
+  comeback: "shield" as const,
+  comeback_hours: 12,
+  underdog_defense: "on" as const,
+  bounty_points: 0,
+  contested_multiplier: 3,
+  phase_count: 1,
 };
 
 function battle(over: Partial<ConquestBattle>): ConquestBattle {
@@ -65,6 +74,7 @@ function battle(over: Partial<ConquestBattle>): ConquestBattle {
     player_name: null,
     source: "troop",
     at: 1_800_000_000,
+    points: 0,
     ...over,
   };
 }
@@ -152,6 +162,7 @@ function mapFixture(): ConquestMap {
         owner_team_id: null,
         owner_since: null,
         tile_ids: [11],
+        contested: false,
       },
     ],
     tiles: [
@@ -178,6 +189,8 @@ function mapFixture(): ConquestMap {
             type: "kc_target",
             troops: 1,
             once: false,
+            phase: 0,
+            active: true,
             target: 40,
             progress: {},
           },
@@ -191,6 +204,8 @@ function mapFixture(): ConquestMap {
       },
     ],
     edges: [],
+    hotzones: [],
+    team_states: {},
     teams: [],
     battles: [],
     window_start: null,
@@ -212,8 +227,9 @@ test("draft round trip keeps regions, tiles and rules", () => {
     label_x: null,
     label_y: null,
     shape: null,
+    contested: false,
   });
-  assert.deepEqual(body.tiles[0]!.rules, [{ task_id: 101, troops: 1, once: false }]);
+  assert.deepEqual(body.tiles[0]!.rules, [{ task_id: 101, troops: 1, once: false, phase: 0 }]);
   assert.equal(body.tiles[0]!.region_key, "r4");
 });
 
@@ -430,7 +446,7 @@ test("tile overrides, homes and one-time rules reach the save body", () => {
   assert.equal(tile.max_defense, 3);
   assert.equal(tile.garrison, 2);
   assert.equal(tile.home_team_id, 7);
-  assert.deepEqual(tile.rules, [{ task_id: 101, troops: 25, once: true }]);
+  assert.deepEqual(tile.rules, [{ task_id: 101, troops: 25, once: true, phase: 0 }]);
   draft.tiles.push({ ...draft.tiles[0]!, key: "tnew1", rules: [] });
   assert.ok(draftProblems(draft).includes("A team can only have one home tile."));
 });
@@ -442,4 +458,52 @@ test("a team's reach only applies with fronts on", () => {
   assert.equal(teamReach({ ...map, settings: { ...SETTINGS, attack_range: "anywhere" } }, 1), null);
   assert.equal(teamReach({ settings: SETTINGS, reach: undefined }, 1), null);
   assert.match(settingsSummary(SETTINGS), /Attack only tiles next to your own/);
+});
+
+/* ── Fairness rules (web123a) ─────────────────────────────────────────── */
+
+test("hot zones round trip and plan across the event", () => {
+  const map = mapFixture();
+  map.hotzones = [
+    { id: 3, region_id: 4, starts_at: 1000, ends_at: 1000 + 6 * 3600, active: false },
+  ];
+  const draft = draftFromMap(map);
+  assert.deepEqual(draft.hotzones, [{ key: "z3", region_key: "r4", starts_at: 1000, hours: 6 }]);
+  assert.deepEqual(draftToInput(draft, 0).hotzones, [
+    { region_key: "r4", starts_at: 1000, hours: 6 },
+  ]);
+  // A zone for a region that was removed is dropped from the save.
+  draft.regions = [];
+  assert.deepEqual(draftToInput(draft, 0).hotzones, []);
+
+  const day = 24 * 3600;
+  const plan = planHotZones(["a", "b", "c"], 0, 4 * day, 24, 12, 7);
+  assert.equal(plan.length, 3); // day 1, 2 and 3 (day 4 is the end)
+  assert.deepEqual(
+    plan.map((z) => z.starts_at),
+    [day, 2 * day, 3 * day],
+  );
+  assert.deepEqual(new Set(plan.map((z) => z.region_key)), new Set(["a", "b", "c"]));
+  assert.deepEqual(plan, planHotZones(["a", "b", "c"], 0, 4 * day, 24, 12, 7)); // stable
+  assert.deepEqual(planHotZones([], 0, day, 24, 12), []);
+});
+
+test("contested centres and rule phases reach the save body", () => {
+  const draft = draftFromMap(mapFixture());
+  draft.regions[0]!.contested = true;
+  draft.tiles[0]!.rules[0]!.phase = 2;
+  const body = draftToInput(draft, 0);
+  assert.equal(body.regions[0]!.contested, true);
+  assert.equal(body.tiles[0]!.rules[0]!.phase, 2);
+});
+
+test("retreats read naturally in the battle log", () => {
+  assert.equal(
+    battleText(
+      battle({ outcome: "retreat", defense_before: 1, defense_after: 2 }),
+      NAMES,
+      "Zulrah",
+    ),
+    "Red's defenders fell back to Zulrah (defense 1 to 2)",
+  );
 });

@@ -5,6 +5,7 @@ import {
   ConquestPresetOptionsSchema,
   ConquestPresetPendingSchema,
   ConquestSettingsSchema,
+  ConquestTroopBoardSchema,
   type ConquestBattlesPage,
   type ConquestMap,
   type ConquestMapInput,
@@ -12,6 +13,7 @@ import {
   type ConquestPresetOptions,
   type ConquestPresetPending,
   type ConquestSettings,
+  type ConquestTroopBoard,
 } from "@droptracker/api-types";
 
 /** Conquest events (web120a): the territory map, its designer and the admin
@@ -49,6 +51,13 @@ export const eventConquestApi = {
     const q = qs.toString();
     return ConquestBattlesPageSchema.parse(
       await apiGet(`/events/${eventId}/conquest/battles${q ? `?${q}` : ""}`, { authed: true }),
+    );
+  },
+
+  /** Troops raised per team and player (credit for effort, web123a). */
+  async eventConquestTroops(eventId: number): Promise<ConquestTroopBoard> {
+    return ConquestTroopBoardSchema.parse(
+      await apiGet(`/events/${eventId}/conquest/troops`, { authed: true }),
     );
   },
 

@@ -15,6 +15,10 @@ import type { ConquestMap, ConquestSettings, EventTeam } from "@droptracker/api-
 import {
   CONQUEST_ATTACK_RANGES,
   CONQUEST_BATTLE_MODES,
+  CONQUEST_COMEBACK_HOURS,
+  CONQUEST_COMEBACK_MODES,
+  CONQUEST_CONTESTED_MULTIPLIERS,
+  CONQUEST_MAX_PHASES,
   CONQUEST_SCORING_MODES,
   CONQUEST_START_MODES,
   CONQUEST_SUMMARY_HOURS,
@@ -53,6 +57,11 @@ const START_HINTS: Record<(typeof CONQUEST_START_MODES)[number], string> = {
   scattered: "A team that loses everything can come back in anywhere.",
   homes:
     "Pick each team's home in the map designer. A team that loses everything comes back there.",
+};
+const COMEBACK_LABELS: Record<(typeof CONQUEST_COMEBACK_MODES)[number], string> = {
+  none: "No help",
+  shield: "A shield: its tiles can't be attacked",
+  boost: "A boost: its troops count double",
 };
 const RANGE_LABELS: Record<(typeof CONQUEST_ATTACK_RANGES)[number], string> = {
   adjacent: "Only tiles next to their own",
@@ -284,6 +293,121 @@ export function ConquestSettingsForm({
             ))}
           </select>
         </label>
+      </div>
+
+      <div className="space-y-3">
+        <h5 className="text-osrs-gold text-sm font-semibold">Fairness</h5>
+        <div className="flex flex-wrap gap-4">
+          <Num
+            label="Retreat"
+            hint="When a team loses a tile, its weakest tile next to it gains this much defense. 0 = off."
+            value={form.retreat_defense}
+            min={0}
+            max={5}
+            onChange={(n) => set("retreat_defense", n)}
+          />
+          <Num
+            label="Bounty on the leader"
+            hint="Points for taking a tile from the team in first place, less for lower teams, nothing for last place. 0 = off."
+            value={form.bounty_points}
+            min={0}
+            max={20}
+            onChange={(n) => set("bounty_points", n)}
+          />
+          <Num
+            label="Phases"
+            hint="Splits the event evenly. Tasks can be set to play in one phase only."
+            value={form.phase_count}
+            min={1}
+            max={CONQUEST_MAX_PHASES}
+            onChange={(n) => set("phase_count", n)}
+          />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={form.underdog_defense === "on"}
+              onChange={(e) => set("underdog_defense", e.target.checked ? "on" : "off")}
+            />
+            <span>
+              <span className="text-osrs-parchment block">The smallest team defends harder</span>
+              <span className="text-osrs-parchment-dark/50 block text-[11px]">
+                The team with the fewest tiles rolls an extra defense die. With no dice, every other
+                attack on it is absorbed. Makes ganging up on the weakest team slow.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={form.capitals === "safe"}
+              onChange={(e) => set("capitals", e.target.checked ? "safe" : "normal")}
+            />
+            <span>
+              <span className="text-osrs-parchment block">Home tiles can&apos;t be captured</span>
+              <span className="text-osrs-parchment-dark/50 block text-[11px]">
+                A team&apos;s home tile never drops below 1 defense, so no team can be wiped out.
+                With one random tile each, that tile is the team&apos;s home.
+              </span>
+            </span>
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="text-osrs-parchment-dark/70 block text-xs">
+              A team that loses everything and fights its way back gets
+            </span>
+            <span className="flex flex-wrap gap-2">
+              <select
+                className={input}
+                value={form.comeback}
+                onChange={(e) =>
+                  set("comeback", e.target.value as (typeof CONQUEST_COMEBACK_MODES)[number])
+                }
+              >
+                {CONQUEST_COMEBACK_MODES.map((m) => (
+                  <option key={m} value={m}>
+                    {COMEBACK_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+              {form.comeback !== "none" && (
+                <select
+                  className={input}
+                  value={form.comeback_hours}
+                  onChange={(e) => set("comeback_hours", Number(e.target.value))}
+                  aria-label="For how long"
+                >
+                  {CONQUEST_COMEBACK_HOURS.map((h) => (
+                    <option key={h} value={h}>
+                      for {h} hours
+                    </option>
+                  ))}
+                </select>
+              )}
+            </span>
+          </label>
+          <label className="space-y-1 text-sm">
+            <span className="text-osrs-parchment-dark/70 block text-xs">
+              The contested centre is worth
+            </span>
+            <select
+              className={input}
+              value={form.contested_multiplier}
+              onChange={(e) => set("contested_multiplier", Number(e.target.value))}
+            >
+              {CONQUEST_CONTESTED_MULTIPLIERS.map((m) => (
+                <option key={m} value={m}>
+                  {m}x points
+                </option>
+              ))}
+            </select>
+            <span className="text-osrs-parchment-dark/50 block text-[11px]">
+              Mark the contested region in the map designer. None marked = off.
+            </span>
+          </label>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

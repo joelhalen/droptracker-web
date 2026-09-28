@@ -118,6 +118,11 @@ export async function fetchEventConquestBattles(eventId: number, before: number)
   return api.eventConquestBattles(eventId, { before, limit: 30 });
 }
 
+/** Troops raised per team and player (the "Troops raised" board). */
+export async function fetchEventConquestTroops(eventId: number) {
+  return api.eventConquestTroops(eventId);
+}
+
 // --- Loot Sweep (loot_sweep) -----------------------------------------------
 
 /** The live Loot Sweep board (sets + per-team, per-item receipt counts). Draft

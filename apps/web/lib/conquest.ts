@@ -139,6 +139,8 @@ export function battleText(
       return `${team} attacked ${tileLabel} (${owner}): defense ${b.defense_before} to ${b.defense_after}`;
     case "repelled":
       return `${owner} held ${tileLabel} against ${team}`;
+    case "retreat":
+      return `${team}'s defenders fell back to ${tileLabel} (defense ${b.defense_before} to ${b.defense_after})`;
     case "adjust": {
       const who = b.owner_after != null ? (names.get(b.owner_after) ?? "a team") : "nobody";
       return `An organiser set ${tileLabel} to ${who}`;
@@ -264,7 +266,14 @@ export function regionBonusText(
 
 /* ── The designer's draft model ─────────────────────────────────────────── */
 
-export type DraftRule = { task_id: number; troops: number; label: string; once: boolean };
+export type DraftRule = {
+  task_id: number;
+  troops: number;
+  label: string;
+  once: boolean;
+  /** 0 = every phase; N = only phase N (web123a). */
+  phase: number;
+};
 export type DraftRegion = {
   key: string;
   name: string;
@@ -274,7 +283,11 @@ export type DraftRegion = {
   label_y: number | null;
   /** Outline on a drawn map (web121a); carried through saves untouched. */
   shape: string | null;
+  /** The contested centre (web123a). */
+  contested: boolean;
 };
+/** A region that goes hot for a while (troops there count double). */
+export type DraftHotZone = { key: string; region_key: string; starts_at: number; hours: number };
 export type DraftTile = {
   key: string;
   label: string;
@@ -299,6 +312,7 @@ export type ConquestDraft = {
   regions: DraftRegion[];
   tiles: DraftTile[];
   edges: [string, string][];
+  hotzones: DraftHotZone[];
 };
 
 /** Most troops one rule can pay, and rules per tile (services/conquest). */
@@ -317,6 +331,7 @@ export function draftFromMap(map: ConquestMap): ConquestDraft {
       label_x: r.label_x,
       label_y: r.label_y,
       shape: r.shape ?? null,
+      contested: r.contested ?? false,
     })),
     tiles: map.tiles.map((t) => ({
       key: `t${t.id}`,
@@ -337,10 +352,55 @@ export function draftFromMap(map: ConquestMap): ConquestDraft {
         troops: r.troops,
         label: r.label,
         once: r.once ?? false,
+        phase: r.phase ?? 0,
       })),
     })),
     edges: map.edges.map(([a, b]) => edgeKey(`t${a}`, `t${b}`)),
+    hotzones: (map.hotzones ?? [])
+      .filter((z) => z.starts_at != null && z.ends_at != null)
+      .map((z) => ({
+        key: `z${z.id}`,
+        region_key: `r${z.region_id}`,
+        starts_at: z.starts_at!,
+        hours: Math.round(((z.ends_at! - z.starts_at!) / 3600) * 10) / 10,
+      })),
   };
+}
+
+/** Plan hot zones across an event: every `everyHours` a region goes hot for
+ * `lengthHours`, cycling through the regions in a shuffled order (seeded, so
+ * the same inputs give the same plan). Skips starts too close to the end. */
+export function planHotZones(
+  regionKeys: string[],
+  start: number,
+  end: number,
+  everyHours: number,
+  lengthHours: number,
+  seed = 1,
+): DraftHotZone[] {
+  if (!regionKeys.length || end <= start || everyHours <= 0 || lengthHours <= 0) return [];
+  let x = seed || 1;
+  const rand = () => {
+    x = (x * 1103515245 + 12345) % 2147483648;
+    return x / 2147483648;
+  };
+  const order = [...regionKeys];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j]!, order[i]!];
+  }
+  const out: DraftHotZone[] = [];
+  let at = start + everyHours * 3600;
+  for (let n = 0; at + 3600 <= end && out.length < 60; n++, at += everyHours * 3600) {
+    const hours = Math.min(lengthHours, (end - at) / 3600);
+    out.push({
+      key: `znew${n + 1}`,
+      region_key: order[n % order.length]!,
+      starts_at: at,
+      hours: Math.round(hours * 10) / 10,
+    });
+  }
+  return out;
 }
 
 /** One connection, keys in a stable order. */
@@ -452,6 +512,7 @@ export function draftToInput(draft: ConquestDraft, revision: number): ConquestMa
       label_x: r.label_x,
       label_y: r.label_y,
       shape: r.shape,
+      contested: r.contested,
     })),
     tiles: draft.tiles.map((t) => ({
       key: t.key,
@@ -470,9 +531,17 @@ export function draftToInput(draft: ConquestDraft, revision: number): ConquestMa
       rules:
         t.kind === "respawn"
           ? []
-          : t.rules.map((r) => ({ task_id: r.task_id, troops: r.troops, once: r.once })),
+          : t.rules.map((r) => ({
+              task_id: r.task_id,
+              troops: r.troops,
+              once: r.once,
+              phase: r.phase,
+            })),
     })),
     edges: liveEdges(draft),
+    hotzones: draft.hotzones
+      .filter((z) => draft.regions.some((r) => r.key === z.region_key))
+      .map((z) => ({ region_key: z.region_key, starts_at: z.starts_at, hours: z.hours })),
   };
 }
 

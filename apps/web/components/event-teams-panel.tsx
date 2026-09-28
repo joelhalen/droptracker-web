@@ -85,6 +85,7 @@ const TEAM_TOGGLE_LABELS: Record<TeamMessageToggleKey, string> = {
   event_board_turn: "Board: dice rolls",
   event_board_roll_prompt: "Board: roll prompts",
   event_board_action: "Board: items & attacks",
+  event_conquest_alert: "Conquest: attack alerts",
 };
 
 function allOn(): Record<TeamMessageToggleKey, boolean> {

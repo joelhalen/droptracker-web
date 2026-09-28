@@ -580,7 +580,9 @@ export function EventDiscordSettings({
       | "event_conquest_capture"
       | "event_conquest_battle"
       | "event_conquest_region"
-      | "event_conquest_summary",
+      | "event_conquest_summary"
+      | "event_conquest_alert"
+      | "event_conquest_news",
     fallback: boolean,
   ) =>
     (messages?.toggles as Partial<Record<EventMessageToggleKey, boolean>> | undefined)?.[key] ??
@@ -1304,6 +1306,18 @@ export function EventDiscordSettings({
                   hint="The standings post, posted to the Leaderboard channel on the cadence set in the map's rules."
                   checked={boardToggle("event_conquest_summary", true)}
                   onChange={(v) => setToggle("event_conquest_summary", v)}
+                />
+                <ToggleRow
+                  label="News"
+                  hint="A new phase begins, or a region becomes a hot zone."
+                  checked={boardToggle("event_conquest_news", true)}
+                  onChange={(v) => setToggle("event_conquest_news", v)}
+                />
+                <ToggleRow
+                  label="Attack alerts here too"
+                  hint="Alerts always go to the defending team's own channel. Turn this on to post them in this channel as well."
+                  checked={boardToggle("event_conquest_alert", false)}
+                  onChange={(v) => setToggle("event_conquest_alert", v)}
                 />
               </div>
             )}

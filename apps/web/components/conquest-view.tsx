@@ -16,11 +16,14 @@ import type {
   ConquestBattle,
   ConquestMap,
   ConquestTile,
+  ConquestTroopBoard,
   RealtimeEvent,
 } from "@droptracker/api-types";
+import { CONQUEST_HOT_MULTIPLIER } from "@droptracker/api-types";
 import {
   fetchEventConquest,
   fetchEventConquestBattles,
+  fetchEventConquestTroops,
 } from "@/app/(site)/(public)/events/[id]/actions";
 import { ConquestMapCanvas, canvasFromMap } from "@/components/conquest-map";
 import { TaskDetailSheet, useCoarsePointer } from "@/components/task-detail";
@@ -62,6 +65,7 @@ export function ConquestView({
   viewerTeamId = null,
   fetchMap = fetchEventConquest,
   fetchBattles = fetchEventConquestBattles,
+  fetchTroops = fetchEventConquestTroops,
 }: {
   eventId: number;
   initial: ConquestMap;
@@ -69,8 +73,11 @@ export function ConquestView({
   viewerTeamId?: number | null;
   fetchMap?: MapFetcher;
   fetchBattles?: BattlesFetcher;
+  fetchTroops?: (eventId: number) => Promise<ConquestTroopBoard>;
 }) {
   const [map, setMap] = useState(initial);
+  const [troops, setTroops] = useState<ConquestTroopBoard | null>(null);
+  const [troopTab, setTroopTab] = useState<"teams" | "players">("teams");
   const [older, setOlder] = useState<ConquestBattle[]>([]);
   const [nextBefore, setNextBefore] = useState<number | null>(null);
   const [flash, setFlash] = useState<Set<string>>(new Set());
@@ -87,8 +94,25 @@ export function ConquestView({
       } catch {
         /* keep the last good map */
       }
+      try {
+        setTroops(await fetchTroops(eventId));
+      } catch {
+        /* the board just stays as it was */
+      }
     });
-  }, [eventId, fetchMap]);
+  }, [eventId, fetchMap, fetchTroops]);
+  useEffect(() => {
+    if (!initial.seeded) return;
+    let cancelled = false;
+    fetchTroops(eventId)
+      .then((board) => {
+        if (!cancelled) setTroops(board);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, fetchTroops, initial.seeded]);
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastRunAt = useRef(0);
@@ -143,6 +167,15 @@ export function ConquestView({
   const regionById = useMemo(() => new Map(map.regions.map((r) => [r.id, r])), [map.regions]);
 
   const canvas = canvasFromMap(map);
+  const nowSec = map.now ?? Math.floor(Date.now() / 1000);
+  const hotNow = (map.hotzones ?? []).filter((z) => z.active);
+  const hotRegions = new Set(hotNow.map((z) => z.region_id));
+  const hotNext = (map.hotzones ?? [])
+    .filter((z) => !z.active && (z.starts_at ?? 0) > nowSec)
+    .sort((a, b) => (a.starts_at ?? 0) - (b.starts_at ?? 0))[0];
+  const regionName = new Map(map.regions.map((r) => [r.id, r.name]));
+  const phase = map.phase && map.phase.count > 1 ? map.phase : null;
+  const nextPhaseAt = phase ? phase.starts[phase.current] : null;
   // Fronts: the tiles the viewer's team can't reach right now fade out.
   const reach = map.seeded ? teamReach(map, viewerTeamId) : null;
   const dimKeys = reach
@@ -200,6 +233,8 @@ export function ConquestView({
         rulesHidden={map.rules_hidden}
         viewerTeamId={viewerTeamId}
         outOfReach={!!reach && !reach.has(tile.id)}
+        phase={map.phase}
+        hot={hotRegions.has(tile.region_id ?? -1)}
       />
     ) : null;
   };
@@ -228,6 +263,32 @@ export function ConquestView({
                 ? "Each team starts on its home tile when the event starts."
                 : "Every tile starts unowned. The first troop on a tile claims it."}
         </p>
+      )}
+      {(phase || hotNow.length > 0 || hotNext) && (
+        <div className="flex flex-wrap gap-2 text-xs">
+          {phase && (
+            <span className="border-osrs-bronze/40 text-osrs-parchment rounded border px-2 py-1">
+              Phase {phase.current} of {phase.count}
+              {nextPhaseAt ? ` · next phase ${formatRelativeTime(nextPhaseAt)}` : ""}
+            </span>
+          )}
+          {hotNow.map((z) => (
+            <span
+              key={z.id}
+              className="border-osrs-gold/60 bg-osrs-gold/10 text-osrs-gold-bright rounded border px-2 py-1"
+            >
+              Hot zone: {regionName.get(z.region_id) ?? "a region"} (troops x
+              {CONQUEST_HOT_MULTIPLIER}
+              {z.ends_at ? `, ends ${formatRelativeTime(z.ends_at)}` : ""})
+            </span>
+          ))}
+          {hotNext && (
+            <span className="border-osrs-bronze/40 text-osrs-parchment-dark/80 rounded border px-2 py-1">
+              Next hot zone: {regionName.get(hotNext.region_id) ?? "a region"}{" "}
+              {hotNext.starts_at ? formatRelativeTime(hotNext.starts_at) : ""}
+            </span>
+          )}
+        </div>
       )}
       {reach && (
         <p className="text-osrs-parchment-dark/60 text-xs">
@@ -289,6 +350,7 @@ export function ConquestView({
                           style={{ background: colors.get(team.id) ?? NEUTRAL_COLOR }}
                         />
                         <span className="text-osrs-parchment truncate">{team.name}</span>
+                        <TeamStateBadge state={map.team_states?.[String(team.id)]} />
                       </span>
                     </td>
                     <td className="py-1.5 pr-2 text-right font-semibold tabular-nums">
@@ -331,9 +393,22 @@ export function ConquestView({
                         <Crown color={colors.get(standing.controller) ?? NEUTRAL_COLOR} />
                       )}
                       {r.name}
+                      {r.contested && (
+                        <span className="text-osrs-gold-bright text-[10px] font-semibold uppercase">
+                          Contested x{map.settings.contested_multiplier}
+                        </span>
+                      )}
+                      {hotRegions.has(r.id) && (
+                        <span className="text-osrs-red text-[10px] font-semibold uppercase">
+                          Hot
+                        </span>
+                      )}
                     </span>
                     <span className="text-osrs-gold/80 shrink-0 text-xs">
-                      +{fmtPoints(r.bonus)}
+                      +
+                      {fmtPoints(
+                        r.contested ? r.bonus * map.settings.contested_multiplier : r.bonus,
+                      )}
                       {map.settings.scoring_mode === "hold_time" ? "/h" : ""}
                     </span>
                   </div>
@@ -399,6 +474,83 @@ export function ConquestView({
         </section>
       </div>
 
+      {troops && (troops.teams.length > 0 || troops.players.length > 0) && (
+        <section>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-osrs-gold text-base font-semibold">Troops raised</h3>
+            <div className="flex gap-1 text-xs">
+              {(["teams", "players"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setTroopTab(tab)}
+                  className={`rounded px-2 py-0.5 ${
+                    troopTab === tab
+                      ? "bg-osrs-gold/20 text-osrs-gold-bright"
+                      : "text-osrs-parchment-dark/70 hover:text-osrs-gold-bright"
+                  }`}
+                >
+                  {tab === "teams" ? "Teams" : "Players"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <p className="text-osrs-parchment-dark/60 mb-2 text-xs">
+            Every troop earned, whatever happened to it: land taken, attacks, reinforcements, and
+            troops wasted out of reach.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-osrs-parchment-dark/60 text-left text-xs">
+                  <th className="py-1 pr-2 font-medium">
+                    {troopTab === "teams" ? "Team" : "Player"}
+                  </th>
+                  <th className="py-1 pr-2 text-right font-medium">Troops</th>
+                  <th className="py-1 pr-2 text-right font-medium">Land taken</th>
+                  <th className="py-1 pr-2 text-right font-medium">Attacks</th>
+                  <th className="py-1 pr-2 text-right font-medium">Reinforced</th>
+                  <th className="py-1 text-right font-medium">Wasted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(troopTab === "teams" ? troops.teams : troops.players.slice(0, 25)).map((row) => {
+                  const teamId = row.team_id;
+                  const key = "player_id" in row ? `p${row.player_id}` : `t${teamId}`;
+                  return (
+                    <tr
+                      key={key}
+                      className={`border-osrs-bronze/15 border-t ${
+                        teamId === viewerTeamId ? "bg-osrs-gold/10" : ""
+                      }`}
+                    >
+                      <td className="py-1.5 pr-2">
+                        <span className="flex items-center gap-2">
+                          <span
+                            className="inline-block size-2.5 shrink-0 rounded-full"
+                            style={{ background: colors.get(teamId) ?? NEUTRAL_COLOR }}
+                          />
+                          <span className="text-osrs-parchment truncate">{row.name}</span>
+                        </span>
+                      </td>
+                      <td className="py-1.5 pr-2 text-right font-semibold tabular-nums">
+                        {row.troops}
+                      </td>
+                      <td className="py-1.5 pr-2 text-right tabular-nums">{row.captures}</td>
+                      <td className="py-1.5 pr-2 text-right tabular-nums">{row.attacks}</td>
+                      <td className="py-1.5 pr-2 text-right tabular-nums">{row.reinforced}</td>
+                      <td className="text-osrs-parchment-dark/70 py-1.5 text-right tabular-nums">
+                        {row.wasted}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <details className="border-osrs-bronze/25 rounded border px-3 py-2 text-sm">
         <summary className="text-osrs-gold cursor-pointer font-semibold">
           How Conquest works
@@ -429,6 +581,50 @@ export function ConquestView({
             A tile with no defense left falls to the next enemy troop. Reinforce before it does.
           </li>
           <li>Hold every tile in a region for its bonus.</li>
+          {map.settings.retreat_defense > 0 && (
+            <li>
+              Lose a tile and its defenders fall back: your weakest tile next to it gains{" "}
+              {map.settings.retreat_defense} defense.
+            </li>
+          )}
+          {map.settings.underdog_defense === "on" && (
+            <li>
+              The team holding the fewest tiles defends harder
+              {map.settings.battle_mode === "dice"
+                ? " (an extra defense die)."
+                : " (every other attack on it is absorbed)."}
+            </li>
+          )}
+          {map.settings.capitals === "safe" && <li>A team&apos;s home tile can never be taken.</li>}
+          {map.settings.comeback !== "none" && (
+            <li>
+              A team that loses everything and takes a tile again gets{" "}
+              {map.settings.comeback === "shield"
+                ? `a ${map.settings.comeback_hours}-hour shield: its tiles can't be attacked.`
+                : `${map.settings.comeback_hours} hours of double troops.`}
+            </li>
+          )}
+          {map.settings.bounty_points > 0 && (
+            <li>
+              Taking a tile from the team in first place pays a bounty of{" "}
+              {map.settings.bounty_points} points (less for lower teams, nothing from last place).
+            </li>
+          )}
+          {map.regions.some((r) => r.contested) && (
+            <li>
+              The contested centre is worth {map.settings.contested_multiplier}x points, tiles and
+              bonus.
+            </li>
+          )}
+          {(map.hotzones ?? []).length > 0 && (
+            <li>Hot zones: while a region is hot, troops earned there count double.</li>
+          )}
+          {phase && (
+            <li>
+              The event has {phase.count} phases. Every tile keeps its boss, but what earns troops
+              there changes each phase. Tiles show what&apos;s coming next.
+            </li>
+          )}
           <li>
             {map.settings.scoring_mode === "hold_time"
               ? "Tiles and regions pay points for every hour you hold them."
@@ -502,6 +698,8 @@ function TileDetail({
   rulesHidden,
   viewerTeamId,
   outOfReach = false,
+  phase,
+  hot = false,
 }: {
   tile: ConquestTile;
   region?: {
@@ -517,7 +715,13 @@ function TileDetail({
   rulesHidden: boolean;
   viewerTeamId: number | null;
   outOfReach?: boolean;
+  phase?: ConquestMap["phase"];
+  hot?: boolean;
 }) {
+  const current = phase?.current ?? 1;
+  const activeRules = tile.rules.filter((r) => r.active !== false);
+  const nextRules =
+    phase && phase.count > current ? tile.rules.filter((r) => r.phase === current + 1) : [];
   if (tile.kind === "respawn") {
     return (
       <div className="text-sm">
@@ -561,6 +765,11 @@ function TileDetail({
         {scoringMode === "hold_time" ? "per hour held" : "at the end"}
         {tile.captures ? ` · taken ${tile.captures} time${tile.captures === 1 ? "" : "s"}` : ""}
       </p>
+      {hot && (
+        <p className="text-osrs-gold-bright text-xs">
+          Hot zone: troops earned here count x{CONQUEST_HOT_MULTIPLIER} right now.
+        </p>
+      )}
       {outOfReach && (
         <p className="text-osrs-gold-bright text-xs">
           Out of your team&apos;s reach. Troops you earn here won&apos;t count until you hold a tile
@@ -585,7 +794,7 @@ function TileDetail({
           <p className="text-osrs-parchment-dark/60 text-[11px] font-semibold uppercase tracking-wide">
             Earn troops here
           </p>
-          {tile.rules.map((rule) => {
+          {activeRules.map((rule) => {
             const rows = Object.entries(rule.progress)
               .map(([teamId, have]) => ({ teamId: Number(teamId), have }))
               .sort(
@@ -600,6 +809,7 @@ function TileDetail({
                   {rule.label}{" "}
                   <span className="text-osrs-gold/90">
                     = {rule.troops} troop{rule.troops === 1 ? "" : "s"}
+                    {rule.once ? " (once)" : ""}
                   </span>
                 </p>
                 {rows.map((row) => (
@@ -624,10 +834,51 @@ function TileDetail({
               </div>
             );
           })}
+          {nextRules.length > 0 && (
+            <div className="text-osrs-parchment-dark/70 space-y-0.5 text-[11px]">
+              <p className="font-semibold uppercase tracking-wide">Next phase</p>
+              {nextRules.map((rule) => (
+                <p key={rule.id}>
+                  {rule.label.replace(/ \(phase \d+\)$/, "")} = {rule.troops} troop
+                  {rule.troops === 1 ? "" : "s"}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
+}
+
+/** A comeback shield or boost in force, as a small badge next to the team. */
+function TeamStateBadge({
+  state,
+}: {
+  state?: { shield_until: number | null; boost_until: number | null };
+}) {
+  if (!state) return null;
+  if (state.shield_until) {
+    return (
+      <span
+        className="text-osrs-parchment rounded bg-sky-800/60 px-1 text-[10px] font-semibold uppercase"
+        title={`Can't be attacked until ${new Date(state.shield_until * 1000).toLocaleString()}`}
+      >
+        Shielded
+      </span>
+    );
+  }
+  if (state.boost_until) {
+    return (
+      <span
+        className="text-osrs-parchment rounded bg-emerald-800/60 px-1 text-[10px] font-semibold uppercase"
+        title={`Troops count double until ${new Date(state.boost_until * 1000).toLocaleString()}`}
+      >
+        Boosted
+      </span>
+    );
+  }
+  return null;
 }
 
 /** The tile's region in Risk terms: who holds what, who is closest to

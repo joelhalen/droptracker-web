@@ -3221,6 +3221,11 @@ export const EVENT_MESSAGE_TOGGLE_KEYS = [
   "event_conquest_region",
   /** Conquest: the periodic map update (settings.summary_hours). */
   "event_conquest_summary",
+  /** Conquest (web123a): your tile is under attack, breached or taken. Posts
+   * to the defending team's own channel; OFF for the main channels. */
+  "event_conquest_alert",
+  /** Conquest: a phase begins, or a region becomes a hot zone (default ON). */
+  "event_conquest_news",
 ] as const;
 export type EventMessageToggleKey = (typeof EVENT_MESSAGE_TOGGLE_KEYS)[number];
 
@@ -4015,6 +4020,17 @@ export type ConquestStartMode = (typeof CONQUEST_START_MODES)[number];
  * them (fronts), or anywhere. */
 export const CONQUEST_ATTACK_RANGES = ["adjacent", "anywhere"] as const;
 export type ConquestAttackRange = (typeof CONQUEST_ATTACK_RANGES)[number];
+/** Fairness rules (web123a). A team's home tile can be a safe capital (never
+ * captured); a team that fought back from nothing gets a shield or a troop
+ * boost for a while; the team with the fewest tiles defends harder. */
+export const CONQUEST_CAPITAL_MODES = ["normal", "safe"] as const;
+export const CONQUEST_COMEBACK_MODES = ["none", "shield", "boost"] as const;
+export const CONQUEST_COMEBACK_HOURS = [6, 12, 24, 48] as const;
+export const CONQUEST_UNDERDOG_MODES = ["on", "off"] as const;
+export const CONQUEST_CONTESTED_MULTIPLIERS = [2, 3, 5] as const;
+export const CONQUEST_MAX_PHASES = 4;
+/** Hot zones multiply the troops earned on their tiles. */
+export const CONQUEST_HOT_MULTIPLIER = 2;
 /** Hours between the periodic Discord map update (0 = never). */
 export const CONQUEST_SUMMARY_HOURS = [0, 6, 12, 24, 48] as const;
 /** Tile roles: a territory, or a respawn point nobody can own. */
@@ -4036,6 +4052,15 @@ export const ConquestSettingsSchema = z.object({
   attack_range: z.enum(CONQUEST_ATTACK_RANGES).optional().catch("anywhere").default("anywhere"),
   /** What troops earned out of reach do ("ignore": recorded, never fight). */
   out_of_reach: z.string().optional().catch("ignore").default("ignore"),
+  /** web123a fairness rules; defaults match the server's. */
+  retreat_defense: z.number().int().optional().catch(1).default(1),
+  capitals: z.enum(CONQUEST_CAPITAL_MODES).optional().catch("normal").default("normal"),
+  comeback: z.enum(CONQUEST_COMEBACK_MODES).optional().catch("none").default("none"),
+  comeback_hours: z.number().int().optional().catch(12).default(12),
+  underdog_defense: z.enum(CONQUEST_UNDERDOG_MODES).optional().catch("off").default("off"),
+  bounty_points: z.number().int().optional().catch(0).default(0),
+  contested_multiplier: z.number().int().optional().catch(3).default(3),
+  phase_count: z.number().int().optional().catch(1).default(1),
 });
 export type ConquestSettings = z.infer<typeof ConquestSettingsSchema>;
 
@@ -4049,6 +4074,9 @@ export const ConquestRuleSchema = z.object({
   troops: z.number().int(),
   /** A one-time award: pays only the first time the target is reached. */
   once: z.boolean().optional().catch(false).default(false),
+  /** Phases (web123a): 0 = every phase, N = only phase N; `active` = in play now. */
+  phase: z.number().int().optional().catch(0).default(0),
+  active: z.boolean().optional().catch(true).default(true),
   target: z.number().int(),
   progress: z.record(z.string(), z.number()).default({}),
 });
@@ -4102,6 +4130,8 @@ export const ConquestRegionSchema = z.object({
   tile_ids: z.array(z.number().int()),
   /** The region's whole outline (web121a), same space as the tile shapes. */
   shape: z.string().nullable().optional().catch(null),
+  /** The contested centre (web123a): its bonus and tiles count extra. */
+  contested: z.boolean().optional().catch(false).default(false),
 });
 export type ConquestRegion = z.infer<typeof ConquestRegionSchema>;
 
@@ -4138,6 +4168,8 @@ export const ConquestBattleSchema = z.object({
   player_name: z.string().nullable(),
   source: z.string(),
   at: z.number().int().nullable(),
+  /** Bonus points this troop won (a bounty for a capture, web123a). */
+  points: z.number().optional().catch(0).default(0),
 });
 export type ConquestBattle = z.infer<typeof ConquestBattleSchema>;
 
@@ -4164,6 +4196,43 @@ export const ConquestMapSchema = z.object({
   /** Per team id: the tiles its troops count on right now (web122a, fronts).
    * Missing on an older API: every tile. */
   reach: z.record(z.string(), z.array(z.number().int())).optional().catch(undefined),
+  /** Phases (web123a): the one in play, how many, and when each starts. */
+  phase: z
+    .object({
+      current: z.number().int(),
+      count: z.number().int(),
+      starts: z.array(z.number().int().nullable()),
+    })
+    .optional()
+    .catch(undefined),
+  /** Regions that are (or will be) hot: troops there count double. */
+  hotzones: z
+    .array(
+      z.object({
+        id: z.number().int(),
+        region_id: z.number().int(),
+        starts_at: z.number().int().nullable(),
+        ends_at: z.number().int().nullable(),
+        active: z.boolean(),
+      }),
+    )
+    .optional()
+    .catch([])
+    .default([]),
+  /** Per team id: a comeback shield/boost in force, and whether it has no land. */
+  team_states: z
+    .record(
+      z.string(),
+      z.object({
+        shield_until: z.number().int().nullable(),
+        boost_until: z.number().int().nullable(),
+        landless: z.boolean(),
+        comebacks: z.number().int(),
+      }),
+    )
+    .optional()
+    .catch({})
+    .default({}),
   teams: z.array(ConquestTeamSchema),
   battles: z.array(ConquestBattleSchema),
   window_start: z.number().int().nullable(),
@@ -4189,6 +4258,29 @@ export const ConquestBattlesPageSchema = z.object({
   next_before: z.number().int().nullable(),
 });
 export type ConquestBattlesPage = z.infer<typeof ConquestBattlesPageSchema>;
+
+/** GET /events/{id}/conquest/troops — troops raised per team and player
+ * (web123a): what they did with them, and how many were wasted. */
+const ConquestTroopCountsSchema = z.object({
+  troops: z.number().int(),
+  captures: z.number().int(),
+  attacks: z.number().int(),
+  reinforced: z.number().int(),
+  wasted: z.number().int(),
+});
+export const ConquestTroopBoardSchema = z.object({
+  teams: z.array(
+    ConquestTroopCountsSchema.extend({ team_id: z.number().int(), name: z.string() }),
+  ),
+  players: z.array(
+    ConquestTroopCountsSchema.extend({
+      player_id: z.number().int(),
+      name: z.string(),
+      team_id: z.number().int(),
+    }),
+  ),
+});
+export type ConquestTroopBoard = z.infer<typeof ConquestTroopBoardSchema>;
 
 /** GET /events/{id}/conquest/presets — the designer's preset panel. */
 /** One tile the preset can build. `available` is false when this server
@@ -4242,6 +4334,8 @@ export type ConquestPresetInput = {
   unique_troops?: number;
   regions?: string[];
   exclude_tiles?: string[];
+  /** Split the event into phases (1-4): boss tiles alternate steady/hunt. */
+  phases?: number;
 };
 
 /** PUT /events/{id}/conquest/map — the designer's save. Rules either reuse an
@@ -4256,6 +4350,7 @@ export type ConquestMapInput = {
     label_x?: number | null;
     label_y?: number | null;
     shape?: string | null;
+    contested?: boolean;
   }[];
   tiles: {
     key: string;
@@ -4276,10 +4371,13 @@ export type ConquestMapInput = {
       new_task?: Record<string, unknown>;
       troops: number;
       once?: boolean;
+      phase?: number;
     }[];
   }[];
   /** Tiles that border each other, as [tile key, tile key] (the fronts rule). */
   edges?: [string, string][];
+  /** Hot zones: a region, when it goes hot (unix seconds) and for how long. */
+  hotzones?: { region_key: string; starts_at: number; hours: number }[];
 };
 
 /** GET /events/{id}/loot-sweep/summary — the compact standings the Discord
@@ -5652,6 +5750,8 @@ export const EventMessageConfigSchema = z.object({
     event_conquest_battle: z.boolean().optional(),
     event_conquest_region: z.boolean().optional(),
     event_conquest_summary: z.boolean().optional(),
+    event_conquest_alert: z.boolean().optional(),
+    event_conquest_news: z.boolean().optional(),
   }),
   task_progress: z.enum(EVENT_TASK_PROGRESS_MODES),
   /** Verbose completion detail: include the item that finished the task and
@@ -5738,6 +5838,8 @@ export const TEAM_MESSAGE_TOGGLE_KEYS = [
   "event_board_turn",
   "event_board_roll_prompt",
   "event_board_action",
+  /** Conquest (web123a): the team's own tile is under attack. */
+  "event_conquest_alert",
 ] as const;
 export type TeamMessageToggleKey = (typeof TEAM_MESSAGE_TOGGLE_KEYS)[number];
 

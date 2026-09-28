@@ -61,8 +61,10 @@ import {
   presetAvailableTiles,
   presetSelectionBody,
   presetSuggestedHours,
+  planHotZones,
   ruleEligible,
   type ConquestDraft,
+  type DraftHotZone,
   type DraftTile,
 } from "@/lib/conquest";
 import { TEAM_COLORS } from "@/lib/events";
@@ -83,7 +85,12 @@ export function ConquestDesigner({
   onDetail?: (detail: EventDetail) => void;
 }) {
   const [map, setMap] = useState<ConquestMap | null>(null);
-  const [draft, setDraft] = useState<ConquestDraft>({ regions: [], tiles: [], edges: [] });
+  const [draft, setDraft] = useState<ConquestDraft>({
+    regions: [],
+    tiles: [],
+    edges: [],
+    hotzones: [],
+  });
   const [dirty, setDirty] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   // Connect mode: click a tile, then the tiles it borders.
@@ -192,6 +199,7 @@ export function ConquestDesigner({
   const onBuildPreset = (form: FormData) => {
     const troopHours = Number(form.get("troop_hours"));
     const uniqueTroops = Number(form.get("unique_troops"));
+    const phases = Number(form.get("phases") || 1);
     if (presets?.regions.length && !picked.size) {
       setError("Pick at least one tile to build.");
       return;
@@ -208,6 +216,7 @@ export function ConquestDesigner({
         preset: String(form.get("preset") || "gielinor"),
         troop_hours: troopHours,
         unique_troops: uniqueTroops,
+        phases,
         ...selection,
       };
       // A smaller pick is drawn fresh on the server: ask again until it's ready.
@@ -315,6 +324,7 @@ export function ConquestDesigner({
           label_x: null,
           label_y: null,
           shape: null,
+          contested: false,
         },
       ],
     }));
@@ -413,6 +423,16 @@ export function ConquestDesigner({
                 {[0, 1, 2, 3, 4, 5].map((n) => (
                   <option key={n} value={n}>
                     {n === 0 ? "None" : n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="space-y-1">
+              <span className="text-osrs-parchment-dark/70 block text-xs">Phases</span>
+              <select name="phases" className={input} defaultValue={map.settings.phase_count}>
+                {[1, 2, 3, 4].map((n) => (
+                  <option key={n} value={n}>
+                    {n === 1 ? "One phase" : `${n} phases`}
                   </option>
                 ))}
               </select>
@@ -552,6 +572,15 @@ export function ConquestDesigner({
       )}
 
       {editable && <RegionsEditor draft={draft} onChange={patchDraft} />}
+
+      {editable && draft.regions.length > 0 && (
+        <HotZonesEditor
+          draft={draft}
+          onChange={patchDraft}
+          window={{ start: event.starts_at ?? null, end: event.ends_at ?? null }}
+          seed={event.id}
+        />
+      )}
 
       {editable && (
         <div className="border-osrs-bronze/25 bg-osrs-brown-dark/95 sticky bottom-0 z-40 flex flex-wrap items-center gap-3 rounded border p-3">
@@ -809,6 +838,28 @@ function TileEditor({
                 />
                 only once
               </label>
+              {settings.phase_count > 1 && (
+                <select
+                  className={input}
+                  value={rule.phase}
+                  aria-label="Phase"
+                  onChange={(e) =>
+                    onChange((t) => ({
+                      ...t,
+                      rules: t.rules.map((r, j) =>
+                        j === i ? { ...r, phase: Number(e.target.value) } : r,
+                      ),
+                    }))
+                  }
+                >
+                  <option value={0}>Every phase</option>
+                  {Array.from({ length: settings.phase_count }, (_, n) => n + 1).map((n) => (
+                    <option key={n} value={n}>
+                      Phase {n} only
+                    </option>
+                  ))}
+                </select>
+              )}
               <button
                 type="button"
                 className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
@@ -863,7 +914,13 @@ function TileEditor({
                     ...t,
                     rules: [
                       ...t.rules,
-                      { task_id: task.id, troops: addTroops, label: task.label, once: false },
+                      {
+                        task_id: task.id,
+                        troops: addTroops,
+                        label: task.label,
+                        once: false,
+                        phase: 0,
+                      },
                     ],
                   }));
                   setAddTask("");
@@ -909,7 +966,9 @@ function RegionsEditor({
     <section className="space-y-2">
       <h4 className="text-osrs-gold text-base font-semibold">Regions</h4>
       <p className="text-osrs-parchment-dark/60 text-xs">
-        Holding every tile of a region pays its bonus on top of the tiles.
+        Holding every tile of a region pays its bonus on top of the tiles. A contested centre
+        multiplies its bonus and its tiles&apos; points (set how much in Rules), so every team wants
+        it.
       </p>
       <div className="grid gap-2 md:grid-cols-2">
         {draft.regions.map((r, i) => (
@@ -966,6 +1025,21 @@ function RegionsEditor({
                 }
               />
             </label>
+            <label className="text-osrs-parchment-dark/70 flex items-center gap-1 text-xs">
+              <input
+                type="checkbox"
+                checked={r.contested}
+                onChange={(e) =>
+                  onChange((d) => ({
+                    ...d,
+                    regions: d.regions.map((x) =>
+                      x.key === r.key ? { ...x, contested: e.target.checked } : x,
+                    ),
+                  }))
+                }
+              />
+              Contested centre
+            </label>
             <span className="text-osrs-parchment-dark/60 text-xs">
               {counts.get(r.key) ?? 0} tiles
             </span>
@@ -979,6 +1053,7 @@ function RegionsEditor({
                   tiles: d.tiles.map((t) =>
                     t.region_key === r.key ? { ...t, region_key: null } : t,
                   ),
+                  hotzones: d.hotzones.filter((z) => z.region_key !== r.key),
                 }))
               }
             >
@@ -987,6 +1062,169 @@ function RegionsEditor({
           </div>
         ))}
       </div>
+    </section>
+  );
+}
+
+function toLocalInput(unix: number): string {
+  const d = new Date(unix * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
+function HotZonesEditor({
+  draft,
+  onChange,
+  window,
+  seed,
+}: {
+  draft: ConquestDraft;
+  onChange: (fn: (d: ConquestDraft) => ConquestDraft) => void;
+  window: { start: number | null; end: number | null };
+  seed: number;
+}) {
+  const [every, setEvery] = useState(24);
+  const [length, setLength] = useState(12);
+  const regionName = new Map(draft.regions.map((r) => [r.key, r.name]));
+  const zones = [...draft.hotzones].sort((a, b) => a.starts_at - b.starts_at);
+  const canPlan = window.start != null && window.end != null;
+  const patchZone = (key: string, fn: (z: DraftHotZone) => DraftHotZone) =>
+    onChange((d) => ({ ...d, hotzones: d.hotzones.map((z) => (z.key === key ? fn(z) : z)) }));
+  return (
+    <section className="space-y-2">
+      <h4 className="text-osrs-gold text-base font-semibold">Hot zones</h4>
+      <p className="text-osrs-parchment-dark/60 text-xs">
+        While a region is hot, troops earned on its tiles count double, so the fighting moves around
+        the map. Everyone can see the plan ahead of time, and Discord announces each one when it
+        starts.
+      </p>
+      {canPlan && (
+        <div className="flex flex-wrap items-end gap-2 text-sm">
+          <label className="space-y-1">
+            <span className="text-osrs-parchment-dark/70 block text-xs">A new region every</span>
+            <select
+              className={input}
+              value={every}
+              onChange={(e) => setEvery(Number(e.target.value))}
+            >
+              {[12, 24, 48].map((h) => (
+                <option key={h} value={h}>
+                  {h} hours
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="space-y-1">
+            <span className="text-osrs-parchment-dark/70 block text-xs">Hot for</span>
+            <select
+              className={input}
+              value={length}
+              onChange={(e) => setLength(Number(e.target.value))}
+            >
+              {[6, 12, 24].map((h) => (
+                <option key={h} value={h}>
+                  {h} hours
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              onChange((d) => ({
+                ...d,
+                hotzones: planHotZones(
+                  d.regions.map((r) => r.key),
+                  window.start!,
+                  window.end!,
+                  every,
+                  Math.min(length, every),
+                  seed,
+                ),
+              }))
+            }
+          >
+            {zones.length ? "Replan" : "Plan hot zones"}
+          </Button>
+          {zones.length > 0 && (
+            <button
+              type="button"
+              className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
+              onClick={() => onChange((d) => ({ ...d, hotzones: [] }))}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
+      {!canPlan && (
+        <p className="text-osrs-parchment-dark/60 text-xs">
+          Set the event&apos;s start and end dates to plan hot zones.
+        </p>
+      )}
+      {zones.length > 0 && (
+        <ul className="space-y-1 text-sm">
+          {zones.map((z) => (
+            <li key={z.key} className="flex flex-wrap items-center gap-2">
+              <select
+                className={input}
+                value={z.region_key}
+                aria-label="Region"
+                onChange={(e) => patchZone(z.key, (x) => ({ ...x, region_key: e.target.value }))}
+              >
+                {draft.regions.map((r) => (
+                  <option key={r.key} value={r.key}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="datetime-local"
+                className={input}
+                aria-label="Starts"
+                value={toLocalInput(z.starts_at)}
+                onChange={(e) => {
+                  const t = new Date(e.target.value).getTime();
+                  if (Number.isFinite(t)) patchZone(z.key, (x) => ({ ...x, starts_at: t / 1000 }));
+                }}
+              />
+              <label className="text-osrs-parchment-dark/70 flex items-center gap-1 text-xs">
+                for
+                <input
+                  type="number"
+                  min={1}
+                  max={168}
+                  className={`${input} w-16`}
+                  value={z.hours}
+                  onChange={(e) =>
+                    patchZone(z.key, (x) => ({
+                      ...x,
+                      hours: Math.min(Math.max(Number(e.target.value) || 1, 1), 168),
+                    }))
+                  }
+                />
+                hours
+              </label>
+              <span className="text-osrs-parchment-dark/50 text-xs">
+                {regionName.get(z.region_key)}
+              </span>
+              <button
+                type="button"
+                className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
+                onClick={() =>
+                  onChange((d) => ({ ...d, hotzones: d.hotzones.filter((x) => x.key !== z.key) }))
+                }
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
