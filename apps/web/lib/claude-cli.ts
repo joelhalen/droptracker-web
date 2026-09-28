@@ -18,10 +18,20 @@
  *                            no MCP servers, no local settings, no skills
  *  - bounded concurrency + a bounded wait queue (see below)
  *  - hard wall-clock timeout, then SIGKILL
+ *
+ * Auth: we spawn the `claude-headless` wrapper when it is installed. It injects
+ * the long-lived `claude setup-token` token as CLAUDE_CODE_OAUTH_TOKEN, so the
+ * CLI never touches the shared, rotating login store that interactive sessions
+ * also refresh (a failed refresh there signed every headless caller out on
+ * 2026-08-20 and 2026-09-08). See /store/claude-bot/adminbot/claude_auth.py.
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 
-const CLAUDE_CLI = process.env.CLAUDE_CLI_PATH ?? "/home/debian/.local/bin/claude";
+const HEADLESS_WRAPPER = "/home/debian/bin/claude-headless";
+const CLAUDE_CLI =
+  process.env.CLAUDE_CLI_PATH ??
+  (existsSync(HEADLESS_WRAPPER) ? HEADLESS_WRAPPER : "/home/debian/.local/bin/claude");
 const MODEL = process.env.EVENTPROMPT_CLAUDE_MODEL ?? "sonnet";
 const EFFORT = process.env.EVENTPROMPT_CLAUDE_EFFORT ?? "low";
 const TIMEOUT_MS = Number(process.env.EVENTPROMPT_CLAUDE_TIMEOUT_MS ?? 120_000);
@@ -45,8 +55,8 @@ export class ClaudeCliError extends Error {}
 export class ClaudeCliBusyError extends ClaudeCliError {}
 /**
  * Thrown when the CLI has no usable credentials. Distinct from the other
- * failures because retrying is pointless: the box is signed out and only the
- * owner running `claude auth login` fixes it.
+ * failures because retrying is pointless: the token was rejected (or the box is
+ * signed out) and only the owner installing a new token fixes it.
  */
 export class ClaudeCliAuthError extends ClaudeCliError {}
 
@@ -72,7 +82,7 @@ export function isAuthFailureText(text: string): boolean {
 function failureError(message: string): ClaudeCliError {
   return isAuthFailureText(message)
     ? new ClaudeCliAuthError(
-        `Claude CLI is not authenticated (${message}). The host needs \`claude auth login\`.`,
+        `Claude CLI is not authenticated (${message}). The host needs a new token: \`claude setup-token\`, then ~/bin/claude-headless-set-token.`,
       )
     : new ClaudeCliError(message);
 }
