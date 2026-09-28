@@ -1,0 +1,1367 @@
+<!doctype html>
+<!--
+  Animated slides for the trailer (episodes.mjs "promo1"). Filmed by
+  tooling/shots.mjs: trailer.html#<scene> opens a scene, and window.step(n)
+  moves it to its nth state on the narrator's cue. Designed for a 1280×720
+  viewport (filmed at 1.5× → 1920×1080).
+
+  Every message mirrors something DropTracker really sends: the drop message
+  follows the default drop layout (core services/component_layout.py
+  DEFAULT_LAYOUTS["drop"]), with the sample values core's own layout editor
+  uses (RuneLite Ron, Twisted bow, Chambers of Xeric, 1,204 KC). Player names
+  are fictional. Chat is drawn in the site's palette, not as a copy of any
+  app's branding.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>DropTracker trailer slides</title>
+    <style>
+      @font-face {
+        font-family: "Cinzel";
+        src: url("../../../apps/web/app/fonts/cinzel-latin.woff2") format("woff2");
+        font-weight: 400 900;
+      }
+      @font-face {
+        font-family: "Figtree";
+        src: url("../../../apps/web/app/fonts/figtree-latin.woff2") format("woff2");
+        font-weight: 300 900;
+      }
+      @font-face {
+        font-family: "RuneScape";
+        src: url("../../../apps/web/app/fonts/runescape_uf.ttf") format("truetype");
+      }
+      :root {
+        --bg: #120d08;
+        --bg2: #1d160f;
+        --panel: #221c16;
+        --panel2: #2a231b;
+        --line: #3a3026;
+        --gold: #f2b541;
+        --gold-soft: #c8aa6e;
+        --parch: #eadcc2;
+        --muted: #a8977c;
+        --dim: #6f624f;
+        --good: #6fcf7a;
+        --bad: #e0574f;
+        --blue: #7fb3ff;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html,
+      body {
+        width: 1280px;
+        height: 720px;
+        overflow: hidden;
+      }
+      body {
+        background: radial-gradient(ellipse at 50% 35%, #2a2016 0%, var(--bg) 70%);
+        color: var(--parch);
+        font:
+          16px/1.4 Figtree,
+          system-ui,
+          sans-serif;
+      }
+      #dt-cursor,
+      .dt-click {
+        display: none !important;
+      }
+      /* The beats the viewer has to read get a closer camera. */
+      #arrives .embed,
+      #calm #c-drop .embed {
+        zoom: 1.12;
+      }
+      #message .embed {
+        zoom: 1.3;
+      }
+      #message .card {
+        zoom: 1.2;
+      }
+      #verify .card {
+        zoom: 1.35;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        display: none;
+      }
+      .scene.on {
+        display: block;
+      }
+      .fade {
+        opacity: 0;
+        transform: translateY(10px);
+        transition:
+          opacity 0.5s ease,
+          transform 0.5s ease;
+      }
+      .fade.in {
+        opacity: 1;
+        transform: none;
+      }
+      h2.kicker {
+        font: 600 15px Figtree;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--gold-soft);
+      }
+      .title {
+        font:
+          700 40px Cinzel,
+          serif;
+        color: var(--gold);
+        letter-spacing: 0.02em;
+      }
+
+      /* ---- chat window ---------------------------------------------------- */
+      .chat {
+        position: absolute;
+        background: #1b1714;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+        overflow: hidden;
+      }
+      .chat .bar {
+        height: 46px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 18px;
+        border-bottom: 1px solid var(--line);
+        background: #211c18;
+        color: var(--parch);
+        font-weight: 700;
+      }
+      .chat .bar .hash {
+        color: var(--dim);
+        font-size: 22px;
+        font-weight: 400;
+      }
+      .chat .bar .topic {
+        color: var(--dim);
+        font-weight: 400;
+        font-size: 13px;
+        margin-left: 8px;
+      }
+      .chat .body {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 46px;
+        bottom: 0;
+        padding: 14px 18px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 14px;
+      }
+      .msg {
+        display: flex;
+        gap: 12px;
+      }
+      .msg .av {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        flex: none;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        color: #1b1714;
+      }
+      .msg .who {
+        font-weight: 700;
+      }
+      .msg .who .t {
+        color: var(--dim);
+        font-weight: 400;
+        font-size: 12px;
+        margin-left: 8px;
+      }
+      .msg .who .app {
+        background: #b38a3c;
+        color: #1b1714;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 1px 5px;
+        border-radius: 4px;
+        margin-left: 6px;
+        vertical-align: 2px;
+      }
+      .msg .txt {
+        color: #d9ccb4;
+      }
+      .old {
+        opacity: 0.35;
+      }
+      .typing {
+        color: var(--dim);
+        font-size: 13px;
+        font-style: italic;
+        height: 18px;
+      }
+      .typing i {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin: 0 1px;
+        border-radius: 50%;
+        background: var(--dim);
+        animation: dot 1.2s infinite;
+      }
+      .typing i:nth-child(2) {
+        animation-delay: 0.2s;
+      }
+      .typing i:nth-child(3) {
+        animation-delay: 0.4s;
+      }
+      @keyframes dot {
+        0%,
+        60%,
+        100% {
+          opacity: 0.25;
+        }
+        30% {
+          opacity: 1;
+        }
+      }
+
+      /* ---- the drop message (default drop layout) ------------------------ */
+      .embed {
+        margin-top: 6px;
+        background: #231e19;
+        border-left: 4px solid var(--gold-soft);
+        border-radius: 6px;
+        padding: 12px 14px;
+        width: 440px;
+      }
+      .embed .row {
+        display: flex;
+        gap: 12px;
+      }
+      .embed h3 {
+        font: 800 21px Figtree;
+        color: #fff;
+      }
+      .embed .val code {
+        background: #120f0c;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font:
+          600 14px ui-monospace,
+          monospace;
+        color: #fff;
+      }
+      .embed .thumb {
+        width: 52px;
+        height: 52px;
+        margin-left: auto;
+        image-rendering: pixelated;
+      }
+      .embed .fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 10px;
+        font-size: 13.5px;
+        color: #cfc2a9;
+      }
+      .embed .fields b {
+        color: #fff;
+        display: block;
+      }
+      .embed .shot {
+        margin-top: 12px;
+        height: 150px;
+        border-radius: 6px;
+        overflow: hidden;
+        position: relative;
+        background: linear-gradient(180deg, #33402c 0%, #25301f 55%, #1c2418 100%);
+      }
+      .shot .loot {
+        position: absolute;
+        left: 50%;
+        top: 38%;
+        width: 64px;
+        transform: translate(-50%, -50%);
+        image-rendering: pixelated;
+        filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6));
+      }
+      .shot .cb {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 44px;
+        background: rgba(35, 28, 20, 0.85);
+        border-top: 2px solid #4b3d2c;
+        padding: 5px 10px;
+        font:
+          16px RuneScape,
+          monospace;
+        color: #000;
+      }
+      .shot .cb .l1 {
+        color: #ef1020;
+        text-shadow: 1px 1px 0 #000;
+      }
+      .shot .cb .l2 {
+        color: #fff;
+        text-shadow: 1px 1px 0 #000;
+      }
+      .part {
+        opacity: 0;
+        transition: opacity 0.45s ease;
+      }
+      .part.in {
+        opacity: 1;
+      }
+      .flash {
+        position: absolute;
+        inset: 0;
+        background: #fff;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .flash.go {
+        animation: flash 0.5s ease-out;
+      }
+      @keyframes flash {
+        0% {
+          opacity: 0.85;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+
+      /* ---- incoming submission card --------------------------------------- */
+      .card {
+        position: absolute;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 16px 18px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      }
+      .card .hd {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        color: var(--gold);
+        margin-bottom: 10px;
+      }
+      .card .hd .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--good);
+        box-shadow: 0 0 10px var(--good);
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        gap: 5px 12px;
+        font:
+          14px ui-monospace,
+          "SFMono-Regular",
+          monospace;
+      }
+      .kv .k {
+        color: var(--dim);
+      }
+      .kv .v {
+        color: var(--parch);
+      }
+      .fly {
+        transition:
+          transform 1.1s cubic-bezier(0.6, 0.05, 0.3, 1),
+          opacity 0.5s ease;
+      }
+
+      /* ---- plugin scene --------------------------------------------------- */
+      .hub {
+        position: absolute;
+        left: 440px;
+        top: 230px;
+        width: 400px;
+        height: 260px;
+      }
+      .core {
+        position: absolute;
+        left: 110px;
+        top: 70px;
+        width: 180px;
+        height: 120px;
+        border-radius: 16px;
+        background: linear-gradient(160deg, #3a2c1b, #221a12);
+        border: 1px solid #5a4630;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        box-shadow: 0 0 0 rgba(242, 181, 65, 0);
+        transition: box-shadow 0.4s;
+      }
+      .core.glow {
+        box-shadow: 0 0 40px rgba(242, 181, 65, 0.45);
+      }
+      .core img {
+        width: 44px;
+        border-radius: 10px;
+      }
+      .core span {
+        display: block;
+        font: 700 14px Figtree;
+        color: var(--gold);
+        margin-top: 6px;
+      }
+      .chip {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 16px 10px 10px;
+        border-radius: 999px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        color: var(--muted);
+        font-weight: 700;
+        transition: all 0.4s;
+      }
+      .chip img,
+      .chip svg {
+        width: 34px;
+        height: 34px;
+        image-rendering: pixelated;
+        opacity: 0.45;
+        transition: opacity 0.4s;
+      }
+      .chip.lit {
+        color: var(--parch);
+        border-color: var(--gold-soft);
+        box-shadow: 0 0 24px rgba(200, 170, 110, 0.35);
+        background: #2d2419;
+      }
+      .chip.lit img,
+      .chip.lit svg {
+        opacity: 1;
+      }
+      .game {
+        position: absolute;
+        left: 70px;
+        top: 150px;
+        width: 300px;
+        height: 420px;
+        border-radius: 12px;
+        border: 1px solid #4b3d2c;
+        background: linear-gradient(180deg, #3d4a31, #1e2717);
+        overflow: hidden;
+      }
+      .game .lbl {
+        position: absolute;
+        left: 12px;
+        top: 10px;
+        font: 15px RuneScape;
+        color: #ff0;
+        text-shadow: 1px 1px 0 #000;
+      }
+      .game .gloot {
+        position: absolute;
+        left: 50%;
+        top: 34%;
+        width: 72px;
+        transform: translate(-50%, -50%);
+        image-rendering: pixelated;
+        filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.6));
+      }
+      .game .gchat {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 8px 10px;
+        min-height: 130px;
+        background: rgba(35, 28, 20, 0.9);
+        border-top: 2px solid #4b3d2c;
+        font:
+          16px/1.25 RuneScape,
+          monospace;
+        color: #fff;
+        text-shadow: 1px 1px 0 #000;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 3px;
+      }
+      .game .gchat .fade {
+        transform: none;
+      }
+      .arrow {
+        position: absolute;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, var(--gold-soft));
+        transform-origin: left;
+        transform: scaleX(0);
+        transition: transform 0.8s ease;
+      }
+      .arrow.in {
+        transform: scaleX(1);
+      }
+      .dest {
+        position: absolute;
+        right: 70px;
+        top: 300px;
+        width: 250px;
+        padding: 18px;
+        border-radius: 14px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        text-align: center;
+      }
+
+      /* ---- settings ------------------------------------------------------- */
+      .panel {
+        position: absolute;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 22px 24px;
+      }
+      .setrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 11px 0;
+        border-bottom: 1px solid #2f271f;
+      }
+      .setrow:last-child {
+        border-bottom: 0;
+      }
+      .setrow .name {
+        font-weight: 600;
+      }
+      .setrow .hint {
+        color: var(--dim);
+        font-size: 13px;
+      }
+      .pill {
+        font:
+          600 14px ui-monospace,
+          monospace;
+        background: #15110d;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 5px 10px;
+        color: var(--parch);
+      }
+      .chan {
+        color: var(--blue);
+        font-weight: 600;
+      }
+      .tog {
+        width: 44px;
+        height: 24px;
+        border-radius: 999px;
+        background: #3a3129;
+        position: relative;
+        transition: background 0.35s;
+      }
+      .tog::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #9a8c77;
+        transition: all 0.35s;
+      }
+      .tog.on {
+        background: #3f8a4a;
+      }
+      .tog.on::after {
+        left: 23px;
+        background: #fff;
+      }
+      .hl {
+        transition: background 0.4s;
+        border-radius: 8px;
+      }
+      .hl.lit {
+        background: rgba(242, 181, 65, 0.12);
+      }
+      .quiet {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--dim);
+      }
+      .quiet img {
+        width: 30px;
+        image-rendering: pixelated;
+      }
+      .strike {
+        position: relative;
+      }
+      .strike::after {
+        content: "";
+        position: absolute;
+        left: -4px;
+        right: -4px;
+        top: 50%;
+        height: 2px;
+        background: var(--bad);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.5s;
+      }
+      .strike.in::after {
+        transform: scaleX(1);
+      }
+
+      /* ---- members -------------------------------------------------------- */
+      .list {
+        position: absolute;
+        top: 190px;
+        width: 360px;
+      }
+      .list h4 {
+        font: 700 14px Figtree;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--gold-soft);
+        margin-bottom: 10px;
+      }
+      .mem {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px;
+        margin-bottom: 7px;
+        border-radius: 9px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        transition: all 0.6s ease;
+        max-height: 44px;
+        overflow: hidden;
+      }
+      .mem .b {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        flex: none;
+      }
+      .mem.new {
+        border-color: var(--good);
+        box-shadow: 0 0 18px rgba(111, 207, 122, 0.3);
+      }
+      .mem.gone {
+        border-color: var(--bad);
+        opacity: 0;
+        max-height: 0;
+        padding: 0 12px;
+        margin: 0;
+      }
+      .mem.hidden {
+        opacity: 0;
+        max-height: 0;
+        padding: 0 12px;
+        margin: 0;
+        border-width: 0;
+      }
+      .sync {
+        position: absolute;
+        left: 540px;
+        top: 330px;
+        width: 200px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .sync svg {
+        width: 58px;
+        height: 58px;
+        transition: transform 1.2s ease;
+      }
+      .sync.spin svg {
+        transform: rotate(360deg);
+      }
+
+      /* ---- verify --------------------------------------------------------- */
+      .stamp {
+        position: absolute;
+        font: 900 54px Cinzel;
+        color: var(--bad);
+        border: 5px solid var(--bad);
+        padding: 6px 22px;
+        border-radius: 10px;
+        transform: rotate(-9deg) scale(2.4);
+        opacity: 0;
+        transition:
+          transform 0.35s cubic-bezier(0.3, 1.6, 0.5, 1),
+          opacity 0.2s;
+        letter-spacing: 0.06em;
+      }
+      .stamp.in {
+        transform: rotate(-9deg) scale(1);
+        opacity: 0.92;
+      }
+      .checkline {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 15px;
+        margin-top: 8px;
+      }
+      .spinner {
+        width: 16px;
+        height: 16px;
+        border: 2px solid var(--dim);
+        border-top-color: var(--gold);
+        border-radius: 50%;
+        animation: sp 0.8s linear infinite;
+      }
+      @keyframes sp {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .x {
+        color: var(--bad);
+        font-weight: 800;
+      }
+
+      /* ---- boards --------------------------------------------------------- */
+      .board {
+        width: 460px;
+      }
+      .board .line {
+        display: grid;
+        grid-template-columns: 34px 1fr auto;
+        gap: 10px;
+        padding: 7px 0;
+        border-bottom: 1px solid #2f271f;
+        font-size: 15px;
+      }
+      .board .line .n {
+        color: var(--gold);
+        font-weight: 800;
+      }
+      .board .line .p {
+        color: #fff;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- 1. quiet channel ------------------------------------------------------ -->
+    <section class="scene" id="quiet">
+      <div class="chat" style="left: 190px; top: 70px; width: 900px; height: 580px">
+        <div class="bar">
+          <span class="hash">#</span> drops <span class="topic">loot, pets and bragging</span>
+        </div>
+        <div class="body">
+          <div class="msg old">
+            <div class="av" style="background: #8a9bd1">L</div>
+            <div>
+              <div class="who">Lumby Larry <span class="t">Yesterday at 21:04</span></div>
+              <div class="txt">anyone doing cox tonight</div>
+            </div>
+          </div>
+          <div class="msg old">
+            <div class="av" style="background: #c9a36a">B</div>
+            <div>
+              <div class="who">Barrows Bob <span class="t">Yesterday at 21:31</span></div>
+              <div class="txt">can't, bank standing</div>
+            </div>
+          </div>
+          <div class="msg fade" id="q-gz">
+            <div class="av" style="background: #9fd18a">S</div>
+            <div>
+              <div class="who">Sir Spoons <span class="t">Today at 20:12</span></div>
+              <div class="txt">gz</div>
+            </div>
+          </div>
+          <div class="typing fade" id="q-typing">Iron Ingrid is typing <i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. the drop arrives / 12. the channel fills ---------------------------- -->
+    <section class="scene" id="arrives">
+      <div
+        class="card fly"
+        id="a-card"
+        style="left: 60px; top: 250px; width: 300px; transform: translateX(-420px); opacity: 0"
+      >
+        <div class="hd"><span class="dot"></span> Incoming · drop</div>
+        <div class="kv">
+          <span class="k">player</span><span class="v">RuneLite Ron</span><span class="k">item</span
+          ><span class="v">Twisted bow</span><span class="k">from</span
+          ><span class="v">Chambers of Xeric</span>
+        </div>
+      </div>
+      <div class="chat" style="left: 400px; top: 40px; width: 820px; height: 640px">
+        <div class="bar">
+          <span class="hash">#</span> drops <span class="topic">loot, pets and bragging</span>
+        </div>
+        <div class="body" id="a-body">
+          <div class="msg old">
+            <div class="av" style="background: #9fd18a">S</div>
+            <div>
+              <div class="who">Sir Spoons <span class="t">Today at 20:12</span></div>
+              <div class="txt">gz</div>
+            </div>
+          </div>
+          <div class="msg fade" id="a-drop"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. plugin ------------------------------------------------------------- -->
+    <section class="scene" id="plugin">
+      <div style="position: absolute; left: 70px; top: 60px">
+        <h2 class="kicker">RuneLite plugin + Discord bot</h2>
+        <div class="title">Your members just play</div>
+      </div>
+      <div class="game">
+        <div class="lbl">Chambers of Xeric</div>
+        <img
+          class="gloot fade"
+          id="g-loot"
+          src="https://www.droptracker.io/img/itemdb/20997.png"
+          alt=""
+        />
+        <div class="gchat">
+          <div class="fade" id="g-1">
+            <span style="color: #ef1020">Valuable drop: Twisted bow (1,201,478,012 coins)</span>
+          </div>
+          <div class="fade" id="g-2">
+            Duration: <span style="color: #ef1020">14:23.40</span> (new personal best)
+          </div>
+          <div class="fade" id="g-3">
+            New item added to your collection log: <span style="color: #ef1020">Twisted bow</span>
+          </div>
+          <div class="fade" id="g-4">You have a funny feeling like you're being followed.</div>
+        </div>
+        <div class="flash" id="p-flash"></div>
+      </div>
+      <div class="chip" id="p-loot" style="left: 420px; top: 170px">
+        <img src="https://www.droptracker.io/img/itemdb/20997.png" alt="" />Loot
+      </div>
+      <div class="chip" id="p-pb" style="left: 420px; top: 250px">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#f2b541"
+          stroke-width="1.8"
+          stroke-linecap="round"
+        >
+          <circle cx="12" cy="13" r="8" />
+          <path d="M12 9v4l2.5 2M10 2h4M12 2v3" /></svg
+        >Personal bests
+      </div>
+      <div class="chip" id="p-clog" style="left: 420px; top: 330px">
+        <img src="https://www.droptracker.io/img/itemdb/22711.png" alt="" />Collection log
+      </div>
+      <div class="chip" id="p-pet" style="left: 420px; top: 410px">
+        <img src="https://www.droptracker.io/img/itemdb/20851.png" alt="" />Pets
+      </div>
+      <div class="chip" id="p-shot" style="left: 420px; top: 490px">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#f2b541"
+          stroke-width="1.8"
+          stroke-linejoin="round"
+        >
+          <path d="M3 8h4l2-3h6l2 3h4v11H3z" />
+          <circle cx="12" cy="13" r="3.5" /></svg
+        >Screenshot, taken for you
+      </div>
+      <div class="arrow" id="p-arrow" style="left: 700px; top: 352px; width: 260px"></div>
+      <div class="dest fade" id="p-dest">
+        <img src="../../../apps/web/app/icon.png" alt="" style="width: 48px; border-radius: 12px" />
+        <div style="font: 700 18px Cinzel; color: var(--gold); margin-top: 6px">DropTracker</div>
+        <div style="color: var(--muted); font-size: 14px">sent in, automatically</div>
+      </div>
+    </section>
+
+    <!-- 5. submission → message ---------------------------------------------- -->
+    <section class="scene" id="message">
+      <div class="card" style="left: 60px; top: 200px; width: 340px">
+        <div class="hd"><span class="dot"></span> Incoming · drop</div>
+        <div class="kv">
+          <span class="k">player</span><span class="v">RuneLite Ron</span>
+          <span class="k">item</span><span class="v">Twisted bow</span> <span class="k">value</span
+          ><span class="v">1,201,478,012</span> <span class="k">from</span
+          ><span class="v">Chambers of Xeric</span> <span class="k">kill count</span
+          ><span class="v">1,204</span> <span class="k">screenshot</span
+          ><span class="v">image.png ✓</span>
+        </div>
+      </div>
+      <div class="arrow in" style="left: 410px; top: 330px; width: 60px"></div>
+      <div class="chat" style="left: 490px; top: 40px; width: 730px; height: 640px">
+        <div class="bar"><span class="hash">#</span> drops</div>
+        <div class="body" id="m-body"></div>
+      </div>
+    </section>
+
+    <!-- 7. settings ----------------------------------------------------------- -->
+    <section class="scene" id="settings">
+      <div style="position: absolute; left: 80px; top: 60px">
+        <h2 class="kicker">Your group's settings</h2>
+        <div class="title">What's worth a message</div>
+      </div>
+      <div class="panel" style="left: 80px; top: 170px; width: 520px">
+        <div class="setrow hl" id="s-min">
+          <div>
+            <div class="name">Minimum value to announce</div>
+            <div class="hint">Drops worth less are tracked, not announced</div>
+          </div>
+          <span class="pill">2,500,000</span>
+        </div>
+        <div class="setrow">
+          <div class="quiet">
+            <img src="https://www.droptracker.io/img/itemdb/1333.png" alt="" /><span
+              class="strike"
+              id="s-scim"
+              >Rune scimitar · 15K</span
+            >
+          </div>
+          <span class="hint fade" id="s-scim-note">stays quiet</span>
+        </div>
+        <div class="setrow">
+          <div class="quiet">
+            <img src="https://www.droptracker.io/img/itemdb/20997.png" alt="" /><span
+              style="color: var(--parch)"
+              >Twisted bow · 1.2B</span
+            >
+          </div>
+          <span class="hint" style="color: var(--good)">announced</span>
+        </div>
+      </div>
+      <div class="panel" style="left: 660px; top: 170px; width: 540px">
+        <div class="setrow hl" id="s-pb">
+          <span class="name">Personal bests</span><span class="chan"># pbs</span>
+        </div>
+        <div class="setrow hl" id="s-pet">
+          <span class="name">Pets</span><span class="chan"># pets</span>
+        </div>
+        <div class="setrow hl" id="s-clog">
+          <span class="name">Collection log</span><span class="chan"># clog</span>
+        </div>
+        <div class="setrow">
+          <span class="name">Quests · Diaries · Level-ups</span>
+          <div class="tog"></div>
+        </div>
+        <div class="setrow hl" id="s-death">
+          <span class="name">Deaths</span>
+          <div class="tog" id="s-death-tog"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 9. members ------------------------------------------------------------ -->
+    <section class="scene" id="members">
+      <div style="position: absolute; left: 120px; top: 60px">
+        <h2 class="kicker">Membership</h2>
+        <div class="title">Follows your Wise Old Man group</div>
+      </div>
+      <div class="list" style="left: 120px">
+        <h4>Wise Old Man group</h4>
+        <div class="mem"><span class="b" style="background: #8a9bd1"></span>Iron Ingrid</div>
+        <div class="mem"><span class="b" style="background: #9fd18a"></span>Sir Spoons</div>
+        <div class="mem" id="w-gone">
+          <span class="b" style="background: #d18a8a"></span>Dry Dave
+        </div>
+        <div class="mem"><span class="b" style="background: #c9a36a"></span>Barrows Bob</div>
+        <div class="mem hidden" id="w-new">
+          <span class="b" style="background: #e6c86e"></span>Gnome Gary
+        </div>
+      </div>
+      <div class="sync" id="m-sync">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#f2b541"
+          stroke-width="1.6"
+          stroke-linecap="round"
+        >
+          <path d="M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3" />
+          <path d="M18 3v4h-4M6 21v-4h4" />
+        </svg>
+        <div>synced every hour</div>
+      </div>
+      <div class="list" style="left: 800px">
+        <h4>Your DropTracker group</h4>
+        <div class="mem"><span class="b" style="background: #8a9bd1"></span>Iron Ingrid</div>
+        <div class="mem"><span class="b" style="background: #9fd18a"></span>Sir Spoons</div>
+        <div class="mem" id="d-gone">
+          <span class="b" style="background: #d18a8a"></span>Dry Dave
+        </div>
+        <div class="mem"><span class="b" style="background: #c9a36a"></span>Barrows Bob</div>
+        <div class="mem hidden" id="d-new">
+          <span class="b" style="background: #e6c86e"></span>Gnome Gary
+        </div>
+      </div>
+    </section>
+
+    <!-- 10. verify ------------------------------------------------------------ -->
+    <section class="scene" id="verify">
+      <div style="position: absolute; left: 120px; top: 60px">
+        <h2 class="kicker">High-value drops are checked</h2>
+        <div class="title">Against the OSRS Wiki's drop tables</div>
+      </div>
+      <div class="card" style="left: 120px; top: 200px; width: 470px">
+        <div class="hd">
+          <span
+            class="dot"
+            style="background: var(--gold); box-shadow: 0 0 10px var(--gold)"
+          ></span>
+          Incoming · drop
+        </div>
+        <div class="kv">
+          <span class="k">player</span><span class="v">Totally Legit</span
+          ><span class="k">item</span><span class="v">Twisted bow</span><span class="k">value</span
+          ><span class="v">1,201,478,012</span><span class="k">from</span
+          ><span class="v">Goblin</span>
+        </div>
+        <div class="checkline fade" id="v-check">
+          <div class="spinner"></div>
+          Checking the drop table for Goblin…
+        </div>
+        <div class="checkline fade" id="v-no"><span class="x">✕</span>Twisted bow isn't on it</div>
+      </div>
+      <div class="stamp" id="v-stamp" style="left: 700px; top: 300px">REJECTED</div>
+      <div
+        class="fade"
+        id="v-note"
+        style="position: absolute; left: 830px; top: 440px; color: var(--muted); font-size: 18px"
+      >
+        not recorded · not announced
+      </div>
+    </section>
+
+    <!-- 11b. points / 11c. hall of fame ---------------------------------------- -->
+    <section class="scene" id="points">
+      <div class="chat" style="left: 240px; top: 60px; width: 800px; height: 600px">
+        <div class="bar"><span class="hash">#</span> clan-points</div>
+        <div class="body">
+          <div class="msg">
+            <div class="av" style="background: var(--gold)">D</div>
+            <div>
+              <div class="who">
+                DropTracker <span class="app">APP</span> <span class="t">Today at 20:30</span>
+              </div>
+              <div class="embed board" style="width: 520px">
+                <h3>Clan points · September</h3>
+                <div class="line">
+                  <span class="n">1</span><span>Iron Ingrid</span><span class="p">412</span>
+                </div>
+                <div class="line">
+                  <span class="n">2</span><span>Sir Spoons</span><span class="p">388</span>
+                </div>
+                <div class="line">
+                  <span class="n">3</span><span>RuneLite Ron</span><span class="p">351</span>
+                </div>
+                <div class="line">
+                  <span class="n">4</span><span>Lumby Larry</span><span class="p">197</span>
+                </div>
+                <div class="line">
+                  <span class="n">5</span><span>Barrows Bob</span><span class="p">164</span>
+                </div>
+                <div style="margin-top: 10px; color: var(--muted); font-size: 13px">
+                  Pets, personal bests, collection log slots and big drops all pay out.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="scene" id="hof">
+      <div class="chat" style="left: 240px; top: 60px; width: 800px; height: 600px">
+        <div class="bar"><span class="hash">#</span> hall-of-fame</div>
+        <div class="body">
+          <div class="msg">
+            <div class="av" style="background: var(--gold)">D</div>
+            <div>
+              <div class="who">
+                DropTracker <span class="app">APP</span> <span class="t">Today at 20:31</span>
+              </div>
+              <div class="embed board" style="width: 520px">
+                <h3>Chambers of Xeric · team of 4</h3>
+                <div class="line">
+                  <span class="n">1</span><span>RuneLite Ron</span><span class="p">14:23.40</span>
+                </div>
+                <div class="line">
+                  <span class="n">2</span><span>Iron Ingrid</span><span class="p">14:51.00</span>
+                </div>
+                <div class="line">
+                  <span class="n">3</span><span>Sir Spoons</span><span class="p">15:08.20</span>
+                </div>
+                <div class="line">
+                  <span class="n">4</span><span>Barrows Bob</span><span class="p">16:12.60</span>
+                </div>
+                <div class="line">
+                  <span class="n">5</span><span>Lumby Larry</span><span class="p">17:40.80</span>
+                </div>
+                <div style="margin-top: 10px; color: var(--muted); font-size: 13px">
+                  Kept up to date as personal bests come in.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 13. calm channel ------------------------------------------------------ -->
+    <section class="scene" id="calm">
+      <div class="chat" style="left: 190px; top: 40px; width: 900px; height: 640px">
+        <div class="bar">
+          <span class="hash">#</span> drops <span class="topic">loot, pets and bragging</span>
+        </div>
+        <div class="body" id="c-body"></div>
+      </div>
+    </section>
+
+    <template id="drop-tpl">
+      <div class="av" style="background: var(--gold)">D</div>
+      <div>
+        <div class="who">
+          DropTracker <span class="app">APP</span> <span class="t">Today at 20:14</span>
+        </div>
+        <div class="txt part" data-p="0">
+          <b style="color: #fff">RuneLite Ron</b> received a drop:
+        </div>
+        <div class="embed">
+          <div class="row part" data-p="1">
+            <div>
+              <h3>Twisted bow</h3>
+              <div class="val part" data-p="2">G/E Value: <code>1.2B</code></div>
+              <div class="part" data-p="1">from <b style="color: #fff">Chambers of Xeric</b></div>
+            </div>
+            <img class="thumb" src="https://www.droptracker.io/img/itemdb/20997.png" alt="" />
+          </div>
+          <div class="part" data-p="3" style="margin-top: 8px; font-size: 14px; color: #cfc2a9">
+            <b style="color: #fff">Kill count</b> 1,204
+          </div>
+          <div class="fields part" data-p="5">
+            <div>
+              <b>Player Stats</b>September total: 1.25B<br />Group Rank: 3<br />Global Rank: 142
+            </div>
+            <div><b>Group Stats</b>Players tracked: 86<br />September total: 9.9B<br />Rank: 2</div>
+          </div>
+          <div class="shot part" data-p="4">
+            <img class="loot" src="https://www.droptracker.io/img/itemdb/20997.png" alt="" />
+            <div class="cb">
+              <div class="l1">Valuable drop: Twisted bow (1,201,478,012 coins)</div>
+              <div class="l2">Your completed Chambers of Xeric count is: 1204.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <script>
+      const $ = (s) => document.querySelector(s);
+      const on = (el, cls = "in") => el && el.classList.add(cls);
+      const off = (el, cls = "in") => el && el.classList.remove(cls);
+      function drop(target, parts = 6) {
+        target.innerHTML = $("#drop-tpl").innerHTML;
+        target.querySelectorAll(".part").forEach((p) => {
+          if (+p.dataset.p < parts) p.classList.add("in");
+        });
+        return target;
+      }
+      const small = (who, color, text, t) =>
+        `<div class="msg fade"><div class="av" style="background:${color}">${who[0]}</div><div><div class="who">${who} <span class="app">APP</span> <span class="t">${t}</span></div><div class="embed" style="width:520px"><div class="row"><div>${text}</div></div></div></div></div>`;
+
+      // Each scene: steps[n]() moves it to state n. step(0) runs on open.
+      const scenes = {
+        quiet: [
+          () => {},
+          () => on($("#q-gz")),
+          () => on($("#q-typing")),
+          () => off($("#q-typing")),
+        ],
+        arrives: [
+          () => {},
+          () => {
+            const c = $("#a-card");
+            c.style.opacity = 1;
+            c.style.transform = "translateX(0)";
+          },
+          () => {
+            const c = $("#a-card");
+            c.style.transform = "translateX(360px) scale(.6)";
+            c.style.opacity = 0;
+            setTimeout(() => on(drop($("#a-drop"))), 450);
+          },
+        ],
+        plugin: [
+          () => {},
+          () => {
+            on($("#p-loot"), "lit");
+            on($("#g-loot"));
+            on($("#g-1"));
+          },
+          () => {
+            on($("#p-pb"), "lit");
+            on($("#g-2"));
+          },
+          () => {
+            on($("#p-clog"), "lit");
+            on($("#g-3"));
+          },
+          () => {
+            on($("#p-pet"), "lit");
+            on($("#g-4"));
+          },
+          () => {
+            on($("#p-shot"), "lit");
+            const f = $("#p-flash");
+            f.classList.remove("go");
+            void f.offsetWidth;
+            f.classList.add("go");
+          },
+          () => {
+            on($("#p-arrow"));
+            setTimeout(() => on($("#p-dest")), 500);
+          },
+        ],
+        message: (() => {
+          const shown = (n) => () => {
+            const m = $("#m-body");
+            if (!m.firstChild) {
+              m.innerHTML = '<div class="msg" id="m-drop"></div>';
+              drop($("#m-drop"), 0);
+            }
+            m.querySelectorAll(".part").forEach((p) => {
+              if (+p.dataset.p <= n) p.classList.add("in");
+            });
+          };
+          return [() => {}, shown(0), shown(1), shown(2), shown(3), shown(4), shown(5)];
+        })(),
+        settings: [
+          () => {},
+          () => on($("#s-min"), "lit"),
+          () => {
+            on($("#s-scim"));
+            on($("#s-scim-note"));
+          },
+          () => {
+            off($("#s-min"), "lit");
+            on($("#s-pb"), "lit");
+          },
+          () => on($("#s-pet"), "lit"),
+          () => on($("#s-clog"), "lit"),
+          () => {
+            ["#s-pb", "#s-pet", "#s-clog"].forEach((s) => off($(s), "lit"));
+            on($("#s-death"), "lit");
+            on($("#s-death-tog"), "on");
+          },
+        ],
+        members: [
+          () => {},
+          () => on($("#m-sync"), "spin"),
+          () => {
+            off($("#w-new"), "hidden");
+            on($("#w-new"), "new");
+            setTimeout(() => {
+              off($("#d-new"), "hidden");
+              on($("#d-new"), "new");
+            }, 700);
+          },
+          () => {
+            on($("#w-gone"), "gone");
+            setTimeout(() => on($("#d-gone"), "gone"), 700);
+          },
+        ],
+        verify: [
+          () => {},
+          () => on($("#v-check")),
+          () => {
+            on($("#v-no"));
+            $("#v-check .spinner").style.animation = "none";
+          },
+          () => {
+            on($("#v-stamp"));
+            setTimeout(() => on($("#v-note")), 400);
+          },
+        ],
+        points: [() => {}],
+        hof: [() => {}],
+        calm: (() => {
+          const add = (html) => () => {
+            const b = $("#c-body");
+            b.insertAdjacentHTML("beforeend", html);
+            const m = b.lastElementChild;
+            requestAnimationFrame(() => on(m));
+            while (b.scrollHeight > b.clientHeight + 4 && b.children.length > 1)
+              b.firstElementChild.remove();
+          };
+          return [
+            () => {
+              const b = $("#c-body");
+              b.innerHTML = '<div class="msg" id="c-drop"></div>';
+              drop($("#c-drop"), 3)
+                .querySelectorAll(".part")
+                .forEach((p) => p.classList.add("in"));
+              b.querySelector(".shot").remove();
+              b.querySelector(".fields").remove();
+            },
+            add(
+              small(
+                "DropTracker",
+                "var(--gold)",
+                '<b style="color:#fff">Iron Ingrid</b> set a new personal best: <b style="color:#fff">Chambers of Xeric</b> (4 players) in <code style="background:#120f0c;padding:1px 6px;border-radius:4px;color:#fff">14:51.00</code>',
+                "Today at 20:26",
+              ),
+            ),
+            add(
+              small(
+                "DropTracker",
+                "var(--gold)",
+                '<b style="color:#fff">Sir Spoons</b> received a pet: <b style="color:#fff">Olmlet</b> at 1,432 KC <img src="https://www.droptracker.io/img/itemdb/20851.png" style="width:26px;vertical-align:middle">',
+                "Today at 20:33",
+              ),
+            ),
+            add(
+              small(
+                "DropTracker",
+                "var(--gold)",
+                '<b style="color:#fff">Lumby Larry</b> completed a combat achievement: <b style="color:#fff">Perfect Zulrah</b> (Elite)',
+                "Today at 20:41",
+              ),
+            ),
+          ];
+        })(),
+      };
+
+      let current = null,
+        at = 0;
+      function open(name) {
+        document.querySelectorAll(".scene").forEach((s) => s.classList.toggle("on", s.id === name));
+        current = name;
+        at = 0;
+        scenes[name][0]();
+      }
+      // Advance the open scene to state n, running every step in between.
+      window.step = (n) => {
+        const s = scenes[current];
+        while (at < n && at + 1 < s.length) s[++at]();
+      };
+      window.addEventListener("hashchange", () => open(location.hash.slice(1)));
+      open(location.hash.slice(1) || "quiet");
+    </script>
+  </body>
+</html>

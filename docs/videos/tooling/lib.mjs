@@ -52,7 +52,7 @@ const CURSOR_JS = `(() => {
     document.body.appendChild(r); setTimeout(() => r.remove(), 500);
   }, true);
   if (document.readyState !== 'loading') install(); else document.addEventListener('DOMContentLoaded', install);
-  new MutationObserver(install).observe(document.documentElement, { childList: true, subtree: false });
+  if (document.documentElement) new MutationObserver(install).observe(document.documentElement, { childList: true, subtree: false });
 })();`;
 
 // npc id -> pet item id; skill/boss metric -> skillcape / pet item id.
@@ -91,6 +91,74 @@ const METRIC_STANDINS = {
   vorkath: 21992,
   zulrah: 12921,
 };
+
+// Real, well-known players in the site's mock data, swapped for fictional
+// RSNs on camera wherever a film could read as an endorsement (the trailer).
+// Rewrites text and attributes as the page renders; the site is untouched.
+export const RENAMES = {
+  Zezima: "Iron Ingrid",
+  zezima: "iron ingrid",
+  Woox: "Sir Spoons",
+  B0aty: "Dry Dave",
+  Framed: "Gz Greg",
+  Settled: "Lumby Larry",
+  Torvesta: "Tick Tom",
+  durial321: "Barrows Bob",
+  "Lynx Titan": "Bank Stander",
+  Faux: "Mossy Mo",
+  "Sick Nerd": "Wise Wendy",
+  Odablock: "Pker Pete",
+  "Mr Mammal": "Tele Tabby",
+  Mmorpg: "Gnome Gary",
+  "C Engineer": "Chompy Chad",
+  SkillSpecs: "Spec Sam",
+  // ...and the placeholder clan, as the clan the trailer's setup creates.
+  "Mock Clan": "Iron Wolves",
+  "Clan 101": "Iron Wolves",
+};
+// Runs in the page (Playwright serializes it): rewrite matching text now and
+// whenever the page renders more.
+function renameInPage(map) {
+  const esc = (k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp("\\b(" + Object.keys(map).map(esc).join("|") + ")\\b", "g");
+  const fix = (s) => (typeof s === "string" ? s.replace(re, (m) => map[m]) : s);
+  const walk = (root) => {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      const v = fix(n.nodeValue);
+      if (v !== n.nodeValue) n.nodeValue = v;
+    }
+    if (!root.querySelectorAll) return;
+    for (const el of root.querySelectorAll("[title],[alt],[aria-label],input[value]"))
+      for (const a of ["title", "alt", "aria-label", "value"]) {
+        const v = el.getAttribute(a);
+        if (v && fix(v) !== v) el.setAttribute(a, fix(v));
+      }
+  };
+  const start = () => {
+    walk(document.body);
+    new MutationObserver((ms) => {
+      for (const m of ms) {
+        if (m.type === "characterData") {
+          const v = fix(m.target.nodeValue);
+          if (v !== m.target.nodeValue) m.target.nodeValue = v;
+        }
+        for (const n of m.addedNodes)
+          if (n.nodeType === 3) n.nodeValue = fix(n.nodeValue);
+          else if (n.nodeType === 1) walk(n);
+      }
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  };
+  // After hydration: rewriting server HTML first would make React throw it
+  // away. Shots wait for the page to settle before rolling, so no real name
+  // reaches the tape.
+  const later = () => setTimeout(start, 400);
+  if (document.readyState === "complete") later();
+  else window.addEventListener("load", later);
+}
+export async function renamePlayers(ctx, map = RENAMES) {
+  await ctx.addInitScript(renameInPage, map);
+}
 
 export async function open({ record = null, width = W, height = H, scale = 1 } = {}) {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
@@ -154,7 +222,8 @@ export async function open({ record = null, width = W, height = H, scale = 1 } =
 }
 
 export async function go(page, url, settle = 2500) {
-  await page.goto(BASE + url, { waitUntil: "load", timeout: 180000 });
+  // Site paths are relative to BASE; slides are local files (file://…).
+  await page.goto(/^[a-z]+:/.test(url) ? url : BASE + url, { waitUntil: "load", timeout: 180000 });
   await page.waitForTimeout(settle);
 }
 

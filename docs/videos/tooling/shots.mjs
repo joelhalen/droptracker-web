@@ -25,6 +25,7 @@ import {
   cast,
   setCursor,
   zoom,
+  renamePlayers,
 } from "./lib.mjs";
 import { episodes } from "../episodes.mjs";
 import { wordClock } from "./timing.mjs";
@@ -77,6 +78,9 @@ const G = "/groups/101/events";
 const EV = "/events/1";
 const MGR = `${G}/1`;
 const WIZ = (step) => `${G}/new?event=5&step=${step}`;
+const SLIDES = new URL("../slides/trailer.html", import.meta.url).href;
+// Move the open slide scene to its nth state.
+const step = (page, n) => page.evaluate((n) => window.step(n), n);
 
 // Scroll so `sel` sits `top` px below the viewport top, instantly (pre-roll).
 async function frame(page, sel, top = 110) {
@@ -374,6 +378,180 @@ export const shots = {
     await glide(page, "text=Autumn Ladder >> nth=0", { pause: 300 });
     await on("Turael", 0.3);
     await scroll(page, 400, 3000);
+  },
+
+  // ------------------------------------------------------------- TRAILER
+  // Slide beats open slides/trailer.html#<scene> and advance it with
+  // window.step(n) on the narrator's cue; site beats film the real pages.
+  // The runner swaps real players' names for fictional ones for these.
+  async p1_quiet({ page, rec, on }) {
+    await go(page, `${SLIDES}#quiet`, 800);
+    await rec();
+    await on("Somewhere", 0);
+    await step(page, 1);
+    await on("They're looking", 0.1);
+    await step(page, 2);
+    await on("Or never", 0.1);
+    await step(page, 3);
+  },
+  async p1_arrives({ page, rec, on }) {
+    await go(page, `${SLIDES}#arrives`, 800);
+    await rec();
+    await on("Or it could", 0.2);
+    await step(page, 1);
+    await on("in seconds", 0.6);
+    await step(page, 2);
+  },
+  async p1_plugin({ page, rec, on }) {
+    await go(page, `${SLIDES}#plugin`, 800);
+    await rec();
+    for (const [n, phrase] of [
+      [1, "the loot"],
+      [2, "personal bests"],
+      [3, "collection log"],
+      [4, "the pets"],
+      [5, "takes the screenshot"],
+      [6, "sends it in"],
+    ]) {
+      await on(phrase, 0.1);
+      await step(page, n);
+    }
+  },
+  async p1_message({ page, rec, on }) {
+    await go(page, `${SLIDES}#message`, 800);
+    await rec();
+    for (const [n, phrase] of [
+      [1, "A moment later"],
+      [2, "The item"],
+      [3, "what it's worth"],
+      [4, "the kill count"],
+      [5, "the screenshot"],
+      [6, "where they now rank"],
+    ]) {
+      await on(phrase, 0.1);
+      await step(page, n);
+    }
+  },
+  async p1_design({ page, rec, on }) {
+    await go(page, "/groups/101/embeds", 3000);
+    await frame(page, "text=Embed templates", 150);
+    await rec();
+    await on("You decide", 0.6);
+    await glide(page, 'input[value*="item_name"]', { click: true, pause: 150 });
+    await page.keyboard.press("Control+A");
+    await on("Every part of the design", 0.3);
+    await typeSlow(page, "{item_name} — what a drop!", 45);
+    await on("and it's free", 0.8);
+    await glide(page, "text=Live preview", { pause: 200 });
+  },
+  async p1_settings({ page, rec, on }) {
+    await go(page, `${SLIDES}#settings`, 800);
+    await rec();
+    for (const [n, phrase] of [
+      [1, "two and a half million"],
+      [2, "rune scimitars"],
+      [3, "Personal bests"],
+      [4, "pets"],
+      [5, "collection logs"],
+      [6, "Deaths"],
+    ]) {
+      await on(phrase, 0.1);
+      await step(page, n);
+    }
+  },
+  async p1_pages({ page, rec, cut, on }) {
+    await go(page, "/groups/101/lootboard", 3500);
+    await frame(page, "text=Total loot", 120);
+    await rec();
+    await glide(page, "text=Iron Ingrid >> nth=1", { steps: 40, pause: 200 });
+    await on("redrawn on its own", 0.5);
+    await glide(page, { x: 820, y: 560 }, { steps: 50, pause: 200 });
+    await on("its own pages", 0.9);
+    await cut("/groups/101");
+    await glide(page, "text=Clan records", { pause: 200 });
+    await on("settling arguments", 0.9);
+    await cut("/groups/101/personal-bests");
+    await glide(page, "text=Solo >> nth=0", { steps: 30, pause: 200 });
+    await on("Or starting them", 0.4);
+    await glide(page, "text=2 players >> nth=0", { steps: 30, pause: 200 });
+  },
+  async p1_members({ page, rec, on }) {
+    await go(page, `${SLIDES}#members`, 800);
+    await rec();
+    await on("syncs every hour", 0.2);
+    await step(page, 1);
+    await on("New recruits", 0.1);
+    await step(page, 2);
+    await on("People who left", 0.1);
+    await step(page, 3);
+  },
+  async p1_verify({ page, rec, on }) {
+    await go(page, `${SLIDES}#verify`, 800);
+    await rec();
+    await on("checked against", 0.1);
+    await step(page, 1);
+    await on("from a goblin", 0.1);
+    await step(page, 2);
+    await on("doesn't get recorded", 0.3);
+    await step(page, 3);
+  },
+  async p1_more({ page, rec, cut, on }) {
+    await go(page, EV, 3500);
+    await frame(page, "text=Bingo board", 110);
+    await rec();
+    await glide(page, { x: 420, y: 470 }, { steps: 50, pause: 200 });
+    await on("keep a clan points", 0.3);
+    await cut(`${SLIDES}#points`);
+    await on("post a Hall of Fame", 0.3);
+    await cut(`${SLIDES}#hof`);
+  },
+  async p1_setup({ page, rec, on }) {
+    await go(page, "/groups/new", 3000);
+    await zoom(page, 1.3);
+    await frame(page, "text=Create a group", 110);
+    await rec();
+    const btn = (re) => page.getByRole("button", { name: re }).first();
+    await on("Pick your Discord server", 0.6);
+    await glide(page, "text=Iron Wolves HQ", { click: true, pause: 150 });
+    await on("invite the bot", 0.5);
+    await glide(page, "text=bot is in this server", { pause: 150 });
+    await glide(page, btn(/^continue/i), { click: true, pause: 150, ms: 450 });
+    await on("paste in your Wise Old Man", 0.6);
+    await glide(page, page.locator("main input").first(), { click: true, pause: 100, ms: 450 });
+    await typeSlow(page, "4521", 60);
+    await glide(page, btn(/look up/i), { click: true, pause: 150, ms: 420 });
+    await page.waitForTimeout(600);
+    await glide(page, btn(/^continue/i), { click: true, pause: 150, ms: 420 });
+    await page.locator("main input").first().fill("");
+    await glide(page, page.locator("main input").first(), { click: true, pause: 80, ms: 380 });
+    await typeSlow(page, "Iron Wolves", 35);
+    await glide(page, btn(/create group/i), { click: true, pause: 150, ms: 420 });
+    await on("choose a channel", 0.6);
+    await soft("channel", async () => {
+      // The drop-notifications picker: a searchable list of the server's channels.
+      await glide(page, page.locator('main input[placeholder^="Search channels"]').last(), {
+        click: true,
+        pause: 250,
+        ms: 450,
+      });
+      await glide(page, page.getByText("#drops", { exact: true }).last(), {
+        click: true,
+        pause: 150,
+        ms: 400,
+      });
+    });
+    await glide(page, btn(/save & continue/i), { click: true, pause: 150, ms: 420 });
+    await on("install the DropTracker plugin", 0.8);
+    await glide(page, "text=install the DropTracker RuneLite plugin", { pause: 200 });
+  },
+  async p1_calm({ page, rec, on }) {
+    await go(page, `${SLIDES}#calm`, 800);
+    await rec();
+    await step(page, 1);
+    await on("were never", 0.2);
+    await step(page, 2);
+    await on("the fun part", 0.3);
+    await step(page, 3);
   },
 
   // ---------------------------------------------------------------- EP2
@@ -684,6 +862,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const want = process.argv.slice(2);
   const ids = want.length ? want : Object.keys(shots);
   const { browser, page } = await openHD();
+  // The trailer never shows a real player's name.
+  if (ids.some((id) => id.startsWith("p1_"))) await renamePlayers(page.context());
   // Warm the dev server so first-compile delays never land in a clip.
   for (const u of [
     "/events",
