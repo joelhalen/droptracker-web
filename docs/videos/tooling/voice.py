@@ -62,6 +62,7 @@ MAX_RUN = 4  # letters in a row added or dropped: a whole word, not a spelling
 # (the script, captions and review keep the real spelling).
 SAY = {
     "Turael": "Tur-ay-el",  # otherwise "Toriel"
+    "droptracker.io": "droptracker dot I O",
 }
 
 # ---------------------------------------------------------------- kokoro

@@ -222,6 +222,92 @@ export const episodes = [
       { card: ["droptracker.io", "Events, Explained"], vo: "", hold: 3 },
     ],
   },
+
+  // ------------------------------------------------------------------ trailer
+  // For clan leaders: what DropTracker does for a group, end to end. Same
+  // narrator and rules as the series (every claim true; see PLAN.md). Spoken
+  // as "the DropTracker". Beats marked "Slide" are animated panels from
+  // slides/trailer.html; the rest is real site footage.
+  {
+    id: "promo1",
+    heading: "Trailer",
+    title: "Your Clan, Tracked",
+    subtitle: "a trailer for clan leaders",
+    beats: [
+      {
+        clip: "p1_quiet",
+        screen: "Slide: a quiet clan Discord channel. One lonely “gz” with no context.",
+        vo: "Somewhere, a clanmate just got a Twisted bow. They're looking for the screenshot key. Your Discord will hear about it in forty minutes. Or never.",
+      },
+      {
+        clip: "p1_arrives",
+        screen: "Slide: the same drop lands at once, submission card to message.",
+        vo: "Or it could hear about it in seconds.",
+        hold: 0.6,
+      },
+      { card: ["DropTracker", "Your clan, tracked"], vo: "", hold: 3 },
+      {
+        clip: "p1_plugin",
+        screen:
+          "Slide: the game with the plugin; loot, personal best, collection log and pet light up in turn.",
+        vo: "The DropTracker is a RuneLite plugin and a Discord bot, working as a pair. Your members just play. The plugin spots the loot, the personal bests, the collection log slots and the pets, takes the screenshot itself, and sends it in.",
+      },
+      {
+        clip: "p1_message",
+        screen:
+          "Slide: “Incoming: drop · Twisted bow · Chambers of Xeric” becomes the default drop message, field by field.",
+        vo: "A moment later it's in your Discord. The item, what it's worth, the kill count, the screenshot, and where they now rank in your clan this month. Nobody typed a thing.",
+      },
+      {
+        clip: "p1_design",
+        screen: "Site: the clan's notification designer, changing the drop message.",
+        vo: "You decide what that message looks like. Every part of the design is yours to change, and it's free.",
+      },
+      {
+        clip: "p1_settings",
+        screen: "Slide: minimum value 2.5M, a channel per type, the type toggles.",
+        vo: "And you decide what's worth one. Drops under two and a half million stay quiet by default, so nobody's announcing rune scimitars. Personal bests, pets and collection logs can each get their own channel. Deaths are available too, if your clan enjoys that.",
+      },
+      {
+        clip: "p1_pages",
+        screen: "Site: the clan lootboard, then the clan page and its personal bests.",
+        vo: "Meanwhile the lootboard keeps score: a picture of this month's loot, redrawn on its own and edited in place. And your clan gets its own pages on droptracker.io. Useful for settling arguments. Or starting them.",
+      },
+      {
+        clip: "p1_members",
+        screen: "Slide: the Wise Old Man group beside the member list; one name joins, one leaves.",
+        vo: "Membership follows your Wise Old Man group and syncs every hour. New recruits show up. People who left, leave.",
+      },
+      {
+        clip: "p1_verify",
+        screen:
+          "Slide: “Twisted bow · from Goblin” is checked against the wiki and stamped rejected.",
+        vo: "And because someone will always try it: big drops are checked against the OSRS Wiki's drop tables. A Twisted bow from a goblin doesn't get recorded, let alone announced.",
+      },
+      {
+        clip: "p1_more",
+        screen: "Site: a bingo board, the clan points page; slide: a Hall of Fame message.",
+        vo: "When you want more, run bingos that score themselves, keep a clan points ledger, or post a Hall of Fame of your fastest kills. Points and the Hall of Fame are on paid plans. The notifications, the lootboard, the designs and your clan's pages are free.",
+      },
+      {
+        clip: "p1_setup",
+        screen: "Site: the /groups/new setup wizard, step by step.",
+        vo: "Setup takes a few minutes. Pick your Discord server, invite the bot, paste in your Wise Old Man group, and choose a channel. Then tell your clan to install the DropTracker plugin.",
+      },
+      {
+        clip: "p1_calm",
+        screen:
+          "Slide: the channel from the opening, now filling with drops, a personal best and a pet.",
+        vo: "Screenshots were never the fun part anyway.",
+        hold: 1.2,
+      },
+      {
+        card: ["droptracker.io", "RuneLite plugin + Discord bot · free to start"],
+        vo: "",
+        hold: 3.5,
+      },
+    ],
+  },
 ];
 
 // Planned follow-ups (outlined in PLAN.md; not yet filmed, see why there).

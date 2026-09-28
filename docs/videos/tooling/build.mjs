@@ -157,7 +157,7 @@ function writeDocs(ep) {
   const total = beats.at(-1).start + beats.at(-1).dur;
   const wc = beats.reduce((n, b) => n + words(b.vo || ""), 0);
   const voiced = hasVoice(ep);
-  let md = `# Episode ${ep.id.slice(2)} — ${ep.title}\n\n_${ep.subtitle}_\n\n`;
+  let md = `# ${ep.heading ?? `Episode ${ep.id.slice(2)}`} — ${ep.title}\n\n_${ep.subtitle}_\n\n`;
   md += `**Runtime${voiced ? "" : " target"}:** ~${tc(total)} · **VO:** ${wc} words${voiced ? " (timed to the recorded takes)" : ""} · **Clips:** \`tooling/clips/<clip>.mp4\`\n\n`;
   md += `Generated from \`docs/videos/episodes.mjs\` — edit that file, then \`node tooling/build.mjs\`.\n\n`;
   md += `| # | Time | Clip | On screen | Voice-over |\n|---|---|---|---|---|\n`;
