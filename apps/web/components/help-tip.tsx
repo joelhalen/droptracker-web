@@ -20,7 +20,7 @@ export function HelpTip({
   title?: string;
   /** The explanation — keep it to a sentence or two. */
   children: ReactNode;
-  /** Optional docs page for the full story, e.g. "/docs/events-teams". */
+  /** Optional docs page for the full story, e.g. "/docs/events-create#teams". */
   docsHref?: string;
 }) {
   return (

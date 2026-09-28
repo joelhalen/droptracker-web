@@ -12,6 +12,7 @@ export function HeroSearch() {
     <EntitySearch
       size="lg"
       withButton
+      includeDocs
       className="max-w-xl"
       placeholder="Find a player, clan, boss or item…"
     />

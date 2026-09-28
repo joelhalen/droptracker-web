@@ -85,7 +85,8 @@ export function HeaderSearch({
     <EntitySearch
       size="sm"
       autoFocus
-      placeholder="Search players, clans, bosses, items…"
+      placeholder="Search players, clans, items, docs…"
+      includeDocs
       onEscape={close}
       onNavigate={() => setOpen(false)}
     />

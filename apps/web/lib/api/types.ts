@@ -17,6 +17,20 @@ export const FeedEventSchema = z.object({
 });
 export type FeedEvent = z.infer<typeof FeedEventSchema>;
 
+/** One hit from the docs full-text search (`GET /docs/search`): the page, its
+ * best-matching section (`anchor` = that heading's id, null for the intro)
+ * and a plain-text snippet around the match. */
+export const DocSearchHitSchema = z.object({
+  slug: z.string(),
+  title: z.string(),
+  category: z.string(),
+  description: z.string().nullable().optional(),
+  section: z.string().nullable(),
+  anchor: z.string().nullable(),
+  snippet: z.string(),
+});
+export type DocSearchHit = z.infer<typeof DocSearchHitSchema>;
+
 /* -------------------------------------------------------------------------- */
 /* Superadmin dashboard contract (site-superadmin dashboard).                 */
 /* These shapes are hand-declared here until they land in @droptracker/api-    */

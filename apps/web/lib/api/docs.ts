@@ -7,6 +7,7 @@ import {
   type DocInput,
   type DocSummary,
 } from "@droptracker/api-types";
+import { DocSearchHitSchema, type DocSearchHit } from "./types";
 
 export const docsApi = {
 
@@ -14,6 +15,22 @@ export const docsApi = {
   async docs(): Promise<DocSummary[]> {
     return withFallback(
       async () => DocSummarySchema.array().parse(await apiGet(`/docs`, { revalidate: 60 })),
+      () => [],
+    );
+  },
+
+
+  /** Full-text docs search (titles, headings and body text), best first. */
+  async searchDocs(q: string, limit = 5): Promise<DocSearchHit[]> {
+    const query = q.trim();
+    if (!query) return [];
+    return withFallback(
+      async () =>
+        DocSearchHitSchema.array().parse(
+          await apiGet(`/docs/search?q=${encodeURIComponent(query)}&limit=${limit}`, {
+            revalidate: 60,
+          }),
+        ),
       () => [],
     );
   },

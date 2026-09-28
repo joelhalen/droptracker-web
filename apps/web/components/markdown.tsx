@@ -1,12 +1,36 @@
 import ReactMarkdown, { type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { remarkDiscordTokens, type MentionMap } from "@/lib/discord-tokens";
+import { headingSlug } from "@/lib/docs";
 
 /** remark plugin set, optionally including Discord-token → chip rendering when
  * a `mentions` map is supplied (ticket transcripts, suggestion/bug threads). */
 function plugins(mentions?: MentionMap): Options["remarkPlugins"] {
   return mentions ? [remarkGfm, [remarkDiscordTokens, { mentions }]] : [remarkGfm];
 }
+
+type HastNode = { type?: string; value?: string; children?: HastNode[] };
+
+function hastText(node: HastNode | undefined): string {
+  if (!node) return "";
+  if (node.type === "text") return node.value ?? "";
+  return (node.children ?? []).map(hastText).join("");
+}
+
+/** h2/h3 overrides that give each heading the anchor id docs search and the
+ * "On this page" list link to (`headingSlug`, mirrored in the backend). */
+const ANCHORED_HEADINGS: Options["components"] = {
+  h2: ({ node, children, ...rest }) => (
+    <h2 id={headingSlug(hastText(node as HastNode))} className="scroll-mt-24" {...rest}>
+      {children}
+    </h2>
+  ),
+  h3: ({ node, children, ...rest }) => (
+    <h3 id={headingSlug(hastText(node as HastNode))} className="scroll-mt-24" {...rest}>
+      {children}
+    </h3>
+  ),
+};
 
 /**
  * Shared safe Markdown renderer for user-submitted content (docs pages,
@@ -25,6 +49,7 @@ export function Markdown({
   tone = "default",
   mentions,
   components,
+  headingIds = false,
 }: {
   children: string;
   className?: string;
@@ -34,6 +59,8 @@ export function Markdown({
   mentions?: MentionMap;
   /** Element overrides, e.g. an `a` that closes a pop-up before navigating. */
   components?: Options["components"];
+  /** Give h2/h3 anchor ids (docs pages), so `#section` links land on them. */
+  headingIds?: boolean;
 }) {
   const palette =
     tone === "ink"
@@ -41,7 +68,10 @@ export function Markdown({
       : "prose prose-invert prose-headings:text-osrs-gold prose-a:text-osrs-gold-bright prose-strong:text-osrs-parchment";
   return (
     <div className={`${palette} max-w-none ${className}`}>
-      <ReactMarkdown remarkPlugins={plugins(mentions)} components={components}>
+      <ReactMarkdown
+        remarkPlugins={plugins(mentions)}
+        components={headingIds ? { ...ANCHORED_HEADINGS, ...components } : components}
+      >
         {children}
       </ReactMarkdown>
     </div>

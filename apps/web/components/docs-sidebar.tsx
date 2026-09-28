@@ -4,12 +4,14 @@ import type { Route } from "next";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { DocSummary } from "@droptracker/api-types";
+import { DocsSearch } from "@/components/docs-search";
 
 export function DocsSidebar({ groups }: { groups: { category: string; docs: DocSummary[] }[] }) {
   const pathname = usePathname();
 
   return (
     <nav className="space-y-5 text-sm">
+      <DocsSearch />
       <Link
         href="/docs"
         className={`block font-medium ${pathname === "/docs" ? "text-osrs-gold" : "hover:text-osrs-gold-bright"}`}

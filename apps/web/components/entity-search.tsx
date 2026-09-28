@@ -8,7 +8,8 @@
  * bars on the leaderboard tabs, and the site header — differing only by
  * `kinds` scope and size.
  * Suggestions come from the BFF (`/api/search`); Enter (or the button) still
- * falls through to the full `/search` page for complete results.
+ * falls through to the full `/search` page for complete results. Site-wide
+ * fields pass `includeDocs` to list matching docs pages under the entities.
  */
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
@@ -16,6 +17,8 @@ import { entityPath } from "@/lib/slug";
 import { cycleActive } from "@/lib/listbox";
 import { useEffect, useId, useRef, useState } from "react";
 import type { SearchResults } from "@droptracker/api-types";
+import type { DocSearchHit } from "@/lib/api/types";
+import { docHitHref } from "@/lib/docs";
 import {
   ALL_SEARCH_KINDS,
   MIN_SEARCH_LENGTH,
@@ -52,6 +55,7 @@ export function EntitySearch({
   autoFocus = false,
   onEscape,
   onNavigate,
+  includeDocs = false,
   className = "",
 }: {
   /** Which entity kinds to surface — scope this to the page's subject. */
@@ -67,12 +71,15 @@ export function EntitySearch({
   onEscape?: () => void;
   /** Called after any navigation the field triggers (pick or submit). */
   onNavigate?: () => void;
+  /** Also suggest docs pages whose text matches (site-wide fields only). */
+  includeDocs?: boolean;
   className?: string;
 }) {
   const router = useRouter();
   const listboxId = useId();
   const [q, setQ] = useState(initial);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [docHits, setDocHits] = useState<DocSearchHit[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [searched, setSearched] = useState(false);
@@ -90,16 +97,18 @@ export function EntitySearch({
     const query = q.trim();
     if (query.length < MIN_SEARCH_LENGTH) {
       setSuggestions([]);
+      setDocHits([]);
       setSearched(false);
       return;
     }
     let cancelled = false;
     const timer = setTimeout(() => {
-      fetch(`/api/search?q=${encodeURIComponent(query)}`)
+      fetch(`/api/search?q=${encodeURIComponent(query)}${includeDocs ? "&docs=1" : ""}`)
         .then((res) => (res.ok ? res.json() : { players: [], groups: [] }))
-        .then((results: SearchResults) => {
+        .then((results: SearchResults & { docs?: DocSearchHit[] }) => {
           if (cancelled) return;
           setSuggestions(toSuggestions(results, kindsKey.split(",") as SearchKind[]));
+          setDocHits(includeDocs ? (results.docs ?? []) : []);
           setActive(-1);
           setSearched(true);
           setOpen(true);
@@ -112,7 +121,7 @@ export function EntitySearch({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [q, interacted, kindsKey]);
+  }, [q, interacted, kindsKey, includeDocs]);
 
   // Close the popup when clicking anywhere outside the component.
   useEffect(() => {
@@ -132,11 +141,17 @@ export function EntitySearch({
   /** A suggestion's site URL — the site's half of the shared shaping. */
   const hrefOf = (s: Suggestion) => entityPath(s.kind, s.id, s.name);
 
+  // Keyboard order: entity suggestions first, then docs hits.
+  const rowCount = suggestions.length + docHits.length;
+
   const submit = () => {
     const query = q.trim();
     if (!query) return;
-    const picked = active >= 0 ? suggestions[active] : undefined;
+    const picked = active >= 0 && active < suggestions.length ? suggestions[active] : undefined;
+    const pickedDoc =
+      active >= suggestions.length ? docHits[active - suggestions.length] : undefined;
     if (picked) go(hrefOf(picked));
+    else if (pickedDoc) go(docHitHref(pickedDoc) as Route);
     else go(`/search?q=${encodeURIComponent(query)}` as Route);
   };
 
@@ -145,10 +160,10 @@ export function EntitySearch({
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      if (!suggestions.length) return;
+      if (!rowCount) return;
       setOpen(true);
       const delta = e.key === "ArrowDown" ? 1 : -1;
-      setActive((prev) => cycleActive(prev, delta, suggestions.length));
+      setActive((prev) => cycleActive(prev, delta, rowCount));
     } else if (e.key === "Escape") {
       // First Escape dismisses the popup; a second one leaves the field.
       if (!showDropdown) onEscape?.();
@@ -241,7 +256,45 @@ export function EntitySearch({
               </button>
             </li>
           ))}
-          {suggestions.length === 0 && (
+          {docHits.length > 0 && (
+            <li
+              role="presentation"
+              className="text-osrs-parchment-dark/50 border-osrs-bronze/30 border-t px-4 pt-2 pb-1 text-[10px] tracking-wide uppercase"
+            >
+              Docs
+            </li>
+          )}
+          {docHits.map((d, j) => {
+            const i = suggestions.length + j;
+            return (
+              <li key={`doc-${d.slug}`} role="option" aria-selected={i === active}>
+                <button
+                  type="button"
+                  onClick={() => go(docHitHref(d) as Route)}
+                  onMouseEnter={() => setActive(i)}
+                  className={`block w-full px-4 py-2 text-left text-sm ${
+                    i === active ? "bg-osrs-bronze/20" : ""
+                  }`}
+                >
+                  <span className="text-osrs-parchment block truncate font-medium">
+                    {d.title}
+                    {d.section && (
+                      <span className="text-osrs-parchment-dark/60 font-normal">
+                        {" "}
+                        › {d.section}
+                      </span>
+                    )}
+                  </span>
+                  {d.snippet && (
+                    <span className="text-osrs-parchment-dark/60 line-clamp-1 text-xs">
+                      {d.snippet}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+          {rowCount === 0 && (
             <li className="text-osrs-parchment-dark/60 px-4 py-3 text-sm">
               No matches — press Enter for full search.
             </li>

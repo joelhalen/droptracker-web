@@ -150,7 +150,7 @@ const COMPETITION_STEP: { key: StepKey; label: string; blurb: string; docs?: str
   label: "Competition",
   blurb:
     "What the race tracks, where it runs (DropTracker, or mirrored on WiseOldMan), and any bonus points.",
-  docs: "/docs/events-create",
+  docs: "/docs/events-competitions#setting-one-up",
 };
 
 const STEPS: { key: StepKey; label: string; blurb: string; docs?: string }[] = [
@@ -158,45 +158,45 @@ const STEPS: { key: StepKey; label: string; blurb: string; docs?: string }[] = [
     key: "basics",
     label: "Basics",
     blurb: "Name the event and pick its format. Everything here can change while it's a draft.",
-    docs: "/docs/events-create",
+    docs: "/docs/events-create#basics",
   },
   {
     key: "schedule",
     label: "Schedule",
     blurb:
       "When it runs — one unbroken stretch, or repeating windows like every weekend. Dates are optional for now; a draft with a start time goes live on its own.",
-    docs: "/docs/events-create",
+    docs: "/docs/events-create#schedule",
   },
   {
     key: "rules",
     label: "Joining & rules",
     blurb: "How players get onto teams, and which submissions count.",
-    docs: "/docs/events-players",
+    docs: "/docs/events-create#joining-and-rules",
   },
   {
     key: "tasks",
     label: "Tasks & board",
     blurb: "What players compete on. Add a few now or skip and build the list later.",
-    docs: "/docs/events-tasks",
+    docs: "/docs/events-create#tasks",
   },
   {
     key: "teams",
     label: "Teams & players",
     blurb: "Who's competing. Type a name for live suggestions, or paste a whole comma-separated list.",
-    docs: "/docs/events-teams",
+    docs: "/docs/events-create#teams",
   },
   {
     key: "discord",
     label: "Discord",
     blurb:
       "Where announcements and completion messages go. Defaults to your clan's linked server — skip if that's fine.",
-    docs: "/docs/events-discord",
+    docs: "/docs/events-create#discord",
   },
   {
     key: "review",
     label: "Review & launch",
     blurb: "A pre-flight of the launch checks. Launch now, or keep it as a draft.",
-    docs: "/docs/events-create",
+    docs: "/docs/events-create#launch",
   },
 ];
 
@@ -890,7 +890,7 @@ export function EventSetupWizard({
             <div className="text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
                 Format
-                <HelpTip title="Format" docsHref="/docs/events-create">
+                <HelpTip title="Format" docsHref="/docs/events-create#basics">
                   <p>
                     The game players see: a plain task list, a bingo board, or a dice board game.
                     You can still switch while the event is a draft.
@@ -1004,7 +1004,7 @@ export function EventSetupWizard({
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
                 Ownership
-                <HelpTip title="Ownership" docsHref="/docs/events-teams">
+                <HelpTip title="Ownership" docsHref="/docs/events-create#teams">
                   <p>
                     <strong>Standard</strong>: your clan competes among itself.{" "}
                     <strong>Clan vs clan</strong>: you host and challenge another clan — you invite
