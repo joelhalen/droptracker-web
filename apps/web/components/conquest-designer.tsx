@@ -3,12 +3,17 @@
 /**
  * Conquest map designer (web120a) — the event manager's "Map" tab.
  *
- * The fast path is a preset: one click builds the Gielinor map (45 bosses in
- * 10 regions) with every tile's troop rules sized from kill rates. From there
+ * The fast path is a preset: one click builds the Gielinor map with every
+ * tile's troop rules sized from kill rates. The organiser picks which regions
+ * and tiles it holds (ConquestPresetPicker), and the troop cost suggestion
+ * follows the pick; anything short of the whole map is redrawn for that pick
+ * on the server (~20 s, the button waits). From there
  * (or from scratch) the organiser can drag tiles, rename them, move them
  * between regions, tune each rule's troops, attach any event task to a tile,
- * and restyle the regions. Save sends the whole map (a PUT guarded by the
- * map's revision, so two open editors can't overwrite each other).
+ * set per-tile defense caps, garrisons and team homes, choose which tiles
+ * border each other (connect mode; the fronts rule reads them), and restyle
+ * the regions. Save sends the whole map (a PUT guarded by the map's revision,
+ * so two open editors can't overwrite each other).
  *
  * The map locks when the event starts; the settings (below the designer) and
  * the live tile corrections stay available.
@@ -35,16 +40,27 @@ import {
   type CanvasRegion,
   type CanvasTile,
 } from "@/components/conquest-map";
+import { ConquestPresetPicker } from "@/components/conquest-preset-picker";
 import { ConquestLiveTools, ConquestSettingsForm } from "@/components/conquest-settings";
 import { Alert, Button } from "@/components/ui";
 import {
+  MAX_RULES_PER_TILE,
+  MAX_TROOPS_PER_RULE,
   REGION_COLORS,
+  autoConnect,
   clamp01,
   conquestTeamColors,
   draftFromMap,
+  draftParts,
   draftProblems,
   draftToInput,
+  isolatedTiles,
+  liveEdges,
   newKey,
+  toggleEdge,
+  presetAvailableTiles,
+  presetSelectionBody,
+  presetSuggestedHours,
   ruleEligible,
   type ConquestDraft,
   type DraftTile,
@@ -67,10 +83,17 @@ export function ConquestDesigner({
   onDetail?: (detail: EventDetail) => void;
 }) {
   const [map, setMap] = useState<ConquestMap | null>(null);
-  const [draft, setDraft] = useState<ConquestDraft>({ regions: [], tiles: [] });
+  const [draft, setDraft] = useState<ConquestDraft>({ regions: [], tiles: [], edges: [] });
   const [dirty, setDirty] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  // Connect mode: click a tile, then the tiles it borders.
+  const [connecting, setConnecting] = useState(false);
+  const [connectFrom, setConnectFrom] = useState<string | null>(null);
   const [presets, setPresets] = useState<ConquestPresetOptions | null>(null);
+  // The preset picker: tiles to build, and a troop cost the organiser chose
+  // (null = follow the suggestion for the current pick).
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const [troopHours, setTroopHours] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -91,7 +114,10 @@ export function ConquestDesigner({
       else setError(res.message);
       if (editable) {
         const opts = await fetchConquestPresets(groupId, event.id);
-        if (!cancelled && opts.ok) setPresets(opts.data);
+        if (!cancelled && opts.ok) {
+          setPresets(opts.data);
+          setPicked(presetAvailableTiles(opts.data.regions));
+        }
       }
     })();
     return () => {
@@ -118,6 +144,8 @@ export function ConquestDesigner({
     patchDraft((d) => ({ ...d, tiles: d.tiles.map((t) => (t.key === key ? fn(t) : t)) }));
 
   const problems = useMemo(() => draftProblems(draft), [draft]);
+  const lonely = useMemo(() => isolatedTiles(draft), [draft]);
+  const parts = useMemo(() => draftParts(draft), [draft]);
   const usedTaskIds = useMemo(
     () => new Set(draft.tiles.flatMap((t) => t.rules.map((r) => r.task_id))),
     [draft.tiles],
@@ -157,9 +185,17 @@ export function ConquestDesigner({
     : fromMap.regions;
   const selectedTile = draft.tiles.find((t) => t.key === selected) ?? null;
 
+  const suggestedHours = presets ? presetSuggestedHours(presets, picked.size) : null;
+  // Older servers send no regions: build the whole preset as before.
+  const selection = presets?.regions.length ? presetSelectionBody(presets.regions, picked) : {};
+
   const onBuildPreset = (form: FormData) => {
     const troopHours = Number(form.get("troop_hours"));
     const uniqueTroops = Number(form.get("unique_troops"));
+    if (presets?.regions.length && !picked.size) {
+      setError("Pick at least one tile to build.");
+      return;
+    }
     if (
       draft.tiles.length &&
       !window.confirm("This replaces the current map, including the tasks its tiles use. Continue?")
@@ -168,13 +204,27 @@ export function ConquestDesigner({
     }
     setError(null);
     startTransition(async () => {
-      const res = await applyConquestPreset(groupId, event.id, {
+      const body = {
         preset: String(form.get("preset") || "gielinor"),
         troop_hours: troopHours,
         unique_troops: uniqueTroops,
-      });
+        ...selection,
+      };
+      // A smaller pick is drawn fresh on the server: ask again until it's ready.
+      let res = await applyConquestPreset(groupId, event.id, body);
+      for (let tries = 0; res.ok && !("tiles" in res.data) && tries < 100; tries++) {
+        setNotice(res.data.message ?? "Drawing your map…");
+        await new Promise((r) => setTimeout(r, 3000));
+        res = await applyConquestPreset(groupId, event.id, body);
+      }
       if (!res.ok) {
+        setNotice(null);
         setError(res.message);
+        return;
+      }
+      if (!("tiles" in res.data)) {
+        setNotice(null);
+        setError("The map is taking too long to draw. Try again in a minute.");
         return;
       }
       adopt(res.data);
@@ -184,7 +234,7 @@ export function ConquestDesigner({
         summary
           ? `Built ${summary.tiles} tiles in ${summary.regions} regions.` +
               (summary.skipped.length
-                ? ` Left out ${summary.skipped.length} boss${summary.skipped.length === 1 ? "" : "es"} this database can't price yet.`
+                ? ` Left out ${summary.skipped.length} tile${summary.skipped.length === 1 ? "" : "s"} this server can't build yet.`
                 : "")
           : "Map built.",
       );
@@ -226,11 +276,26 @@ export function ConquestDesigner({
           icon_npc_id: null,
           icon_item_id: null,
           shape: null,
+          max_defense: null,
+          garrison: null,
+          home_team_id: null,
           rules: [],
         },
       ],
     }));
     setSelected(key);
+  };
+
+  const onTileClick = (key: string) => {
+    if (!connecting) {
+      setSelected(key);
+      return;
+    }
+    if (!connectFrom || connectFrom === key) {
+      setConnectFrom(connectFrom === key ? null : key);
+      return;
+    }
+    patchDraft((d) => toggleEdge(d, connectFrom, key));
   };
 
   const addRegion = () => {
@@ -302,9 +367,13 @@ export function ConquestDesigner({
             <p className="text-osrs-parchment-dark/70 mt-1 text-sm">
               Every boss gets its own tile in the part of Gielinor it lives in. Each tile pays a
               troop for a set number of kills, sized so a troop takes about the same time at every
-              boss, plus bonus troops for any unique.
+              boss, plus bonus troops for any unique. Karamja adds TzHaar and Slayer, and The Seas
+              has a tile for every Sailing collection log page. Pick what your clan will play.
             </p>
           </div>
+          {presets.regions.length > 0 && (
+            <ConquestPresetPicker regions={presets.regions} picked={picked} onChange={setPicked} />
+          )}
           <div className="flex flex-wrap items-end gap-3 text-sm">
             <label className="space-y-1">
               <span className="text-osrs-parchment-dark/70 block text-xs">Map</span>
@@ -323,12 +392,13 @@ export function ConquestDesigner({
               <select
                 name="troop_hours"
                 className={input}
-                defaultValue={presets.suggested_troop_hours}
+                value={troopHours ?? suggestedHours ?? presets.suggested_troop_hours}
+                onChange={(e) => setTroopHours(Number(e.target.value))}
               >
                 {presets.troop_hours_choices.map((h) => (
                   <option key={h} value={h}>
                     {h < 1 ? `${Math.round(h * 60)} minutes` : `${h} hour${h === 1 ? "" : "s"}`}
-                    {h === presets.suggested_troop_hours ? " (suggested)" : ""}
+                    {h === suggestedHours ? " (suggested)" : ""}
                   </option>
                 ))}
               </select>
@@ -347,13 +417,17 @@ export function ConquestDesigner({
                 ))}
               </select>
             </label>
-            <Button type="submit" size="sm" disabled={pending}>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={pending || (presets.regions.length > 0 && picked.size === 0)}
+            >
               {pending ? "Building…" : draft.tiles.length ? "Rebuild the map" : "Build the map"}
             </Button>
           </div>
           <p className="text-osrs-parchment-dark/50 text-xs">
             The suggestion aims for about 20 troops per tile over the event, from its teams, roster
-            sizes and length. Bigger events want a higher cost.
+            sizes and length, so fewer tiles want a higher cost. Bigger events want a higher cost.
           </p>
         </form>
       )}
@@ -389,13 +463,58 @@ export function ConquestDesigner({
                 Use the drawn map
               </button>
             )}
+            <Button
+              size="sm"
+              variant={connecting ? "primary" : "ghost"}
+              type="button"
+              onClick={() => {
+                setConnecting((c) => !c);
+                setConnectFrom(null);
+                setSelected(null);
+              }}
+            >
+              {connecting ? "Done connecting" : "Connect tiles"}
+            </Button>
+            {connecting && (
+              <Button
+                size="sm"
+                variant="ghost"
+                type="button"
+                onClick={() => patchDraft((d) => autoConnect(d))}
+              >
+                Connect nearby tiles
+              </Button>
+            )}
           </>
         )}
         <span className="text-osrs-parchment-dark/60 ml-auto text-xs">
-          {draft.tiles.length} tiles · {draft.regions.length} regions
-          {editable ? " · drag a tile to move it, click it to edit" : ""}
+          {draft.tiles.length} tiles · {draft.regions.length} regions · {liveEdges(draft).length}{" "}
+          connections
+          {editable && !connecting ? " · drag a tile to move it, click it to edit" : ""}
         </span>
       </div>
+
+      {editable && connecting && (
+        <p className="text-osrs-parchment-dark/70 text-sm">
+          {connectFrom
+            ? `Click the tiles that border ${
+                draft.tiles.find((t) => t.key === connectFrom)?.label ?? "this tile"
+              } to connect them (click again to disconnect). Click it again to pick another tile.`
+            : "Click a tile, then every tile it borders. Teams can only attack tiles connected to one they own."}
+        </p>
+      )}
+      {editable && draft.tiles.length > 1 && (lonely.length > 0 || parts > 1) && (
+        <p className="text-osrs-gold-bright text-xs">
+          {lonely.length > 0
+            ? `Not connected to anything: ${lonely
+                .slice(0, 4)
+                .map((t) => t.label)
+                .join(", ")}${lonely.length > 4 ? ` and ${lonely.length - 4} more` : ""}. `
+            : ""}
+          {parts > 1 ? `The map is in ${parts} separate parts. ` : ""}
+          With attacks limited to neighbouring tiles, the event can&apos;t start like this.
+        </p>
+      )}
 
       <ConquestMapCanvas
         tiles={canvasTiles}
@@ -404,20 +523,28 @@ export function ConquestDesigner({
         space={fromMap.space}
         colors={colors}
         maxDefense={map.settings.max_defense}
-        selectedKey={selected}
-        editable={editable}
-        onSelect={setSelected}
+        edges={editable ? liveEdges(draft) : fromMap.edges}
+        showEdges={editable && connecting}
+        selectedKey={connecting ? connectFrom : selected}
+        editable={editable && !connecting}
+        onSelect={editable ? onTileClick : setSelected}
         onMove={(key, x, y) => patchTile(key, (t) => ({ ...t, x: clamp01(x), y: clamp01(y) }))}
       />
 
-      {editable && selectedTile && (
+      {editable && !connecting && selectedTile && (
         <TileEditor
           tile={selectedTile}
           regions={draft.regions}
+          teams={event.teams}
+          settings={map.settings}
           eligible={eligibleTasks}
           onChange={(fn) => patchTile(selectedTile.key, fn)}
           onDelete={() => {
-            patchDraft((d) => ({ ...d, tiles: d.tiles.filter((t) => t.key !== selectedTile.key) }));
+            patchDraft((d) => ({
+              ...d,
+              tiles: d.tiles.filter((t) => t.key !== selectedTile.key),
+              edges: d.edges.filter(([a, b]) => a !== selectedTile.key && b !== selectedTile.key),
+            }));
             setSelected(null);
           }}
           onClose={() => setSelected(null)}
@@ -475,9 +602,23 @@ export function ConquestDesigner({
   );
 }
 
+/** An optional whole number: "" = null (the map's rule). */
+function optionalInt(raw: string, lo: number, hi: number): number | null {
+  if (raw.trim() === "") return null;
+  const n = Math.round(Number(raw));
+  return Number.isFinite(n) ? Math.min(Math.max(n, lo), hi) : null;
+}
+
+function troopCount(raw: string): number {
+  const n = Math.round(Number(raw));
+  return Number.isFinite(n) ? Math.min(Math.max(n, 1), MAX_TROOPS_PER_RULE) : 1;
+}
+
 function TileEditor({
   tile,
   regions,
+  teams,
+  settings,
   eligible,
   onChange,
   onDelete,
@@ -485,6 +626,8 @@ function TileEditor({
 }: {
   tile: DraftTile;
   regions: ConquestDraft["regions"];
+  teams: EventDetail["teams"];
+  settings: ConquestMap["settings"];
   eligible: EventTask[];
   onChange: (fn: (t: DraftTile) => DraftTile) => void;
   onDelete: () => void;
@@ -559,6 +702,67 @@ function TileEditor({
       </div>
 
       {tile.kind === "normal" && (
+        <div className="grid gap-3 text-sm sm:grid-cols-3">
+          <label className="space-y-1">
+            <span className="text-osrs-parchment-dark/70 block text-xs">Most defense</span>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              placeholder={`Map rule (${settings.max_defense})`}
+              className={`${input} w-full`}
+              value={tile.max_defense ?? ""}
+              onChange={(e) =>
+                onChange((t) => ({ ...t, max_defense: optionalInt(e.target.value, 1, 20) }))
+              }
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-osrs-parchment-dark/70 block text-xs">
+              Garrison while unowned
+            </span>
+            <input
+              type="number"
+              min={0}
+              max={20}
+              placeholder={`Map rule (${settings.neutral_defense})`}
+              className={`${input} w-full`}
+              value={tile.garrison ?? ""}
+              onChange={(e) =>
+                onChange((t) => ({ ...t, garrison: optionalInt(e.target.value, 0, 20) }))
+              }
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="text-osrs-parchment-dark/70 block text-xs">Home of</span>
+            <select
+              className={`${input} w-full`}
+              value={tile.home_team_id ?? ""}
+              onChange={(e) =>
+                onChange((t) => ({
+                  ...t,
+                  home_team_id: e.target.value ? Number(e.target.value) : null,
+                }))
+              }
+            >
+              <option value="">No team</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-osrs-parchment-dark/50 text-xs sm:col-span-3">
+            Leave the defense boxes empty to use the map&apos;s rules.
+            {settings.start_mode === "homes"
+              ? " Each team starts on its home tile, and comes back there if it loses everything."
+              : " Homes are used when teams start on a tile the organiser picks (see Rules)."}
+          </p>
+        </div>
+      )}
+
+      {tile.kind === "normal" && (
         <div className="space-y-2">
           <p className="text-osrs-parchment-dark/70 text-xs font-semibold uppercase tracking-wide">
             What earns troops here
@@ -571,25 +775,40 @@ function TileEditor({
           {tile.rules.map((rule, i) => (
             <div key={rule.task_id} className="flex flex-wrap items-center gap-2 text-sm">
               <span className="text-osrs-parchment min-w-0 flex-1 truncate">{rule.label}</span>
-              <select
-                className={input}
-                value={rule.troops}
-                onChange={(e) =>
-                  onChange((t) => ({
-                    ...t,
-                    rules: t.rules.map((r, j) =>
-                      j === i ? { ...r, troops: Number(e.target.value) } : r,
-                    ),
-                  }))
-                }
-                aria-label="Troops"
-              >
-                {Array.from({ length: 10 }, (_, n) => n + 1).map((n) => (
-                  <option key={n} value={n}>
-                    {n} troop{n === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
+              <label className="text-osrs-parchment-dark/70 flex items-center gap-1 text-xs">
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_TROOPS_PER_RULE}
+                  className={`${input} w-16`}
+                  value={rule.troops}
+                  onChange={(e) =>
+                    onChange((t) => ({
+                      ...t,
+                      rules: t.rules.map((r, j) =>
+                        j === i ? { ...r, troops: troopCount(e.target.value) } : r,
+                      ),
+                    }))
+                  }
+                  aria-label="Troops"
+                />
+                troops
+              </label>
+              <label className="text-osrs-parchment-dark/70 flex items-center gap-1 text-xs">
+                <input
+                  type="checkbox"
+                  checked={rule.once}
+                  onChange={(e) =>
+                    onChange((t) => ({
+                      ...t,
+                      rules: t.rules.map((r, j) =>
+                        j === i ? { ...r, once: e.target.checked } : r,
+                      ),
+                    }))
+                  }
+                />
+                only once
+              </label>
               <button
                 type="button"
                 className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
@@ -601,7 +820,7 @@ function TileEditor({
               </button>
             </div>
           ))}
-          {tile.rules.length < 4 && (
+          {tile.rules.length < MAX_RULES_PER_TILE && (
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <select
                 className={`${input} min-w-0 flex-1`}
@@ -620,18 +839,18 @@ function TileEditor({
                   </option>
                 ))}
               </select>
-              <select
-                className={input}
-                value={addTroops}
-                onChange={(e) => setAddTroops(Number(e.target.value))}
-                aria-label="Troops for the new task"
-              >
-                {Array.from({ length: 10 }, (_, n) => n + 1).map((n) => (
-                  <option key={n} value={n}>
-                    {n} troop{n === 1 ? "" : "s"}
-                  </option>
-                ))}
-              </select>
+              <label className="text-osrs-parchment-dark/70 flex items-center gap-1 text-xs">
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_TROOPS_PER_RULE}
+                  className={`${input} w-16`}
+                  value={addTroops}
+                  onChange={(e) => setAddTroops(troopCount(e.target.value))}
+                  aria-label="Troops for the new task"
+                />
+                troops
+              </label>
               <Button
                 type="button"
                 size="xs"
@@ -642,7 +861,10 @@ function TileEditor({
                   if (!task) return;
                   onChange((t) => ({
                     ...t,
-                    rules: [...t.rules, { task_id: task.id, troops: addTroops, label: task.label }],
+                    rules: [
+                      ...t.rules,
+                      { task_id: task.id, troops: addTroops, label: task.label, once: false },
+                    ],
                   }));
                   setAddTask("");
                 }}
@@ -652,9 +874,10 @@ function TileEditor({
             </div>
           )}
           <p className="text-osrs-parchment-dark/50 text-xs">
-            Every time a team reaches the task&apos;s target again, it earns the troops. New tasks
-            are made in the Tasks tab (kills, items, XP, loot value, pets, combat achievements,
-            slayer tasks or manual).
+            Every time a team reaches the task&apos;s target again, it earns the troops. Tick
+            &quot;only once&quot; for an achievement that pays a single time (a first pet, a rare
+            drop). Make new tasks, or change a task&apos;s target, in the Tasks tab (kills, items,
+            XP, loot value, pets, combat achievements, slayer tasks or manual).
           </p>
         </div>
       )}
@@ -751,6 +974,7 @@ function RegionsEditor({
               className="text-osrs-parchment-dark/60 hover:text-osrs-red text-xs"
               onClick={() =>
                 onChange((d) => ({
+                  ...d,
                   regions: d.regions.filter((x) => x.key !== r.key),
                   tiles: d.tiles.map((t) =>
                     t.region_key === r.key ? { ...t, region_key: null } : t,

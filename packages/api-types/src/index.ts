@@ -4006,9 +4006,15 @@ export type ConquestScoringMode = (typeof CONQUEST_SCORING_MODES)[number];
 /** Battles on defended tiles: Risk dice, or a flat point per troop. */
 export const CONQUEST_BATTLE_MODES = ["dice", "attrition"] as const;
 export type ConquestBattleMode = (typeof CONQUEST_BATTLE_MODES)[number];
-/** Who owns the map at the start: nobody (a land grab) or dealt out evenly. */
-export const CONQUEST_START_MODES = ["neutral", "dealt"] as const;
+/** Who owns the map at the start: nobody (a land grab), every tile dealt out
+ * evenly, one random tile per team spread apart, or one tile per team the
+ * organiser picked (its home, where a wiped-out team re-enters). */
+export const CONQUEST_START_MODES = ["neutral", "dealt", "scattered", "homes"] as const;
 export type ConquestStartMode = (typeof CONQUEST_START_MODES)[number];
+/** Where a team's troops count (web122a): its own tiles and the ones bordering
+ * them (fronts), or anywhere. */
+export const CONQUEST_ATTACK_RANGES = ["adjacent", "anywhere"] as const;
+export type ConquestAttackRange = (typeof CONQUEST_ATTACK_RANGES)[number];
 /** Hours between the periodic Discord map update (0 = never). */
 export const CONQUEST_SUMMARY_HOURS = [0, 6, 12, 24, 48] as const;
 /** Tile roles: a territory, or a respawn point nobody can own. */
@@ -4026,6 +4032,10 @@ export const ConquestSettingsSchema = z.object({
   start_mode: z.enum(CONQUEST_START_MODES).catch("neutral"),
   start_defense: z.number().int(),
   neutral_defense: z.number().int(),
+  /** web122a; missing on an older API = the old behaviour (anywhere). */
+  attack_range: z.enum(CONQUEST_ATTACK_RANGES).optional().catch("anywhere").default("anywhere"),
+  /** What troops earned out of reach do ("ignore": recorded, never fight). */
+  out_of_reach: z.string().optional().catch("ignore").default("ignore"),
 });
 export type ConquestSettings = z.infer<typeof ConquestSettingsSchema>;
 
@@ -4037,6 +4047,8 @@ export const ConquestRuleSchema = z.object({
   label: z.string(),
   type: z.string(),
   troops: z.number().int(),
+  /** A one-time award: pays only the first time the target is reached. */
+  once: z.boolean().optional().catch(false).default(false),
   target: z.number().int(),
   progress: z.record(z.string(), z.number()).default({}),
 });
@@ -4060,6 +4072,16 @@ export const ConquestTileSchema = z.object({
   rules: z.array(ConquestRuleSchema),
   /** Troops each team has earned on this tile (team id → count). */
   troops: z.record(z.string(), z.number()).default({}),
+  /** Troops each team earned here while it couldn't reach the tile (web122a);
+   * they never fought. */
+  held: z.record(z.string(), z.number()).optional().catch({}).default({}),
+  /** Organiser overrides (web122a): this tile's defense cap and its garrison
+   * while unowned (null = the map's rule), and the team that starts here in
+   * the "homes" start mode. `defense_cap` is the cap in force. */
+  max_defense: z.number().int().nullable().optional().catch(null).default(null),
+  garrison: z.number().int().nullable().optional().catch(null).default(null),
+  home_team_id: z.number().int().nullable().optional().catch(null).default(null),
+  defense_cap: z.number().int().nullable().optional().catch(null).default(null),
   /** The territory it covers (web121a): SVG path data in the map's shape
    * space (`shape_width` × `shape_height`). Null = drawn as a badge only.
    * Tolerant so the site can ship before the API does. */
@@ -4139,6 +4161,9 @@ export const ConquestMapSchema = z.object({
   regions: z.array(ConquestRegionSchema),
   tiles: z.array(ConquestTileSchema),
   edges: z.array(z.tuple([z.number().int(), z.number().int()])),
+  /** Per team id: the tiles its troops count on right now (web122a, fronts).
+   * Missing on an older API: every tile. */
+  reach: z.record(z.string(), z.array(z.number().int())).optional().catch(undefined),
   teams: z.array(ConquestTeamSchema),
   battles: z.array(ConquestBattleSchema),
   window_start: z.number().int().nullable(),
@@ -4149,6 +4174,7 @@ export const ConquestMapSchema = z.object({
     .object({
       regions: z.number().int(),
       tiles: z.number().int(),
+      edges: z.number().int().optional(),
       tasks_removed: z.number().int(),
       skipped: z.array(z.string()),
       troop_hours: z.number(),
@@ -4165,14 +4191,58 @@ export const ConquestBattlesPageSchema = z.object({
 export type ConquestBattlesPage = z.infer<typeof ConquestBattlesPageSchema>;
 
 /** GET /events/{id}/conquest/presets — the designer's preset panel. */
+/** One tile the preset can build. `available` is false when this server
+ * can't price it (unknown NPC, no kill rate, no known items). */
+export const ConquestPresetTileSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  available: z.boolean(),
+  icon_item_id: z.number().int().nullable().optional(),
+  icon_npc_id: z.number().int().nullable().optional(),
+});
+export type ConquestPresetTile = z.infer<typeof ConquestPresetTileSchema>;
+
+export const ConquestPresetRegionSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  color: z.string().nullable().optional(),
+  /** A region of open water (The Seas): each tile is a patch of sea. */
+  sea: z.boolean().default(false),
+  tiles: z.array(ConquestPresetTileSchema),
+});
+export type ConquestPresetRegion = z.infer<typeof ConquestPresetRegionSchema>;
+
 export const ConquestPresetOptionsSchema = z.object({
   presets: z.array(z.object({ key: z.string(), label: z.string() })),
+  /** The preset's regions and tiles, for picking what the map holds. */
+  regions: z.array(ConquestPresetRegionSchema).default([]),
   troop_hours_choices: z.array(z.number()),
   default_troop_hours: z.number(),
+  /** For every available tile; `suggested_troop_hours_by_tiles[n]` is the
+   * suggestion for a map of n tiles. */
   suggested_troop_hours: z.number(),
+  suggested_troop_hours_by_tiles: z.array(z.number()).default([]),
   default_unique_troops: z.number().int(),
 });
 export type ConquestPresetOptions = z.infer<typeof ConquestPresetOptionsSchema>;
+
+/** POST /events/{id}/conquest/preset. `regions` (default all) picks the
+ * regions to build and `exclude_tiles` leaves tiles out of them. Anything
+ * short of the whole preset redraws the board for that pick (~20 s): until
+ * it's ready the API answers 202 with a {@link ConquestPresetPending}. */
+export const ConquestPresetPendingSchema = z.object({
+  status: z.enum(["generating", "queued"]),
+  message: z.string().optional(),
+});
+export type ConquestPresetPending = z.infer<typeof ConquestPresetPendingSchema>;
+
+export type ConquestPresetInput = {
+  preset: string;
+  troop_hours?: number;
+  unique_troops?: number;
+  regions?: string[];
+  exclude_tiles?: string[];
+};
 
 /** PUT /events/{id}/conquest/map — the designer's save. Rules either reuse an
  * event task or create one (`new_task`, the task builder's payload). */
@@ -4198,8 +4268,18 @@ export type ConquestMapInput = {
     icon_npc_id?: number | null;
     icon_item_id?: number | null;
     shape?: string | null;
-    rules: { task_id?: number; new_task?: Record<string, unknown>; troops: number }[];
+    max_defense?: number | null;
+    garrison?: number | null;
+    home_team_id?: number | null;
+    rules: {
+      task_id?: number;
+      new_task?: Record<string, unknown>;
+      troops: number;
+      once?: boolean;
+    }[];
   }[];
+  /** Tiles that border each other, as [tile key, tile key] (the fronts rule). */
+  edges?: [string, string][];
 };
 
 /** GET /events/{id}/loot-sweep/summary — the compact standings the Discord

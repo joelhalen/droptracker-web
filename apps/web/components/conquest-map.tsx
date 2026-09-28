@@ -159,11 +159,18 @@ export function ConquestMapCanvas({
   highlightRegionKey = null,
   onHoverRegion,
   controls = true,
+  showEdges = false,
+  dimKeys,
   className = "",
 }: {
   tiles: CanvasTile[];
   regions: CanvasRegion[];
   edges?: [string, string][];
+  /** Drawn maps: draw the connections as lines (the designer's connect mode).
+   * The schematic canvas always draws them. */
+  showEdges?: boolean;
+  /** Tiles to fade: out of the viewing team's reach (fronts). */
+  dimKeys?: Set<string>;
   background: { url: string; width: number; height: number } | null;
   /** Drawn maps: the territory shapes' coordinate space. */
   space?: { width: number; height: number } | null;
@@ -208,6 +215,9 @@ export function ConquestMapCanvas({
         onMove={onMove}
         coarse={coarse}
         controls={controls}
+        edges={edges}
+        showEdges={showEdges}
+        dimKeys={dimKeys}
         className={className}
       />
     );
@@ -383,6 +393,7 @@ export function ConquestMapCanvas({
             top: `${t.y * 100}%`,
             width: `${TILE_WIDTH_PCT}%`,
             zIndex: selectedKey === t.key ? 30 : 10,
+            opacity: dimKeys?.has(t.key) && selectedKey !== t.key ? 0.45 : 1,
           };
           const body = (
             <span className="relative flex flex-col items-center">

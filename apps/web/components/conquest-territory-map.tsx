@@ -71,10 +71,20 @@ export function ConquestTerritoryMap({
   onMove,
   coarse = false,
   controls = true,
+  edges = [],
+  showEdges = false,
+  dimKeys,
   className = "",
 }: {
   tiles: CanvasTile[];
   regions: CanvasRegion[];
+  /** Tiles that border each other (tile keys). */
+  edges?: [string, string][];
+  /** Draw the connections as lines between badges (the designer's connect
+   * mode); a drawn map otherwise shows them as shared borders. */
+  showEdges?: boolean;
+  /** Tiles to fade: out of the viewing team's reach (fronts). */
+  dimKeys?: Set<string>;
   /** The coordinate space the shapes are drawn in. */
   space: { width: number; height: number };
   background: { url: string } | null;
@@ -232,6 +242,7 @@ export function ConquestTerritoryMap({
   };
 
   const shaped = tiles.filter((t) => t.shape);
+  const tileByKeyMap = new Map(tiles.map((t) => [t.key, t]));
   const tilesByRegion = new Map<string, CanvasTile[]>();
   for (const t of tiles) {
     if (!t.region_key) continue;
@@ -458,6 +469,33 @@ export function ConquestTerritoryMap({
                   />
                 ))}
 
+              {/* Out of reach for the team being viewed: darkened. */}
+              {shaped
+                .filter((t) => dimKeys?.has(t.key))
+                .map((t) => (
+                  <path key={`d-${t.key}`} d={t.shape!} fill="#0b0906" fillOpacity={0.42} />
+                ))}
+              {showEdges &&
+                edges.map(([a, b]) => {
+                  const ta = tileByKeyMap.get(a);
+                  const tb = tileByKeyMap.get(b);
+                  if (!ta || !tb) return null;
+                  return (
+                    <line
+                      key={`e-${a}-${b}`}
+                      x1={ta.x * W}
+                      y1={ta.y * H}
+                      x2={tb.x * W}
+                      y2={tb.y * H}
+                      stroke="#fff6d8"
+                      strokeWidth={4}
+                      strokeOpacity={0.85}
+                      strokeDasharray="10 7"
+                      strokeLinecap="round"
+                    />
+                  );
+                })}
+
               {regions.map((r) => (
                 <RegionName
                   key={`n-${r.key}`}
@@ -480,6 +518,7 @@ export function ConquestTerritoryMap({
               selected={selectedKey === t.key}
               lit={hoverKey === t.key}
               flash={!!flashKeys?.has(t.key)}
+              dim={!!dimKeys?.has(t.key)}
               editable={editable}
               onPointerDown={(e) => {
                 if (!editable) return;
@@ -651,6 +690,7 @@ function Badge({
   selected,
   lit,
   flash,
+  dim,
   editable,
   ...handlers
 }: {
@@ -660,6 +700,7 @@ function Badge({
   selected: boolean;
   lit: boolean;
   flash: boolean;
+  dim: boolean;
   editable: boolean;
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerMove: (e: React.PointerEvent) => void;
@@ -690,6 +731,7 @@ function Badge({
         width: 0,
         height: 0,
         zIndex: selected || lit ? 30 : 10,
+        opacity: dim && !(selected || lit) ? 0.55 : 1,
       }}
     >
       <button

@@ -8,14 +8,23 @@ import { test } from "node:test";
 import type { ConquestBattle, ConquestMap, EventTask } from "@droptracker/api-types";
 import { onlyKnownEventKinds } from "@droptracker/api-types";
 import {
+  autoConnect,
   battleText,
   diceText,
   draftFromMap,
+  draftParts,
+  isolatedTiles,
+  teamReach,
+  toggleEdge,
   draftProblems,
   draftToInput,
   fmtPoints,
   holdingText,
   newKey,
+  presetAvailableTiles,
+  presetSelectionBody,
+  presetSelectionText,
+  presetSuggestedHours,
   regionBonusText,
   regionLabelPoint,
   regionStanding,
@@ -36,6 +45,8 @@ const SETTINGS = {
   start_mode: "neutral" as const,
   start_defense: 1,
   neutral_defense: 0,
+  attack_range: "adjacent" as const,
+  out_of_reach: "ignore",
 };
 
 function battle(over: Partial<ConquestBattle>): ConquestBattle {
@@ -166,11 +177,17 @@ function mapFixture(): ConquestMap {
             label: "40 Barrows chests",
             type: "kc_target",
             troops: 1,
+            once: false,
             target: 40,
             progress: {},
           },
         ],
         troops: {},
+        held: {},
+        max_defense: null,
+        garrison: null,
+        home_team_id: null,
+        defense_cap: 5,
       },
     ],
     edges: [],
@@ -196,7 +213,7 @@ test("draft round trip keeps regions, tiles and rules", () => {
     label_y: null,
     shape: null,
   });
-  assert.deepEqual(body.tiles[0]!.rules, [{ task_id: 101, troops: 1 }]);
+  assert.deepEqual(body.tiles[0]!.rules, [{ task_id: 101, troops: 1, once: false }]);
   assert.equal(body.tiles[0]!.region_key, "r4");
 });
 
@@ -289,4 +306,140 @@ test("region bonus wording follows the scoring mode, no em-dashes", () => {
   ]) {
     assert.ok(!line.includes("\u2014"));
   }
+});
+
+const PRESET_REGIONS = [
+  {
+    key: "kourend",
+    name: "Kourend & Kebos",
+    color: "#b5743a",
+    sea: false,
+    tiles: [
+      { key: "cox", label: "CoX", available: true },
+      { key: "hydra", label: "Hydra", available: true },
+      { key: "yama", label: "Yama", available: false },
+    ],
+  },
+  {
+    key: "seas",
+    name: "The Seas",
+    color: "#2f8fa3",
+    sea: true,
+    tiles: [
+      { key: "paints", label: "Boat Paints", available: true },
+      { key: "clams", label: "Ocean Encounters", available: true },
+    ],
+  },
+];
+
+test("the picker starts with every tile the server can build", () => {
+  assert.deepEqual([...presetAvailableTiles(PRESET_REGIONS)], ["cox", "hydra", "paints", "clams"]);
+});
+
+test("a region with nothing picked is left off; the rest list what they leave out", () => {
+  const body = presetSelectionBody(PRESET_REGIONS, new Set(["hydra"]));
+  assert.deepEqual(body, { regions: ["kourend"], exclude_tiles: ["cox", "yama"] });
+  assert.deepEqual(presetSelectionBody(PRESET_REGIONS, new Set()), {
+    regions: [],
+    exclude_tiles: [],
+  });
+});
+
+test("the selection reads as tiles in regions", () => {
+  assert.equal(
+    presetSelectionText(PRESET_REGIONS, new Set(["hydra", "paints", "clams"])),
+    "3 tiles in 2 regions",
+  );
+  assert.equal(presetSelectionText(PRESET_REGIONS, new Set(["cox"])), "1 tile in 1 region");
+});
+
+test("the troop cost follows the tile count", () => {
+  const options = {
+    presets: [],
+    regions: PRESET_REGIONS,
+    troop_hours_choices: [0.25, 0.5, 1],
+    default_troop_hours: 0.5,
+    suggested_troop_hours: 0.5,
+    suggested_troop_hours_by_tiles: [0.5, 1, 1, 0.5, 0.25],
+    default_unique_troops: 2,
+  };
+  assert.equal(presetSuggestedHours(options, 1), 1);
+  assert.equal(presetSuggestedHours(options, 4), 0.25);
+  assert.equal(presetSuggestedHours(options, 99), 0.25);
+  assert.equal(presetSuggestedHours({ ...options, suggested_troop_hours_by_tiles: [] }, 3), 0.5);
+});
+
+/* ── Fronts and organiser overrides (web122a) ─────────────────────────── */
+
+function threeTiles() {
+  const map = mapFixture();
+  const base = map.tiles[0]!;
+  map.tiles = [0, 1, 2].map((i) => ({
+    ...base,
+    id: 11 + i,
+    label: `T${i}`,
+    x: 0.2 + i * 0.3,
+    rules: [{ ...base.rules[0]!, id: i + 1, task_id: 101 + i }],
+  }));
+  return map;
+}
+
+test("connections round trip, drop with their tiles, and toggle", () => {
+  const map = threeTiles();
+  map.edges = [[11, 12]];
+  let draft = draftFromMap(map);
+  assert.deepEqual(draft.edges, [["t11", "t12"]]);
+  draft = toggleEdge(draft, "t13", "t12");
+  assert.deepEqual(draftToInput(draft, 0).edges, [
+    ["t11", "t12"],
+    ["t12", "t13"],
+  ]);
+  draft = toggleEdge(draft, "t12", "t11");
+  assert.deepEqual(draft.edges, [["t12", "t13"]]);
+  draft.tiles = draft.tiles.filter((x) => x.key !== "t13");
+  assert.deepEqual(draftToInput(draft, 0).edges, []);
+});
+
+test("isolated tiles and separate parts", () => {
+  const draft = draftFromMap(threeTiles());
+  assert.equal(isolatedTiles(draft).length, 3);
+  assert.equal(draftParts(draft), 3);
+  const linked = toggleEdge(toggleEdge(draft, "t11", "t12"), "t12", "t13");
+  assert.equal(isolatedTiles(linked).length, 0);
+  assert.equal(draftParts(linked), 1);
+});
+
+test("connect nearby tiles leaves one connected map", () => {
+  const map = threeTiles();
+  map.tiles[2]!.x = 0.95; // far from the other two
+  const draft = autoConnect(draftFromMap(map));
+  assert.equal(draftParts(draft), 1);
+  assert.equal(isolatedTiles(draft).length, 0);
+});
+
+test("tile overrides, homes and one-time rules reach the save body", () => {
+  const draft = draftFromMap(mapFixture());
+  draft.tiles[0] = {
+    ...draft.tiles[0]!,
+    max_defense: 3,
+    garrison: 2,
+    home_team_id: 7,
+    rules: draft.tiles[0]!.rules.map((r) => ({ ...r, troops: 25, once: true })),
+  };
+  const tile = draftToInput(draft, 0).tiles[0]!;
+  assert.equal(tile.max_defense, 3);
+  assert.equal(tile.garrison, 2);
+  assert.equal(tile.home_team_id, 7);
+  assert.deepEqual(tile.rules, [{ task_id: 101, troops: 25, once: true }]);
+  draft.tiles.push({ ...draft.tiles[0]!, key: "tnew1", rules: [] });
+  assert.ok(draftProblems(draft).includes("A team can only have one home tile."));
+});
+
+test("a team's reach only applies with fronts on", () => {
+  const map = { settings: SETTINGS, reach: { "1": [11, 12] } };
+  assert.deepEqual(teamReach(map, 1), new Set([11, 12]));
+  assert.equal(teamReach(map, null), null);
+  assert.equal(teamReach({ ...map, settings: { ...SETTINGS, attack_range: "anywhere" } }, 1), null);
+  assert.equal(teamReach({ settings: SETTINGS, reach: undefined }, 1), null);
+  assert.match(settingsSummary(SETTINGS), /Attack only tiles next to your own/);
 });

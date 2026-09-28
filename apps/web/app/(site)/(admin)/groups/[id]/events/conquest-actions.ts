@@ -13,7 +13,9 @@ import { revalidatePath } from "next/cache";
 import type {
   ConquestMap,
   ConquestMapInput,
+  ConquestPresetInput,
   ConquestPresetOptions,
+  ConquestPresetPending,
   ConquestSettings,
 } from "@droptracker/api-types";
 import { api, ApiError } from "@/lib/api";
@@ -89,12 +91,12 @@ export async function saveConquestMap(
 export async function applyConquestPreset(
   groupId: number | null,
   eventId: number,
-  body: { preset: string; troop_hours?: number; unique_troops?: number },
-): Promise<ConquestResult<ConquestMap>> {
+  body: ConquestPresetInput,
+): Promise<ConquestResult<ConquestMap | ConquestPresetPending>> {
   await assertCanManage(groupId);
   try {
     const map = await api.applyEventConquestPreset(eventId, body);
-    revalidate(groupId, eventId);
+    if ("tiles" in map) revalidate(groupId, eventId);
     return { ok: true, data: map };
   } catch (err) {
     return failed(err, "Couldn't build the map.");

@@ -3,11 +3,14 @@ import {
   ConquestBattlesPageSchema,
   ConquestMapSchema,
   ConquestPresetOptionsSchema,
+  ConquestPresetPendingSchema,
   ConquestSettingsSchema,
   type ConquestBattlesPage,
   type ConquestMap,
   type ConquestMapInput,
+  type ConquestPresetInput,
   type ConquestPresetOptions,
+  type ConquestPresetPending,
   type ConquestSettings,
 } from "@droptracker/api-types";
 
@@ -61,14 +64,17 @@ export const eventConquestApi = {
     return ConquestMapSchema.parse(await apiSend("PUT", `/events/${eventId}/conquest/map`, input));
   },
 
-  /** Build the map from a preset, replacing the current one (draft only). */
+  /** Build the map from a preset, replacing the current one (draft only).
+   * A smaller pick is drawn fresh first: until it's ready the API answers
+   * 202 with a pending status and nothing changes (ask again). */
   async applyEventConquestPreset(
     eventId: number,
-    body: { preset: string; troop_hours?: number; unique_troops?: number },
-  ): Promise<ConquestMap> {
-    return ConquestMapSchema.parse(
-      await apiSend("POST", `/events/${eventId}/conquest/preset`, body),
-    );
+    body: ConquestPresetInput,
+  ): Promise<ConquestMap | ConquestPresetPending> {
+    const raw = await apiSend("POST", `/events/${eventId}/conquest/preset`, body);
+    const pending = ConquestPresetPendingSchema.safeParse(raw);
+    if (pending.success && !(raw as { tiles?: unknown }).tiles) return pending.data;
+    return ConquestMapSchema.parse(raw);
   },
 
   /** Merge settings (any time). Returns the effective settings. */

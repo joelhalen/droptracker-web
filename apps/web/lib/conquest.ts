@@ -9,6 +9,9 @@ import type {
   ConquestBattle,
   ConquestMap,
   ConquestMapInput,
+  ConquestPresetInput,
+  ConquestPresetOptions,
+  ConquestPresetRegion,
   ConquestSettings,
   ConquestTeam,
   ConquestTile,
@@ -100,7 +103,20 @@ export function settingsSummary(s: ConquestSettings): string {
     s.battle_mode === "dice"
       ? `${s.attack_dice} attack dice vs up to ${s.defense_dice} defense dice`
       : "Each attack removes one defense (no dice)";
-  return `${scoring}. ${battles}. Defense tops out at ${s.max_defense}.`;
+  const fronts =
+    s.attack_range === "adjacent" ? "Attack only tiles next to your own" : "Attack any tile";
+  return `${scoring}. ${fronts}. ${battles}. Defense tops out at ${s.max_defense}.`;
+}
+
+/** The tiles `teamId`'s troops count on right now (fronts, web122a), or
+ * null when every tile counts (no fronts, or an API that doesn't say). */
+export function teamReach(
+  map: Pick<ConquestMap, "reach" | "settings">,
+  teamId: number | null | undefined,
+): Set<number> | null {
+  if (teamId == null || map.settings.attack_range !== "adjacent" || !map.reach) return null;
+  const ids = map.reach[String(teamId)];
+  return ids ? new Set(ids) : null;
 }
 
 /** Player-facing words for a battle-log row. No em-dashes (site copy). */
@@ -248,7 +264,7 @@ export function regionBonusText(
 
 /* ── The designer's draft model ─────────────────────────────────────────── */
 
-export type DraftRule = { task_id: number; troops: number; label: string };
+export type DraftRule = { task_id: number; troops: number; label: string; once: boolean };
 export type DraftRegion = {
   key: string;
   name: string;
@@ -271,9 +287,23 @@ export type DraftTile = {
   icon_item_id: number | null;
   /** Territory on a drawn map (web121a); carried through saves untouched. */
   shape: string | null;
+  /** Organiser overrides (web122a); null = the map's rule. */
+  max_defense: number | null;
+  garrison: number | null;
+  /** The team that starts here in the "homes" start mode. */
+  home_team_id: number | null;
   rules: DraftRule[];
 };
-export type ConquestDraft = { regions: DraftRegion[]; tiles: DraftTile[] };
+/** `edges`: tiles that border each other, as [tile key, tile key]. */
+export type ConquestDraft = {
+  regions: DraftRegion[];
+  tiles: DraftTile[];
+  edges: [string, string][];
+};
+
+/** Most troops one rule can pay, and rules per tile (services/conquest). */
+export const MAX_TROOPS_PER_RULE = 50;
+export const MAX_RULES_PER_TILE = 8;
 
 /** The server map as an editable draft (stable keys from row ids). */
 export function draftFromMap(map: ConquestMap): ConquestDraft {
@@ -299,9 +329,115 @@ export function draftFromMap(map: ConquestMap): ConquestDraft {
       icon_npc_id: t.icon_npc_id,
       icon_item_id: t.icon_item_id,
       shape: t.shape ?? null,
-      rules: t.rules.map((r) => ({ task_id: r.task_id, troops: r.troops, label: r.label })),
+      max_defense: t.max_defense ?? null,
+      garrison: t.garrison ?? null,
+      home_team_id: t.home_team_id ?? null,
+      rules: t.rules.map((r) => ({
+        task_id: r.task_id,
+        troops: r.troops,
+        label: r.label,
+        once: r.once ?? false,
+      })),
     })),
+    edges: map.edges.map(([a, b]) => edgeKey(`t${a}`, `t${b}`)),
   };
+}
+
+/** One connection, keys in a stable order. */
+export function edgeKey(a: string, b: string): [string, string] {
+  return a < b ? [a, b] : [b, a];
+}
+
+export function hasEdge(draft: Pick<ConquestDraft, "edges">, a: string, b: string): boolean {
+  const [x, y] = edgeKey(a, b);
+  return draft.edges.some(([p, q]) => p === x && q === y);
+}
+
+/** Connect two tiles, or disconnect them if they already are. */
+export function toggleEdge(draft: ConquestDraft, a: string, b: string): ConquestDraft {
+  if (a === b) return draft;
+  const [x, y] = edgeKey(a, b);
+  return hasEdge(draft, a, b)
+    ? { ...draft, edges: draft.edges.filter(([p, q]) => !(p === x && q === y)) }
+    : { ...draft, edges: [...draft.edges, [x, y]] };
+}
+
+/** The connections without tiles that no longer exist. */
+export function liveEdges(draft: ConquestDraft): [string, string][] {
+  const keys = new Set(draft.tiles.map((t) => t.key));
+  return draft.edges.filter(([a, b]) => keys.has(a) && keys.has(b));
+}
+
+/** Territory tiles with no territory neighbour: under fronts nobody could
+ * attack them from next door. */
+export function isolatedTiles(draft: ConquestDraft): DraftTile[] {
+  const own = new Set(draft.tiles.filter((t) => t.kind === "normal").map((t) => t.key));
+  const linked = new Set<string>();
+  for (const [a, b] of liveEdges(draft)) {
+    if (own.has(a) && own.has(b)) {
+      linked.add(a);
+      linked.add(b);
+    }
+  }
+  return draft.tiles.filter((t) => t.kind === "normal" && !linked.has(t.key));
+}
+
+/** How many separate parts the territories form (1 = one connected map). */
+export function draftParts(draft: ConquestDraft): number {
+  const own = draft.tiles.filter((t) => t.kind === "normal").map((t) => t.key);
+  const parent = new Map(own.map((k) => [k, k]));
+  const find = (k: string): string => {
+    let r = k;
+    while (parent.get(r) !== r) r = parent.get(r)!;
+    return r;
+  };
+  for (const [a, b] of liveEdges(draft)) {
+    if (parent.has(a) && parent.has(b)) parent.set(find(a), find(b));
+  }
+  return new Set(own.map(find)).size;
+}
+
+/** Connections for a hand-drawn map: each tile to its nearest neighbours
+ * (up to `perTile`, within `reach` of the nearest one's distance), then the
+ * closest pair between any parts still apart, so the map ends up in one
+ * piece. Keeps every connection the draft already has. */
+export function autoConnect(draft: ConquestDraft, perTile = 3, reach = 1.6): ConquestDraft {
+  const tiles = draft.tiles;
+  const dist = (a: DraftTile, b: DraftTile) => Math.hypot((a.x - b.x) * 1.6, a.y - b.y);
+  let next: ConquestDraft = { ...draft, edges: liveEdges(draft) };
+  for (const t of tiles) {
+    const near = tiles
+      .filter((o) => o.key !== t.key)
+      .map((o) => ({ o, d: dist(t, o) }))
+      .sort((p, q) => p.d - q.d);
+    const first = near[0]?.d ?? 0;
+    for (const { o, d } of near.slice(0, perTile)) {
+      if (d <= first * reach && !hasEdge(next, t.key, o.key)) next = toggleEdge(next, t.key, o.key);
+    }
+  }
+  // Join what's still apart through its shortest gap.
+  for (let guard = 0; guard < tiles.length && draftParts(next) > 1; guard++) {
+    const parent = new Map(tiles.map((t) => [t.key, t.key]));
+    const find = (k: string): string => {
+      let r = k;
+      while (parent.get(r) !== r) r = parent.get(r)!;
+      return r;
+    };
+    for (const [a, b] of next.edges) parent.set(find(a), find(b));
+    const home = find(tiles[0]!.key);
+    let best: [DraftTile, DraftTile, number] | null = null;
+    for (const a of tiles) {
+      if (find(a.key) !== home) continue;
+      for (const b of tiles) {
+        if (find(b.key) === home) continue;
+        const d = dist(a, b);
+        if (!best || d < best[2]) best = [a, b, d];
+      }
+    }
+    if (!best) break;
+    next = toggleEdge(next, best[0].key, best[1].key);
+  }
+  return next;
 }
 
 /** The draft as the PUT body. */
@@ -328,9 +464,15 @@ export function draftToInput(draft: ConquestDraft, revision: number): ConquestMa
       icon_npc_id: t.icon_npc_id,
       icon_item_id: t.icon_item_id,
       shape: t.shape,
+      max_defense: t.max_defense,
+      garrison: t.garrison,
+      home_team_id: t.kind === "respawn" ? null : t.home_team_id,
       rules:
-        t.kind === "respawn" ? [] : t.rules.map((r) => ({ task_id: r.task_id, troops: r.troops })),
+        t.kind === "respawn"
+          ? []
+          : t.rules.map((r) => ({ task_id: r.task_id, troops: r.troops, once: r.once })),
     })),
+    edges: liveEdges(draft),
   };
 }
 
@@ -340,6 +482,12 @@ export function draftProblems(draft: ConquestDraft): string[] {
   const used = new Map<number, string>();
   for (const r of draft.regions) {
     if (!r.name.trim()) out.push("Every region needs a name.");
+  }
+  const homes = new Map<number, string>();
+  for (const t of draft.tiles) {
+    if (t.home_team_id == null) continue;
+    if (homes.has(t.home_team_id)) out.push("A team can only have one home tile.");
+    homes.set(t.home_team_id, t.key);
   }
   for (const t of draft.tiles) {
     if (!t.label.trim()) out.push("Every tile needs a name.");
@@ -367,4 +515,46 @@ export function newKey(prefix: "t" | "r", taken: Iterable<string>): string {
   let n = 1;
   while (set.has(`${prefix}new${n}`)) n += 1;
   return `${prefix}new${n}`;
+}
+
+/* ------------------------------------------------------------------------ */
+/* The preset picker: which regions and tiles the ready-made map holds.      */
+/* ------------------------------------------------------------------------ */
+
+/** Every tile this server can build: the picker's starting selection. */
+export function presetAvailableTiles(regions: ConquestPresetRegion[]): Set<string> {
+  return new Set(regions.flatMap((r) => r.tiles.filter((t) => t.available).map((t) => t.key)));
+}
+
+/** The picked tiles as the preset POST wants them: the regions holding at
+ * least one, and every other tile of those regions left out. A region with
+ * nothing picked is left off the map entirely. */
+export function presetSelectionBody(
+  regions: ConquestPresetRegion[],
+  picked: ReadonlySet<string>,
+): Required<Pick<ConquestPresetInput, "regions" | "exclude_tiles">> {
+  const kept = regions.filter((r) => r.tiles.some((t) => picked.has(t.key)));
+  return {
+    regions: kept.map((r) => r.key),
+    exclude_tiles: kept.flatMap((r) => r.tiles.filter((t) => !picked.has(t.key)).map((t) => t.key)),
+  };
+}
+
+/** "38 tiles in 9 regions". */
+export function presetSelectionText(
+  regions: ConquestPresetRegion[],
+  picked: ReadonlySet<string>,
+): string {
+  const tiles = regions.reduce((n, r) => n + r.tiles.filter((t) => picked.has(t.key)).length, 0);
+  const inUse = regions.filter((r) => r.tiles.some((t) => picked.has(t.key))).length;
+  return `${tiles} tile${tiles === 1 ? "" : "s"} in ${inUse} region${inUse === 1 ? "" : "s"}`;
+}
+
+/** The troop cost suggested for a map of `tileCount` tiles (the server sizes
+ * it to the event: about 20 troops per tile). */
+export function presetSuggestedHours(options: ConquestPresetOptions, tileCount: number): number {
+  const byTiles = options.suggested_troop_hours_by_tiles;
+  return (
+    byTiles[Math.min(Math.max(tileCount, 0), byTiles.length - 1)] ?? options.suggested_troop_hours
+  );
 }

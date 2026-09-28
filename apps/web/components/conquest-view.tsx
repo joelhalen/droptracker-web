@@ -38,6 +38,7 @@ import {
   settingsSummary,
   tilesToControl,
   type RegionStanding,
+  teamReach,
 } from "@/lib/conquest";
 import { TEAM_COLORS } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/format";
@@ -142,6 +143,11 @@ export function ConquestView({
   const regionById = useMemo(() => new Map(map.regions.map((r) => [r.id, r])), [map.regions]);
 
   const canvas = canvasFromMap(map);
+  // Fronts: the tiles the viewer's team can't reach right now fade out.
+  const reach = map.seeded ? teamReach(map, viewerTeamId) : null;
+  const dimKeys = reach
+    ? new Set(map.tiles.filter((t) => !reach.has(t.id)).map((t) => String(t.id)))
+    : undefined;
   const regionStandings = useMemo(() => {
     const out = new Map<number, RegionStanding>();
     for (const r of map.regions) {
@@ -189,10 +195,11 @@ export function ConquestView({
         }
         names={names}
         colors={colors}
-        maxDefense={map.settings.max_defense}
+        maxDefense={tile.defense_cap ?? map.settings.max_defense}
         scoringMode={map.settings.scoring_mode}
         rulesHidden={map.rules_hidden}
         viewerTeamId={viewerTeamId}
+        outOfReach={!!reach && !reach.has(tile.id)}
       />
     ) : null;
   };
@@ -215,7 +222,17 @@ export function ConquestView({
         <p className="text-osrs-parchment-dark/60 text-xs">
           {map.settings.start_mode === "dealt"
             ? "The tiles are dealt out between the teams when the event starts."
-            : "Every tile starts unowned. The first troop on a tile claims it."}
+            : map.settings.start_mode === "scattered"
+              ? "Each team starts on one random tile when the event starts, spread apart."
+              : map.settings.start_mode === "homes"
+                ? "Each team starts on its home tile when the event starts."
+                : "Every tile starts unowned. The first troop on a tile claims it."}
+        </p>
+      )}
+      {reach && (
+        <p className="text-osrs-parchment-dark/60 text-xs">
+          Faded tiles are out of your team&apos;s reach. Troops only count on your own tiles and the
+          ones next to them.
         </p>
       )}
 
@@ -231,6 +248,7 @@ export function ConquestView({
         maxDefense={map.settings.max_defense}
         viewerTeamId={viewerTeamId}
         flashKeys={flash}
+        dimKeys={dimKeys}
         coarse={coarse}
         renderCard={renderCard}
         onSelect={(key) => {
@@ -389,6 +407,16 @@ export function ConquestView({
           <li>
             Every tile is a boss or activity. Doing what it asks earns your team troops there.
           </li>
+          {map.settings.attack_range === "adjacent" && (
+            <li>
+              Troops only count on tiles your team owns and the tiles next to them. Anything you
+              earn further away is wasted, so push outward from your land. Crossing water means
+              taking a sea tile first.
+              {map.settings.start_mode === "homes"
+                ? " A team that loses everything starts again from its home tile."
+                : " A team with no land can start anywhere."}
+            </li>
+          )}
           <li>
             A troop on an empty tile claims it. A troop on your own tile adds a point of defense.
           </li>
@@ -473,6 +501,7 @@ function TileDetail({
   scoringMode,
   rulesHidden,
   viewerTeamId,
+  outOfReach = false,
 }: {
   tile: ConquestTile;
   region?: {
@@ -487,6 +516,7 @@ function TileDetail({
   scoringMode: "hold_time" | "final";
   rulesHidden: boolean;
   viewerTeamId: number | null;
+  outOfReach?: boolean;
 }) {
   if (tile.kind === "respawn") {
     return (
@@ -531,6 +561,12 @@ function TileDetail({
         {scoringMode === "hold_time" ? "per hour held" : "at the end"}
         {tile.captures ? ` · taken ${tile.captures} time${tile.captures === 1 ? "" : "s"}` : ""}
       </p>
+      {outOfReach && (
+        <p className="text-osrs-gold-bright text-xs">
+          Out of your team&apos;s reach. Troops you earn here won&apos;t count until you hold a tile
+          next to it.
+        </p>
+      )}
       {region && (
         <RegionBlock
           region={region}

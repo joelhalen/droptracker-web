@@ -13,6 +13,7 @@
 import { useState, useTransition } from "react";
 import type { ConquestMap, ConquestSettings, EventTeam } from "@droptracker/api-types";
 import {
+  CONQUEST_ATTACK_RANGES,
   CONQUEST_BATTLE_MODES,
   CONQUEST_SCORING_MODES,
   CONQUEST_START_MODES,
@@ -43,6 +44,19 @@ const BATTLE_LABELS: Record<(typeof CONQUEST_BATTLE_MODES)[number], string> = {
 const START_LABELS: Record<(typeof CONQUEST_START_MODES)[number], string> = {
   neutral: "Every tile starts unowned (a land grab)",
   dealt: "Deal the tiles out evenly between the teams",
+  scattered: "Each team starts on one random tile, spread apart",
+  homes: "Each team starts on a home tile you pick",
+};
+const START_HINTS: Record<(typeof CONQUEST_START_MODES)[number], string> = {
+  neutral: "A team with no land can claim any tile.",
+  dealt: "Every tile has an owner from the start.",
+  scattered: "A team that loses everything can come back in anywhere.",
+  homes:
+    "Pick each team's home in the map designer. A team that loses everything comes back there.",
+};
+const RANGE_LABELS: Record<(typeof CONQUEST_ATTACK_RANGES)[number], string> = {
+  adjacent: "Only tiles next to their own",
+  anywhere: "Any tile on the map",
 };
 
 function Num({
@@ -124,7 +138,7 @@ export function ConquestSettingsForm({
       </div>
       {error && <Alert>{error}</Alert>}
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <fieldset className="space-y-1.5 text-sm">
           <legend className="text-osrs-parchment-dark/70 mb-1 text-xs">Scoring</legend>
           {CONQUEST_SCORING_MODES.map((mode) => (
@@ -144,6 +158,25 @@ export function ConquestSettingsForm({
               </span>
             </label>
           ))}
+        </fieldset>
+        <fieldset className="space-y-1.5 text-sm">
+          <legend className="text-osrs-parchment-dark/70 mb-1 text-xs">Teams can attack</legend>
+          {CONQUEST_ATTACK_RANGES.map((mode) => (
+            <label key={mode} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="attack_range"
+                checked={form.attack_range === mode}
+                onChange={() => set("attack_range", mode)}
+              />
+              <span className="text-osrs-parchment">{RANGE_LABELS[mode]}</span>
+            </label>
+          ))}
+          <span className="text-osrs-parchment-dark/50 block text-[11px]">
+            {form.attack_range === "adjacent"
+              ? "Troops only count on a team's own tiles and the ones connected to them. Troops earned anywhere else are wasted."
+              : "Troops count wherever they're earned."}
+          </span>
         </fieldset>
         <fieldset className="space-y-1.5 text-sm">
           <legend className="text-osrs-parchment-dark/70 mb-1 text-xs">Battles</legend>
@@ -201,20 +234,26 @@ export function ConquestSettingsForm({
         <fieldset className="space-y-1.5 text-sm">
           <legend className="text-osrs-parchment-dark/70 mb-1 text-xs">At the start</legend>
           {CONQUEST_START_MODES.map((mode) => (
-            <label key={mode} className="flex items-center gap-2">
+            <label key={mode} className="flex items-start gap-2">
               <input
                 type="radio"
                 name="start_mode"
+                className="mt-1"
                 checked={form.start_mode === mode}
                 onChange={() => set("start_mode", mode)}
               />
-              <span className="text-osrs-parchment">{START_LABELS[mode]}</span>
+              <span>
+                <span className="text-osrs-parchment block">{START_LABELS[mode]}</span>
+                <span className="text-osrs-parchment-dark/50 block text-[11px]">
+                  {START_HINTS[mode]}
+                </span>
+              </span>
             </label>
           ))}
           <div className="flex flex-wrap gap-4 pt-1">
-            {form.start_mode === "dealt" && (
+            {form.start_mode !== "neutral" && (
               <Num
-                label="Defense on dealt tiles"
+                label="Defense on starting tiles"
                 value={form.start_defense}
                 min={0}
                 max={form.max_defense}
