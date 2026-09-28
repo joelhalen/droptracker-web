@@ -52,4 +52,3 @@ The times below are the current takes in `tooling/vo/promo1/`; a human read can 
 **13** · take 2.6s (+1.2s hold after)
 
 > Screenshots were never the fun part anyway.
-

@@ -127,7 +127,9 @@ function renameInPage(map) {
   const esc = (k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // Longest first, so "Mock Clan's" wins over "Mock Clan".
   const keys = Object.keys(map).sort((a, b) => b.length - a.length);
-  const re = new RegExp("\\b(" + keys.map(esc).join("|") + ")\\b", "g");
+  // Word boundaries only where a key starts or ends with a letter ("…unavailable." has none after it).
+  const pat = (k) => (/^\w/.test(k) ? "\\b" : "") + esc(k) + (/\w$/.test(k) ? "\\b" : "");
+  const re = new RegExp(keys.map(pat).join("|"), "g");
   const fix = (s) => (typeof s === "string" ? s.replace(re, (m) => map[m]) : s);
   const walk = (root) => {
     const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);

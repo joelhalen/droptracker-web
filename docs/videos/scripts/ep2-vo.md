@@ -43,4 +43,3 @@ Record each numbered line as its own take (file name = the number) so the edit c
 **11** · target 10.0s (+1.5s hold after)
 
 > That's tasks. Next episode: points. Who gets them, how bingo lines work, and why the person who went AFK on the winning team gets nothing.
-

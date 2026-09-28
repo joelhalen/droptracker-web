@@ -43,4 +43,3 @@ Record each numbered line as its own take (file name = the number) so the edit c
 **11** · target 13.6s (+1.5s hold after)
 
 > That's the core of it. Next up, the fancier formats: loot sweeps, skill and boss of the week, the board game, and Conquest, where your clan fights over a map of Gielinor. Bring snacks.
-
