@@ -171,9 +171,10 @@ Discord and socials).
 ```bash
 cd docs/videos/tooling
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3 -m venv .venv-voice && .venv-voice/bin/pip install -r requirements-chatterbox.txt
 npm install                          # Playwright; ffmpeg must be on PATH
 
-.venv/bin/python voice.py ep1 --check   # 1. the voice-over → vo/ep1/NN.wav (+ timings)
+.venv-voice/bin/python voice.py ep1     # 1. the voice-over → vo/ep1/NN.wav (+ timings)
 .venv/bin/python music.py               # 2. music/bed.wav + music/sting.wav
 .venv/bin/python fonts.py               # 3. fonts/ for cards and captions
 
@@ -187,19 +188,31 @@ node build.mjs --video ep1           # 6. scripts, captions and the finished vid
 
 ### 1. Voice-over
 
-`voice.py` reads each numbered line of the read sheet with **Kokoro-82M**
-(Apache-2.0, open weights, runs on CPU at about 4× real time; the model
-downloads to `models/` on first run). The voice is `bm_fable` at speed 0.9:
-British, low, and the clearest of the six voices tried. `VOICE=` and `SPEED=`
-change them; the takes, their timings and every clip that follows them
-regenerate from there.
+Everything runs locally: no script text or audio leaves the machine.
 
-- Lines are read one sentence at a time and joined with measured silence:
-  0.25 s between sentences, 0.5 s before a short punchline ("Bravely.", "A
-  butler who pings."). The deadpan is in those gaps.
-- Words the phonemizer gets wrong have their IPA in `PRONOUNCE` ("Turael").
-- `--check` transcribes every take with Whisper and compares its letters with
-  the script; anything over 5% needs a listen.
+`voice.py` reads each numbered line of the read sheet with **Chatterbox**
+(Resemble AI, MIT licence, CPU; its models download from Hugging Face on first
+run). Chosen in an A/B on the cold open (2026-09-28) over Kokoro, a drier
+Chatterbox setting and Chatterbox Turbo, because it performs the lines: it
+acts a quote ("we should do a _bingo_!") and takes a beat before a punchline.
+
+- **The narrator** is `voices/narrator.flac`, 12 s of Kokoro `bm_fable`.
+  Chatterbox copies its timbre, so the voice is ours to use and no real
+  person is cloned. Swap the file to recast the series.
+- **Settings:** exaggeration 0.65, cfg weight 0.3 (`EXAGGERATION=`,
+  `CFG_WEIGHT=`). Each line is read whole, which is where the phrasing comes
+  from.
+- **Takes are reviewed automatically.** Chatterbox's reads vary, so each line
+  is rendered until a take passes: Whisper transcribes it, it must match the
+  script (letter error rate ≤ 5%), and no pause inside it may run past 1.4 s.
+  Up to 4 takes (`MAX_TAKES=`); a line where none pass is listed at the end.
+  Takes are seeded, so a rerun gives the same reads.
+- **Timings:** the sentences are placed on the take from Whisper's word
+  timestamps, and written to `NN.json` with the take's seed and transcript.
+- About 3.5× slower than real time on 4 CPU cores: ~15 minutes an episode.
+- Chatterbox embeds Resemble's inaudible Perth watermark in its output.
+- `ENGINE=kokoro` is the first voice: Kokoro-82M, one sentence at a time with
+  measured gaps, IPA fixes in `PRONOUNCE`, and `--check` for the Whisper diff.
 - A take is tied to its line's text. Change a line in `episodes.mjs` and the
   build warns until that line is re-voiced.
 - A human read replaces any take: drop `NN.wav` in, delete its `NN.json`.

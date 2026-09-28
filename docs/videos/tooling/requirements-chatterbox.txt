@@ -1,0 +1,11 @@
+# The default voice (voice.py, ENGINE=chatterbox), in its own venv: Chatterbox
+# pins numpy<2 and torch 2.6, which the Kokoro side (requirements.txt) can't share.
+#   python3 -m venv .venv-voice
+#   .venv-voice/bin/pip install -r requirements-chatterbox.txt
+# CPU-only PyTorch; the models (~3.5 GB) download from Hugging Face on first run.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.6.0+cpu
+torchaudio==2.6.0+cpu
+chatterbox-tts==0.1.7
+faster-whisper
+soundfile
