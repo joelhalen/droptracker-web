@@ -27,7 +27,7 @@ const messages: EventChannelConfig["messages"] = {
   },
   task_progress: "milestones",
   item_details: true,
-  leaderboard: { live: false, top_n: 10, show_tasks: true },
+  leaderboard: { live: false, top_n: 10, show_tasks: true, lootboard: true },
 };
 
 const config: EventChannelConfig = {

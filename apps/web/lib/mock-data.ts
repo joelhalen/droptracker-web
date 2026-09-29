@@ -3496,7 +3496,7 @@ export function mockEventDiscord(_eventId: number): EventChannelConfig {
       },
       task_progress: "off",
       item_details: true,
-      leaderboard: { live: true, top_n: 10, show_tasks: true },
+      leaderboard: { live: true, top_n: 10, show_tasks: true, lootboard: true },
     },
     per_group_discord: false,
     group_id: null,

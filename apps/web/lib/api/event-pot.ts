@@ -2,6 +2,8 @@ import { apiGet, apiSend, withFallback } from "./_client";
 import {
   EventDetailSchema,
   EventPrizePotSchema,
+  EventPayoutsSchema,
+  type EventPayouts,
   type EventPrizePot,
   type EventBuyinKind,
   type EventBuyinStatus,
@@ -34,10 +36,37 @@ export const eventPotApi = {
           advertise: false,
           show_contributors: true,
           allow_leader_mark: false,
+          payout_active_only: false,
         },
         per_team: [],
         contributors: [],
         can_manage: false,
+      }),
+    );
+  },
+
+
+  /** Admin payout checklist: who finished in a paid place and what each
+   * member is owed under the distribution rule. Event admins only. */
+  async eventPayouts(eventId: number): Promise<EventPayouts> {
+    const zero = { value: 0, value_formatted: "0" };
+    return withFallback(
+      async () => EventPayoutsSchema.parse(await apiGet(`/events/${eventId}/payouts`, { authed: true })),
+      () => ({
+        enabled: false,
+        final: false,
+        status: "active",
+        distribution: "first_only" as const,
+        top_n: 1,
+        splits: [100],
+        active_only: false,
+        individual: false,
+        total: zero,
+        winners: [],
+        unclaimed: zero,
+        unclaimed_places: [],
+        rounding: zero,
+        unallocated: zero,
       }),
     );
   },
@@ -145,6 +174,7 @@ export const eventPotApi = {
         advertise?: boolean;
         show_contributors?: boolean;
         allow_leader_mark?: boolean;
+        payout_active_only?: boolean;
       };
     },
   ): Promise<EventDetail> {

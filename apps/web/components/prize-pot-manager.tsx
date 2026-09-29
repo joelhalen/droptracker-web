@@ -28,12 +28,14 @@ type PrizeConfigPatch = {
   advertise?: boolean;
   show_contributors?: boolean;
   allow_leader_mark?: boolean;
+  payout_active_only?: boolean;
 };
 import { Card, EmptyState, Badge, Checkbox } from "@/components/ui";
 import { GpInput } from "@/components/gp-input";
 import { QuantityInput } from "@/components/quantity-input";
 import { ProofAttach, type ProofUpload } from "@/components/proof-attach";
 import { GpAmount } from "@/components/gp-amount";
+import { PrizePayouts } from "@/components/prize-payouts";
 import {
   announceEventPot,
   bulkSeedEventBuyins,
@@ -580,6 +582,13 @@ export function PrizePotManager({
                   disabled={busy.has("config")}
                   onChange={(v) => saveConfig({ allow_leader_mark: v })}
                 />
+                <ToggleRow
+                  label="Only pay members who took part"
+                  hint="Split a winning team's share across members with progress or tracked kills, not the whole roster."
+                  checked={config.payout_active_only}
+                  disabled={busy.has("config")}
+                  onChange={(v) => saveConfig({ payout_active_only: v })}
+                />
               </div>
             </div>
           </Card>
@@ -742,6 +751,22 @@ export function PrizePotManager({
               </ul>
             )}
           </Card>
+
+          {/* Payouts: the reverse of the buy-ins (who gets paid, how much). */}
+          {pot.can_manage && (
+            <PrizePayouts
+              groupId={groupId}
+              eventId={eventId}
+              expectBuyins={config.default_buyin.value > 0 || pot.buyin_total.value > 0}
+              refreshKey={[
+                pot.total.value,
+                config.distribution,
+                config.top_n,
+                config.splits.join(","),
+                config.payout_active_only,
+              ].join(":")}
+            />
+          )}
 
           {!pot.can_manage && (
             <Badge>Read-only — you don&apos;t administer this event.</Badge>

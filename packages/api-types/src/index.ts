@@ -3366,6 +3366,8 @@ export const EventPrizeConfigSchema = z.object({
   advertise: z.boolean().default(false),
   show_contributors: z.boolean().default(true),
   allow_leader_mark: z.boolean().default(false),
+  /** Payouts split only across members who took part (vs the whole roster). */
+  payout_active_only: z.boolean().default(false),
 });
 export type EventPrizeConfig = z.infer<typeof EventPrizeConfigSchema>;
 
@@ -3405,6 +3407,58 @@ export const EventPrizePotSchema = z.object({
   can_manage: z.boolean().default(false),
 });
 export type EventPrizePot = z.infer<typeof EventPrizePotSchema>;
+
+/** One member's cut of a placed team's payout. `eligible` is false when the
+ * split is "took part only" and this member didn't — they're listed at 0. */
+export const EventPayoutMemberSchema = z.object({
+  player_id: z.number().int(),
+  player_name: z.string(),
+  amount: MoneySchema,
+  eligible: z.boolean().default(true),
+  took_part: z.boolean().default(false),
+  paid_buyin: z.boolean().default(false),
+});
+export type EventPayoutMember = z.infer<typeof EventPayoutMemberSchema>;
+
+/** A team (or, on an individual SOTW/BOTW, a player) in a paid place. Tied
+ * entries pool the places they share, so `share_pct` can be e.g. 45 on 60/30/10. */
+export const EventPayoutWinnerSchema = z.object({
+  kind: z.enum(["team", "player"]),
+  id: z.number().int(),
+  name: z.string(),
+  place: z.number().int(),
+  tied: z.boolean().default(false),
+  share_pct: z.number(),
+  amount: MoneySchema,
+  member_remainder: MoneySchema,
+  members: z.array(EventPayoutMemberSchema).default([]),
+});
+export type EventPayoutWinner = z.infer<typeof EventPayoutWinnerSchema>;
+
+/** Admin payout checklist (GET /events/{id}/payouts) — the reverse of the
+ * buy-in ledger. `final` once the event is over; live standings before that.
+ * Every GP figure is whole GP rounded down: amounts + unclaimed + rounding +
+ * unallocated always add back up to `total`. */
+export const EventPayoutsSchema = z.object({
+  enabled: z.boolean().default(false),
+  final: z.boolean().default(false),
+  status: z.string(),
+  distribution: z.enum(EVENT_PRIZE_DISTRIBUTIONS).default("first_only"),
+  top_n: z.number().int().default(1),
+  splits: z.array(z.number().int()).default([100]),
+  active_only: z.boolean().default(false),
+  individual: z.boolean().default(false),
+  total: MoneySchema,
+  winners: z.array(EventPayoutWinnerSchema).default([]),
+  /** Share of places nobody reached (two teams on a top-3 split). */
+  unclaimed: MoneySchema,
+  unclaimed_places: z.array(z.number().int()).default([]),
+  /** GP left by rounding each share down to whole GP. */
+  rounding: MoneySchema,
+  /** A placed team's share with no eligible member to pay it to. */
+  unallocated: MoneySchema,
+});
+export type EventPayouts = z.infer<typeof EventPayoutsSchema>;
 
 /** Lightweight pot block folded into EventDetail (rides the event SSE refresh)
  * so the standings banner shows a live headline without a second fetch. */
@@ -5761,6 +5815,8 @@ export const EventMessageConfigSchema = z.object({
     live: z.boolean(),
     top_n: z.number().int().min(3).max(25),
     show_tasks: z.boolean(),
+    /** Post the event lootboard (loot, KC and EHE per player) under the board. */
+    lootboard: z.boolean().default(true),
   }),
 });
 export type EventMessageConfig = z.infer<typeof EventMessageConfigSchema>;

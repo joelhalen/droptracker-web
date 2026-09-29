@@ -1392,6 +1392,12 @@ export function EventDiscordSettings({
               checked={messages.leaderboard.show_tasks}
               onChange={(v) => patchLeaderboard({ show_tasks: v })}
             />
+            <ToggleRow
+              label="Post the event lootboard"
+              hint="An image under the board with every player's loot, KC and EHE for the event. Redrawn about once an hour."
+              checked={messages.leaderboard.lootboard}
+              onChange={(v) => patchLeaderboard({ lootboard: v })}
+            />
           </div>
         </CollapsibleSection>
       )}

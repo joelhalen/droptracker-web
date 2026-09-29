@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  EventPayoutsSchema,
   B2UsageSchema,
   BackupOffsiteSchema,
   BackupOverviewSchema,
@@ -375,6 +376,44 @@ test("EventPrizePot read + EventDetail prize_pot block parse", () => {
     },
   });
   assert.equal(parsed.prize_pot?.enabled, true);
+});
+
+// Prize-pot payouts: the admin "who gets paid" read (services/event_payouts.py).
+test("EventPayouts parse (team split with a tie + unclaimed place)", () => {
+  const m = (v: number) => ({ value: v, value_formatted: String(v) });
+  const parsed = EventPayoutsSchema.parse({
+    enabled: true,
+    final: true,
+    status: "past",
+    distribution: "custom_split",
+    top_n: 1,
+    splits: [60, 30, 10],
+    active_only: false,
+    individual: false,
+    total: m(1000),
+    winners: [
+      {
+        kind: "team",
+        id: 7,
+        name: "Hairy Holes",
+        place: 1,
+        tied: true,
+        share_pct: 45,
+        amount: m(450),
+        member_remainder: m(0),
+        members: [
+          { player_id: 1, player_name: "Bumps", amount: m(225), eligible: true, took_part: true, paid_buyin: true },
+          { player_id: 0, player_name: "Zero", amount: m(225), eligible: true, took_part: false, paid_buyin: false },
+        ],
+      },
+    ],
+    unclaimed: m(100),
+    unclaimed_places: [3],
+    rounding: m(0),
+    unallocated: m(0),
+  });
+  assert.equal(parsed.winners[0]?.members[1]?.player_id, 0);
+  assert.deepEqual(parsed.unclaimed_places, [3]);
 });
 
 // Per-team Discord channels & roles (web53a): config scope + provisioning state.

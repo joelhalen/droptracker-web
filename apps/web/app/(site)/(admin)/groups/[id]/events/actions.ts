@@ -43,6 +43,7 @@ import {
   type TaskGeneratorResult,
   type EventParticipant,
   type EventPrizePot,
+  type EventPayouts,
   type EventBuyinKind,
   type EventBuyinStatus,
   type EventPrizeDistribution,
@@ -1298,6 +1299,15 @@ export async function fetchEventPot(
   return api.eventPot(eventId);
 }
 
+/** Admin payout checklist — who gets paid and how much (reverse of the buy-ins). */
+export async function fetchEventPayouts(
+  groupId: EventGroupId,
+  eventId: number,
+): Promise<EventPayouts> {
+  await assertCanManageEvent(groupId);
+  return api.eventPayouts(eventId);
+}
+
 /** Record a buy-in or donation. */
 export async function recordEventBuyin(
   groupId: EventGroupId,
@@ -1414,6 +1424,7 @@ export async function updateEventPotConfig(
       advertise?: boolean;
       show_contributors?: boolean;
       allow_leader_mark?: boolean;
+      payout_active_only?: boolean;
     };
   },
 ): Promise<
