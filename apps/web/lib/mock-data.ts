@@ -1698,6 +1698,7 @@ export function mockHofLayoutMeta(): HofLayoutMeta {
       { key: "kc", label: "Kill count", help: "Highest kill counts.", value: "the kill count", default_line: "-# {medal} {player} - `{value}` kc" },
       { key: "loot_month", label: "Loot this month", help: "Most loot this month.", value: "GP", default_line: "-# {medal} {player} - `{value}` gp" },
       { key: "loot_all", label: "Loot, all time", help: "Most loot ever.", value: "GP", default_line: "-# {medal} {player} - `{value}` gp" },
+      { key: "delve", label: "Deepest delve", help: "Doom of Mokhaiotl only.", value: "the delve level", default_line: "-# {medal} {player} - level `{value}`" },
     ],
     token_groups: [
       { label: "Boss", tokens: [{ token: "boss_name", help: "The boss's name" }] },

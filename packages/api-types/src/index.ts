@@ -7704,8 +7704,9 @@ export type SavedNotificationLayout = z.infer<typeof SavedNotificationLayoutSche
 /** The boss messages the Hall of Fame keeps edited in a group's channel.
  * Same block DSL as notification layouts (backend services/hof_layout.py) plus
  * a `leaderboard` block, and `each_mode` on any block: repeat it once per raid
- * mode, with that mode's numbers. */
-export const HOF_LEADERBOARD_BOARDS = ["pb", "kc", "loot_month", "loot_all"] as const;
+ * mode, with that mode's numbers. `delve` (deepest Doom of Mokhaiotl delve)
+ * only has rows on the Doom message. */
+export const HOF_LEADERBOARD_BOARDS = ["pb", "kc", "loot_month", "loot_all", "delve"] as const;
 export type HofLeaderboardBoard = (typeof HOF_LEADERBOARD_BOARDS)[number];
 
 const hofEachMode = { each_mode: z.boolean().nullish() };
