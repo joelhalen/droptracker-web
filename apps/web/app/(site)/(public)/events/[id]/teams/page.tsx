@@ -5,6 +5,7 @@ import { getUser } from "@/lib/auth";
 import { EventTeamsBoard } from "@/components/event-teams-board";
 import { CompetitionStandings } from "@/components/competition-standings";
 import { isCompetitionKind, isTeamRace } from "@/lib/competition";
+import { eventUsesPoints } from "@/lib/events";
 import { EventPageHeader, loadEventForView } from "../_shared";
 
 export const revalidate = 15;
@@ -70,6 +71,7 @@ export default async function EventTeamsIndexPage({ params }: { params: Params }
         taskCount={event.tasks_hidden ? null : event.tasks.length}
         potEnabled={event.prize_pot?.enabled}
         viewerTeamId={event.viewer?.team_id ?? null}
+        showPoints={eventUsesPoints(event)}
       />
     </div>
   );

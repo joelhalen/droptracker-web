@@ -10,19 +10,23 @@
  * what the board shows, and keep doing that. This strip navigates.
  */
 import Link from "next/link";
-import { teamColorMap } from "@/lib/events";
+import { formatEheHours, teamColorMap } from "@/lib/events";
 
 type StandingsTeam = {
   id: number;
   name: string;
   score: number;
   color?: string | null;
+  /** Roster total EHE; absent when the event keeps effort to its admins. */
+  ehb_hours?: number;
+  ehb_estimated_hours?: number;
 };
 
 export function EventStandingsStrip({
   eventId,
   teams,
   viewerTeamId,
+  showPoints = true,
   onOpenTeam,
 }: {
   eventId: number;
@@ -30,12 +34,22 @@ export function EventStandingsStrip({
    * here (not upstream) keeps a team's color stable as ranks move. */
   teams: StandingsTeam[];
   viewerTeamId?: number | null;
+  /** False when the event awards no points (see `eventUsesPoints`): the chips
+   * drop the score and rank by EHE instead. */
+  showPoints?: boolean;
   /** Discord Activity: swaps the site links for in-app view pushes. */
   onOpenTeam?: (teamId: number) => void;
 }) {
   if (teams.length === 0) return null;
   const teamColor = teamColorMap(teams);
-  const standings = [...teams].sort((a, b) => b.score - a.score);
+  // Plain text, not the EHE HoverCard: the whole chip is a link, and a
+  // tooltip trigger nested in it would fight the tap.
+  const hasEhe = teams.some((t) => t.ehb_hours !== undefined);
+  const standings = [...teams].sort((a, b) =>
+    showPoints || !hasEhe
+      ? b.score - a.score
+      : (b.ehb_hours ?? 0) - (a.ehb_hours ?? 0),
+  );
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -65,7 +79,20 @@ export function EventStandingsStrip({
               {t.name}
             </span>
             {isViewer && <span className="text-osrs-gold/70">(yours)</span>}
-            <span className="text-osrs-gold tabular-nums">{t.score.toLocaleString()}</span>
+            {showPoints && (
+              <span className="text-osrs-gold tabular-nums">{t.score.toLocaleString()}</span>
+            )}
+            {t.ehb_hours !== undefined && (
+              <span
+                className={`tabular-nums ${
+                  showPoints ? "text-osrs-parchment-dark/55" : "text-osrs-gold"
+                }`}
+              >
+                {showPoints && <span aria-hidden className="text-osrs-parchment-dark/30 mr-1.5">·</span>}
+                {formatEheHours(t.ehb_hours, (t.ehb_estimated_hours ?? 0) > 0)}{" "}
+                <span className="text-[10px]">EHE</span>
+              </span>
+            )}
           </>
         );
         return onOpenTeam ? (

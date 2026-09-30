@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { EventDetail, EventTeamsResponse } from "@droptracker/api-types";
 import { EventTeamsBoard } from "@/components/event-teams-board";
+import { eventUsesPoints } from "@/lib/events";
 import { BackBar, ErrorNote, LoadingBlock } from "@/components/activity/bits";
 import { ActivityCompetitionBoard } from "@/components/activity/competition-board";
 import { isCompetitionKind, isTeamRace } from "@/lib/competition";
@@ -104,6 +105,7 @@ export function ActivityEventTeamsView({ eventId }: { eventId: number }) {
         taskCount={event.tasks_hidden ? null : event.tasks.length}
         potEnabled={event.prize_pot?.enabled}
         viewerTeamId={event.viewer?.team_id ?? null}
+        showPoints={eventUsesPoints(event)}
         onOpenTeam={openTeam}
         onOpenPlayer={openPlayer}
       />

@@ -59,6 +59,35 @@ export function teamColorMap(
   );
 }
 
+/**
+ * Whether team points mean anything in this event.
+ *
+ * An organiser can run a standard or bingo event purely as a checklist, with
+ * every task worth 0 and no line/blackout bonus. Every team then sits on 0
+ * points for the whole event, and a column of zeroes crowds out the figure
+ * that does move (EHE). Only standard and bingo are judged: the other kinds
+ * score through their own mechanics (coins, sets, territory), so their score
+ * is never "unused".
+ *
+ * Deliberately conservative. Any non-zero team score (a manual award counts)
+ * or a hidden task list keeps points on, so this can only hide a column that
+ * is provably all zeroes by design.
+ */
+export function eventUsesPoints(event: {
+  kind: string;
+  tasks: { points: number }[];
+  teams: { score: number }[];
+  tasks_hidden?: boolean;
+  bonus_line_points?: number;
+  bonus_blackout_points?: number;
+}): boolean {
+  if (event.kind !== "standard" && event.kind !== "bingo") return true;
+  if (event.teams.some((t) => t.score !== 0)) return true;
+  if (event.tasks_hidden || event.tasks.length === 0) return true;
+  if ((event.bonus_line_points ?? 0) > 0 || (event.bonus_blackout_points ?? 0) > 0) return true;
+  return event.tasks.some((t) => t.points !== 0);
+}
+
 /** Formation modes (events-prd.md D4) as shown in the admin settings form. */
 export const FORMATION_MODE_LABELS: Record<EventDetail["formation_mode"], string> = {
   self_join: "Self sign-up — players pick their team",

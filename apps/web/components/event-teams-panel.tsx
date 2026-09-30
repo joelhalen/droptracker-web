@@ -30,7 +30,7 @@ import { Button, StatTile } from "@/components/ui";
 import { GpAmount } from "@/components/gp-amount";
 import { LocalTime } from "@/components/local-time";
 import { EventMemberList } from "@/components/event-member-list";
-import { EheHoursChip } from "@/components/event-ehe";
+import { EheHoursChip, EheValue } from "@/components/event-ehe";
 
 /** Rosters up to this size render inline; larger ones collapse. */
 const INLINE_MAX = 6;
@@ -389,6 +389,7 @@ export function EventTeamsPanel({
   prizePot,
   viewerTeamRole,
   canManage = false,
+  showPoints = true,
 }: {
   eventId: number;
   teams: EventTeam[];
@@ -404,11 +405,19 @@ export function EventTeamsPanel({
   viewerTeamRole?: EventTeamRole | null;
   /** Event admins get the gear on every team. */
   canManage?: boolean;
+  /** False when the event awards no points (see `eventUsesPoints`): EHE takes
+   * the score's place and sets the order. */
+  showPoints?: boolean;
 }) {
   // Colors resolve against the unsorted roster so palette fallbacks stay stable
   // as standings change.
   const teamColor = teamColorMap(teams);
-  const sorted = [...teams].sort((a, b) => b.score - a.score);
+  const hasEhe = teams.some((t) => t.ehb_hours !== undefined);
+  const sorted = [...teams].sort((a, b) =>
+    showPoints || !hasEhe
+      ? b.score - a.score
+      : (b.ehb_hours ?? 0) - (a.ehb_hours ?? 0),
+  );
   const showPot = Boolean(prizePot?.enabled);
 
   return (
@@ -439,8 +448,8 @@ export function EventTeamsPanel({
                 : "border-osrs-bronze/20 hover:border-osrs-bronze/50"
             }`}
           >
-            <div className="flex items-center justify-between">
-              <span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="min-w-0">
                 <span className="text-osrs-parchment-dark/50 mr-2 tabular-nums">{i + 1}</span>
                 <span
                   className="mr-1.5 inline-block size-2 rounded-full align-baseline"
@@ -461,7 +470,34 @@ export function EventTeamsPanel({
                     : ""}
                 </span>
               </span>
-              <span className="text-osrs-gold-bright tabular-nums">{team.score}</span>
+              <span className="flex shrink-0 items-baseline gap-2">
+                {/* Team EHE sits beside the score (or replaces it when the
+                    event awards no points), so effort is readable without
+                    opening the Teams tab. */}
+                {team.ehb_hours !== undefined && (
+                  <span
+                    className={
+                      showPoints
+                        ? "text-osrs-parchment-dark/60 text-xs"
+                        : "text-osrs-gold-bright"
+                    }
+                  >
+                    <EheValue
+                      hours={team.ehb_hours}
+                      estimatedHours={team.ehb_estimated_hours}
+                    />{" "}
+                    <span className="text-[10px] uppercase">EHE</span>
+                  </span>
+                )}
+                {showPoints && (
+                  <span className="text-osrs-gold-bright tabular-nums">
+                    {team.score}
+                    <span className="text-osrs-parchment-dark/40 ml-1 text-[10px] uppercase">
+                      pts
+                    </span>
+                  </span>
+                )}
+              </span>
             </div>
 
             {showNotifGear && (

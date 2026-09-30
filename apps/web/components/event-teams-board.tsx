@@ -15,7 +15,7 @@ import type { Route } from "next";
 import type { EventTeamsResponse, EventTeamsRow } from "@droptracker/api-types";
 import { Card, EmptyState, NameTile, RankMedal, StatTile } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
-import { teamColorMap } from "@/lib/events";
+import { formatEheHours, teamColorMap } from "@/lib/events";
 
 const num = (n: number) => n.toLocaleString();
 const fmtPoints = (p: number) => (Math.round(p * 100) / 100).toLocaleString();
@@ -78,6 +78,7 @@ export function EventTeamsBoard({
   taskCount,
   potEnabled,
   viewerTeamId,
+  showPoints = true,
   onOpenTeam,
   onOpenPlayer,
 }: {
@@ -89,6 +90,9 @@ export function EventTeamsBoard({
   taskCount: number | null;
   potEnabled?: boolean;
   viewerTeamId?: number | null;
+  /** False when the event awards no points (see `eventUsesPoints`): EHE takes
+   * the score's place and sets the ranking. */
+  showPoints?: boolean;
   /** Discord Activity swaps links (which would 404 in the iframe) for in-app
    * view pushes; the site leaves these unset and renders real links. */
   onOpenTeam?: (teamId: number) => void;
@@ -102,20 +106,48 @@ export function EventTeamsBoard({
   // Stable per-team accent: assign the fallback palette in id order so a rank
   // change never recolors a team (matches the board/bingo palette behavior).
   const colorFor = teamColorMap([...teams].sort((a, b) => a.id - b.id));
-  const ranked = [...teams].sort((a, b) => a.rank - b.rank);
+  const hasEhe = teams.some((t) => t.ehb_hours !== undefined);
+  const byEhe = !showPoints && hasEhe;
+  // The server ranks by score; with no points in play every team ties on 0,
+  // so rank by effort instead.
+  const ranked = byEhe
+    ? [...teams]
+        .sort((a, b) => (b.ehb_hours ?? 0) - (a.ehb_hours ?? 0))
+        .map((t, i) => ({ ...t, rank: i + 1 }))
+    : [...teams].sort((a, b) => a.rank - b.rank);
   const totals = data?.totals;
   const isBoardGame = kind === "board_game";
+  const totalEhe = teams.reduce((sum, t) => sum + (t.ehb_hours ?? 0), 0);
+  const totalEheEstimated = teams.some((t) => (t.ehb_estimated_hours ?? 0) > 0);
+  const eheText = (t: EventTeamsRow) =>
+    formatEheHours(t.ehb_hours, (t.ehb_estimated_hours ?? 0) > 0);
+  const leaderHint = ranked[0]
+    ? byEhe
+      ? `${eheText(ranked[0])} EHE`
+      : showPoints
+        ? `${num(ranked[0].score)} pts`
+        : undefined
+    : undefined;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div
+        className={`grid grid-cols-2 gap-3 ${hasEhe ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-4"}`}
+      >
         <StatTile label="Teams" value={totals?.teams ?? teams.length} />
         <StatTile label="Players" value={num(totals?.players ?? 0)} />
         <StatTile label="Loot tracked" value={gp(totals?.loot_gp)} hint="all sources, this event" />
+        {hasEhe && (
+          <StatTile
+            label="Total EHE"
+            value={formatEheHours(totalEhe, totalEheEstimated)}
+            hint="all teams combined"
+          />
+        )}
         <StatTile
           label="Leader"
           value={<span className="truncate">{ranked[0]?.name ?? "—"}</span>}
-          hint={ranked[0] ? `${num(ranked[0].score)} pts` : undefined}
+          hint={leaderHint}
         />
       </div>
 
@@ -181,10 +213,30 @@ export function EventTeamsBoard({
                   </div>
                 </div>
                 <div className="shrink-0 text-right">
-                  <div className="text-osrs-gold-bright text-xl font-bold tabular-nums">
-                    {num(team.score)}
-                  </div>
-                  <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">points</div>
+                  {showPoints && (
+                    <>
+                      <div className="text-osrs-gold-bright text-xl font-bold tabular-nums">
+                        {num(team.score)}
+                      </div>
+                      <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">
+                        points
+                      </div>
+                    </>
+                  )}
+                  {team.ehb_hours !== undefined && (
+                    <>
+                      <div
+                        className={
+                          showPoints
+                            ? "text-osrs-parchment mt-0.5 text-xs font-semibold tabular-nums"
+                            : "text-osrs-gold-bright text-xl font-bold tabular-nums"
+                        }
+                      >
+                        {eheText(team)}
+                      </div>
+                      <div className="text-osrs-parchment-dark/40 text-[10px] uppercase">EHE</div>
+                    </>
+                  )}
                   <div className="text-osrs-gold mt-0.5 text-xs font-semibold tabular-nums">
                     {gp(team.loot_gp)}
                   </div>

@@ -29,6 +29,7 @@ import {
 import { EventWindow, ScoringWindowBadge } from "@/components/local-time";
 import { useEventStream } from "@/lib/use-event-stream";
 import type { TaskDifficultyBucket } from "@/lib/events";
+import { eventUsesPoints } from "@/lib/events";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityNav } from "@/lib/activity/nav";
 import {
@@ -441,6 +442,7 @@ export function EventView({
           eventId={eventId}
           teams={event.teams}
           viewerTeamId={event.viewer?.team_id ?? null}
+          showPoints={eventUsesPoints(event)}
           onOpenTeam={(teamId) => nav.push({ name: "event-team", id: eventId, teamId })}
         />
       )}

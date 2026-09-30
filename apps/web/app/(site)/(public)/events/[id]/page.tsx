@@ -17,6 +17,7 @@ import { EventClanPointsCard } from "@/components/event-clan-points-card";
 import { CompetitionBonusRulesCard } from "@/components/competition-bonus-rules-card";
 import { CompetitionStandings, CompetitionTopStrip } from "@/components/competition-standings";
 import { formatGained, isCompetitionKind, isTeamRace } from "@/lib/competition";
+import { eventUsesPoints } from "@/lib/events";
 import { EmptyState, StatTile } from "@/components/ui";
 import { EventPageHeader, loadEventForView } from "./_shared";
 
@@ -81,6 +82,9 @@ export default async function EventDetailPage({ params }: { params: Params }) {
 
   const players = user ? user.players.map((p) => ({ id: p.id, name: p.name })) : null;
 
+  // An all-zero-points event shows EHE where the score would be.
+  const showPoints = eventUsesPoints(event);
+
   const participatePanel = (
     <div>
       <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">Participate</h2>
@@ -114,6 +118,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
           viewerTeamRole={event.viewer?.team_role ?? null}
           canManage={event.can_manage}
           prizePot={event.prize_pot}
+          showPoints={showPoints}
         />
       ) : (
         <EmptyState title="No teams yet" />
@@ -253,6 +258,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
         eventId={event.id}
         teams={event.teams}
         viewerTeamId={event.viewer?.team_id ?? null}
+        showPoints={showPoints}
       />
 
       {conquest ? (
