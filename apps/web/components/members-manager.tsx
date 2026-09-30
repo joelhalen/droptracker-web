@@ -102,6 +102,7 @@ export function MembersManager({
                 <th className="px-3 py-2">Player</th>
                 <th className="px-3 py-2">Rank</th>
                 <th className="px-3 py-2 text-right">Loot</th>
+                <th className="px-3 py-2 text-right">Plugin</th>
                 <th className="px-3 py-2 text-right">Visibility</th>
               </tr>
             </thead>
@@ -130,6 +131,15 @@ export function MembersManager({
                   </td>
                   <td className="text-osrs-gold-bright px-3 py-2 text-right tabular-nums">
                     {m.total_loot?.value_formatted ?? "—"}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <Link
+                      href={`/groups/${groupId}/members/${m.id}/plugin-config` as Route}
+                      className="hover:text-osrs-gold-bright text-xs underline-offset-2 hover:underline"
+                      title="How this player's DropTracker plugin is set up"
+                    >
+                      Settings
+                    </Link>
                   </td>
                   <td className="px-3 py-2 text-right">
                     <button

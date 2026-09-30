@@ -48,13 +48,23 @@ export default async function AdminLookupPage({ searchParams }: { searchParams: 
               </div>
             );
             return (
-              <li key={`${r.category}:${r.id}`}>
-                {r.href ? (
-                  <Link href={r.href as Route} className="hover:text-osrs-gold-bright block">
-                    {inner}
+              <li key={`${r.category}:${r.id}`} className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  {r.href ? (
+                    <Link href={r.href as Route} className="hover:text-osrs-gold-bright block">
+                      {inner}
+                    </Link>
+                  ) : (
+                    inner
+                  )}
+                </div>
+                {r.category === "player" && (
+                  <Link
+                    href={`/admin/players/${r.id}/plugin-config` as Route}
+                    className="hover:text-osrs-gold-bright shrink-0 text-xs"
+                  >
+                    Plugin settings
                   </Link>
-                ) : (
-                  inner
                 )}
               </li>
             );
