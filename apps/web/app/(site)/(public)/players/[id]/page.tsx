@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import { entityPath } from "@/lib/slug";
 import { orNotFound } from "@/lib/fetch";
 import { resolveRef } from "@/lib/entity-ref";
-import { entityCanonical } from "@/lib/seo";
+import { entityCanonical, entitySocialMetadata } from "@/lib/seo";
 import { AccountTypeBadge } from "@/components/account-type-badge";
 import { EntityDisambiguation } from "@/components/entity-disambiguation";
 import { CountUp } from "@/components/count-up";
@@ -26,9 +26,17 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!ref || ref.ambiguous) return { title: "Player" };
   try {
     const player = await api.player(ref.id);
+    const facts = [
+      player.total_loot ? `${player.total_loot.value_formatted} GP looted this month` : null,
+      player.global_rank != null ? `global rank #${player.global_rank.toLocaleString("en-US")}` : null,
+    ].filter(Boolean);
     return {
-      title: player.name,
-      description: `${player.name} — total loot ${player.total_loot?.value_formatted ?? "?"}, global rank ${player.global_rank ?? "?"}.`,
+      ...entitySocialMetadata("players", player.id, {
+        title: player.name,
+        description: facts.length
+          ? `${player.name} on DropTracker: ${facts.join(", ")}.`
+          : `${player.name}'s Old School RuneScape loot, personal bests and collection log on DropTracker.`,
+      }),
       alternates: entityCanonical("players", player.id, player.canonical_slug),
     };
   } catch {

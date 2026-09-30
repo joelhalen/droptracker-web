@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { resolveRef } from "@/lib/entity-ref";
-import { entityCanonical } from "@/lib/seo";
+import { entityCanonical, entitySocialMetadata } from "@/lib/seo";
 import { RecentDropsList, TopPlayersList } from "@/components/entity-activity";
 import { NpcDropTableCard } from "@/components/npc-drop-table";
 import { PbBoards } from "@/components/pb-boards";
@@ -19,8 +19,10 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const npc = await api.npcDetail(ref.id);
   if (!npc) return { title: "NPC" };
   return {
-    title: npc.name,
-    description: `${npc.name} on DropTracker — ${npc.lifetime.loot.value_formatted} GP looted across ${npc.lifetime.drop_count.toLocaleString()} tracked drops, drop table, and personal best leaderboards.`,
+    ...entitySocialMetadata("npcs", npc.npc_id, {
+      title: npc.name,
+      description: `${npc.name} on DropTracker: ${npc.lifetime.loot.value_formatted} GP looted across ${npc.lifetime.drop_count.toLocaleString("en-US")} tracked drops, plus its drop table and personal best leaderboards.`,
+    }),
     alternates: entityCanonical("npcs", npc.npc_id, npc.canonical_slug),
   };
 }

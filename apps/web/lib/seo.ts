@@ -17,31 +17,57 @@ export function entityCanonical(
 }
 
 /**
- * Social-card metadata for a group-scoped page. The group's uploaded icon
- * becomes the link-preview image; square icons read best as a compact
- * "summary" twitter card, while the default 1200×630 art suits the large one.
+ * Social-card metadata for an entity page: the generated 1200×630 card at
+ * `/api/og/{kind}/{id}.png` (app/api/og, layout in lib/og/card.tsx), which
+ * shows the entity's picture and headline stats. Keyed by numeric id so slug
+ * and id URLs of the same entity share one cached image.
+ */
+export function entitySocialMetadata(
+  kind: EntityKind,
+  id: number,
+  { title, description, alt }: { title: string; description: string; alt?: string },
+): Metadata {
+  const image = {
+    url: `/api/og/${kind}/${id}.png`,
+    width: 1200,
+    height: 630,
+    alt: alt ?? `${title} on DropTracker`,
+  };
+  return {
+    title,
+    description,
+    openGraph: {
+      title: `${title} · DropTracker`,
+      description,
+      type: "website",
+      images: [image],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} · DropTracker`,
+      description,
+      images: [image],
+    },
+  };
+}
+
+/**
+ * Social-card metadata for a group-scoped page (profile, lootboard, points).
+ * The card carries the group's icon, or its lootboard when it has none.
  */
 export function groupSocialMetadata(
   group: GroupProfile,
   { title, description }: { title: string; description?: string },
 ): Metadata {
+  // The backend fills an unset description with a generic line; a card
+  // saying "An Old School RuneScape group." tells nobody anything.
+  const own =
+    group.description && group.description !== "An Old School RuneScape group."
+      ? group.description
+      : null;
   const desc =
     description ??
-    group.description ??
-    `${group.name} — ${group.member_count} members tracking their Old School RuneScape loot on DropTracker.`;
-  const image = group.icon_url ?? "/og-default.png";
-  return {
-    title,
-    description: desc,
-    openGraph: {
-      title: `${title} · DropTracker`,
-      description: desc,
-      type: "website",
-      images: [image],
-    },
-    twitter: {
-      card: group.icon_url ? "summary" : "summary_large_image",
-      images: [image],
-    },
-  };
+    own ??
+    `${group.name}: ${group.member_count.toLocaleString("en-US")} members tracking their Old School RuneScape loot on DropTracker.`;
+  return entitySocialMetadata("groups", group.id, { title, description: desc, alt: group.name });
 }

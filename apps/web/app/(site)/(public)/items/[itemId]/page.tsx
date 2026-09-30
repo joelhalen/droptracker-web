@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { entityPath } from "@/lib/slug";
 import { resolveRef } from "@/lib/entity-ref";
-import { entityCanonical } from "@/lib/seo";
+import { entityCanonical, entitySocialMetadata } from "@/lib/seo";
 import { RecentDropsList, TopPlayersList } from "@/components/entity-activity";
 import { Card, EmptyState, StatTile } from "@/components/ui";
 import { formatRarity } from "@/lib/format";
@@ -19,11 +19,13 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const item = await api.itemDetail(ref.id);
   if (!item) return { title: "Item" };
   const received = item.lifetime
-    ? ` — received ${item.lifetime.drop_count.toLocaleString()} times (${item.lifetime.loot.value_formatted} GP) on DropTracker`
+    ? `: received ${item.lifetime.drop_count.toLocaleString("en-US")} times (${item.lifetime.loot.value_formatted} GP) on DropTracker`
     : "";
   return {
-    title: item.name,
-    description: `${item.name}${received}. Recent receivers, top collectors, and drop sources.`,
+    ...entitySocialMetadata("items", item.item_id, {
+      title: item.name,
+      description: `${item.name}${received}. Recent receivers, top collectors and drop sources.`,
+    }),
     alternates: entityCanonical("items", item.item_id, item.canonical_slug),
   };
 }
