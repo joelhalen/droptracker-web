@@ -1136,12 +1136,19 @@ export async function saveEventTemplate(
   groupId: EventGroupId,
   eventId: number,
   input: EventTemplateSaveInput,
-) {
+): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
   await assertCanManageEvent(groupId);
   const parsed = EventTemplateSaveInputSchema.parse(input);
-  const result = await api.saveEventTemplate(eventId, parsed);
-  revalidatePath(eventsIndexPath(groupId));
-  return { ok: true as const, id: result.id };
+  try {
+    const result = await api.saveEventTemplate(eventId, parsed);
+    revalidatePath(eventsIndexPath(groupId));
+    return { ok: true as const, id: result.id };
+  } catch (err) {
+    // Thrown action errors are redacted in production; return the backend's
+    // reason (e.g. "kind can't be templated") so the panel can show it.
+    if (err instanceof ApiError) return { ok: false as const, error: err.message };
+    throw err;
+  }
 }
 
 /** Templates the caller can start from (public ∪ own groups' private). */

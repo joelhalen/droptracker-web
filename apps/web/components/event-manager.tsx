@@ -1339,10 +1339,13 @@ export function EventManager({
             />
           )}
 
-          {/* Save the event's structure for re-use ("Saving/Rerunning Events"). */}
-          <div className="flex justify-end">
-            <EventTemplateSaver groupId={groupId} eventId={event.id} eventName={event.name} />
-          </div>
+          {/* Save the event's structure for re-use ("Saving/Rerunning Events").
+              SOTW/BOTW and Conquest can't be templated yet (backend 422s). */}
+          {!isCompetitionKind(event.kind) && event.kind !== "conquest" && (
+            <div className="flex justify-end">
+              <EventTemplateSaver groupId={groupId} eventId={event.id} eventName={event.name} />
+            </div>
+          )}
 
           {/* Danger zone: permanently delete the event (drafts + ended only; a
               live event must be ended first, enforced by the backend too). */}

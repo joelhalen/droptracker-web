@@ -40,12 +40,16 @@ export function EventTemplateSaver({
     setError(null);
     startTransition(async () => {
       try {
-        await saveEventTemplate(groupId, eventId, {
+        const res = await saveEventTemplate(groupId, eventId, {
           name: name.trim(),
           description: description.trim() || undefined,
           visibility,
           include_teams: includeTeams,
         });
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
         setSavedAs(name.trim());
         setOpen(false);
       } catch (err) {
