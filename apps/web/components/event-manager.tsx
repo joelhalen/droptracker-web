@@ -1340,8 +1340,8 @@ export function EventManager({
           )}
 
           {/* Save the event's structure for re-use ("Saving/Rerunning Events").
-              SOTW/BOTW and Conquest can't be templated yet (backend 422s). */}
-          {!isCompetitionKind(event.kind) && event.kind !== "conquest" && (
+              Conquest can't be templated yet (backend 422s). */}
+          {event.kind !== "conquest" && (
             <div className="flex justify-end">
               <EventTemplateSaver groupId={groupId} eventId={event.id} eventName={event.name} />
             </div>
