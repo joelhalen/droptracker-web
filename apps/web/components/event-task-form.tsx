@@ -540,6 +540,14 @@ export function NameSearch({
                   />
                 )}
                 {r.name}
+                {r.tracked === false && (
+                  <span
+                    className="ml-auto shrink-0 text-xs text-amber-500/80"
+                    title="Never seen in tracked drops"
+                  >
+                    ⚠ never dropped
+                  </span>
+                )}
               </button>
             </li>
           ))}
