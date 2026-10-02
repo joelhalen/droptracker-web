@@ -1401,7 +1401,14 @@ function BoostsSection({
                       ? (EVENT_TYPE_OPTIONS.find((o) => o.value === b.event_type)?.label ??
                         b.event_type)
                       : b.target_names.length > 0
-                        ? b.target_names.join(", ")
+                        ? <span title={b.target_names.join(", ")}>
+                            {b.target_names.slice(0, 6).join(", ")}
+                            {b.target_names.length > 6 && (
+                              <span className="text-osrs-parchment-dark/60">
+                                {" "}+{b.target_names.length - 6} more
+                              </span>
+                            )}
+                          </span>
                         : `Any ${b.target_type}`}
                   </td>
                   <td className="px-4 py-2 font-semibold">{opLabel(b)}</td>
@@ -1517,6 +1524,16 @@ function BoostsSection({
                       {t.name} <span className="text-osrs-parchment-dark/50">✕</span>
                     </button>
                   ))}
+                  {targets.length > 1 && (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setTargets([])}
+                      className="text-osrs-parchment-dark/60 px-1 text-xs hover:underline"
+                    >
+                      {targets.length} selected · clear all
+                    </button>
+                  )}
                 </div>
               )}
             </div>
