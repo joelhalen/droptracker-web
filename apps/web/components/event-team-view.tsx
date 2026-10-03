@@ -60,6 +60,7 @@ import { EheChip, EheValue } from "@/components/event-ehe";
 import { TeamNotificationsButton } from "@/components/event-teams-panel";
 import { EventTeamContributionLog } from "@/components/event-team-contribution-log";
 import { TaskProgressBar, type ProgressCell } from "@/components/event-task-progress";
+import { EventTeamLootboard } from "@/components/event-team-lootboard";
 
 /** Why the contribution counter reads lower than the submission log suggests. */
 const CONTRIBUTIONS_HINT =
@@ -804,6 +805,16 @@ export function EventTeamView({
           <EmptyState title="No tasks yet" />
         )}
       </section>
+
+      {/* ── team lootboard (t63): every tracked drop over the event window ── */}
+      <EventTeamLootboard
+        board={team.lootboard}
+        teamName={team.name}
+        status={event.status}
+        isPublic={event.visibility !== "private"}
+        readOnly={readOnly}
+        openLink={openLink}
+      />
 
       <div className="grid min-w-0 gap-8">
         {/* ── items earned (applied ledger, aggregated) ─────────────────── */}

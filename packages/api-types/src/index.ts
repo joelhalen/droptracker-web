@@ -5185,6 +5185,12 @@ export const EventTeamDetailSchema = z.object({
     coins: z.number().int().default(0),
     /** Roster total tracked loot over the event window (all sources). */
     loot_gp: MoneySchema.optional(),
+    /** The team's generated event lootboard image (hourly; public events
+     * only). Absent/null until the first render. `url` is cache-busted. */
+    lootboard: z
+      .object({ url: z.string(), updated_at: z.number().int() })
+      .nullable()
+      .optional(),
     /** Roster total EHE — the team's summed effort hours. */
     ehb_hours: z.number().optional(),
     /** Derived-rate portion of `ehb_hours` — >0 marks it as an estimate. */
