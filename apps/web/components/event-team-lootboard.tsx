@@ -80,6 +80,14 @@ export function EventTeamLootboard({
         height={795}
         loading="lazy"
         decoding="async"
+        // SSR: the browser can finish (or fail) the image before hydration
+        // attaches onLoad/onError, which would leave it hidden forever, so
+        // also read the outcome straight off the element when it mounts.
+        ref={(el) => {
+          if (!el?.complete) return;
+          if (el.naturalWidth > 0) setLoaded(true);
+          else setFailed(true);
+        }}
         onLoad={() => setLoaded(true)}
         onError={() => setFailed(true)}
         className={`block h-full w-full object-contain transition-opacity duration-300 ${
