@@ -26,6 +26,15 @@ import { formatGp, formatRelativeTime } from "@/lib/format";
 const IMG_BASE = "https://www.droptracker.io/img";
 const INITIAL_BOXES = 12;
 
+/**
+ * Where the tracker is mounted. The Discord Activity has neither the site's
+ * routes nor its image host: its iframe CSP only allows same-origin `/img`, and
+ * an item or NPC page link would navigate the SPA away. It passes
+ * `{ imgBase: "/img", links: false }`; the site keeps the defaults.
+ */
+export type LootTrackerEmbed = { imgBase: string; links: boolean };
+const SITE_EMBED: LootTrackerEmbed = { imgBase: IMG_BASE, links: true };
+
 function currentPartition(): number {
   const now = new Date();
   return now.getFullYear() * 100 + now.getMonth() + 1;
@@ -51,7 +60,15 @@ function periodLabel(data: PlayerLootTracker): string {
 
 /** Rich item tooltip: share of the NPC's period, avg per drop, first/last seen —
  * replaces the browser-default `title` attribute the grid used to rely on. */
-function ItemCardContent({ item, npc }: { item: LootTrackerItem; npc: LootTrackerNpc }) {
+function ItemCardContent({
+  item,
+  npc,
+  embed,
+}: {
+  item: LootTrackerItem;
+  npc: LootTrackerNpc;
+  embed: LootTrackerEmbed;
+}) {
   const unit = item.quantity > 1 ? Math.floor(item.loot.value / item.quantity) : null;
   const share = npc.loot.value > 0 ? (item.loot.value / npc.loot.value) * 100 : null;
   return (
@@ -59,18 +76,22 @@ function ItemCardContent({ item, npc }: { item: LootTrackerItem; npc: LootTracke
       <div className="flex items-center gap-2.5">
         <span className="bg-osrs-surface-3/60 flex size-9 shrink-0 items-center justify-center rounded">
           <img
-            src={`${IMG_BASE}/itemdb/${item.item_id}.png`}
+            src={`${embed.imgBase}/itemdb/${item.item_id}.png`}
             alt=""
             className="max-h-7 max-w-7 object-contain [image-rendering:pixelated]"
           />
         </span>
         <div className="min-w-0">
-          <Link
-            href={entityPath("items", item.item_id, item.name)}
-            className="hover:text-osrs-gold-bright block truncate font-semibold transition-colors"
-          >
-            {item.name}
-          </Link>
+          {embed.links ? (
+            <Link
+              href={entityPath("items", item.item_id, item.name)}
+              className="hover:text-osrs-gold-bright block truncate font-semibold transition-colors"
+            >
+              {item.name}
+            </Link>
+          ) : (
+            <span className="block truncate font-semibold">{item.name}</span>
+          )}
           <div className="text-osrs-parchment-dark/60 text-xs">from {npc.name}</div>
         </div>
       </div>
@@ -109,17 +130,23 @@ function ItemCardContent({ item, npc }: { item: LootTrackerItem; npc: LootTracke
   );
 }
 
-function NpcBox({ npc }: { npc: LootTrackerNpc }) {
+function NpcBox({ npc, embed }: { npc: LootTrackerNpc; embed: LootTrackerEmbed }) {
   return (
     <Card padding="p-0" className="overflow-hidden">
       <div className="border-osrs-bronze/25 bg-osrs-surface-2/70 flex items-baseline gap-2 border-b px-3 py-2">
-        <Link
-          href={entityPath("npcs", npc.npc_id, npc.name)}
-          className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
-          title={npc.name}
-        >
-          {npc.name}
-        </Link>
+        {embed.links ? (
+          <Link
+            href={entityPath("npcs", npc.npc_id, npc.name)}
+            className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
+            title={npc.name}
+          >
+            {npc.name}
+          </Link>
+        ) : (
+          <span className="truncate text-sm font-medium" title={npc.name}>
+            {npc.name}
+          </span>
+        )}
         <span className="text-osrs-parchment-dark/60 shrink-0 text-xs tabular-nums">
           × {npc.kills.toLocaleString()}
         </span>
@@ -131,7 +158,7 @@ function NpcBox({ npc }: { npc: LootTrackerNpc }) {
         {npc.items.map((item) => (
           <HoverCard
             key={item.item_id}
-            content={<ItemCardContent item={item} npc={npc} />}
+            content={<ItemCardContent item={item} npc={npc} embed={embed} />}
             className="border-osrs-bronze/15 hover:bg-osrs-bronze/10 relative flex aspect-square cursor-help items-center justify-center border-r border-b p-1 transition-colors"
           >
             {item.quantity > 1 && (
@@ -140,7 +167,7 @@ function NpcBox({ npc }: { npc: LootTrackerNpc }) {
               </span>
             )}
             <img
-              src={`${IMG_BASE}/itemdb/${item.item_id}.png`}
+              src={`${embed.imgBase}/itemdb/${item.item_id}.png`}
               alt={item.name}
               loading="lazy"
               className="max-h-full max-w-full object-contain [image-rendering:pixelated]"
@@ -152,7 +179,15 @@ function NpcBox({ npc }: { npc: LootTrackerNpc }) {
   );
 }
 
-export function LootTracker({ playerId, initial }: { playerId: number; initial: PlayerLootTracker }) {
+export function LootTracker({
+  playerId,
+  initial,
+  embed = SITE_EMBED,
+}: {
+  playerId: number;
+  initial: PlayerLootTracker;
+  embed?: LootTrackerEmbed;
+}) {
   const [data, setData] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -269,7 +304,7 @@ export function LootTracker({ playerId, initial }: { playerId: number; initial: 
             className={`stagger-children grid items-start gap-3 transition-opacity sm:grid-cols-2 lg:grid-cols-3 ${loading ? "pointer-events-none opacity-50" : ""}`}
           >
             {visible.map((npc) => (
-              <NpcBox key={npc.npc_id} npc={npc} />
+              <NpcBox key={npc.npc_id} npc={npc} embed={embed} />
             ))}
           </div>
           {data.npcs.length > INITIAL_BOXES && (

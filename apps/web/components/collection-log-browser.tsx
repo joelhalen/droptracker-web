@@ -32,9 +32,14 @@ const CARD_WIDTH = 300;
 export function CollectionLogBrowser({
   tabs,
   details = {},
+  onOpenScreenshot,
 }: {
   tabs: CollectionLogTab[];
   details?: Record<string, CollectionLogDetail>;
+  /** Opens a slot's full screenshot. Defaults to a new-tab link; the Discord
+   * Activity injects the SDK's external-link opener, since a `target="_blank"`
+   * anchor does nothing inside its iframe. */
+  onOpenScreenshot?: (url: string) => void;
 }) {
   const [tabName, setTabName] = useState(tabs[0]?.name ?? "");
   const tab = useMemo(() => tabs.find((t) => t.name === tabName) ?? tabs[0], [tabs, tabName]);
@@ -117,7 +122,13 @@ export function CollectionLogBrowser({
                     // collapse the aspect-square sizing.
                     className="block cursor-help"
                     width={CARD_WIDTH}
-                    content={<SlotCard item={item} detail={details[String(item.item_id)]} />}
+                    content={
+                      <SlotCard
+                        item={item}
+                        detail={details[String(item.item_id)]}
+                        onOpenScreenshot={onOpenScreenshot}
+                      />
+                    }
                   >
                     <OsrsItemSlot obtained={item.obtained} label={item.name}>
                       <ItemDbIcon itemId={item.item_id} size={36} />
@@ -149,7 +160,15 @@ export function CollectionLogBrowser({
  * most slots did not. A line we cannot fill is left out rather than printed as
  * "unknown" — an empty label is noise, and the absence already says it.
  */
-function SlotCard({ item, detail }: { item: CollectionLogItem; detail?: CollectionLogDetail }) {
+function SlotCard({
+  item,
+  detail,
+  onOpenScreenshot,
+}: {
+  item: CollectionLogItem;
+  detail?: CollectionLogDetail;
+  onOpenScreenshot?: (url: string) => void;
+}) {
   return (
     <div className="p-3">
       <div className="flex items-center gap-2.5">
@@ -172,7 +191,9 @@ function SlotCard({ item, detail }: { item: CollectionLogItem; detail?: Collecti
         </div>
       )}
 
-      {detail?.image_url && <SlotScreenshot url={detail.image_url} name={item.name} />}
+      {detail?.image_url && (
+        <SlotScreenshot url={detail.image_url} name={item.name} onOpen={onOpenScreenshot} />
+      )}
     </div>
   );
 }
@@ -190,25 +211,50 @@ function SlotCard({ item, detail }: { item: CollectionLogItem; detail?: Collecti
  * exactly what a crop eats. A tall one is handled by the card's own 80vh
  * scroll. A dead URL removes the figure rather than leaving a broken frame.
  */
-function SlotScreenshot({ url, name }: { url: string; name: string }) {
+function SlotScreenshot({
+  url,
+  name,
+  onOpen,
+}: {
+  url: string;
+  name: string;
+  onOpen?: (url: string) => void;
+}) {
   const [broken, setBroken] = useState(false);
   if (broken) return null;
+  const className =
+    "border-osrs-bronze/30 hover:border-osrs-gold-bright/60 mt-2.5 block w-full overflow-hidden rounded border transition-colors";
+  const img = (
+    <img
+      src={url}
+      alt={`Screenshot of ${name} being unlocked`}
+      loading="lazy"
+      decoding="async"
+      className="block h-auto w-full"
+      onError={() => setBroken(true)}
+    />
+  );
+  if (onOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => onOpen(url)}
+        className={className}
+        title="Open the full screenshot"
+      >
+        {img}
+      </button>
+    );
+  }
   return (
     <a
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="border-osrs-bronze/30 hover:border-osrs-gold-bright/60 mt-2.5 block overflow-hidden rounded border transition-colors"
+      className={className}
       title="Open the full screenshot"
     >
-      <img
-        src={url}
-        alt={`Screenshot of ${name} being unlocked`}
-        loading="lazy"
-        decoding="async"
-        className="block h-auto w-full"
-        onError={() => setBroken(true)}
-      />
+      {img}
     </a>
   );
 }

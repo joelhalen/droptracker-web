@@ -18,7 +18,18 @@ import { PbLoadout } from "@/components/pb-loadout";
 const IMG_BASE = "https://www.droptracker.io/img";
 const INITIAL_CARDS = 12;
 
-export function PersonalBestsGrid({ pbs }: { pbs: PersonalBestSummary[] }) {
+export function PersonalBestsGrid({
+  pbs,
+  imgBase = IMG_BASE,
+  onOpenBoss,
+}: {
+  pbs: PersonalBestSummary[];
+  /** The Discord Activity passes "/img": its iframe CSP only allows same-origin images. */
+  imgBase?: string;
+  /** Replaces the NPC page link. The Activity has no site routes, so it opens
+   * its own PB board for the boss instead. */
+  onOpenBoss?: (pb: PersonalBestSummary) => void;
+}) {
   const [showAll, setShowAll] = useState(false);
   // Which entry has its loadout open. One at a time: the panels are large, and
   // opening several turns the grid into a wall of item icons.
@@ -31,18 +42,29 @@ export function PersonalBestsGrid({ pbs }: { pbs: PersonalBestSummary[] }) {
           <Card key={pb.npc_id} padding="p-4">
             <div className="flex items-center gap-2.5">
               <img
-                src={`${IMG_BASE}/npcdb/${pb.npc_id}.png`}
+                src={`${imgBase}/npcdb/${pb.npc_id}.png`}
                 alt=""
                 className="size-8 shrink-0 rounded object-contain"
                 loading="lazy"
               />
-              <Link
-                href={entityPath("npcs", pb.npc_id, pb.boss)}
-                className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
-                title={pb.boss}
-              >
-                {pb.boss}
-              </Link>
+              {onOpenBoss ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenBoss(pb)}
+                  className="hover:text-osrs-gold-bright truncate text-left text-sm font-medium transition-colors"
+                  title={pb.boss}
+                >
+                  {pb.boss}
+                </button>
+              ) : (
+                <Link
+                  href={entityPath("npcs", pb.npc_id, pb.boss)}
+                  className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
+                  title={pb.boss}
+                >
+                  {pb.boss}
+                </Link>
+              )}
             </div>
             <div className="mt-2 flex items-baseline justify-between gap-2">
               <span className="text-osrs-gold-bright font-mono text-xl font-bold tabular-nums">

@@ -42,6 +42,9 @@ import {
   PbBossIndexSchema,
   PendingReviewEventSchema,
   PlayerProfileSchema,
+  PlayerAchievementsSchema,
+  PlayerCollectionLogSchema,
+  PlayerLootTrackerSchema,
   SearchResultsSchema,
   TaskBreakdownSchema,
   TaskRequirementsSchema,
@@ -610,6 +613,19 @@ export async function pbBoard(npcId: number, groupId?: number): Promise<PbBossBo
 
 export async function playerProfile(id: number): Promise<PlayerProfile> {
   return PlayerProfileSchema.parse(await get(`/api/activity/players/${id}`, null));
+}
+
+/** The account tabs of a profile (collection log, achievements, this month's
+ * loot). Each part is null when the player has none or its read failed. */
+const PlayerAccountSchema = z.object({
+  collection_log: PlayerCollectionLogSchema.nullable(),
+  achievements: PlayerAchievementsSchema.nullable(),
+  loot: PlayerLootTrackerSchema.nullable(),
+});
+export type PlayerAccount = z.infer<typeof PlayerAccountSchema>;
+
+export async function playerAccount(id: number): Promise<PlayerAccount> {
+  return PlayerAccountSchema.parse(await get(`/api/activity/players/${id}/account`, null));
 }
 
 export async function groupProfile(id: number): Promise<GroupProfile> {

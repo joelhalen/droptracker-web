@@ -19,7 +19,7 @@ import type {
 } from "@droptracker/api-types";
 
 import { CharacterViewer } from "@/components/character-viewer";
-import { LootTracker } from "@/components/loot-tracker";
+import { LootTracker, type LootTrackerEmbed } from "@/components/loot-tracker";
 import { SubmissionList } from "@/components/submission-list";
 import { CollectionLogBrowser } from "@/components/collection-log-browser";
 import { CombatAchievementsBrowser } from "@/components/combat-achievements-browser";
@@ -36,6 +36,20 @@ import {
 
 type TabKey = "loot" | "submissions" | "collection" | "combat" | "diaries";
 
+/**
+ * What a host other than the site swaps in. The Discord Activity mounts this
+ * same showcase, but its iframe has no site routes, a same-origin-only image
+ * CSP, and no new tabs, so the parts that link out are injected rather than
+ * branched on here. Omit it on the site.
+ */
+export type ProfileShowcaseEmbed = {
+  loot?: LootTrackerEmbed;
+  /** Replaces the site's linked submission list. */
+  renderSubmissions?: (submissions: Submission[]) => React.ReactNode;
+  /** Opens a collection log screenshot outside the page. */
+  onOpenScreenshot?: (url: string) => void;
+};
+
 export function ProfileShowcase({
   playerId,
   modelFingerprint,
@@ -46,6 +60,7 @@ export function ProfileShowcase({
   submissions,
   stats,
   badges,
+  embed,
 }: {
   playerId: number;
   modelFingerprint?: string | null;
@@ -58,6 +73,7 @@ export function ProfileShowcase({
   stats?: React.ReactNode;
   /** Badge icons, rendered with the character rather than in their own card. */
   badges?: React.ReactNode;
+  embed?: ProfileShowcaseEmbed;
 }) {
   // Collapsing gives the tab content the whole width. Off by default: the
   // character is the first thing most people come to a profile to see.
@@ -238,7 +254,7 @@ export function ProfileShowcase({
             {tab === "loot" &&
               (hasLoot ? (
                 <div className="p-3">
-                  <LootTracker playerId={playerId} initial={loot!} />
+                  <LootTracker playerId={playerId} initial={loot!} embed={embed?.loot} />
                 </div>
               ) : (
                 // Loot comes from submitted drops, not the account sync, so this
@@ -254,7 +270,11 @@ export function ProfileShowcase({
 
             {tab === "submissions" && (
               <div className="max-h-[26rem] overflow-y-auto p-3">
-                <SubmissionList submissions={submissions} />
+                {embed?.renderSubmissions ? (
+                  embed.renderSubmissions(submissions)
+                ) : (
+                  <SubmissionList submissions={submissions} />
+                )}
               </div>
             )}
 
@@ -263,6 +283,7 @@ export function ProfileShowcase({
                 <CollectionLogBrowser
                   tabs={collectionLog!.tabs}
                   details={collectionLog!.details}
+                  onOpenScreenshot={embed?.onOpenScreenshot}
                 />
               ) : (
                 <Empty
