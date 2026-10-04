@@ -10,6 +10,8 @@ import {
   AnnouncementPageSchema,
   AdminTicketPageSchema,
   FileTransferPageSchema,
+  TesterBuildsSchema,
+  AdminTesterBuildsSchema,
   ChatThreadSchema,
   ChatMessageSchema,
   GroupNoticePageSchema,
@@ -112,6 +114,8 @@ import {
   mockStaffUserHits,
   mockTicketReply,
   mockFileTransfers,
+  mockTesterBuilds,
+  mockAdminTesterBuilds,
   mockMyTickets,
   mockTicket,
   mockMe,
@@ -216,6 +220,10 @@ test("mock payloads validate against shared schemas", () => {
   assert.doesNotThrow(() => TicketDetailSchema.parse(mockTicket(2)));
   assert.doesNotThrow(() => AdminTicketPageSchema.parse(mockAdminTickets()));
   assert.doesNotThrow(() => FileTransferPageSchema.parse(mockFileTransfers()));
+  // Plugin test builds: the tester page and the staff view both render
+  // straight off these in mock mode.
+  assert.doesNotThrow(() => TesterBuildsSchema.parse(mockTesterBuilds()));
+  assert.doesNotThrow(() => AdminTesterBuildsSchema.parse(mockAdminTesterBuilds()));
   // Chat (web96a): the mock thread and every entry type it renders — system,
   // both sides, and a tombstoned row — must satisfy the wire schema, since
   // USE_MOCK_API drives the whole invitation page off them.

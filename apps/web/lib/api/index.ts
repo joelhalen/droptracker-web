@@ -41,6 +41,7 @@ import { staffApi } from "./staff";
 import { fileTransfersApi } from "./file-transfers";
 import { noticesApi } from "./notices";
 import { eventConquestApi } from "./event-conquest";
+import { testerBuildsApi } from "./tester-builds";
 
 export const api = {
   ...leaderboardsApi,
@@ -78,6 +79,7 @@ export const api = {
   ...fileTransfersApi,
   ...noticesApi,
   ...eventConquestApi,
+  ...testerBuildsApi,
 };
 
 export * from "./types";

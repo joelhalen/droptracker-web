@@ -110,6 +110,10 @@ import type {
   WomSyncResult,
   MyDeathMessages,
   GroupMemberDeathMessages,
+  AdminTesterBuilds,
+  TesterBuild,
+  TesterBuildChange,
+  TesterBuilds,
 } from "@droptracker/api-types";
 import { EMBED_TYPES, GROUP_CONFIG_FIELDS, LOOT_ALL_TIME } from "@droptracker/api-types";
 import { defaultMaxAwards, itemTotal } from "./loot-sweep";
@@ -3841,6 +3845,270 @@ export function mockFileTransfers(page = 1): FileTransferPage {
     meta: { page, limit: 25, total: 1 },
     max_bytes: 25 * 1024 * 1024,
     retention_days: 30,
+  };
+}
+
+// --- Plugin test builds (/bug-testing, /admin/testers) ----------------------
+
+const MOCK_PLUGIN_REPO = "https://github.com/joelhalen/droptracker-plugin";
+
+/** Everything the mock build carries since the Plugin Hub release, newest
+ *  first. The first entry is what is new in the current build itself. */
+const MOCK_TESTER_CHANGES: TesterBuildChange[] = [
+  {
+    commit: "2cd73bee12d03228b65e76543e2a82f187720d28",
+    short: "2cd73be",
+    version: "6.0.19",
+    title: "Clan chat sync works without the API",
+    points: [
+      "Clan chat messages are sent even when the DropTracker API setting is off.",
+      "Fixed a short freeze when the Events panel refreshed behind a pop-up.",
+    ],
+    date: MOCK_NOW - 3 * 3_600,
+    pr: 59,
+  },
+  {
+    commit: "8e41a0c7da9c273f7337f71d85c1b04ac0aefe99",
+    short: "8e41a0c",
+    version: "6.0.18",
+    title: "Smaller screenshots and a clan chat sync switch",
+    points: [
+      "New setting to cap screenshot size before upload.",
+      "Clan chat sync can be turned off per account.",
+    ],
+    date: MOCK_NOW - 2 * 86_400,
+    pr: 58,
+  },
+  {
+    commit: "c3f9d27c116a5d620b179b31328dc9d6b844d1e5",
+    short: "c3f9d27",
+    version: "6.0.16",
+    title: "Plugin settings can be shared with staff",
+    points: ["Support can see which settings are on when you open a ticket."],
+    date: MOCK_NOW - 6 * 86_400,
+    pr: null,
+  },
+  {
+    commit: "d3be224e648936aa923f63c483a69429dd5a9f1c",
+    short: "d3be224",
+    version: "6.0.14",
+    title: "New event pop-up styles",
+    points: [
+      "Showcase and Banner pop-ups with richer cards.",
+      "Chat colours follow a transparent chatbox.",
+    ],
+    date: MOCK_NOW - 9 * 86_400,
+    pr: 57,
+  },
+];
+
+function mockTesterBuild(): TesterBuild {
+  return {
+    build_id: "6.0.19-2cd73be-rl1.13.1",
+    version: "6.0.19",
+    commit: "2cd73bee12d03228b65e76543e2a82f187720d28",
+    short: "2cd73be",
+    ref: "master",
+    runelite_version: "1.13.1",
+    built_at: MOCK_NOW - 2 * 3_600,
+    size_bytes: 28_563_998,
+    sha256: "35b46c05b7026e0f3ba800ce767c3888d3fe06ddca6f0516d1bc5173d93589a7",
+    reason: "plugin",
+    repo_url: MOCK_PLUGIN_REPO,
+    release: {
+      commit: "577fa890b62cfde1f008adf60f79d7c80ffbf8bf",
+      short: "577fa89",
+      version: "6.0.12",
+      is_ancestor: true,
+    },
+    changes: MOCK_TESTER_CHANGES.slice(0, 1),
+    since_release: MOCK_TESTER_CHANGES,
+  };
+}
+
+/** The builds before the current one. One of each shape the page words
+ *  differently: a RuneLite rebuild with no plugin changes, and a plugin build. */
+function mockEarlierTesterBuilds(): TesterBuild[] {
+  const base = mockTesterBuild();
+  return [
+    {
+      ...base,
+      build_id: "6.0.18-8e41a0c-rl1.13.1",
+      version: "6.0.18",
+      commit: "8e41a0c7da9c273f7337f71d85c1b04ac0aefe99",
+      short: "8e41a0c",
+      built_at: MOCK_NOW - 86_400,
+      size_bytes: 28_551_204,
+      sha256: null,
+      reason: "runelite",
+      changes: [],
+      since_release: [],
+    },
+    {
+      ...base,
+      build_id: "6.0.18-8e41a0c-rl1.13.0",
+      version: "6.0.18",
+      commit: "8e41a0c7da9c273f7337f71d85c1b04ac0aefe99",
+      short: "8e41a0c",
+      runelite_version: "1.13.0",
+      built_at: MOCK_NOW - 2 * 86_400 + 900,
+      size_bytes: 28_490_776,
+      sha256: null,
+      reason: "plugin",
+      changes: MOCK_TESTER_CHANGES.slice(1, 2),
+      since_release: [],
+    },
+  ];
+}
+
+/** GET /tester-builds, as a tester who has an older build but not this one. */
+export function mockTesterBuilds(): TesterBuilds {
+  return {
+    current: mockTesterBuild(),
+    recent: mockEarlierTesterBuilds(),
+    my_downloads: [
+      {
+        build_id: "6.0.18-8e41a0c-rl1.13.0",
+        version: "6.0.18",
+        downloaded_at: MOCK_NOW - 2 * 86_400 + 5_400,
+      },
+    ],
+    has_current: false,
+    is_staff: false,
+  };
+}
+
+/** GET /admin/tester-builds. The three testers cover the rows staff need to
+ *  tell apart: up to date, downloaded an older build, and never downloaded. */
+export function mockAdminTesterBuilds(): AdminTesterBuilds {
+  return {
+    status: {
+      state: "ok",
+      checked_at: MOCK_NOW - 600,
+      ref: "master",
+      head_commit: "2cd73bee12d03228b65e76543e2a82f187720d28",
+      runelite_version: "1.13.1",
+      error: null,
+      current_build_id: "6.0.19-2cd73be-rl1.13.1",
+    },
+    current: mockTesterBuild(),
+    release_version: "6.0.12",
+    builds: [
+      {
+        build_id: "6.0.19-2cd73be-rl1.13.1",
+        version: "6.0.19",
+        runelite_version: "1.13.1",
+        built_at: MOCK_NOW - 2 * 3_600,
+        reason: "plugin",
+        downloads: 1,
+        testers: 1,
+      },
+      {
+        build_id: "6.0.18-8e41a0c-rl1.13.1",
+        version: "6.0.18",
+        runelite_version: "1.13.1",
+        built_at: MOCK_NOW - 86_400,
+        reason: "runelite",
+        downloads: 2,
+        testers: 2,
+      },
+      {
+        build_id: "6.0.18-8e41a0c-rl1.13.0",
+        version: "6.0.18",
+        runelite_version: "1.13.0",
+        built_at: MOCK_NOW - 2 * 86_400 + 900,
+        reason: "plugin",
+        downloads: 2,
+        testers: 2,
+      },
+    ],
+    testers: [
+      {
+        user_id: 1337,
+        discord_id: "148293847561234567",
+        username: "zezima",
+        players: [
+          { player_id: 1, name: "Zezima" },
+          { player_id: 2, name: "Zezima Iron" },
+        ],
+        download_count: 3,
+        last_download: {
+          build_id: "6.0.19-2cd73be-rl1.13.1",
+          version: "6.0.19",
+          downloaded_at: MOCK_NOW - 3_600,
+        },
+        has_current: true,
+        seen: {
+          version: "6.0.19",
+          first_seen: MOCK_NOW - 3_000,
+          last_seen: MOCK_NOW - 300,
+          prerelease: true,
+          player_name: "Zezima",
+        },
+        tested_versions: ["6.0.19", "6.0.18", "6.0.16"],
+      },
+      {
+        user_id: 2048,
+        discord_id: "203948571029384756",
+        username: "woox",
+        players: [{ player_id: 3, name: "Woox" }],
+        download_count: 2,
+        last_download: {
+          build_id: "6.0.18-8e41a0c-rl1.13.1",
+          version: "6.0.18",
+          downloaded_at: MOCK_NOW - 80_000,
+        },
+        has_current: false,
+        seen: {
+          version: "6.0.18",
+          first_seen: MOCK_NOW - 79_000,
+          last_seen: MOCK_NOW - 7_200,
+          prerelease: true,
+          player_name: "Woox",
+        },
+        tested_versions: ["6.0.18"],
+      },
+      {
+        user_id: 4096,
+        discord_id: null,
+        username: "b0aty",
+        players: [],
+        download_count: 0,
+        last_download: null,
+        has_current: false,
+        seen: {
+          version: "6.0.12",
+          first_seen: MOCK_NOW - 20 * 86_400,
+          last_seen: MOCK_NOW - 86_400,
+          prerelease: false,
+          player_name: null,
+        },
+        tested_versions: [],
+      },
+    ],
+    recent_downloads: [
+      {
+        user_id: 1337,
+        username: "zezima",
+        build_id: "6.0.19-2cd73be-rl1.13.1",
+        version: "6.0.19",
+        downloaded_at: MOCK_NOW - 3_600,
+      },
+      {
+        user_id: 2048,
+        username: "woox",
+        build_id: "6.0.18-8e41a0c-rl1.13.1",
+        version: "6.0.18",
+        downloaded_at: MOCK_NOW - 80_000,
+      },
+      {
+        user_id: 1337,
+        username: "zezima",
+        build_id: "6.0.18-8e41a0c-rl1.13.1",
+        version: "6.0.18",
+        downloaded_at: MOCK_NOW - 82_000,
+      },
+    ],
   };
 }
 
