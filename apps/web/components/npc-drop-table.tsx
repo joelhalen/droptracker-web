@@ -7,10 +7,9 @@
  * tables collapse behind a "Show all" toggle.
  */
 import { useState } from "react";
-import Link from "next/link";
-import { entityPath } from "@/lib/slug";
 import type { NpcDropTable } from "@droptracker/api-types";
 import { EntityHoverCard } from "@/components/entity-hover-card";
+import { EntityLink } from "@/components/entity-link";
 import { Badge, Card, EmptyState } from "@/components/ui";
 import { formatRarity, formatRelativeTime } from "@/lib/format";
 
@@ -64,8 +63,10 @@ export function NpcDropTableCard({ table }: { table: NpcDropTable }) {
             {rows.map((row) => (
               <tr key={`${row.item_id}-${row.rarity}`}>
                 <td className="py-2 pr-3">
-                  <Link
-                    href={entityPath("items", row.item_id, row.name)}
+                  <EntityLink
+                    kind="item"
+                    id={row.item_id}
+                    name={row.name}
                     className="hover:text-osrs-gold-bright flex min-w-0 items-center gap-2 font-medium transition-colors"
                   >
                     <img src={row.icon_url} alt="" className="size-6 shrink-0 object-contain" />
@@ -75,7 +76,7 @@ export function NpcDropTableCard({ table }: { table: NpcDropTable }) {
                         noted
                       </Badge>
                     )}
-                  </Link>
+                  </EntityLink>
                 </td>
                 <td className="text-osrs-parchment-dark/80 py-2 pr-3 whitespace-nowrap">
                   {row.quantity}
@@ -102,12 +103,14 @@ export function NpcDropTableCard({ table }: { table: NpcDropTable }) {
                         name={row.last_drop.player_name}
                         className="min-w-0 truncate"
                       >
-                        <Link
-                          href={entityPath("players", row.last_drop.player_id, row.last_drop.player_name)}
+                        <EntityLink
+                          kind="player"
+                          id={row.last_drop.player_id}
+                          name={row.last_drop.player_name}
                           className="hover:text-osrs-gold-bright truncate font-medium transition-colors"
                         >
                           {row.last_drop.player_name}
-                        </Link>
+                        </EntityLink>
                       </EntityHoverCard>
                       <span className="text-osrs-parchment-dark/50 shrink-0">
                         {formatRelativeTime(row.last_drop.ts)}

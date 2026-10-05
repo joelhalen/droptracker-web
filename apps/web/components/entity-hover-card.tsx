@@ -16,6 +16,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import { entityPath } from "@/lib/slug";
+import { useEmbedHost } from "@/lib/embed-host";
 import type { CompactBadge } from "@droptracker/api-types";
 import type { EntityCard, GroupCard, PlayerCard } from "@/lib/entity-card";
 import { CARD_SECTION_CLASS as DIVIDER, CardStatLine as StatLine, HoverCard } from "@/components/hover-card";
@@ -340,6 +341,11 @@ export function EntityHoverCard({
   className?: string;
   children: ReactNode;
 }) {
+  // The card's body is built from site links ("View full profile", group
+  // chips), so under an embed host the trigger is shown on its own and the
+  // children carry the in-app navigation.
+  const host = useEmbedHost();
+  if (host) return <span className={className}>{children}</span>;
   const content =
     kind === "player" ? (
       <PlayerCardBody id={id} name={name} seed={seed} />

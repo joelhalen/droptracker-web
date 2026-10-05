@@ -1,11 +1,11 @@
 /**
  * Shared list blocks for the NPC and item pages: all-time top players/receivers
- * and the latest tracked drops. Server-renderable (links + hover cards only).
+ * and the latest tracked drops. Server-renderable (links + hover cards only);
+ * the links are EntityLinks, so the Discord Activity mounts these unchanged.
  */
-import Link from "next/link";
-import { entityPath } from "@/lib/slug";
 import type { Money } from "@droptracker/api-types";
 import { EntityHoverCard } from "@/components/entity-hover-card";
+import { EntityLink } from "@/components/entity-link";
 import { EmptyState, RankMedal } from "@/components/ui";
 import { formatRelativeTime } from "@/lib/format";
 
@@ -38,12 +38,14 @@ export function TopPlayersList({ rows }: { rows: TopPlayerRow[] }) {
             name={p.player_name}
             className="min-w-0 flex-1 truncate"
           >
-            <Link
-              href={entityPath("players", p.player_id, p.player_name)}
+            <EntityLink
+              kind="player"
+              id={p.player_id}
+              name={p.player_name}
               className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
             >
               {p.player_name}
-            </Link>
+            </EntityLink>
           </EntityHoverCard>
           <span className="shrink-0 text-right">
             <span className="text-osrs-gold-bright block text-sm font-semibold tabular-nums">
@@ -94,12 +96,14 @@ export function RecentDropsList({ rows }: { rows: RecentDropRow[] }) {
                 name={d.player_name}
                 className="min-w-0 truncate"
               >
-                <Link
-                  href={entityPath("players", d.player_id, d.player_name)}
+                <EntityLink
+                  kind="player"
+                  id={d.player_id}
+                  name={d.player_name}
                   className="hover:text-osrs-gold-bright truncate font-medium transition-colors"
                 >
                   {d.player_name}
-                </Link>
+                </EntityLink>
               </EntityHoverCard>
               {d.quantity > 1 && (
                 <span className="text-osrs-parchment-dark/60 shrink-0 text-xs">×{d.quantity}</span>
@@ -107,12 +111,14 @@ export function RecentDropsList({ rows }: { rows: RecentDropRow[] }) {
             </span>
             <span className="text-osrs-parchment-dark/60 block truncate text-xs">
               {d.context_id != null && d.context_name ? (
-                <Link
-                  href={entityPath(d.context_href, d.context_id, d.context_name)}
+                <EntityLink
+                  kind={d.context_href === "items" ? "item" : "npc"}
+                  id={d.context_id}
+                  name={d.context_name}
                   className="hover:text-osrs-gold-bright transition-colors"
                 >
                   {d.context_name}
-                </Link>
+                </EntityLink>
               ) : (
                 (d.context_name ?? "Unknown")
               )}

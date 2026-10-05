@@ -1,8 +1,7 @@
-import Link from "next/link";
-import { entityPath } from "@/lib/slug";
 import type { Submission } from "@droptracker/api-types";
 import { formatRelativeTime } from "@/lib/format";
 import { EntityHoverCard } from "@/components/entity-hover-card";
+import { EmbedImg, EntityLink } from "@/components/entity-link";
 import { Badge, EmptyState, type BadgeVariant } from "@/components/ui";
 
 const TYPE_META: Record<string, { label: string; tone: BadgeVariant }> = {
@@ -17,7 +16,8 @@ const TYPE_META: Record<string, { label: string; tone: BadgeVariant }> = {
 
 /**
  * Detailed submission feed used on player and group profiles: item/NPC icon,
- * source NPC, relative time, and (group scope) who received it.
+ * source NPC, relative time, and (group scope) who received it. Embed-safe:
+ * the Discord Activity mounts it unchanged.
  */
 export function SubmissionList({
   submissions,
@@ -40,7 +40,7 @@ export function SubmissionList({
       {submissions.map((s) => (
         <li key={`${s.type}-${s.id}`} className="flex items-center gap-3 py-2.5 text-sm">
           {s.image_url ? (
-            <img src={s.image_url} alt="" className="size-8 shrink-0 object-contain" />
+            <EmbedImg src={s.image_url} alt="" className="size-8 shrink-0 object-contain" />
           ) : (
             <span className="bg-osrs-bronze/20 size-8 shrink-0 rounded" aria-hidden />
           )}
@@ -51,12 +51,14 @@ export function SubmissionList({
                 {TYPE_META[s.type]?.label ?? s.type}
               </Badge>
               {s.item_id ? (
-                <Link
-                  href={entityPath("items", s.item_id, s.label)}
+                <EntityLink
+                  kind="item"
+                  id={s.item_id}
+                  name={s.label}
                   className="hover:text-osrs-gold-bright truncate font-medium transition-colors"
                 >
                   {s.label}
-                </Link>
+                </EntityLink>
               ) : (
                 <span className="truncate font-medium">{s.label}</span>
               )}
@@ -67,12 +69,14 @@ export function SubmissionList({
             <div className="text-osrs-parchment-dark/60 flex flex-wrap items-center gap-x-1.5 text-xs">
               {s.npc_name &&
                 (s.npc_id ? (
-                  <Link
-                    href={entityPath("npcs", s.npc_id, s.npc_name)}
+                  <EntityLink
+                    kind="npc"
+                    id={s.npc_id}
+                    name={s.npc_name}
                     className="hover:text-osrs-gold-bright transition-colors"
                   >
                     {s.npc_name}
-                  </Link>
+                  </EntityLink>
                 ) : (
                   <span>{s.npc_name}</span>
                 ))}
@@ -81,12 +85,14 @@ export function SubmissionList({
                 <>
                   {s.player_id ? (
                     <EntityHoverCard kind="player" id={s.player_id} name={s.player_name}>
-                      <Link
-                        href={entityPath("players", s.player_id, s.player_name)}
+                      <EntityLink
+                        kind="player"
+                        id={s.player_id}
+                        name={s.player_name}
                         className="hover:text-osrs-gold-bright"
                       >
                         {s.player_name}
-                      </Link>
+                      </EntityLink>
                     </EntityHoverCard>
                   ) : (
                     <span>{s.player_name}</span>

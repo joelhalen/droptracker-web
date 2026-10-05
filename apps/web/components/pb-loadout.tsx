@@ -12,6 +12,7 @@
  * grid and the leaderboards, so a time reads identically wherever it appears.
  */
 import { useEffect, useState } from "react";
+import { useImgUrl } from "@/lib/embed-host";
 import type {
   LoadoutEntry,
   PersonalBestLoadout,
@@ -192,6 +193,8 @@ const CHARACTER_WIDTH_PX = 150;
  * server's most recent outfit standing in, and the two must not read the same.
  */
 function CharacterPanel({ model }: { model: PersonalBestModel }) {
+  // The still is a stored render; under the Activity it must be proxied.
+  const imgUrl = useImgUrl();
   const exact = model.source === "kill";
   const caption = exact ? "As worn for this kill" : "Most recent outfit at the time";
   const hint = exact
@@ -208,7 +211,7 @@ function CharacterPanel({ model }: { model: PersonalBestModel }) {
         />
       ) : model.image_url ? (
         <img
-          src={model.image_url}
+          src={imgUrl(model.image_url)}
           alt="Character as worn for this time"
           className="w-full object-contain"
           style={{ aspectRatio: String(CHARACTER_ASPECT) }}

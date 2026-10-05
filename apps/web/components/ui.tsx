@@ -13,6 +13,8 @@ import type { Route } from "next";
 import Link from "next/link";
 import type { TierFlairStyle } from "@droptracker/api-types";
 import { resolveFlair } from "@/lib/tier-flair";
+import { EntityLink } from "@/components/entity-link";
+import type { EntityTarget } from "@/lib/embed-host";
 import { Badge, type BadgeSize, type BadgeVariant } from "@droptracker/ui";
 
 export * from "@droptracker/ui";
@@ -240,6 +242,7 @@ export function NameTile({
  */
 export function EntityChip({
   href,
+  entity,
   name,
   subtitle,
   badges,
@@ -250,7 +253,11 @@ export function EntityChip({
   flairTitle,
   playerId,
 }: {
-  href: Route | string;
+  /** A site route. Prefer `entity` in components the Discord Activity mounts. */
+  href?: Route | string;
+  /** The entity this chip opens; renders through EntityLink, so it also works
+   * under an embed host. Takes precedence over `href`. */
+  entity?: EntityTarget;
   name: string;
   /** Secondary context line, e.g. "Rank #12 · 1.2B total". */
   subtitle?: ReactNode;
@@ -271,8 +278,9 @@ export function EntityChip({
   playerId?: number;
 }) {
   const f = resolveFlair(flair);
-  return (
-    <Link href={href as Route} className={`group flex min-w-0 items-center gap-2.5 ${className}`}>
+  const chipClass = `group flex min-w-0 items-center gap-2.5 ${className}`;
+  const body = (
+    <>
       <NameTile
         name={name}
         size={size}
@@ -302,6 +310,18 @@ export function EntityChip({
           <span className="text-osrs-parchment-dark/60 block truncate text-xs">{subtitle}</span>
         )}
       </span>
+    </>
+  );
+  if (entity) {
+    return (
+      <EntityLink kind={entity.kind} id={entity.id} name={entity.name} className={chipClass}>
+        {body}
+      </EntityLink>
+    );
+  }
+  return (
+    <Link href={(href ?? "#") as Route} className={chipClass}>
+      {body}
     </Link>
   );
 }

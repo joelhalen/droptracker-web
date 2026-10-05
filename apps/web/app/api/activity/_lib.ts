@@ -12,6 +12,8 @@
  *    one shim at the BFF boundary instead of per-component forks.
  */
 import type { NextRequest } from "next/server";
+import type { PbBossBoard } from "@droptracker/api-types";
+import { proxiedBoardImg } from "@/lib/activity/img-proxy";
 import { env, SESSION_COOKIE } from "@/lib/env";
 
 const ABS_IMG = /https:\/\/(?:www\.)?droptracker\.io\/img/g;
@@ -20,30 +22,21 @@ export function rewriteImgUrls<T>(payload: T): T {
   return JSON.parse(JSON.stringify(payload).replace(ABS_IMG, "/img")) as T;
 }
 
-/** Hosts the same-origin board-img proxy is allowed to fetch from. Board
- * backgrounds live on the B2 CDN — prod `B2_CDN_BASE_URL` is
- * `https://video.droptracker.io` (SINGULAR); the plural is kept for the code
- * default / other envs. Sample art is on www. All are cross-origin to the
- * activity host and blocked by its CSP, so they must be proxied. */
-export const BOARD_IMG_HOSTS = new Set([
-  "video.droptracker.io",
-  "videos.droptracker.io",
-  "www.droptracker.io",
-  "droptracker.io",
-]);
+/** Board/screenshot proxy mapping lives in a pure module the client shares. */
+export { BOARD_IMG_HOSTS, proxiedBoardImg } from "@/lib/activity/img-proxy";
 
-/** Rewrite an absolute board image URL to the same-origin proxy path, or return
- * it unchanged when it's already relative (e.g. /img/...) or not proxied. */
-export function proxiedBoardImg(url: string | null | undefined): string | null | undefined {
-  if (!url) return url;
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return url;
-  }
-  if (parsed.protocol !== "https:" || !BOARD_IMG_HOSTS.has(parsed.hostname)) return url;
-  return `/api/activity/board-img?u=${encodeURIComponent(url)}`;
+/** PB proof screenshots are B2-hosted; route them through the image proxy so
+ * the board's camera button opens something the Activity can map back. */
+export function proxyPbBoardImages(board: PbBossBoard): PbBossBoard {
+  return {
+    ...board,
+    boards: board.boards.map((b) => ({
+      ...b,
+      entries: b.entries.map((e) =>
+        e.image_url ? { ...e, image_url: proxiedBoardImg(e.image_url) ?? undefined } : e,
+      ),
+    })),
+  };
 }
 
 export function bearerFrom(req: NextRequest): string {

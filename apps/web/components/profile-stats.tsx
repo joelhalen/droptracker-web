@@ -2,14 +2,14 @@
  * Stat blocks for the public group/player profile pages: ranked member lists,
  * most-farmed boss meters, and PB record showcases. Server components — all
  * motion is CSS (`stagger-children`, `bar-grow`, `record-glow` in globals.css)
- * so the sections animate on arrival without any client JS.
+ * so the sections animate on arrival without any client JS. Links and icons go
+ * through EntityLink/EmbedImg, so the Discord Activity mounts these unchanged.
  */
 
-import Link from "next/link";
-import { entityPath } from "@/lib/slug";
 import type { GroupRecord, GroupTopPlayer, TopBoss } from "@droptracker/api-types";
 
 import { EntityHoverCard } from "@/components/entity-hover-card";
+import { EmbedImg, EntityLink } from "@/components/entity-link";
 import { Badge, Card, EntityChip, RankMedal } from "@/components/ui";
 import { formatRelativeTime } from "@/lib/format";
 
@@ -33,7 +33,7 @@ export function TopPlayersList({ players }: { players: GroupTopPlayer[] }) {
               className="flex min-w-0"
             >
               <EntityChip
-                href={entityPath("players", p.id, p.name)}
+                entity={{ kind: "player", id: p.id, name: p.name }}
                 name={p.name}
                 size="sm"
                 playerId={p.id}
@@ -63,7 +63,7 @@ export function BossActivityList({ bosses }: { bosses: TopBoss[] }) {
       {bosses.map((b) => (
         <li key={b.npc_id} className="flex items-center gap-3">
           {/* npcdb icons exist for tracked bosses; hide the img on 404 via alt="" + no border */}
-          <img
+          <EmbedImg
             src={`${IMG_BASE}/npcdb/${b.npc_id}.png`}
             alt=""
             className="size-9 shrink-0 rounded object-contain"
@@ -71,12 +71,14 @@ export function BossActivityList({ bosses }: { bosses: TopBoss[] }) {
           />
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-2">
-              <Link
-                href={entityPath("npcs", b.npc_id, b.name)}
+              <EntityLink
+                kind="npc"
+                id={b.npc_id}
+                name={b.name}
                 className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
               >
                 {b.name}
-              </Link>
+              </EntityLink>
               <span className="text-osrs-gold-bright shrink-0 text-sm font-semibold tabular-nums">
                 {b.loot.value_formatted}
               </span>
@@ -118,19 +120,21 @@ export function RecordsShowcase({ records }: { records: GroupRecord[] }) {
               </Badge>
             )}
             <div className="flex items-center gap-2.5">
-              <img
+              <EmbedImg
                 src={`${IMG_BASE}/npcdb/${r.npc_id}.png`}
                 alt=""
                 className="size-8 shrink-0 rounded object-contain"
                 loading="lazy"
               />
-              <Link
-                href={entityPath("npcs", r.npc_id, r.boss)}
+              <EntityLink
+                kind="npc"
+                id={r.npc_id}
+                name={r.boss}
                 className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
                 title={r.boss}
               >
                 {r.boss}
-              </Link>
+              </EntityLink>
             </div>
             <div className="text-osrs-gold-bright mt-2 font-mono text-xl font-bold tabular-nums">
               {r.time_display}
@@ -142,12 +146,14 @@ export function RecordsShowcase({ records }: { records: GroupRecord[] }) {
                 name={r.holder.name}
                 className="min-w-0 truncate"
               >
-                <Link
-                  href={entityPath("players", r.holder.id, r.holder.name)}
+                <EntityLink
+                  kind="player"
+                  id={r.holder.id}
+                  name={r.holder.name}
                   className="hover:text-osrs-gold-bright truncate font-medium transition-colors"
                 >
                   {r.holder.name}
-                </Link>
+                </EntityLink>
               </EntityHoverCard>
               <span className="shrink-0">{r.team_size}</span>
             </div>

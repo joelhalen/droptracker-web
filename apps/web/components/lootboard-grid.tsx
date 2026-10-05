@@ -12,16 +12,22 @@ import { lootValueClass } from "@/lib/format";
 import { generateLootboardImage } from "@/app/(site)/(public)/groups/[id]/lootboard/actions";
 import { ItemContributors } from "@/components/lootboard-item-tooltip";
 import { Button, EmptyState } from "@/components/ui";
+import { useEmbedHost } from "@/lib/embed-host";
 
 export function LootboardGrid({ board }: { board: Lootboard }) {
   const [pending, startTransition] = useTransition();
   const [notice, setNotice] = useState<string | null>(null);
+  const host = useEmbedHost();
 
   const onDownload = () =>
     startTransition(async () => {
       setNotice(null);
       const { url } = await generateLootboardImage(board.group_id, board.period);
-      if (url) window.open(url, "_blank");
+      // window.open is inert inside the Discord Activity's iframe.
+      if (url) {
+        if (host) host.openExternal(url);
+        else window.open(url, "_blank");
+      }
       else setNotice("Image generation isn't configured in this environment (mock mode).");
     });
 

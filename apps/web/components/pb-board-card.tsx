@@ -13,13 +13,12 @@
  * stops being a leaderboard.
  */
 import { useState } from "react";
-import Link from "next/link";
 import type { PbTeamBoard } from "@droptracker/api-types";
 import { EntityHoverCard } from "@/components/entity-hover-card";
+import { EntityLink, ExternalLink } from "@/components/entity-link";
 import { PbLoadout } from "@/components/pb-loadout";
 import { Badge, Card, RankMedal } from "@/components/ui";
 import { formatRelativeTime } from "@/lib/format";
-import { entityPath } from "@/lib/slug";
 import { PbTime } from "@/components/pb-time";
 
 /** Records set in the last 7 days get a "New" badge (matches RecordsShowcase). */
@@ -58,12 +57,14 @@ export function BoardCard({ board, isGroupScoped }: { board: PbTeamBoard; isGrou
                       name={e.player_name}
                       className="min-w-0 truncate"
                     >
-                      <Link
-                        href={entityPath("players", e.player_id, e.player_name)}
+                      <EntityLink
+                        kind="player"
+                        id={e.player_id}
+                        name={e.player_name}
                         className="hover:text-osrs-gold-bright truncate text-sm font-medium transition-colors"
                       >
                         {e.player_name}
-                      </Link>
+                      </EntityLink>
                     </EntityHoverCard>
                     {isNew && <Badge variant="gold">New</Badge>}
                   </span>
@@ -108,16 +109,14 @@ export function BoardCard({ board, isGroupScoped }: { board: PbTeamBoard; isGrou
                     </button>
                   )}
                   {e.image_url && (
-                    <a
+                    <ExternalLink
                       href={e.image_url}
-                      target="_blank"
-                      rel="noreferrer"
                       title="View proof screenshot"
                       aria-label="View proof screenshot"
                       className="text-osrs-parchment-dark/40 hover:text-osrs-gold-bright text-xs transition-colors"
                     >
                       📷
-                    </a>
+                    </ExternalLink>
                   )}
                 </span>
               </div>

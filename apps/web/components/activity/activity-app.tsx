@@ -24,6 +24,7 @@ import { ACTIVITY_STREAM_PATH } from "@/lib/stream-key";
 import { activityClientId, getDiscordSdk, inDiscordFrame } from "@/lib/activity/discord-sdk";
 import { eventByChannel, exchangeAuthCode, guildGroup, launchIntent } from "@/lib/activity/api";
 import { ActivityShell } from "@/components/activity/shell";
+import { ActivityEmbedHost } from "@/components/activity/embed-host";
 
 type Stage =
   | { kind: "boot" }
@@ -199,7 +200,9 @@ export function ActivityApp() {
           <StreamEndpointProvider path={ACTIVITY_STREAM_PATH} token={auth.sessionToken}>
             <ActivityDataProvider value={data}>
               <ActivityNavProvider initial={initialView}>
-                <ActivityShell />
+                <ActivityEmbedHost>
+                  <ActivityShell />
+                </ActivityEmbedHost>
               </ActivityNavProvider>
             </ActivityDataProvider>
           </StreamEndpointProvider>
