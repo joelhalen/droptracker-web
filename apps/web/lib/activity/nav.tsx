@@ -24,9 +24,14 @@ export type ActivityView =
   | { name: "event-teams"; id: number }
   | { name: "event-team"; id: number; teamId: number }
   | { name: "player"; id: number }
-  | { name: "group"; id: number }
+  | { name: "group"; id: number; tab?: GroupTab }
   | { name: "group-setup" }
-  | { name: "pb-board"; npcId: number; bossName: string };
+  | { name: "pb-board"; npcId: number; bossName: string; groupId?: number }
+  | { name: "npc"; id: number; label?: string }
+  | { name: "item"; id: number; label?: string };
+
+/** The sections of a group profile, mirroring the site's sub-pages. */
+export type GroupTab = "overview" | "lootboard" | "clan-log" | "pbs" | "points";
 
 export type ActivityTab = "home" | "ranks" | "events" | "me";
 

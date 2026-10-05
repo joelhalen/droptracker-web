@@ -34,7 +34,7 @@ import { useStreamEndpoint } from "@/lib/stream-endpoint";
 import { DEFAULT_STREAM_PATH, streamKey, streamUrl } from "@/lib/stream-key";
 import { RealtimeEventSchema, type RealtimeEvent } from "@droptracker/api-types";
 
-type ConnectionState = "connecting" | "open" | "closed";
+export type ConnectionState = "connecting" | "open" | "closed";
 
 const MAX_BACKOFF_MS = 30_000;
 

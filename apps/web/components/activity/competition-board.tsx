@@ -11,6 +11,8 @@ import { useCallback, useEffect, useState } from "react";
 import type { CompetitionPlayerDetail, EventCompetitionBoard } from "@droptracker/api-types";
 import { CompetitionBonusRulesCard } from "@/components/competition-bonus-rules-card";
 import { CompetitionStandings, CompetitionTopStrip } from "@/components/competition-standings";
+import { StatTile } from "@/components/ui";
+import { formatGained } from "@/lib/competition";
 import { competitionBoard, competitionPlayer } from "@/lib/activity/api";
 import { useActivityAuth } from "@/lib/activity/auth-context";
 import { openExternal } from "@/lib/activity/discord-sdk";
@@ -46,6 +48,7 @@ export function ActivityCompetitionBoard({
   viewerPlayerIds = [],
   viewerTeamId = null,
   showRules = true,
+  teamCount,
 }: {
   eventId: number;
   live: boolean;
@@ -54,6 +57,8 @@ export function ActivityCompetitionBoard({
   viewerTeamId?: number | null;
   /** The event screen shows the scoring card; the pushed standings views don't. */
   showRules?: boolean;
+  /** Teams on a team race, for the totals row (as on the site). */
+  teamCount?: number;
 }) {
   const transports = useCompetitionTransports(eventId);
   const { fetchBoard } = transports;
@@ -84,9 +89,27 @@ export function ActivityCompetitionBoard({
       <p className="text-osrs-parchment-dark/50 text-sm">Loading the race…</p>
     );
   }
+  const metricKind = board.competition.metric.kind;
   return (
     <div className="space-y-4">
       <CompetitionTopStrip board={board} />
+      {showRules && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <StatTile label="Players" value={board.totals.participants.toLocaleString("en-US")} />
+          <StatTile
+            label={metricKind === "skill" ? "XP gained" : "Kills gained"}
+            value={formatGained(board.totals.gained, metricKind).replace(/ (XP|KC)$/, "")}
+          />
+          {board.competition.bonus_rules.length > 0 ? (
+            <StatTile
+              label="Bonus points"
+              value={board.totals.bonus_points.toLocaleString("en-US")}
+            />
+          ) : teamCount ? (
+            <StatTile label="Teams" value={teamCount} />
+          ) : null}
+        </div>
+      )}
       {showRules && (
         <CompetitionBonusRulesCard board={board} openLink={(url) => void openExternal(url)} />
       )}

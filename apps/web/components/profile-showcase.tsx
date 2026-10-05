@@ -34,7 +34,7 @@ import {
   stateSyncEmpty,
 } from "@/lib/plugin-features";
 
-type TabKey = "loot" | "submissions" | "collection" | "combat" | "diaries";
+type TabKey = "loot" | "submissions" | "collection" | "combat" | "diaries" | "quests";
 
 /**
  * What a host other than the site swaps in. The Discord Activity mounts this
@@ -87,6 +87,9 @@ export function ProfileShowcase({
   // log as if the player owned none of it.
   const hasLog = !!collectionLog?.has_synced && collectionLog.tabs.length > 0;
   const hasDiaries = !!achievements?.diaries.length;
+  const quests = achievements?.quests;
+  const questTotal = quests ? quests.finished + quests.in_progress + quests.not_started : 0;
+  const hasQuests = questTotal > 0;
 
   const hasLoot = !!loot;
   const hasSubmissions = submissions.length > 0;
@@ -102,7 +105,9 @@ export function ProfileShowcase({
           ? "collection"
           : hasCombat
             ? "combat"
-            : "diaries",
+            : hasDiaries || !hasQuests
+              ? "diaries"
+              : "quests",
   );
 
   // A sync-backed tab with nothing in it is labelled "Soon" rather than left
@@ -148,6 +153,12 @@ export function ProfileShowcase({
       label: "Diaries",
       badge: hasDiaries ? `${achievements!.diaries.length}` : soon,
       tone: hasDiaries ? undefined : soonTone,
+    },
+    {
+      key: "quests",
+      label: "Quests",
+      badge: hasQuests ? `${quests!.finished}/${questTotal}` : soon,
+      tone: hasQuests ? completionTone(quests!.finished, questTotal) : soonTone,
     },
   ];
 
@@ -349,6 +360,32 @@ export function ProfileShowcase({
               ) : (
                 <Empty
                   label="Achievement diaries"
+                  hint="Update to DropTracker plugin v6, with both of these settings on:"
+                />
+              ))}
+
+            {tab === "quests" &&
+              (hasQuests ? (
+                <ul className="font-osrs divide-osrs-bronze/20 divide-y">
+                  {[
+                    { label: "Completed", value: quests!.finished, tone: "text-osrs-green" },
+                    { label: "Started", value: quests!.in_progress, tone: "text-osrs-gold-bright" },
+                    { label: "Not started", value: quests!.not_started, tone: "text-osrs-red" },
+                  ].map((row) => (
+                    <li
+                      key={row.label}
+                      className="flex items-baseline justify-between px-3 py-1.5 text-sm"
+                    >
+                      <span className="text-osrs-parchment-dark/70">{row.label}</span>
+                      <span className={`tabular-nums ${row.tone}`}>
+                        {row.value.toLocaleString()}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty
+                  label="Quests"
                   hint="Update to DropTracker plugin v6, with both of these settings on:"
                 />
               ))}

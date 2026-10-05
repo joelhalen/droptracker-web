@@ -22,7 +22,6 @@
  */
 import { useEffect, useState } from "react";
 import { searchAll } from "@/lib/activity/api";
-import { openExternal } from "@/lib/activity/discord-sdk";
 import { useActivityNav } from "@/lib/activity/nav";
 import { Card, NameTile } from "@/components/ui";
 import { EmptyNote, ErrorNote, LoadingBlock, PressRow } from "@/components/activity/bits";
@@ -35,10 +34,6 @@ import {
   type Suggestion,
 } from "@/lib/search-suggestions";
 
-/** Players and groups have a view in here (nav.tsx); bosses and items don't,
- *  so those open on the site outside the iframe and say so in the row. */
-const NAVIGABLE: SearchKind[] = ["players", "groups"];
-const SITE_ORIGIN = "https://www.droptracker.io";
 
 export function ActivitySearch({
   kinds,
@@ -93,7 +88,8 @@ export function ActivitySearch({
   const pick = (s: Suggestion) => {
     if (s.kind === "players") nav.push({ name: "player", id: s.id });
     else if (s.kind === "groups") nav.push({ name: "group", id: s.id });
-    else void openExternal(`${SITE_ORIGIN}/${s.kind}/${s.id}`);
+    else if (s.kind === "npcs") nav.push({ name: "npc", id: s.id, label: s.name });
+    else nav.push({ name: "item", id: s.id, label: s.name });
   };
 
   return (
@@ -134,7 +130,6 @@ export function ActivitySearch({
         ) : (
           <Card padding="p-0">
             {suggestions.map((s) => {
-              const leavesIframe = !NAVIGABLE.includes(s.kind);
               return (
                 <div key={s.key} className="border-osrs-bronze/20 border-b last:border-b-0">
                   <PressRow
@@ -161,12 +156,11 @@ export function ActivitySearch({
                     subtitle={s.detail ?? undefined}
                     right={
                       // Only badge the kind when the list actually mixes them —
-                      // a column of identical "Player" chips is just noise. A
-                      // row that leaves the iframe says so instead, so nobody
-                      // taps a boss expecting to stay put.
+                      // a column of identical "Player" chips is just noise.
+                      // Every kind has an in-app view, so nothing leaves.
                       kinds.length > 1 ? (
                         <span className="text-osrs-parchment-dark/45 border-osrs-bronze/30 rounded border px-1.5 py-0.5 text-[10px] tracking-wide uppercase">
-                          {leavesIframe ? "Site ↗" : SEARCH_KIND_LABELS[s.kind]}
+                          {SEARCH_KIND_LABELS[s.kind]}
                         </span>
                       ) : undefined
                     }

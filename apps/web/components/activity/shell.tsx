@@ -26,6 +26,7 @@ import { PlayerView } from "@/components/activity/player-view";
 import { GroupView } from "@/components/activity/group-view";
 import { GroupSetupView } from "@/components/activity/group-setup-view";
 import { PbBoardView } from "@/components/activity/pb-board-view";
+import { ItemView, NpcView } from "@/components/activity/entity-views";
 import { EventView } from "@/components/activity/event-view";
 import { EventReviewView } from "@/components/activity/review-view";
 import { ActivityEventPlayersView } from "@/components/activity/event-players-view";
@@ -92,6 +93,8 @@ function viewMaxWidth(view: ActivityView): string {
       return "max-w-5xl";
     case "player":
     case "group":
+    case "npc":
+    case "item":
       return "max-w-4xl";
     case "event":
     case "event-review":
@@ -127,6 +130,10 @@ function presenceLabel(view: ActivityView): string {
       return "Viewing a clan";
     case "pb-board":
       return "Comparing boss times";
+    case "npc":
+      return "Looking up a boss";
+    case "item":
+      return "Looking up an item";
     case "me":
       return "Checking their progress";
     case "group-setup":
@@ -163,11 +170,15 @@ function renderView(
     case "player":
       return <PlayerView id={view.id} />;
     case "group":
-      return <GroupView id={view.id} />;
+      return <GroupView id={view.id} tab={view.tab} />;
     case "group-setup":
       return <GroupSetupView />;
     case "pb-board":
-      return <PbBoardView npcId={view.npcId} bossName={view.bossName} />;
+      return <PbBoardView npcId={view.npcId} bossName={view.bossName} groupId={view.groupId} />;
+    case "npc":
+      return <NpcView id={view.id} label={view.label} />;
+    case "item":
+      return <ItemView id={view.id} label={view.label} />;
   }
 }
 

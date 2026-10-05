@@ -1,16 +1,25 @@
-"use client";
-
 /**
- * Minimal live-feed parser for the Activity home screen — turns the untyped
- * `data` records of /feed/recent history entries and rt:feed SSE frames into
- * rows the UI can render. A trimmed sibling of live-drop-ticker's toFeedEntry
- * (icons arrive pre-rewritten to /img by the activity BFF).
+ * The Activity home screen's live-feed rows: a display projection of the
+ * site ticker's own parse (`lib/feed-entries.ts`), so a frame shows (or not)
+ * on both surfaces by the same rules and every type the ticker handles,
+ * including new clans and supporters, reaches the Activity too.
+ *
+ * Live SSE frames carry absolute www icon URLs (only the history read goes
+ * through the BFF's rewrite), so icons are mapped to iframe-safe addresses
+ * here.
  */
+import { toFeedEntry, type FeedEntry } from "@/lib/feed-entries";
+import { activityImgUrl } from "@/lib/activity/img-proxy";
+
 export type ActivityFeedRow = {
   key: string;
-  kind: "drop" | "pb" | "pet" | "new_player";
+  kind: FeedEntry["kind"];
+  /** The player the row is about, when there is one. */
   playerId: number | null;
-  playerName: string;
+  /** The clan the row is about (a new clan, a clan's subscription). */
+  groupId: number | null;
+  /** Who the row is about: a player's or a clan's name. */
+  subject: string;
   headline: string;
   detail: string;
   iconUrl: string | null;
@@ -18,77 +27,76 @@ export type ActivityFeedRow = {
   value: number | null;
 };
 
-const asStr = (v: unknown): string | null => (typeof v === "string" && v ? v : null);
-const asId = (v: unknown): number | null => {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
-};
+const img = (url: string | null): string | null => activityImgUrl(url) ?? null;
+
+export function feedRowFromEntry(e: FeedEntry): ActivityFeedRow {
+  const base = { key: e.key, kind: e.kind, value: null, groupId: null } as const;
+  switch (e.kind) {
+    case "drop":
+      return {
+        ...base,
+        playerId: e.playerId,
+        subject: e.playerName,
+        headline: e.itemName ?? "a valuable drop",
+        detail: e.npcName ? `from ${e.npcName}` : "drop",
+        iconUrl: img(e.iconUrl ?? e.npcIconUrl),
+        value: e.value,
+      };
+    case "personal_best":
+      return {
+        ...base,
+        playerId: e.playerId,
+        subject: e.playerName,
+        headline: `${e.timeDisplay} at ${e.npcName}`,
+        detail: [`#${e.rank} personal best`, e.teamSize].filter(Boolean).join(" · "),
+        iconUrl: img(e.npcIconUrl),
+      };
+    case "pet":
+      return {
+        ...base,
+        playerId: e.playerId,
+        subject: e.playerName,
+        headline: e.petName,
+        detail: "new pet",
+        iconUrl: img(e.iconUrl),
+      };
+    case "new_player":
+      return {
+        ...base,
+        playerId: e.playerId,
+        subject: e.playerName,
+        headline: "joined DropTracker",
+        detail: e.playerNumber ? `tracker #${e.playerNumber.toLocaleString("en-US")}` : "new tracker",
+        iconUrl: null,
+      };
+    case "group_created":
+      return {
+        ...base,
+        playerId: null,
+        groupId: e.groupId,
+        subject: e.groupName,
+        headline: "started tracking",
+        detail: "new clan",
+        iconUrl: null,
+      };
+    case "subscription":
+      return {
+        ...base,
+        playerId: e.scope === "user" ? e.playerId : null,
+        groupId: e.scope === "group" ? e.groupId : null,
+        subject: e.name,
+        headline: "became a supporter",
+        detail: e.scope === "group" ? "clan supporter" : "supporter",
+        iconUrl: null,
+      };
+  }
+}
 
 export function toActivityFeedRow(
   type: string,
   data: Record<string, unknown>,
   key: string,
 ): ActivityFeedRow | null {
-  const playerId = asId(data.player_id);
-  const playerName = asStr(data.player_name) ?? "Someone";
-  switch (type) {
-    case "drop": {
-      const value = Number(data.value ?? 0);
-      const itemName = asStr(data.item_name);
-      if (!Number.isFinite(value) || value <= 0 || !itemName) return null;
-      return {
-        key,
-        kind: "drop",
-        playerId,
-        playerName,
-        headline: itemName,
-        detail: asStr(data.npc_name) ? `from ${asStr(data.npc_name)}` : "drop",
-        iconUrl: asStr(data.icon_url),
-        value,
-      };
-    }
-    case "personal_best": {
-      const npcName = asStr(data.npc_name);
-      const time = asStr(data.time_display);
-      if (!npcName || !time) return null;
-      return {
-        key,
-        kind: "pb",
-        playerId,
-        playerName,
-        headline: `${time} at ${npcName}`,
-        detail: asStr(data.team_size) ? `personal best · ${asStr(data.team_size)}` : "personal best",
-        iconUrl: asStr(data.npc_icon_url),
-        value: null,
-      };
-    }
-    case "pet": {
-      const petName = asStr(data.pet_name);
-      if (!petName) return null;
-      return {
-        key,
-        kind: "pet",
-        playerId,
-        playerName,
-        headline: petName,
-        detail: "new pet",
-        iconUrl: asStr(data.icon_url),
-        value: null,
-      };
-    }
-    case "new_player": {
-      return {
-        key,
-        kind: "new_player",
-        playerId,
-        playerName,
-        headline: "joined DropTracker",
-        detail: "new tracker",
-        iconUrl: null,
-        value: null,
-      };
-    }
-    default:
-      return null;
-  }
+  const entry = toFeedEntry(type, data, key);
+  return entry ? feedRowFromEntry(entry) : null;
 }

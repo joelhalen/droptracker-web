@@ -6,10 +6,12 @@
  * toggle. Rows push profile/board detail views.
  */
 import { useEffect, useMemo, useState } from "react";
-import type { LeaderboardPage, PbBossIndex } from "@droptracker/api-types";
+import type { LeaderboardEntry, LeaderboardPage, PbBossIndex } from "@droptracker/api-types";
 import { Card, NameTile, RankMedal } from "@/components/ui";
 import { PlayerBadgeIcons } from "@/components/player-badges";
 import { gpText } from "@/lib/activity/money";
+import { formatGp } from "@/lib/format";
+import { useLiveLeaderboard } from "@/lib/use-live-leaderboard";
 import { DEFAULT_PERIOD, PERIOD_OPTIONS, resolvePeriod, type PeriodKey } from "@/lib/period";
 import { leaderboard, pbBosses } from "@/lib/activity/api";
 import { useActivityData } from "@/lib/activity/data-context";
@@ -19,6 +21,8 @@ import { ActivitySearch } from "@/components/activity/entity-search";
 import { npcIcon } from "@/lib/activity/img";
 
 type RankTab = "players" | "groups" | "pbs";
+
+const NO_ENTRIES: LeaderboardEntry[] = [];
 
 const SUB_TABS: { key: RankTab; label: string }[] = [
   { key: "players", label: "Players" },
@@ -68,6 +72,14 @@ export function RanksView({ tab }: { tab: RankTab }) {
       cancelled = true;
     };
   }, [tab, clanScope, group]);
+
+  // Player boards update live from the stream, as on the site (t137): the
+  // same scope the board was read for (global, or the launch clan's).
+  const live = useLiveLeaderboard(
+    page?.entries ?? NO_ENTRIES,
+    tab === "pbs" ? null : (scope ?? "global"),
+    tab === "groups" ? "groups" : "players",
+  );
 
   const bosses = useMemo(() => {
     const list = pbIndex?.bosses ?? [];
@@ -153,8 +165,13 @@ export function RanksView({ tab }: { tab: RankTab }) {
                 Nothing tracked for this period yet.
               </p>
             ) : (
-              page.entries.map((e) => (
-                <div key={e.id} className="border-osrs-bronze/20 border-b last:border-b-0">
+              live.rows.map((e) => (
+                <div
+                  key={e.id}
+                  className={`border-osrs-bronze/20 border-b transition-colors last:border-b-0 ${
+                    live.flashing.has(e.id) ? "bg-osrs-gold/15" : ""
+                  }`}
+                >
                   <PressRow
                     name={e.name}
                     icon={
@@ -176,6 +193,11 @@ export function RanksView({ tab }: { tab: RankTab }) {
                     }
                     right={
                       <span className="text-osrs-gold-bright text-[13px] font-semibold">
+                        {e.delta != null && e.delta > 0 ? (
+                          <span className="text-osrs-green mr-1.5 text-[11px]">
+                            +{formatGp(e.delta)}
+                          </span>
+                        ) : null}
                         {gpText(e.loot)}
                       </span>
                     }

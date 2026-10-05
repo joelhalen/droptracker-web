@@ -49,6 +49,9 @@ import {
   leaveEvent,
   lootSweepBoard,
   lootSweepReceipts,
+  eventConquest,
+  eventConquestBattles,
+  eventConquestTroops,
   markBuyinPaid,
   recordBuyin,
   setBuyinProof,
@@ -60,9 +63,10 @@ import { PrizePotPanel, type PrizePotActions } from "@/components/prize-pot-pane
 import { EventClanPointsCard } from "@/components/event-clan-points-card";
 import { EventCompletionHistory } from "@/components/event-completion-history";
 import { ActivityCompetitionBoard } from "@/components/activity/competition-board";
+import { ConquestView } from "@/components/conquest-view";
 import { openExternal } from "@/lib/activity/discord-sdk";
 import { isCompetitionKind, isTeamRace } from "@/lib/competition";
-import type { EventClanPoints, EventPrizePot } from "@droptracker/api-types";
+import type { ConquestMap, EventClanPoints, EventPrizePot } from "@droptracker/api-types";
 
 const STATUS_STYLES: Record<string, string> = {
   draft: "text-osrs-parchment-dark/60",
@@ -141,6 +145,24 @@ export function EventView({
   const lootSweepFetchReceipts = useCallback(
     (id: number, taskId: number, item: string) =>
       lootSweepReceipts(id, taskId, item, sessionToken),
+    [sessionToken],
+  );
+
+  // Conquest events: the territory map replaces the task list, as on the site.
+  // Its default fetchers are cookie server actions, so the bearer twins are
+  // injected; the map also self-refetches on SSE through them.
+  const [conquest, setConquest] = useState<ConquestMap | null>(null);
+  const isConquest = event?.kind === "conquest";
+  const conquestFetchMap = useCallback(
+    (id: number) => eventConquest(id, sessionToken),
+    [sessionToken],
+  );
+  const conquestFetchBattles = useCallback(
+    (id: number, before: number) => eventConquestBattles(id, before, sessionToken),
+    [sessionToken],
+  );
+  const conquestFetchTroops = useCallback(
+    (id: number) => eventConquestTroops(id, sessionToken),
     [sessionToken],
   );
 
@@ -269,6 +291,19 @@ export function EventView({
       cancelled = true;
     };
   }, [isLootSweep, tasksHidden, eventId, sessionToken, refreshKey]);
+
+  useEffect(() => {
+    if (!isConquest) return;
+    let cancelled = false;
+    eventConquest(eventId, sessionToken)
+      .then((m) => {
+        if (!cancelled) setConquest(m);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isConquest, eventId, sessionToken, refreshKey]);
 
   useEffect(() => {
     void load(false);
@@ -555,6 +590,7 @@ export function EventView({
           refreshKey={refreshKey}
           viewerPlayerIds={event.viewer?.player_ids_on_event ?? []}
           viewerTeamId={teamRace ? (event.viewer?.team_id ?? null) : null}
+          teamCount={teamRace ? event.teams.length : undefined}
         />
       )}
 
@@ -572,6 +608,24 @@ export function EventView({
             viewerRole={event.viewer?.team_role ?? null}
             actions={boardActions}
             openLink={openLink}
+          />
+        </div>
+      )}
+
+      {isConquest && conquest && (
+        <div>
+          <h2 className="heading-rule text-osrs-gold mb-2 pb-1 text-base font-semibold">
+            Conquest map
+          </h2>
+          <ConquestView
+            key={`conquest-${refreshKey}`}
+            eventId={event.id}
+            initial={conquest}
+            live={live}
+            viewerTeamId={event.viewer?.team_id ?? null}
+            fetchMap={conquestFetchMap}
+            fetchBattles={conquestFetchBattles}
+            fetchTroops={conquestFetchTroops}
           />
         </div>
       )}
@@ -615,8 +669,9 @@ export function EventView({
       {event.tasks_hidden && <HiddenBoardNotice compact />}
 
       {/* Loot Sweep sets are shown by the matrix above, not as flat tasks; a
-          race's one managed task is the race board. */}
-      {!isLootSweep && !isRace && event.tasks.length > 0 && (
+          race's one managed task is the race board; Conquest's tasks raise
+          troops on the map (the site shows no task list for it either). */}
+      {!isLootSweep && !isRace && !isConquest && event.tasks.length > 0 && (
         <div>
           <h2 className="heading-rule text-osrs-gold mb-2 pb-1 text-base font-semibold">Tasks</h2>
           <EventTaskBoard

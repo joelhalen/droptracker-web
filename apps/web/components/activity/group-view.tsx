@@ -1,31 +1,51 @@
 "use client";
 
 /**
- * Lean group profile: hero + stats, top members, boss meters, PB records,
- * recent activity; depth defers to droptracker.io.
+ * Group profile for the Activity, with the site's sub-pages as tabs:
+ * Overview (the site profile's stats, records, top players, bosses and recent
+ * submissions, from the same components), Lootboard, Clan Log, Personal bests
+ * and Points. Links inside the shared components open in-app through the
+ * Activity's embed host.
  */
 import { useEffect, useState } from "react";
 import type { GroupProfile } from "@droptracker/api-types";
-import { Card, NameTile, RankMedal, StatTile } from "@/components/ui";
 import { CountUp } from "@/components/count-up";
-import { LocalTime } from "@/components/local-time";
+import { BossActivityList, RecordsShowcase, TopPlayersList } from "@/components/profile-stats";
+import { SubmissionList } from "@/components/submission-list";
+import { Card, EntityChip, NameTile, StatTile, TierBadge } from "@/components/ui";
 import { gpAmount, gpText } from "@/lib/activity/money";
 import { groupProfile } from "@/lib/activity/api";
-import { useActivityNav } from "@/lib/activity/nav";
+import { openExternal } from "@/lib/activity/discord-sdk";
+import { SITE_ORIGIN } from "@/lib/activity/external-url";
+import { useActivityNav, type GroupTab } from "@/lib/activity/nav";
 import {
   BackBar,
-  BossMeters,
+  EmptyNote,
   ErrorNote,
   ExternalButton,
   LoadingBlock,
   SectionHeading,
-  SubmissionRow,
 } from "@/components/activity/bits";
+import {
+  GroupClanLogTab,
+  GroupLootboardTab,
+  GroupPbsTab,
+  GroupPointsTab,
+} from "@/components/activity/group-tabs";
 
-export function GroupView({ id }: { id: number }) {
+const TABS: { key: GroupTab; label: string }[] = [
+  { key: "overview", label: "Overview" },
+  { key: "lootboard", label: "Lootboard" },
+  { key: "clan-log", label: "Clan Log" },
+  { key: "pbs", label: "Personal bests" },
+  { key: "points", label: "Points" },
+];
+
+export function GroupView({ id, tab: initialTab }: { id: number; tab?: GroupTab }) {
   const nav = useActivityNav();
   const [profile, setProfile] = useState<GroupProfile | null>(null);
   const [failed, setFailed] = useState<"missing" | "error" | null>(null);
+  const [tab, setTab] = useState<GroupTab>(initialTab ?? "overview");
 
   useEffect(() => {
     let cancelled = false;
@@ -72,106 +92,158 @@ export function GroupView({ id }: { id: number }) {
             <NameTile name={profile.name} size="lg" flair={profile.flair?.style} />
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-osrs-gold truncate font-serif text-lg font-semibold">{profile.name}</p>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <p className="text-osrs-gold truncate font-serif text-lg font-semibold">{profile.name}</p>
+              {profile.flair && (
+                <TierBadge tierKey={profile.flair.tier_key} name={profile.flair.tier_name} />
+              )}
+            </div>
             {profile.description && (
               <p className="text-osrs-parchment-dark/60 line-clamp-2 text-[11.5px]">{profile.description}</p>
             )}
           </div>
         </div>
+        {profile.discord_url && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void openExternal(profile.discord_url!)}
+              className="bg-osrs-bronze hover:bg-osrs-gold hover:text-osrs-brown-dark rounded-lg px-3 py-1.5 text-[12.5px] font-medium"
+            >
+              Join Discord
+            </button>
+          </div>
+        )}
       </Card>
 
-      <div className="mt-2.5 grid grid-cols-3 gap-2">
+      <nav
+        className="border-osrs-bronze/25 -mx-1 mt-3 flex gap-1 overflow-x-auto border-b px-1"
+        aria-label="Group sections"
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            aria-current={tab === t.key}
+            className={`shrink-0 border-b-2 px-3 py-2 text-[12.5px] whitespace-nowrap transition-colors ${
+              tab === t.key
+                ? "border-osrs-gold text-osrs-gold-bright font-semibold"
+                : "text-osrs-parchment-dark/65 hover:text-osrs-gold-bright border-transparent"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="mt-3">
+        {tab === "overview" && <GroupOverview profile={profile} onTab={setTab} />}
+        {tab === "lootboard" && <GroupLootboardTab groupId={profile.id} />}
+        {tab === "clan-log" && <GroupClanLogTab groupId={profile.id} />}
+        {tab === "pbs" && <GroupPbsTab groupId={profile.id} />}
+        {tab === "points" && <GroupPointsTab groupId={profile.id} groupName={profile.name} />}
+      </div>
+
+      <ExternalButton href={`${SITE_ORIGIN}/groups/${profile.id}`}>
+        Open this group on droptracker.io
+      </ExternalButton>
+    </div>
+  );
+}
+
+function GroupOverview({
+  profile,
+  onTab,
+}: {
+  profile: GroupProfile;
+  onTab: (tab: GroupTab) => void;
+}) {
+  const records = profile.records ?? [];
+  const topPlayers = profile.top_players ?? [];
+  const bosses = profile.top_bosses ?? [];
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <StatTile label="Members" value={profile.member_count.toLocaleString()} />
         <StatTile
-          label="Loot (month)"
+          label="Global rank"
+          value={profile.global_rank ? `#${profile.global_rank.toLocaleString()}` : "—"}
+        />
+        <StatTile
+          label="Monthly loot"
           value={
-            <CountUp value={gpAmount(profile.monthly_loot)} formatted={gpText(profile.monthly_loot)} />
+            profile.monthly_loot ? (
+              <CountUp value={gpAmount(profile.monthly_loot)} formatted={gpText(profile.monthly_loot)} />
+            ) : (
+              "—"
+            )
           }
         />
-        <StatTile label="Global rank" value={profile.global_rank ? `#${profile.global_rank.toLocaleString()}` : "—"} />
-        <StatTile label="Members" value={profile.member_count.toLocaleString()} />
+        <div className="bg-osrs-surface-2/70 rounded-lg px-4 py-3">
+          <div className="text-osrs-parchment-dark/60 text-xs tracking-wide uppercase">Top player</div>
+          {profile.top_player ? (
+            <EntityChip
+              entity={{ kind: "player", id: profile.top_player.id, name: profile.top_player.name }}
+              name={profile.top_player.name}
+              size="sm"
+              className="mt-1.5"
+              subtitle={profile.top_player.total_loot?.value_formatted}
+              playerId={profile.top_player.id}
+            />
+          ) : (
+            <div className="text-osrs-gold-bright mt-0.5 text-2xl font-bold">—</div>
+          )}
+        </div>
       </div>
 
-      {/* Two columns on desktop-width iframes: members & bosses | records & feed. */}
+      {records.length > 0 && (
+        <div>
+          <div className="flex items-baseline justify-between gap-2">
+            <SectionHeading>Clan records</SectionHeading>
+            <button
+              type="button"
+              onClick={() => onTab("pbs")}
+              className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright shrink-0 text-[12px]"
+            >
+              All personal bests →
+            </button>
+          </div>
+          <RecordsShowcase records={records} />
+        </div>
+      )}
+
       <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-6">
         <div>
-          {profile.top_players && profile.top_players.length > 0 && (
-            <div>
-              <SectionHeading>Top members this month</SectionHeading>
-              <Card padding="p-1.5">
-                {profile.top_players.slice(0, 6).map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => nav.push({ name: "player", id: p.id })}
-                    className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left"
-                  >
-                    <RankMedal rank={p.rank} />
-                    <NameTile name={p.name} size="sm" playerId={p.id} />
-                    <span className="text-osrs-parchment min-w-0 flex-1 truncate text-[13px]">{p.name}</span>
-                    <span className="text-osrs-gold-bright shrink-0 text-[12.5px] font-semibold tabular-nums">
-                      {gpText(p.loot)}
-                    </span>
-                  </button>
-                ))}
-              </Card>
-            </div>
-          )}
-
-          {profile.top_bosses && profile.top_bosses.length > 0 && (
-            <div>
-              <SectionHeading>Boss activity</SectionHeading>
-              <Card padding="p-3.5">
-                <BossMeters bosses={profile.top_bosses} />
-              </Card>
-            </div>
-          )}
+          <SectionHeading>Top players this month</SectionHeading>
+          <Card padding="p-3.5">
+            {topPlayers.length > 0 ? (
+              <TopPlayersList players={topPlayers} />
+            ) : (
+              <EmptyNote>Member rankings appear once loot starts coming in.</EmptyNote>
+            )}
+          </Card>
         </div>
-
         <div>
-          {profile.records && profile.records.length > 0 && (
-            <div>
-              <SectionHeading>Records held</SectionHeading>
-              <Card padding="p-1.5">
-                {profile.records.slice(0, 6).map((r) => (
-                  <button
-                    key={`${r.npc_id}-${r.team_size}`}
-                    onClick={() => nav.push({ name: "pb-board", npcId: r.npc_id, bossName: r.boss })}
-                    className="hover:bg-osrs-surface-2/60 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="text-osrs-parchment block truncate text-[13px]">{r.boss}</span>
-                      <span className="text-osrs-parchment-dark/50 block truncate text-[10.5px]">
-                        {r.holder.name} · {r.team_size} · <LocalTime unix={r.date_ts} mode="date" />
-                      </span>
-                    </span>
-                    <span className="text-osrs-gold-bright shrink-0 text-[13px] font-semibold tabular-nums">
-                      {r.time_display}
-                    </span>
-                  </button>
-                ))}
-              </Card>
-            </div>
-          )}
-
-          {profile.recent_submissions.length > 0 && (
-            <div>
-              <SectionHeading>Recent activity</SectionHeading>
-              <Card padding="p-0">
-                {profile.recent_submissions.slice(0, 8).map((s) => (
-                  <SubmissionRow
-                    key={`${s.type}-${s.id}`}
-                    submission={s}
-                    onPlayer={(pid) => nav.push({ name: "player", id: pid })}
-                  />
-                ))}
-              </Card>
-            </div>
-          )}
+          <SectionHeading>Most active bosses</SectionHeading>
+          <Card padding="p-3.5">
+            {bosses.length > 0 ? (
+              <BossActivityList bosses={bosses} />
+            ) : (
+              <EmptyNote>The clan&apos;s most-farmed bosses will show up here.</EmptyNote>
+            )}
+          </Card>
         </div>
       </div>
 
-      <ExternalButton href={`https://www.droptracker.io/groups/${profile.id}`}>
-        Full group page & lootboard on droptracker.io
-      </ExternalButton>
+      <SectionHeading>Recent submissions</SectionHeading>
+      <Card padding="p-3">
+        <SubmissionList
+          submissions={profile.recent_submissions}
+          showPlayer
+          emptyHint="Tracked loot for this clan will appear here."
+        />
+      </Card>
     </div>
   );
 }

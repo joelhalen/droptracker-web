@@ -20,7 +20,6 @@ import { useActivityAuth } from "@/lib/activity/auth-context";
 import { useActivityData } from "@/lib/activity/data-context";
 import { useActivityNav } from "@/lib/activity/nav";
 import { useMyProfile, type MyProfile } from "@/lib/activity/use-my-profile";
-import { openExternal } from "@/lib/activity/discord-sdk";
 import { discordAvatar } from "@/lib/activity/img";
 import { gpAmount, gpText } from "@/lib/activity/money";
 import { SectionHeading } from "@/components/activity/bits";
@@ -193,6 +192,7 @@ function PersonalPanel({ my }: { my: MyProfile }) {
 
 /** One submission thumbnail wrapped in the shared site hover card. */
 function SubmissionThumb({ s }: { s: Submission }) {
+  const nav = useActivityNav();
   const kind = SUBMISSION_KIND[s.type] ?? "Drop";
   const qty = s.quantity != null && s.quantity > 1 ? s.quantity : null;
   const worth = s.value && gpAmount(s.value) > 0 ? gpText(s.value) : null;
@@ -224,10 +224,10 @@ function SubmissionThumb({ s }: { s: Submission }) {
           </div>
           {s.item_id != null && (
             <button
-              onClick={() => void openExternal(`https://www.droptracker.io/items/${s.item_id}`)}
+              onClick={() => nav.push({ name: "item", id: s.item_id!, label: s.label })}
               className="text-osrs-gold-bright mt-2.5 text-[11.5px] font-semibold hover:underline"
             >
-              View item ↗
+              View item
             </button>
           )}
         </div>
@@ -478,22 +478,28 @@ export function HomeView() {
                     <img src={row.iconUrl} alt="" className="size-7 shrink-0 object-contain" loading="lazy" />
                   ) : (
                     <NameTile
-                      name={row.playerName}
+                      name={row.subject}
                       size="sm"
                       playerId={row.playerId ?? undefined}
                     />
                   )}
                   <span className="min-w-0 flex-1">
                     <span className="text-osrs-parchment block truncate text-[12.5px]">
-                      {row.playerId ? (
+                      {row.playerId != null || row.groupId != null ? (
                         <button
-                          onClick={() => nav.push({ name: "player", id: row.playerId! })}
+                          onClick={() =>
+                            nav.push(
+                              row.playerId != null
+                                ? { name: "player", id: row.playerId }
+                                : { name: "group", id: row.groupId! },
+                            )
+                          }
                           className="text-osrs-gold-bright font-semibold hover:underline"
                         >
-                          {row.playerName}
+                          {row.subject}
                         </button>
                       ) : (
-                        <span className="font-semibold">{row.playerName}</span>
+                        <span className="font-semibold">{row.subject}</span>
                       )}{" "}
                       · {row.headline}
                     </span>

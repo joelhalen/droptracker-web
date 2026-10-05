@@ -34,6 +34,15 @@ import {
   EventTeamDetailSchema,
   EventTeamsResponseSchema,
   GroupProfileSchema,
+  ClanLogSchema,
+  ConquestBattlesPageSchema,
+  ConquestMapSchema,
+  ConquestTroopBoardSchema,
+  ItemDetailSchema,
+  LootboardSchema,
+  NpcDetailSchema,
+  NpcDropTableSchema,
+  PointsLeaderboardSchema,
   LeaderboardPageSchema,
   LootSweepBoardSchema,
   LootSweepReceiptsSchema,
@@ -67,6 +76,12 @@ import {
   type TaskRequirements,
   type EventSummary,
   type GroupProfile,
+  type ConquestBattlesPage,
+  type ConquestMap,
+  type ConquestTroopBoard,
+  type ItemDetail,
+  type Lootboard,
+  type PointsLeaderboard,
   type LeaderboardPage,
   type LootSweepBoard,
   type LootSweepReceipts,
@@ -460,6 +475,30 @@ export async function boardDetail(
 
 /** Loot Sweep board (sets + per-team receipt counts). Icons come back
  * same-origin (the BFF rewrites www/img → /img for the discordsays CSP). */
+/** The live Conquest map (bearer twin of the site's server action). */
+export async function eventConquest(id: number, sessionToken: string | null): Promise<ConquestMap> {
+  return ConquestMapSchema.parse(await get(`/api/activity/events/${id}/conquest`, sessionToken));
+}
+
+export async function eventConquestBattles(
+  id: number,
+  before: number,
+  sessionToken: string | null,
+): Promise<ConquestBattlesPage> {
+  return ConquestBattlesPageSchema.parse(
+    await get(`/api/activity/events/${id}/conquest/battles?before=${before}`, sessionToken),
+  );
+}
+
+export async function eventConquestTroops(
+  id: number,
+  sessionToken: string | null,
+): Promise<ConquestTroopBoard> {
+  return ConquestTroopBoardSchema.parse(
+    await get(`/api/activity/events/${id}/conquest/troops`, sessionToken),
+  );
+}
+
 export async function lootSweepBoard(
   eventId: number,
   sessionToken: string | null,
@@ -630,6 +669,58 @@ export async function playerAccount(id: number): Promise<PlayerAccount> {
 
 export async function groupProfile(id: number): Promise<GroupProfile> {
   return GroupProfileSchema.parse(await get(`/api/activity/groups/${id}`, null));
+}
+
+// --- Entity pages (NPC, item) and group sub-pages ---------------------------
+
+const NpcPageSchema = z.object({
+  npc: NpcDetailSchema,
+  drop_table: NpcDropTableSchema.nullable(),
+  pb_board: PbBossBoardSchema.nullable(),
+});
+export type NpcPage = z.infer<typeof NpcPageSchema>;
+
+/** An NPC's page: overview, drop table and global PB boards in one read. */
+export async function npcPage(id: number): Promise<NpcPage> {
+  return NpcPageSchema.parse(await get(`/api/activity/npcs/${id}`, null));
+}
+
+export async function itemPage(id: number): Promise<ItemDetail> {
+  return ItemDetailSchema.parse(await get(`/api/activity/items/${id}`, null));
+}
+
+/** `period` is a resolved partition (`lib/period.ts` resolvePeriod). */
+export async function groupLootboard(groupId: number, period: string): Promise<Lootboard> {
+  return LootboardSchema.parse(
+    await get(`/api/activity/groups/${groupId}/lootboard?period=${encodeURIComponent(period)}`, null),
+  );
+}
+
+const GroupClanLogSchema = z.object({
+  board: ClanLogSchema.nullable(),
+  periods: z.array(z.string()),
+});
+export type GroupClanLog = z.infer<typeof GroupClanLogSchema>;
+
+export async function groupClanLog(groupId: number, period: string): Promise<GroupClanLog> {
+  return GroupClanLogSchema.parse(
+    await get(`/api/activity/groups/${groupId}/clan-log?period=${encodeURIComponent(period)}`, null),
+  );
+}
+
+/** Authed when signed in: a clan can make its points board members-only
+ * (403 for everyone else). */
+export async function groupPoints(
+  groupId: number,
+  params: { period: string; page?: number; q?: string },
+  sessionToken: string | null,
+): Promise<PointsLeaderboard> {
+  const q = new URLSearchParams({ period: params.period });
+  if (params.page) q.set("page", String(params.page));
+  if (params.q) q.set("q", params.q);
+  return PointsLeaderboardSchema.parse(
+    await get(`/api/activity/groups/${groupId}/points?${q}`, sessionToken),
+  );
 }
 
 export async function searchAll(q: string): Promise<SearchResults> {
