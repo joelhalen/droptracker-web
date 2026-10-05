@@ -34,6 +34,9 @@ import {
   EventTeamDetailSchema,
   EventTeamsResponseSchema,
   GroupProfileSchema,
+  AnnouncementPageSchema,
+  RecapIndexSchema,
+  RecapSchema,
   ClanLogSchema,
   ConquestBattlesPageSchema,
   ConquestMapSchema,
@@ -76,6 +79,7 @@ import {
   type TaskRequirements,
   type EventSummary,
   type GroupProfile,
+  type AnnouncementPage,
   type ConquestBattlesPage,
   type ConquestMap,
   type ConquestTroopBoard,
@@ -721,6 +725,31 @@ export async function groupPoints(
   return PointsLeaderboardSchema.parse(
     await get(`/api/activity/groups/${groupId}/points?${q}`, sessionToken),
   );
+}
+
+/** News: `global`, or `group:{id}` for one clan's announcements. */
+export async function announcements(scope: string): Promise<AnnouncementPage> {
+  return AnnouncementPageSchema.parse(
+    await get(`/api/activity/announcements?scope=${encodeURIComponent(scope)}`, null),
+  );
+}
+
+const RecapViewSchema = z.object({
+  periods: RecapIndexSchema.shape.periods,
+  period: z.string().nullable(),
+  recap: RecapSchema.nullable(),
+});
+export type RecapView = z.infer<typeof RecapViewSchema>;
+
+/** A recap card plus the subject's archive; no period = the newest one. */
+export async function recapView(
+  scope: "group" | "player",
+  id: number,
+  period?: string,
+): Promise<RecapView> {
+  const q = new URLSearchParams({ scope, id: String(id) });
+  if (period) q.set("period", period);
+  return RecapViewSchema.parse(await get(`/api/activity/recaps?${q}`, null));
 }
 
 export async function searchAll(q: string): Promise<SearchResults> {

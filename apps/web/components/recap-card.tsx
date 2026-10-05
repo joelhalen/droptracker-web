@@ -1,6 +1,7 @@
 import type { Recap } from "@droptracker/api-types";
 import { formatGp } from "@/lib/format";
 import { RECAP_CARD_CSS } from "./recap-card.styles";
+import { EmbedImg } from "@/components/entity-link";
 
 /**
  * The recap poster — one component rendered in two places:
@@ -625,7 +626,7 @@ export function RecapCard({
                   deletes sub-1M screenshots at 30d, so it's often absent. */}
               {drop.image_url && (
                 <div className="dtrc-feat-proof">
-                  <img src={drop.image_url} alt="" />
+                  <EmbedImg src={drop.image_url} alt="" />
                 </div>
               )}
             </div>

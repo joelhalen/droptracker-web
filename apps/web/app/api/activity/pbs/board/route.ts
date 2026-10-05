@@ -3,7 +3,7 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { PbBossBoardSchema } from "@droptracker/api-types";
-import { proxyPbBoardImages, rewriteImgUrls, upstreamGet } from "../../_lib";
+import { proxyPbBoardImages, rewriteImgUrls, upstreamGet, UpstreamError } from "../../_lib";
 
 export async function GET(req: NextRequest) {
   const npcId = (req.nextUrl.searchParams.get("npcId") ?? "").trim();
@@ -19,6 +19,10 @@ export async function GET(req: NextRequest) {
     );
     return NextResponse.json(rewriteImgUrls(proxyPbBoardImages(board)));
   } catch (err) {
+    // 404 is the normal answer for a boss with no ranked times (t271).
+    if (err instanceof UpstreamError && err.status === 404) {
+      return NextResponse.json({ error: "no ranked times" }, { status: 404 });
+    }
     console.error("[activity/pbs/board]", err);
     return NextResponse.json({ error: "upstream error" }, { status: 502 });
   }

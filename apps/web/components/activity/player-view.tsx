@@ -146,24 +146,13 @@ export function PlayerView({ id }: { id: number }) {
           )}
         </div>
         {/* The recap is generated on first view, so this is how most players
-            find out they have one. It lives on the site, outside Discord. */}
+            find out they have one. Shown in-app (the site's own card). */}
         <button
           type="button"
-          onClick={() => void openExternal(`${SITE_ORIGIN}/players/${profile.id}/recap`)}
+          onClick={() => nav.push({ name: "player-recap", id: profile.id, label: profile.name })}
           className="border-osrs-bronze/40 hover:border-osrs-gold text-osrs-parchment-dark hover:text-osrs-gold-bright mt-3 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12.5px] transition-colors"
         >
           Monthly recap
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden
-          >
-            <path d="M7 17 17 7M9 7h8v8" />
-          </svg>
         </button>
       </Card>
 

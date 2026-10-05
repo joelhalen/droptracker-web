@@ -32,6 +32,7 @@ import {
   GroupPbsTab,
   GroupPointsTab,
 } from "@/components/activity/group-tabs";
+import { RecapPanel } from "@/components/activity/recap-panel";
 
 const TABS: { key: GroupTab; label: string }[] = [
   { key: "overview", label: "Overview" },
@@ -39,6 +40,7 @@ const TABS: { key: GroupTab; label: string }[] = [
   { key: "clan-log", label: "Clan Log" },
   { key: "pbs", label: "Personal bests" },
   { key: "points", label: "Points" },
+  { key: "recaps", label: "Recaps" },
 ];
 
 export function GroupView({ id, tab: initialTab }: { id: number; tab?: GroupTab }) {
@@ -143,6 +145,7 @@ export function GroupView({ id, tab: initialTab }: { id: number; tab?: GroupTab 
         {tab === "clan-log" && <GroupClanLogTab groupId={profile.id} />}
         {tab === "pbs" && <GroupPbsTab groupId={profile.id} />}
         {tab === "points" && <GroupPointsTab groupId={profile.id} groupName={profile.name} />}
+        {tab === "recaps" && <RecapPanel scope="group" id={profile.id} />}
       </div>
 
       <ExternalButton href={`${SITE_ORIGIN}/groups/${profile.id}`}>

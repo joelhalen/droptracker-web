@@ -47,10 +47,13 @@ export default async function GroupPage({ params }: { params: Params }) {
   // id). Sub-routes resolve either form; the slug keeps the address bar clean.
   const base = group.canonical_slug ? `/groups/${group.canonical_slug}` : `/groups/${groupId}`;
   // Subscription-pool summary for the support card; both are best-effort.
-  const [subSummary, viewer] = await Promise.all([
+  const [subSummary, viewer, recaps] = await Promise.all([
     api.groupSubscriptionSummary(groupId).catch(() => null),
     getUser().catch(() => null),
+    // The recap archive had no way in from the clan's own page (t272).
+    api.recapIndex("group", groupId).catch(() => null),
   ]);
+  const latestRecap = recaps?.periods[0]?.period ?? null;
 
   // Admins (and event managers) get a shortcut into the admin shell from the
   // public profile — the same place the dashboard's "Manage" link goes, so
@@ -114,6 +117,14 @@ export default async function GroupPage({ params }: { params: Params }) {
           >
             Points
           </Link>
+          {latestRecap && (
+            <Link
+              href={`/groups/${groupId}/recap/${latestRecap}` as Route}
+              className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
+            >
+              Recaps
+            </Link>
+          )}
           {group.discord_url && (
             <a
               href={group.discord_url}

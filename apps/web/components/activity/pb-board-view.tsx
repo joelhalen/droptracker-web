@@ -15,7 +15,7 @@ import { PbBoards } from "@/components/pb-boards";
 import { pbBoard } from "@/lib/activity/api";
 import { useActivityData } from "@/lib/activity/data-context";
 import { useActivityNav } from "@/lib/activity/nav";
-import { BackBar, ErrorNote, LoadingBlock } from "@/components/activity/bits";
+import { BackBar, EmptyNote, ErrorNote, LoadingBlock } from "@/components/activity/bits";
 import { npcIcon } from "@/lib/activity/img";
 
 export function PbBoardView({
@@ -33,18 +33,19 @@ export function PbBoardView({
   const scopeId = groupId ?? group?.id;
   const [board, setBoard] = useState<PbBossBoard | null>(null);
   const [clanOnly, setClanOnly] = useState(groupId != null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<"empty" | "error" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setBoard(null);
-    setFailed(false);
+    setFailed(null);
     pbBoard(npcId, clanOnly && scopeId ? scopeId : undefined)
       .then((b) => {
         if (!cancelled) setBoard(b);
       })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
+      .catch((err: { status?: number }) => {
+        // 404 = nobody has a ranked time here yet (t271), not a failure.
+        if (!cancelled) setFailed(err?.status === 404 ? "empty" : "error");
       });
     return () => {
       cancelled = true;
@@ -95,7 +96,12 @@ export function PbBoardView({
         )}
       </div>
 
-      {failed ? (
+      {failed === "empty" ? (
+        <EmptyNote>
+          No ranked times {clanOnly ? "in this clan " : ""}yet. Kill times appear here once players
+          submit them with the RuneLite plugin.
+        </EmptyNote>
+      ) : failed ? (
         <ErrorNote>Couldn&apos;t load this board.</ErrorNote>
       ) : !board ? (
         <LoadingBlock rows={5} />

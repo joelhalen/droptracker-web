@@ -26,6 +26,7 @@ import { SectionHeading } from "@/components/activity/bits";
 import { ActivitySearch } from "@/components/activity/entity-search";
 import { ALL_SEARCH_KINDS } from "@/lib/search-suggestions";
 import { ActivityClaimRsn } from "@/components/activity/claim-rsn";
+import { HomeNewsCard } from "@/components/activity/news-view";
 
 const SUBMISSION_KIND: Record<Submission["type"], string> = {
   drop: "Drop",
@@ -460,6 +461,9 @@ export function HomeView() {
             }
           />
         </div>
+
+        {/* Latest DropTracker announcement (the site's /announcements). */}
+        <HomeNewsCard />
 
         {/* Your latest submissions (signed-in only) */}
         {sessionToken && <LatestSubmissions recent={my.recent} />}

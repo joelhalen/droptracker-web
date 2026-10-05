@@ -27,6 +27,8 @@ import { GroupView } from "@/components/activity/group-view";
 import { GroupSetupView } from "@/components/activity/group-setup-view";
 import { PbBoardView } from "@/components/activity/pb-board-view";
 import { ItemView, NpcView } from "@/components/activity/entity-views";
+import { NewsView } from "@/components/activity/news-view";
+import { PlayerRecapView } from "@/components/activity/recap-panel";
 import { EventView } from "@/components/activity/event-view";
 import { EventReviewView } from "@/components/activity/review-view";
 import { ActivityEventPlayersView } from "@/components/activity/event-players-view";
@@ -95,6 +97,7 @@ function viewMaxWidth(view: ActivityView): string {
     case "group":
     case "npc":
     case "item":
+    case "player-recap":
       return "max-w-4xl";
     case "event":
     case "event-review":
@@ -134,6 +137,10 @@ function presenceLabel(view: ActivityView): string {
       return "Looking up a boss";
     case "item":
       return "Looking up an item";
+    case "news":
+      return "Reading the news";
+    case "player-recap":
+      return "Looking back on a month";
     case "me":
       return "Checking their progress";
     case "group-setup":
@@ -179,6 +186,10 @@ function renderView(
       return <NpcView id={view.id} label={view.label} />;
     case "item":
       return <ItemView id={view.id} label={view.label} />;
+    case "news":
+      return <NewsView scope={view.scope} id={view.id} />;
+    case "player-recap":
+      return <PlayerRecapView id={view.id} name={view.label} />;
   }
 }
 
