@@ -75,6 +75,7 @@ scripts/deploy.sh     Blue-green production deploy
 
 - Site: `auth/{login,callback,logout}`, `me`, `stream` (SSE proxy),
   `feed/recent`, `search`, `health`, `redirects`, `uploads/proof`,
+  `widget/overview` (public feed for the Android home-screen widget),
   `file-transfers[/[id]/versions/[version]/download]`,
   `admin/file-transfers/[id]/versions`,
   `players/[id]/{card,loot}`, `groups/[id]/card`,
