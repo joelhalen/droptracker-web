@@ -14,6 +14,7 @@ import type { PersonalBestSummary } from "@droptracker/api-types";
 
 import { Button, Card } from "@/components/ui";
 import { PbLoadout } from "@/components/pb-loadout";
+import { PbTime } from "@/components/pb-time";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 const INITIAL_CARDS = 12;
@@ -68,7 +69,7 @@ export function PersonalBestsGrid({
             </div>
             <div className="mt-2 flex items-baseline justify-between gap-2">
               <span className="text-osrs-gold-bright font-mono text-xl font-bold tabular-nums">
-                {pb.time_display}
+                <PbTime display={pb.time_display} approximate={pb.approximate} />
               </span>
               <span className="text-osrs-parchment-dark/60 text-xs">{pb.team_size}</span>
             </div>

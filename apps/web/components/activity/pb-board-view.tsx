@@ -13,6 +13,7 @@ import { useActivityData } from "@/lib/activity/data-context";
 import { useActivityNav } from "@/lib/activity/nav";
 import { BackBar, ErrorNote, ExternalButton, LoadingBlock } from "@/components/activity/bits";
 import { npcIcon } from "@/lib/activity/img";
+import { PbTime } from "@/components/pb-time";
 
 export function PbBoardView({ npcId, bossName }: { npcId: number; bossName: string }) {
   const nav = useActivityNav();
@@ -92,7 +93,7 @@ export function PbBoardView({ npcId, bossName }: { npcId: number; bossName: stri
                     <LocalTime unix={e.date_ts} mode="date" />
                   </span>
                   <span className="text-osrs-gold-bright shrink-0 text-[13px] font-semibold tabular-nums">
-                    {e.time_display}
+                    <PbTime display={e.time_display} approximate={e.approximate} />
                   </span>
                 </button>
               ))}

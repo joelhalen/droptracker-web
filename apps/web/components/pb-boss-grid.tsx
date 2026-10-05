@@ -17,6 +17,7 @@ import { entityPath } from "@/lib/slug";
 import type { PbBossSummary } from "@droptracker/api-types";
 import { PbLoadout } from "@/components/pb-loadout";
 import { Card, EmptyState, Input } from "@/components/ui";
+import { PbTime } from "@/components/pb-time";
 
 const IMG_BASE = "https://www.droptracker.io/img";
 
@@ -78,7 +79,7 @@ function BossCard({
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
             <span className="text-osrs-gold-bright font-mono font-bold tabular-nums">
-              {record.time_display}
+              <PbTime display={record.time_display} approximate={record.approximate} />
             </span>
             {gearId != null && (
               <button

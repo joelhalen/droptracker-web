@@ -306,6 +306,8 @@ export const PersonalBestSummarySchema = z.object({
   boss: z.string(),
   time_ms: z.number().int(),
   time_display: z.string(),
+  /** Set with precise timing off: whole seconds, counted as the slowest tick. */
+  approximate: z.boolean().optional(),
   team_size: z.string(),
   date_ts: z.number().int(),
 });
@@ -529,6 +531,8 @@ export const PbBoardEntrySchema = z.object({
   player_name: z.string(),
   time_ms: z.number().int(),
   time_display: z.string(),
+  /** Set with precise timing off: whole seconds, counted as the slowest tick. */
+  approximate: z.boolean().optional(),
   date_ts: z.number().int().nullable(),
   /** Proof screenshot (droptracker-hosted only; absent otherwise). */
   image_url: z.string().optional(),
@@ -576,6 +580,7 @@ export const PbBossSummarySchema = z.object({
     .object({
       time_ms: z.number().int(),
       time_display: z.string(),
+      approximate: z.boolean().optional(),
       team_size: z.string(),
       player_id: z.number().int(),
       player_name: z.string(),

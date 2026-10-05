@@ -20,6 +20,7 @@ import { PbLoadout } from "@/components/pb-loadout";
 import { Badge, Card, RankMedal } from "@/components/ui";
 import { formatRelativeTime } from "@/lib/format";
 import { entityPath } from "@/lib/slug";
+import { PbTime } from "@/components/pb-time";
 
 /** Records set in the last 7 days get a "New" badge (matches RecordsShowcase). */
 const NEW_RECORD_WINDOW_S = 7 * 24 * 3600;
@@ -84,7 +85,7 @@ export function BoardCard({ board, isGroupScoped }: { board: PbTeamBoard; isGrou
                       e.rank === 1 ? "text-osrs-gold-bright" : "text-osrs-parchment"
                     }`}
                   >
-                    {e.time_display}
+                    <PbTime display={e.time_display} approximate={e.approximate} />
                   </span>
                   {gearId != null && (
                     <button
