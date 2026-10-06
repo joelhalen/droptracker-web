@@ -60,15 +60,19 @@ type EmbeddedTask = NonNullable<BonusRuleInput["task"]>;
  * item came from, so a drop bonus on a Skill of the Week could only ever mean
  * "from anywhere". A pet and a level are the two things genuinely scopable to
  * one skill — the backend enforces the same list and 422s the rest.
+ *
+ * Pets are left out of both lists on purpose: the "+ Pet bonus" rule already
+ * covers them (the race's own pets, No limit, Duplicates count), and a second
+ * pet button only made admins guess which one to use. The backend still
+ * accepts a pet_collection bonus, so older configs keep working.
  */
 const BOSS_BONUS_TASK_TYPES = [
   "item_collection",
   "loot_value",
   "pb_target",
-  "pet_collection",
   "ca_target",
 ] as const;
-const SKILL_BONUS_TASK_TYPES = ["pet_collection", "skill_target"] as const;
+const SKILL_BONUS_TASK_TYPES = ["skill_target"] as const;
 
 /** The "+ …" buttons, in the order they read as a menu. */
 const TASK_BONUS_PRESETS: {
@@ -98,13 +102,6 @@ const TASK_BONUS_PRESETS: {
     help: "Combat achievements at the raced boss, optionally by tier.",
     bosses: true,
     skills: false,
-  },
-  {
-    type: "pet_collection",
-    label: "+ Pet task bonus",
-    help: "A pet, with the repeat and quantity options of a full task.",
-    bosses: true,
-    skills: true,
   },
   {
     type: "skill_target",
@@ -932,6 +929,11 @@ export function CompetitionSetup({
                       { type: "pet", points: isBoss ? 100 : 50, max_awards: 1 },
                     ],
                   })
+                }
+                title={
+                  isBoss
+                    ? "Points when a player gets a pet the raced boss drops."
+                    : "Points when a player gets the raced skill's pet."
                 }
                 className="border-osrs-bronze/50 text-osrs-parchment hover:border-osrs-gold rounded border px-3 py-1.5 text-xs"
               >
