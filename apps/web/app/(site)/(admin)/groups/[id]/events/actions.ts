@@ -126,6 +126,19 @@ async function assertCanUseEventMeta(groupId: EventGroupId) {
   return user;
 }
 
+/** A backend 4xx as a Server Action result. Next redacts thrown Server Action
+ * errors in production, so a descriptive problem+json `detail` ("No pet to
+ * award: ...") would otherwise reach the UI as a generic fallback. 5xx and
+ * non-API errors still throw: their text is not meant for users. */
+type ActionFailure = { ok: false; status: number; message: string };
+
+function apiFailure(err: unknown): ActionFailure | null {
+  if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
+    return { ok: false, status: err.status, message: err.message };
+  }
+  return null;
+}
+
 /** Where this event's admin surfaces live (group manager vs superadmin area). */
 function eventsIndexPath(groupId: EventGroupId): string {
   return groupId == null ? "/admin/events" : `/groups/${groupId}/events`;
@@ -194,13 +207,19 @@ export async function updateGroupEvent(
       | "clan_roster_locked_at_start"
     >
   >,
-) {
+): Promise<{ ok: true; event: EventDetail } | ActionFailure> {
   await assertCanManageEvent(groupId);
   const parsed = EventInputSchema.omit({ group_id: true }).partial().parse(patch);
-  const result = await api.updateEvent(eventId, parsed);
-  revalidatePath(eventsIndexPath(groupId));
-  revalidatePath(eventAdminPath(groupId, eventId));
-  return result;
+  try {
+    const event = await api.updateEvent(eventId, parsed);
+    revalidatePath(eventsIndexPath(groupId));
+    revalidatePath(eventAdminPath(groupId, eventId));
+    return { ok: true, event };
+  } catch (err) {
+    const failure = apiFailure(err);
+    if (failure) return failure;
+    throw err;
+  }
 }
 
 /** Permanently delete a draft or ended event (creator/superadmin). Returns a
@@ -279,13 +298,22 @@ export async function activateEvent(
 }
 
 /** Explicit end (active -> past). Final standings are announced to Discord. */
-export async function endEvent(groupId: EventGroupId, eventId: number) {
+export async function endEvent(
+  groupId: EventGroupId,
+  eventId: number,
+): Promise<{ ok: true; detail: EventDetail } | ActionFailure> {
   await assertCanManageEvent(groupId);
-  const detail = await api.endEvent(eventId);
-  revalidatePath(eventsIndexPath(groupId));
-  revalidatePath(eventAdminPath(groupId, eventId));
-  revalidatePath(`/events/${eventId}`);
-  return detail;
+  try {
+    const detail = await api.endEvent(eventId);
+    revalidatePath(eventsIndexPath(groupId));
+    revalidatePath(eventAdminPath(groupId, eventId));
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true, detail };
+  } catch (err) {
+    const failure = apiFailure(err);
+    if (failure) return failure;
+    throw err;
+  }
 }
 
 /**
@@ -956,8 +984,14 @@ export async function confirmEventCompletion(
   completionId: number,
 ) {
   await assertCanManageEvent(groupId);
-  const result = await api.confirmEventCompletion(eventId, completionId);
-  return { ok: true as const, score_change: result.score_change };
+  try {
+    const result = await api.confirmEventCompletion(eventId, completionId);
+    return { ok: true as const, score_change: result.score_change };
+  } catch (err) {
+    const failure = apiFailure(err);
+    if (failure) return failure;
+    throw err;
+  }
 }
 
 export async function confirmEventCompletionsBulk(
@@ -978,8 +1012,14 @@ export async function rejectEventCompletion(
   note?: string,
 ) {
   await assertCanManageEvent(groupId);
-  await api.rejectEventCompletion(eventId, completionId, note);
-  return { ok: true as const };
+  try {
+    await api.rejectEventCompletion(eventId, completionId, note);
+    return { ok: true as const };
+  } catch (err) {
+    const failure = apiFailure(err);
+    if (failure) return failure;
+    throw err;
+  }
 }
 
 /** Manual award — the escape hatch for pre-join credit and custom/ehp/ehb tasks. */
@@ -990,9 +1030,15 @@ export async function awardEventCompletion(
 ) {
   await assertCanManageEvent(groupId);
   const parsed = EventAwardInputSchema.parse(input);
-  const result = await api.awardEventCompletion(eventId, parsed);
-  revalidatePath(`/events/${eventId}`);
-  return { ok: true as const, id: result.id, score_change: result.score_change };
+  try {
+    const result = await api.awardEventCompletion(eventId, parsed);
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true as const, id: result.id, score_change: result.score_change };
+  } catch (err) {
+    const failure = apiFailure(err);
+    if (failure) return failure;
+    throw err;
+  }
 }
 
 export async function revokeEventCompletion(
@@ -1002,8 +1048,14 @@ export async function revokeEventCompletion(
 ) {
   await assertCanManageEvent(groupId);
   const parsed = EventRevokeInputSchema.parse(input);
-  await api.revokeEventCompletion(eventId, parsed);
-  return { ok: true as const };
+  try {
+    await api.revokeEventCompletion(eventId, parsed);
+    return { ok: true as const };
+  } catch (err) {
+    const failure = apiFailure(err);
+    if (failure) return failure;
+    throw err;
+  }
 }
 
 /** Event manager audit log — the merged ledger + admin-action timeline, with
@@ -1061,10 +1113,16 @@ export async function saveEventDiscord(
 ) {
   await assertCanManageEvent(groupId);
   const parsed = EventChannelConfigInputSchema.parse(input);
-  const result = await api.updateEventDiscord(eventId, parsed);
-  revalidatePath(eventAdminPath(groupId, eventId));
-  revalidatePath(`${eventAdminPath(groupId, eventId)}/discord`);
-  return result;
+  try {
+    const config = await api.updateEventDiscord(eventId, parsed);
+    revalidatePath(eventAdminPath(groupId, eventId));
+    revalidatePath(`${eventAdminPath(groupId, eventId)}/discord`);
+    return { ok: true as const, config };
+  } catch (err) {
+    const failure = apiFailure(err);
+    if (failure) return failure;
+    throw err;
+  }
 }
 
 // --- Per-team Discord channels & roles (web53a) ------------------------------

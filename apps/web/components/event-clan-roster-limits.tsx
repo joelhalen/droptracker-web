@@ -43,11 +43,15 @@ export function EventClanRosterLimits({ event }: { event: EventDetail }) {
     }
     startTransition(async () => {
       try {
-        await updateGroupEvent(null, event.id, {
+        const res = await updateGroupEvent(null, event.id, {
           clan_roster_min: lo,
           clan_roster_max: hi,
           clan_roster_locked_at_start: locked,
         });
+        if (!res.ok) {
+          setError(res.message);
+          return;
+        }
         setSaved(true);
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't save the roster limits."));

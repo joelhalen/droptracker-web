@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { getErrorMessage, isStaleDeploymentError, STALE_DEPLOYMENT_MESSAGE } from "../lib/errors";
+import {
+  getErrorMessage,
+  isStaleDeploymentError,
+  STALE_DEPLOYMENT_MESSAGE,
+  unwrapActionResult,
+} from "../lib/errors";
 
 /** Stand-in for Next's client-side UnrecognizedActionError, which we match by name. */
 function unrecognizedActionError(actionId = "609d214962dd3156ec5580f2c508b75dc6d96582d3") {
@@ -41,4 +46,18 @@ test("getErrorMessage still handles ordinary values", () => {
     getErrorMessage(new Error("An error occurred in the Server Components render."), "fallback"),
     "fallback",
   );
+});
+
+test("unwrapActionResult passes success through and surfaces the backend message", () => {
+  const ok = { ok: true as const, event: { id: 123 } };
+  assert.equal(unwrapActionResult(ok), ok);
+  const detail = "No pet to award: The drop tables don't list a pet for Phosani's Nightmare.";
+  let thrown: unknown;
+  try {
+    unwrapActionResult({ ok: false, status: 422, message: detail });
+  } catch (err) {
+    thrown = err;
+  }
+  // Thrown client-side, so it is not redacted and getErrorMessage keeps it.
+  assert.equal(getErrorMessage(thrown, "Couldn't save the competition settings."), detail);
 });

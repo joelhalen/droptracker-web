@@ -159,7 +159,10 @@ export function CompetitionSetup({
   onChange: (v: EventCompetitionInput) => void;
   /** Persist `value` (the wizard's PATCH) — the WOM link/create flows call it
    * first so the backend sees the metric they must match. */
-  onSaveDraft: (v: EventCompetitionInput) => Promise<EventDetail | null>;
+  /** Saves the settings before a WOM link/create; a failure's message shows inline. */
+  onSaveDraft: (
+    v: EventCompetitionInput,
+  ) => Promise<{ ok: true; event: EventDetail } | { ok: false; message: string }>;
   onEventUpdated: (d: EventDetail) => void;
   disabled?: boolean;
 }) {
@@ -266,7 +269,10 @@ export function CompetitionSetup({
       if (!event || !preview) return;
       setError(null);
       const saved = await onSaveDraft(value);
-      if (!saved) return;
+      if (!saved.ok) {
+        setError(saved.message);
+        return;
+      }
       const res = await linkWomCompetition(groupId, event.id, preview.id);
       if (!res.ok) {
         setError(res.message);
@@ -294,7 +300,10 @@ export function CompetitionSetup({
       if (!event) return;
       setError(null);
       const saved = await onSaveDraft(value);
-      if (!saved) return;
+      if (!saved.ok) {
+        setError(saved.message);
+        return;
+      }
       const res = await createWomCompetitionForEvent(groupId, event.id);
       if (!res.ok) {
         setError(res.message);

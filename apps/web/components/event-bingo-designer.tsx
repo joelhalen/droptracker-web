@@ -30,7 +30,7 @@ import {
   type EventTaskLibraryItem,
 } from "@droptracker/api-types";
 import { TASK_TYPE_LABELS } from "@/lib/events";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { BoundTaskPanel, EventTaskCombobox } from "@/components/event-task-search";
@@ -229,10 +229,11 @@ export function EventBingoDesigner({
         bonusValid &&
         (line !== (event.bonus_line_points ?? 0) || blackout !== (event.bonus_blackout_points ?? 0))
       ) {
-        await updateGroupEvent(groupId, event.id, {
+        const bonusRes = await updateGroupEvent(groupId, event.id, {
           bonus_line_points: line,
           bonus_blackout_points: blackout,
         });
+        unwrapActionResult(bonusRes);
       }
       const detail = await saveEventBingo(groupId, event.id, input);
       savedRevRef.current = rev;

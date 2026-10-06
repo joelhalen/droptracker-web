@@ -36,7 +36,7 @@ import {
   teamHasLeadership,
   withTeamRole,
 } from "@/lib/events";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import { materializeSchedule } from "@/lib/event-schedule";
 import { confirmDiscard } from "@/lib/use-unsaved-changes";
 import { Alert, Button, EmptyState } from "@/components/ui";
@@ -350,7 +350,7 @@ export function EventManager({
     setError(null);
     startTransition(async () => {
       try {
-        applyDetail(await endEvent(groupId, event.id));
+        applyDetail(unwrapActionResult(await endEvent(groupId, event.id)).detail);
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't end the event. Please try again."));
       }
@@ -439,7 +439,7 @@ export function EventManager({
     startTransition(async () => {
       setError(null);
       try {
-        const updated = await updateGroupEvent(groupId, event.id, {
+        const res = await updateGroupEvent(groupId, event.id, {
           name: eventDraft.name,
           description: eventDraft.description || undefined,
           starts_at: toUnix(eventDraft.startsAt),
@@ -460,6 +460,7 @@ export function EventManager({
             selection: eventDraft.leaderSelection,
           },
         });
+        const { event: updated } = unwrapActionResult(res);
         setEvent(updated);
         setTasks(updated.tasks);
         setTeams(updated.teams);
@@ -1501,11 +1502,15 @@ export function EventManager({
                   startTransition(async () => {
                     setError(null);
                     try {
-                      const updated = await updateGroupEvent(groupId, event.id, {
+                      const res = await updateGroupEvent(groupId, event.id, {
                         competition: competitionInput,
                       });
-                      applyDetail(updated);
-                      setCompetitionInput(competitionBlockToInput(updated.competition));
+                      if (!res.ok) {
+                        setError(res.message);
+                        return;
+                      }
+                      applyDetail(res.event);
+                      setCompetitionInput(competitionBlockToInput(res.event.competition));
                     } catch (err) {
                       setError(
                         getErrorMessage(err, "Couldn't save the competition settings."),
@@ -1526,15 +1531,19 @@ export function EventManager({
             onChange={setCompetitionInput}
             onSaveDraft={async (input) => {
               try {
-                const updated = await updateGroupEvent(groupId, event.id, {
+                const res = await updateGroupEvent(groupId, event.id, {
                   competition: input,
                 });
-                applyDetail(updated);
-                setCompetitionInput(competitionBlockToInput(updated.competition));
-                return updated;
+                if (res.ok) {
+                  applyDetail(res.event);
+                  setCompetitionInput(competitionBlockToInput(res.event.competition));
+                }
+                return res;
               } catch (err) {
-                setError(getErrorMessage(err, "Couldn't save the competition settings."));
-                return null;
+                return {
+                  ok: false,
+                  message: getErrorMessage(err, "Couldn't save the competition settings."),
+                };
               }
             }}
             onEventUpdated={(d) => {

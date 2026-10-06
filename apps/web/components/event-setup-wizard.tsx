@@ -64,7 +64,7 @@ import {
   saveEventClanPoints,
 } from "@/app/(site)/(admin)/groups/[id]/events/clan-points-actions";
 import { ordinal, placeBadge, trimPlacement } from "@/lib/clan-points";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import {
   EVENT_MODE_LABELS,
   FORMATION_MODE_HELP,
@@ -513,13 +513,14 @@ export function EventSetupWizard({
           if (detail) {
             // An empty description clears it (the backend stores "" as NULL).
             // web119a: a global draft may switch to staff-hosted clan-vs-clan.
-            const updated = await updateGroupEvent(groupId, detail.id, {
+            const res = await updateGroupEvent(groupId, detail.id, {
               name: name.trim(),
               description,
               ...(kind !== detail.kind ? { kind } : {}),
               ...(mode !== detail.mode ? { mode } : {}),
               ...(roster ?? {}),
             });
+            const { event: updated } = unwrapActionResult(res);
             setDetail(updated);
             if (updated.staff_hosted) setFormationMode(updated.formation_mode);
           }
@@ -580,17 +581,19 @@ export function EventSetupWizard({
             // Take the response rather than merging locally: the compiled
             // windows (and the frozen ones on a live event) only exist
             // server-side, and the preview must not disagree with them.
-            const updated = await updateGroupEvent(groupId, detail.id, {
+            const res = await updateGroupEvent(groupId, detail.id, {
               starts_at: toUnix(startsAt),
               ends_at: toUnix(endsAt),
               schedule: scheduleInput,
             });
+            const { event: updated } = unwrapActionResult(res);
             setDetail(updated);
           }
         } else if (step.key === "competition" && detail) {
-          const updated = await updateGroupEvent(groupId, detail.id, {
+          const res = await updateGroupEvent(groupId, detail.id, {
             competition: competitionInput,
           });
+          const { event: updated } = unwrapActionResult(res);
           setDetail(updated);
           setCompetitionInput(competitionBlockToInput(updated.competition));
         } else if (step.key === "rules" && detail) {
@@ -598,7 +601,7 @@ export function EventSetupWizard({
           // on the Competition step decides it) — never override it here. A
           // team race picks its formation mode here like any team event.
           const comp = isCompetitionKind(detail.kind) && !isTeamRace(detail.competition);
-          await updateGroupEvent(groupId, detail.id, {
+          const rulesRes = await updateGroupEvent(groupId, detail.id, {
             // Staff-hosted clan-vs-clan (web119a) is always a sign-up pool.
             ...(comp || detail.staff_hosted
               ? {}
@@ -611,6 +614,7 @@ export function EventSetupWizard({
             allow_live_edits: allowLiveEdits,
             allow_late_signups: allowLateSignups,
           });
+          unwrapActionResult(rulesRes);
           // Prize pot config rides its own action (not part of EventInput).
           // confirm_disable_buyins is safe here — a wizard draft has no records.
           const potRes = await updateEventPotConfig(groupId, detail.id, {
@@ -1172,15 +1176,19 @@ export function EventSetupWizard({
           onChange={setCompetitionInput}
           onSaveDraft={async (input) => {
             try {
-              const updated = await updateGroupEvent(groupId, detail.id, {
+              const res = await updateGroupEvent(groupId, detail.id, {
                 competition: input,
               });
-              setDetail(updated);
-              setCompetitionInput(competitionBlockToInput(updated.competition));
-              return updated;
+              if (res.ok) {
+                setDetail(res.event);
+                setCompetitionInput(competitionBlockToInput(res.event.competition));
+              }
+              return res;
             } catch (err) {
-              setError(getErrorMessage(err, "Couldn't save the competition settings."));
-              return null;
+              return {
+                ok: false,
+                message: getErrorMessage(err, "Couldn't save the competition settings."),
+              };
             }
           }}
           onEventUpdated={(d) => {

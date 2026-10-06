@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { EventCompletion, EventTask, EventTeam } from "@droptracker/api-types";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import {
   completionMatchesFilter,
   restoreOptimisticRow,
@@ -163,7 +163,7 @@ export function EventReview({
 
   const onConfirm = (row: EventCompletion) =>
     actOnRow(row, "confirmed", "confirm", async () => {
-      const result = await confirmEventCompletion(groupId, eventId, row.id);
+      const result = unwrapActionResult(await confirmEventCompletion(groupId, eventId, row.id));
       if (result.score_change) {
         setReceipt({
           from: "confirm",
@@ -173,10 +173,12 @@ export function EventReview({
       }
     });
   const onReject = (row: EventCompletion) =>
-    actOnRow(row, "rejected", "reject", () => rejectEventCompletion(groupId, eventId, row.id));
+    actOnRow(row, "rejected", "reject", async () =>
+      unwrapActionResult(await rejectEventCompletion(groupId, eventId, row.id)),
+    );
   const onRevoke = (row: EventCompletion) =>
-    actOnRow(row, "revoked", "revoke", () =>
-      revokeEventCompletion(groupId, eventId, { completion_id: row.id }),
+    actOnRow(row, "revoked", "revoke", async () =>
+      unwrapActionResult(await revokeEventCompletion(groupId, eventId, { completion_id: row.id })),
     );
 
   const onConfirmAll = () => {
@@ -304,7 +306,7 @@ export function EventReview({
     setAwarding(true);
     startTransition(async () => {
       try {
-        const result = await awardEventCompletion(groupId, eventId, {
+        const res = await awardEventCompletion(groupId, eventId, {
           task_id: award.taskId,
           team_id: award.teamId,
           player_id: awardPlayer?.player_id,
@@ -315,6 +317,7 @@ export function EventReview({
           path: part.startsWith("path:") ? Number(part.slice(5)) : undefined,
           note: award.note.trim() || undefined,
         });
+        const result = unwrapActionResult(res);
         setAward((a) => ({ ...a, note: "" }));
         setReceipt(
           result.score_change

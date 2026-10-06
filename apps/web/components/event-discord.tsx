@@ -46,7 +46,7 @@ import {
   type TeamDiscordTeamState,
 } from "@droptracker/api-types";
 import type { DiscordChannel, EventDiscordGuild } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { CollapsibleSection } from "@/components/collapsible-section";
 import { EventLayoutOverrides } from "@/components/event-layout-editor";
@@ -618,7 +618,7 @@ export function EventDiscordSettings({
             .map(([k, ids]) => [k, (ids ?? []).filter((id) => /^\d+$/.test(id))])
             .filter(([, ids]) => (ids as string[]).length > 0),
         );
-        const result = await saveEventDiscord(groupId, eventId, {
+        const res = await saveEventDiscord(groupId, eventId, {
           guild_id: guildId.trim() || null,
           channels: guildId.trim() ? cleaned : {},
           // Event-level knobs only exist in the shared scope; a per-group
@@ -634,6 +634,7 @@ export function EventDiscordSettings({
           // clobber the stored verbosity config with nothing.
           messages: messages ?? undefined,
         });
+        const result = unwrapActionResult(res).config;
         applyConfig(result);
         if (scope === null) setPerGroup(result.per_group_discord ?? false);
         if (scope !== null && meta) {

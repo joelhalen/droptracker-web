@@ -34,3 +34,16 @@ export function getErrorMessage(err: unknown, fallback = "Something went wrong. 
   if (typeof err === "string" && err) return err;
   return fallback;
 }
+
+/**
+ * Unwrap a `{ ok: false, message }` Server Action result inside a client-side
+ * try block: returns the success value, or throws a client Error carrying the
+ * backend's message. Errors thrown on the client are not redacted, so the
+ * surrounding `getErrorMessage` shows the real text.
+ */
+export function unwrapActionResult<R extends { ok: true } | { ok: false; message: string }>(
+  res: R,
+): Extract<R, { ok: true }> {
+  if (!res.ok) throw new Error((res as { message: string }).message);
+  return res as Extract<R, { ok: true }>;
+}

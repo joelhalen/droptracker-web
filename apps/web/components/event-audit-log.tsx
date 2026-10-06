@@ -6,7 +6,7 @@ import {
   eventAuditLog,
   revokeEventCompletion,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import { isRevocableCompletion } from "@/lib/events";
 import { formatRelativeTime } from "@/lib/format";
 import { Button } from "@/components/ui";
@@ -164,10 +164,11 @@ export function EventAuditLog({ groupId, eventId }: { groupId: number | null; ev
     setRevoking(true);
     setError(null);
     try {
-      await revokeEventCompletion(groupId, eventId, {
+      const res = await revokeEventCompletion(groupId, eventId, {
         completion_id: entry.completion_id,
         note: note.trim() || undefined,
       });
+      unwrapActionResult(res);
       setArming(null);
       setNote("");
       setNotice(`Revoked completion #${entry.completion_id} — its points no longer count.`);
