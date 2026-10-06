@@ -47,6 +47,7 @@ import {
   type EventBuyinKind,
   type EventBuyinStatus,
   type EventPrizeDistribution,
+  type BoardTeamMoveResult,
 } from "@droptracker/api-types";
 import { api, ApiError, apiErrorCode, type EventAuditParams } from "@/lib/api";
 import {
@@ -677,6 +678,36 @@ export async function saveEventBoardSettings(
 export async function fetchBoardShopConfig(groupId: EventGroupId, eventId: number) {
   await assertCanManageEvent(groupId);
   return api.eventBoardShopConfig(eventId);
+}
+
+/** Admin placement: move a team's piece to a chosen tile. A finish landing
+ * comes back as a failure with `finishConfirm` until resent confirmed. */
+export async function moveBoardTeam(
+  groupId: EventGroupId,
+  eventId: number,
+  teamId: number,
+  body: { tileIdx: number; followLinks?: boolean; confirmFinish?: boolean; reason?: string },
+): Promise<
+  | { ok: true; result: BoardTeamMoveResult }
+  | (ActionFailure & { finishConfirm?: { hasTask: boolean } })
+> {
+  await assertCanManageEvent(groupId);
+  try {
+    const result = await api.moveEventBoardTeam(eventId, teamId, body);
+    revalidatePath(eventAdminPath(groupId, eventId));
+    revalidatePath(`/events/${eventId}`);
+    return { ok: true, result };
+  } catch (err) {
+    const failure = apiFailure(err);
+    if (failure) {
+      const problem = err instanceof ApiError ? err.problem : undefined;
+      if (problem?.finish_confirmation_required === true) {
+        return { ...failure, finishConfirm: { hasTask: problem.finish_has_task === true } };
+      }
+      return failure;
+    }
+    throw err;
+  }
 }
 
 /** Save the per-event shop config (per-item overrides). Refresh cadence is

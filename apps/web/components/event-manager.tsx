@@ -68,6 +68,7 @@ import { EventBingoDesigner } from "@/components/event-bingo-designer";
 import { EventBoardDesigner } from "@/components/event-board-designer";
 import { ConquestDesigner } from "@/components/conquest-designer";
 import { EventBoardShopConfig } from "@/components/event-board-shop-config";
+import { EventBoardTeamMover } from "@/components/event-board-team-mover";
 import { EventDiscordSettings } from "@/components/event-discord";
 import { PrizePotManager } from "@/components/prize-pot-manager";
 import { EventClanPointsManager } from "@/components/event-clan-points-manager";
@@ -2060,6 +2061,13 @@ export function EventManager({
             tasks={tasks}
             onTaskUpdated={onTaskUpdated}
           />
+          <div className="mt-6">
+            <EventBoardTeamMover
+              groupId={groupId}
+              eventId={event.id}
+              live={event.status === "active"}
+            />
+          </div>
           <div className="mt-6">
             <EventBoardShopConfig groupId={groupId} eventId={event.id} />
           </div>

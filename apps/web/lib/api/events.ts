@@ -14,6 +14,8 @@ import {
   type LootSweepSummary,
   BoardRollResultSchema,
   type BoardRollResult,
+  BoardTeamMoveResultSchema,
+  type BoardTeamMoveResult,
   BoardSettingsSchema,
   type BoardSettings,
   type BoardInput,
@@ -836,6 +838,24 @@ export const eventsApi = {
   async rollEventBoard(eventId: number, teamId?: number): Promise<BoardRollResult> {
     return BoardRollResultSchema.parse(
       await apiSend("POST", `/events/${eventId}/board/roll`, teamId ? { team_id: teamId } : {}),
+    );
+  },
+
+
+  /** Admin placement: put a team's piece on a chosen tile. A finish landing
+   * 409s (`finish_confirmation_required`) until resent with confirmFinish. */
+  async moveEventBoardTeam(
+    eventId: number,
+    teamId: number,
+    body: { tileIdx: number; followLinks?: boolean; confirmFinish?: boolean; reason?: string },
+  ): Promise<BoardTeamMoveResult> {
+    return BoardTeamMoveResultSchema.parse(
+      await apiSend("POST", `/events/${eventId}/board/teams/${teamId}/position`, {
+        tile_idx: body.tileIdx,
+        follow_links: body.followLinks === true,
+        confirm_finish: body.confirmFinish === true,
+        ...(body.reason ? { reason: body.reason } : {}),
+      }),
     );
   },
 

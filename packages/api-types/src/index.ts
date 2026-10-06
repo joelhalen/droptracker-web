@@ -4663,6 +4663,22 @@ export const BoardRollResultSchema = z.object({
 });
 export type BoardRollResult = z.infer<typeof BoardRollResultSchema>;
 
+/** POST /events/{id}/board/teams/{team_id}/position (admin placement). */
+export const BoardTeamMoveResultSchema = z.object({
+  team_id: z.number().int(),
+  team_name: z.string().nullable().optional(),
+  from: z.number().int(),
+  to: z.number().int(),
+  won: z.boolean().default(false),
+  jump: z
+    .object({ kind: z.string(), from: z.number().int(), to: z.number().int() })
+    .nullable()
+    .optional(),
+  task_label: z.string().nullable().optional(),
+  finish_task: z.boolean().optional(),
+});
+export type BoardTeamMoveResult = z.infer<typeof BoardTeamMoveResultSchema>;
+
 export const EVENT_STATUS = ["draft", "active", "past"] as const;
 
 /* --- Recurring activation schedules (web82a) ------------------------------
