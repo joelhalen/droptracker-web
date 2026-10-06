@@ -103,6 +103,7 @@ export const ADMIN_SECTIONS: AdminNavSection[] = [
       { href: "/admin/backups", label: "Backups", desc: "Nightly database backup status and offsite copies." },
       { href: "/admin/b2", label: "B2 usage", desc: "Bucket storage usage and estimated monthly cost." },
       { href: "/admin/api-keys", minRole: "developer", label: "Data API keys", desc: "Keys for the external /v2 API — usage, tier promotion, per-key limits." },
+      { href: "/admin/widget", label: "Phone widget", desc: "Pair or revoke the Android admin widget on your phone." },
       { href: "/admin/logs", minRole: "developer", label: "Logs", desc: "Tail application logs by source." },
       { href: "/admin/discord", label: "Discord sender", desc: "Send a message to any channel via the bot." },
     ],

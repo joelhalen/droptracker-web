@@ -21,6 +21,7 @@ import { lootboardApi } from "./lootboard";
 import { announcementsApi } from "./announcements";
 import { docsApi } from "./docs";
 import { redirectsApi } from "./redirects";
+import { adminWidgetApi } from "./admin-widget";
 import { statusApi } from "./status";
 import { platformApi } from "./platform";
 import { devApi } from "./dev";
@@ -59,6 +60,7 @@ export const api = {
   ...announcementsApi,
   ...docsApi,
   ...redirectsApi,
+  ...adminWidgetApi,
   ...statusApi,
   ...platformApi,
   ...devApi,
