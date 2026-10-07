@@ -855,6 +855,23 @@ export const AnnouncementSchema = z.object({
 });
 export type Announcement = z.infer<typeof AnnouncementSchema>;
 
+/** A site-wide post waiting for the owner's review (web129a). Nothing about
+ * it is public until an approver approves it. */
+export const AnnouncementDraftSchema = AnnouncementSchema.extend({
+  status: z.string(),
+  post_to_discord: z.boolean().default(false),
+  source_label: z.string().nullable().optional(),
+  created_at: z.number().int().default(0),
+});
+export type AnnouncementDraft = z.infer<typeof AnnouncementDraftSchema>;
+
+export const AnnouncementReviewQueueSchema = z.object({
+  items: z.array(AnnouncementDraftSchema),
+  /** Only approvers (the owner) may approve; other staff see the queue. */
+  can_approve: z.boolean().default(false),
+});
+export type AnnouncementReviewQueue = z.infer<typeof AnnouncementReviewQueueSchema>;
+
 export const AnnouncementPageSchema = z.object({
   items: z.array(AnnouncementSchema),
   next_cursor: z.string().nullable().optional(),

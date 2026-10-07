@@ -16,7 +16,7 @@ import { Alert, Button } from "@/components/ui";
  */
 export function AnnouncementComposer({ groupId }: { groupId?: number }) {
   const [pending, startTransition] = useTransition();
-  const [done, setDone] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState(false);
   const [form, setForm] = useState<AnnouncementInput>({
@@ -75,8 +75,13 @@ export function AnnouncementComposer({ groupId }: { groupId?: number }) {
     setError(null);
     startTransition(async () => {
       try {
+        let message = "Published.";
         if (groupId) await publishAnnouncement(groupId, form);
-        else await publishGlobalAnnouncement(form);
+        else {
+          const result = await publishGlobalAnnouncement(form);
+          // Not written by the owner: it waits in the review queue instead.
+          if (result.status === "draft") message = "Sent to the owner for review.";
+        }
         // Clear pings too — a follow-up post must not silently re-ping.
         setForm((f) => ({
           ...f,
@@ -87,8 +92,8 @@ export function AnnouncementComposer({ groupId }: { groupId?: number }) {
           ping_user_ids: [],
           ping_everyone: false,
         }));
-        setDone(true);
-        setTimeout(() => setDone(false), 2500);
+        setDone(message);
+        setTimeout(() => setDone(null), 4000);
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't publish the announcement. Please try again."));
       }
@@ -207,7 +212,7 @@ export function AnnouncementComposer({ groupId }: { groupId?: number }) {
         <Button type="submit" variant="secondary" disabled={!valid || pending}>
           {pending ? "Publishing…" : "Publish"}
         </Button>
-        {done && <span className="text-osrs-green text-sm">Published.</span>}
+        {done && <span className="text-osrs-green text-sm">{done}</span>}
       </div>
       {error && <Alert variant="error">{error}</Alert>}
     </form>

@@ -16,7 +16,20 @@ export async function publishGlobalAnnouncement(input: AnnouncementInput) {
   const result = await api.createAnnouncement(parsed);
   revalidatePath("/admin/announcements");
   revalidatePath("/announcements");
-  return { ok: true as const, id: result.id };
+  return { ok: true as const, id: result.id, status: result.status };
+}
+
+/** Server Action: approve a draft from the review queue, with any last edits,
+ * and publish it. The API only lets approvers (the owner) do this. */
+export async function approveGlobalAnnouncement(
+  id: number,
+  patch: Partial<Pick<Announcement, "title" | "body_md" | "pinned">> & { post_to_discord?: boolean },
+): Promise<Announcement> {
+  await requireSuperadmin("/admin/announcements");
+  const result = await api.approveAnnouncement(id, patch);
+  revalidatePath("/admin/announcements");
+  revalidatePath("/announcements");
+  return result;
 }
 
 /** Server Action: edit a global announcement. Superadmin only. */
