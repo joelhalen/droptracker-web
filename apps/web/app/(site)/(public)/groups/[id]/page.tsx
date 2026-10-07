@@ -9,6 +9,7 @@ import { groupSocialMetadata, entityCanonical } from "@/lib/seo";
 import { EntityDisambiguation } from "@/components/entity-disambiguation";
 import { CountUp } from "@/components/count-up";
 import { GroupSupportCard } from "@/components/group-support-card";
+import { GroupBankPanel } from "@/components/group-bank-panel";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { BossActivityList, RecordsShowcase, TopPlayersList } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
@@ -47,11 +48,14 @@ export default async function GroupPage({ params }: { params: Params }) {
   // id). Sub-routes resolve either form; the slug keeps the address bar clean.
   const base = group.canonical_slug ? `/groups/${group.canonical_slug}` : `/groups/${groupId}`;
   // Subscription-pool summary for the support card; both are best-effort.
-  const [subSummary, viewer, recaps] = await Promise.all([
+  const [subSummary, viewer, recaps, bank] = await Promise.all([
     api.groupSubscriptionSummary(groupId).catch(() => null),
     getUser().catch(() => null),
     // The recap archive had no way in from the clan's own page (t272).
     api.recapIndex("group", groupId).catch(() => null),
+    // Clan bank (web131a): shown once something has been recorded, unless the
+    // group keeps it private.
+    api.groupBank(groupId).catch(() => null),
   ]);
   const latestRecap = recaps?.periods[0]?.period ?? null;
 
@@ -189,6 +193,10 @@ export default async function GroupPage({ params }: { params: Params }) {
           )}
         </div>
       </div>
+
+      {bank?.visible && bank.has_activity && (
+        <GroupBankPanel bank={bank} manageHref={bank.can_manage ? `/groups/${groupId}/bank` : null} />
+      )}
 
       {hasRecords && (
         <section className="rise-in">

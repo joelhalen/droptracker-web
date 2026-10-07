@@ -40,10 +40,12 @@ export default async function GroupAdminLayout({
   // admin tab. Best-effort: header still renders if the billing API is down.
   // The manual-review pending count drives the Submissions tab badge (small
   // payload; best-effort so a hiccup never blocks the shell).
-  const [subscription, tiers, manualQueue] = await Promise.all([
+  const [subscription, tiers, manualQueue, bank] = await Promise.all([
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
     api.manualSubmissions(groupId).catch(() => null),
+    // Pending-donation count for the Bank tab badge (web131a).
+    isAdmin ? api.groupBank(groupId).catch(() => null) : null,
   ]);
 
   const eventsTab: NavTab = {
@@ -80,6 +82,7 @@ export default async function GroupAdminLayout({
           label: "Submissions",
           badge: manualQueue?.pending_count ?? 0,
         },
+        { href: `/groups/${groupId}/bank`, label: "Bank", badge: bank?.pending_count ?? 0 },
         // Route kept as /authorized so existing links and bookmarks survive;
         // the tab covers the owner seat and the Discord policy now, not just a
         // flat list of authorized users.

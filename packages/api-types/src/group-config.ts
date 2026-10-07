@@ -23,6 +23,7 @@ export type ConfigCategory =
   | "board"
   | "recaps"
   | "clan_log"
+  | "bank"
   | "clan_chat"
   | "voice"
   | "integration";
@@ -140,6 +141,7 @@ export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "board", label: "Lootboard" },
   { id: "recaps", label: "Monthly recaps" },
   { id: "clan_log", label: "Clan Log" },
+  { id: "bank", label: "Clan bank" },
   { id: "clan_chat", label: "Clan chat" },
   { id: "voice", label: "Voice channel counters" },
   { id: "integration", label: "WiseOldMan & API" },
@@ -371,6 +373,10 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "clan_log_enabled", label: "Post a live Clan Log board", category: "clan_log", type: "boolean", help: "Keep a standing message in your Discord showing how far through every boss's uniques your clan is, edited automatically as members pull things. Your board is always on the website and available through /clan-log — this is only the Discord message.", default: false },
   { key: "clan_log_channel_id", label: "Clan Log channel", category: "clan_log", type: "channel", help: "Where the standing Clan Log message lives. Pick a channel of its own: the bot edits this message continuously, so it will bury conversation in a busy channel.", default: null },
   { key: "clan_log_message_id", label: "Clan Log message id", category: "clan_log", type: "string", help: "Message the bot edits when updating the board. Managed automatically.", default: null },
+
+  // --- Clan bank ------------------------------------------------------------
+  { key: "bank_show_on_profile", label: "Show the clan bank on your group page", category: "bank", type: "boolean", help: "Show the bank balance and totals on your public group page once you've recorded something. Turn off to keep the bank visible to admins only.", default: true },
+  { key: "bank_show_donors", label: "Show donor names", category: "bank", type: "boolean", help: "List top donors and recent bank activity by name on your group page. Turn off to show only the totals.", default: true },
 
   // --- Clan chat ------------------------------------------------------------
   // Clan broadcast tracking and the chat bridge both depend on the plugin

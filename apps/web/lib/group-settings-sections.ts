@@ -95,6 +95,10 @@ const CATEGORY_META: Record<ConfigCategory, { nav: SettingsNav; blurb: string }>
     nav: "Boards & reports",
     blurb: "A standing Discord message tracking how far through every boss's uniques your clan is.",
   },
+  bank: {
+    nav: "Group",
+    blurb: "What visitors see of your clan bank on your group page. Record GP on the Bank tab.",
+  },
   clan_chat: {
     nav: "Integrations",
     blurb:
@@ -119,6 +123,7 @@ function category(id: ConfigCategory): SettingsSection {
 /** Every section on the page, top to bottom. */
 export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   category("profile"),
+  category("bank"),
   category("channels"),
   category("drops"),
   {

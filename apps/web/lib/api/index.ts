@@ -16,6 +16,7 @@ import { eventTasksApi } from "./event-tasks";
 import { eventMembershipApi } from "./event-membership";
 import { eventDiscordApi } from "./event-discord";
 import { eventPotApi } from "./event-pot";
+import { groupBankApi } from "./group-bank";
 import { eventPointsApi } from "./event-points";
 import { lootboardApi } from "./lootboard";
 import { announcementsApi } from "./announcements";
@@ -55,6 +56,7 @@ export const api = {
   ...eventMembershipApi,
   ...eventDiscordApi,
   ...eventPotApi,
+  ...groupBankApi,
   ...eventPointsApi,
   ...lootboardApi,
   ...announcementsApi,

@@ -8191,3 +8191,6 @@ export * from "./sites";
 // Targeted site pop-ups (web118a)
 export * from "./popup-notices";
 export * from "./tester-builds";
+
+// Clan bank (web131a)
+export * from "./group-bank";
