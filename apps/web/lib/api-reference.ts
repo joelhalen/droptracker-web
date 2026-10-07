@@ -35,7 +35,7 @@ export const SECTIONS: ApiSection[] = [
     cost: 0,
     category: "Core",
     summary:
-      "Name, account type, combat and total level, EHB, last sync. Always included — every response says who it is about.",
+      "Name, account type, combat and total level, EHB, last sync. Always included — every response says who it is about. last_seen is when the player's DropTracker plugin was last seen (any submission, account sync or event poll), accurate to about 5 minutes, or null if never.",
   },
   {
     key: "meta",
@@ -43,6 +43,13 @@ export const SECTIONS: ApiSection[] = [
     category: "Core",
     summary:
       "Board standing — monthly and all-time rank, with the number of ranked players — plus group memberships. On a group request it also attaches the group's own stats. Free.",
+  },
+  {
+    key: "plugin_config",
+    cost: 1,
+    category: "Core",
+    summary:
+      "The player's DropTracker plugin settings as their client last sent them (plugin 6.0.16+): when, plugin and RuneLite versions, settings by section, which ones differ from the defaults, and client environment. null if the plugin has never sent them. Self-reported by the client. Global keys do not receive env.custom_api_endpoint. Not part of `all`, so ask for it by name.",
   },
   {
     key: "loot",

@@ -51,6 +51,16 @@ test("the drop feed is priced below clog_slots and is documented as outside `all
   assert.match(drops.summary, /Not part of `all`/);
 });
 
+test("plugin_config is priced and documented as outside `all`", () => {
+  const section = SECTIONS.find((s) => s.key === "plugin_config")!;
+  assert.ok(section.cost >= 1);
+  assert.match(section.summary, /Not part of `all`/);
+});
+
+test("identity documents last_seen", () => {
+  assert.match(SECTIONS.find((s) => s.key === "identity")!.summary, /last_seen/);
+});
+
 test("the collection-log endpoint is documented and needs a key", () => {
   const endpoint = ENDPOINTS.find((e) => e.path === "/v2/collection-log");
   assert.ok(endpoint, "/v2/collection-log is undocumented");
