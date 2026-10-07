@@ -44,6 +44,7 @@ type Draft = {
   show_popup: boolean;
   publish_post: boolean;
   post_to_discord: boolean;
+  discord_target: "news" | "updates";
 };
 
 const TONES: { value: NoticeTone; label: string }[] = [
@@ -78,6 +79,7 @@ function toDraft(n?: AdminPopupNotice): Draft {
     show_popup: n?.show_popup ?? true,
     publish_post: n?.publish_post ?? false,
     post_to_discord: n?.post_to_discord ?? false,
+    discord_target: n?.discord_target ?? "news",
   };
 }
 
@@ -94,7 +96,8 @@ function toInput(d: Draft): PopupNoticeInput {
     expires_at: localInputToUnix(d.expires_at),
     show_popup: d.show_popup,
     publish_post: d.publish_post,
-    post_to_discord: d.publish_post && d.post_to_discord,
+    post_to_discord: d.post_to_discord && (d.publish_post || d.discord_target === "updates"),
+    discord_target: d.discord_target,
   };
 }
 
@@ -112,14 +115,17 @@ function problems(d: Draft, sending: boolean): Partial<Record<keyof Draft, strin
     const audience = audienceProblem(d.audience);
     if (audience) out.audience = audience;
   }
-  if (!d.show_popup && !d.publish_post) out.show_popup = "Pick a pop-up, a news post, or both.";
+  if (!d.show_popup && !d.publish_post && !d.post_to_discord)
+    out.show_popup = "Pick a pop-up, a news post or a Discord channel.";
+  if (d.post_to_discord && d.discord_target === "news" && !d.publish_post)
+    out.post_to_discord = "#news links to the news post, so turn that on too, or use #updates.";
   const start = localInputToUnix(d.starts_at);
   const end = localInputToUnix(d.expires_at);
   if (start && end && end <= start) out.expires_at = "The end must be after the start.";
   else if (sending && end && end * 1000 <= Date.now())
     out.expires_at = "The end is already in the past.";
-  if (sending && d.publish_post && start && start * 1000 > Date.now())
-    out.starts_at = "A news post goes out when it's sent, so it can't have a start time.";
+  if (sending && (d.publish_post || d.post_to_discord) && start && start * 1000 > Date.now())
+    out.starts_at = "Posts go out when it's sent, so it can't have a start time.";
   return out;
 }
 
@@ -303,20 +309,38 @@ export function NoticeComposer({
               <DeliveryOption
                 checked={draft.publish_post}
                 disabled={liveEdit}
-                onChange={(v) => {
-                  set("publish_post", v);
-                  if (!v) set("post_to_discord", false);
-                }}
+                onChange={(v) => set("publish_post", v)}
                 label="News post"
                 hint="Public, on the /announcements page. The pop-up's button links to it if it has none."
               />
               <DeliveryOption
                 checked={draft.post_to_discord}
-                disabled={liveEdit || !draft.publish_post}
+                disabled={liveEdit}
                 onChange={(v) => set("post_to_discord", v)}
-                label="Discord news channel"
-                hint="Posts the news post in our Discord and every server that follows the channel."
+                label="Post in our Discord"
+                hint="Also reaches every server that follows the channel."
               />
+              {draft.post_to_discord && (
+                <div className="ml-6.5 space-y-1">
+                  <Segmented
+                    label="Channel"
+                    value={draft.discord_target}
+                    options={[
+                      { value: "news", label: "#news" },
+                      { value: "updates", label: "#updates" },
+                    ]}
+                    onChange={(v) => !liveEdit && set("discord_target", v)}
+                  />
+                  <p className="text-osrs-parchment-dark/60 text-xs">
+                    {draft.discord_target === "news"
+                      ? "#news is public and for important changes. It links to the news post."
+                      : "#updates is for smaller changes: fixes, tweaks and new options. Clan leaders follow it."}
+                  </p>
+                  {errs.post_to_discord && (
+                    <p className="text-osrs-red text-xs">{errs.post_to_discord}</p>
+                  )}
+                </div>
+              )}
               {errs.show_popup && <p className="text-osrs-red text-xs">{errs.show_popup}</p>}
             </div>
           </Section>
@@ -512,18 +536,18 @@ export function NoticeComposer({
   );
 }
 
+function postsPhrase(d: Draft): string {
+  const parts: string[] = [];
+  if (d.publish_post) parts.push("a news post");
+  if (d.post_to_discord)
+    parts.push(d.discord_target === "updates" ? "#updates on Discord" : "#news on Discord");
+  return parts.join(" and ");
+}
+
 function sendQuestion(d: Draft, reach: number | null): string {
-  if (!d.show_popup) {
-    return d.post_to_discord
-      ? "Publish this as a news post and send it to the Discord news channel now?"
-      : "Publish this as a news post now?";
-  }
-  const extra = d.post_to_discord
-    ? " It also goes out as a news post and to the Discord news channel."
-    : d.publish_post
-      ? " It also goes out as a news post."
-      : "";
-  return popupQuestion(d, reach) + extra;
+  const posts = postsPhrase(d);
+  if (!d.show_popup) return `Send this out now as ${posts}?`;
+  return popupQuestion(d, reach) + (posts ? ` It also goes out as ${posts}.` : "");
 }
 
 function popupQuestion(d: Draft, reach: number | null): string {

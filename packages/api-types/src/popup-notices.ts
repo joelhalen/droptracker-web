@@ -100,6 +100,9 @@ export const AdminPopupNoticeSchema = PopupNoticeSchema.extend({
   show_popup: z.boolean().default(true),
   publish_post: z.boolean().default(false),
   post_to_discord: z.boolean().default(false),
+  /** Which HQ channel (web133a): #news (important, needs the news post) or
+   * #updates (smaller changes). */
+  discord_target: z.enum(["news", "updates"]).default("news"),
   announcement_id: z.number().int().nullable().default(null),
   source_label: z.string().nullable().default(null),
   reviewed_at: z.number().int().nullable().default(null),
@@ -144,6 +147,7 @@ export const PopupNoticeInputSchema = z
     show_popup: z.boolean().default(true),
     publish_post: z.boolean().default(false),
     post_to_discord: z.boolean().default(false),
+    discord_target: z.enum(["news", "updates"]).default("news"),
   })
   .superRefine((v, ctx) => {
     if (v.show_popup && v.audience.length === 0)
@@ -152,17 +156,17 @@ export const PopupNoticeInputSchema = z
         path: ["audience"],
         message: "Choose who sees the pop-up.",
       });
-    if (!v.show_popup && !v.publish_post)
+    if (!v.show_popup && !v.publish_post && !v.post_to_discord)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["show_popup"],
-        message: "Pick a pop-up, a news post, or both.",
+        message: "Pick a pop-up, a news post or a Discord channel.",
       });
-    if (v.post_to_discord && !v.publish_post)
+    if (v.post_to_discord && v.discord_target === "news" && !v.publish_post)
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["post_to_discord"],
-        message: "Discord needs the news post.",
+        message: "#news needs the news post.",
       });
   });
 export type PopupNoticeInput = z.input<typeof PopupNoticeInputSchema>;

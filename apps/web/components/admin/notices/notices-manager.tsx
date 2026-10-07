@@ -76,8 +76,15 @@ type ComposerState = {
 };
 
 function sentMessage(n: AdminPopupNotice): string {
-  if (!n.show_popup)
-    return `Published "${n.title}" as a news post${n.post_to_discord ? " and sent it to Discord" : ""}.`;
+  if (!n.show_popup) {
+    const where = [
+      n.publish_post ? "as a news post" : "",
+      n.post_to_discord ? `in #${n.discord_target} on Discord` : "",
+    ]
+      .filter(Boolean)
+      .join(" and ");
+    return `Sent "${n.title}" ${where}.`;
+  }
   if (n.state === "scheduled")
     return `Scheduled "${n.title}". It starts showing ${when(n.starts_at)}.`;
   return `Sent "${n.title}". Matching people see it the next time they open the site.`;
@@ -294,7 +301,7 @@ function NoticeRow({
             <Badge variant={badge.variant}>{badge.label}</Badge>
             {n.tone === "important" && <Badge variant="red">Important</Badge>}
             {n.publish_post && <Badge variant="bronze">News post</Badge>}
-            {n.post_to_discord && <Badge variant="bronze">Discord</Badge>}
+            {n.post_to_discord && <Badge variant="bronze">Discord #{n.discord_target}</Badge>}
             <h3 className="text-osrs-parchment min-w-0 truncate font-semibold">{n.title}</h3>
           </div>
           <p className="text-osrs-parchment-dark/80 mt-1 text-sm">
