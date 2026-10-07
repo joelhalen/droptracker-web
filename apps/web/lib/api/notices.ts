@@ -43,13 +43,16 @@ export const noticesApi = {
   // --- Admin ---------------------------------------------------------------
   async adminNotices(): Promise<AdminPopupNoticeList> {
     return withFallback(
-      async () => AdminPopupNoticeListSchema.parse(await apiGet(`/admin/notices`, { authed: true })),
-      () => ({ items: [], labels: { users: {}, groups: {}, tiers: {} } }),
+      async () =>
+        AdminPopupNoticeListSchema.parse(await apiGet(`/admin/notices`, { authed: true })),
+      () => ({ items: [], labels: { users: {}, groups: {}, tiers: {} }, can_approve: false }),
     );
   },
 
   async adminNotice(id: number): Promise<AdminPopupNoticeDetail> {
-    return AdminPopupNoticeDetailSchema.parse(await apiGet(`/admin/notices/${id}`, { authed: true }));
+    return AdminPopupNoticeDetailSchema.parse(
+      await apiGet(`/admin/notices/${id}`, { authed: true }),
+    );
   },
 
   async adminCreateNotice(input: PopupNoticeInput & { send: boolean }): Promise<AdminPopupNotice> {
@@ -62,6 +65,16 @@ export const noticesApi = {
 
   async adminSendNotice(id: number): Promise<AdminPopupNotice> {
     return AdminPopupNoticeSchema.parse(await apiSend("POST", `/admin/notices/${id}/send`, {}));
+  },
+
+  /** Approve a notice waiting for review (owner only, web130a). */
+  async adminApproveNotice(id: number): Promise<AdminPopupNotice> {
+    return AdminPopupNoticeSchema.parse(await apiSend("POST", `/admin/notices/${id}/approve`, {}));
+  },
+
+  /** Send a notice in review back to draft (owner only). */
+  async adminReturnNotice(id: number): Promise<AdminPopupNotice> {
+    return AdminPopupNoticeSchema.parse(await apiSend("POST", `/admin/notices/${id}/return`, {}));
   },
 
   async adminEndNotice(id: number): Promise<AdminPopupNotice> {
@@ -81,13 +94,15 @@ export const noticesApi = {
 
   async adminNoticeOptions(): Promise<NoticeOptions> {
     return withFallback(
-      async () => NoticeOptionsSchema.parse(await apiGet(`/admin/notices/options`, { authed: true })),
+      async () =>
+        NoticeOptionsSchema.parse(await apiGet(`/admin/notices/options`, { authed: true })),
       () => ({ tiers: [], free_tier: "free" }),
     );
   },
 
   async adminNoticeLookup(kind: "user" | "group", q: string): Promise<NoticeLookupHit[]> {
     const qs = `kind=${kind}&q=${encodeURIComponent(q)}`;
-    return NoticeLookupSchema.parse(await apiGet(`/admin/notices/lookup?${qs}`, { authed: true })).items;
+    return NoticeLookupSchema.parse(await apiGet(`/admin/notices/lookup?${qs}`, { authed: true }))
+      .items;
   },
 };

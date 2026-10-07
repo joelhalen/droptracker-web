@@ -22,7 +22,10 @@ import { requireSuperadmin } from "@/lib/auth";
 
 const PATH = "/admin/notices";
 
-export async function createNotice(input: PopupNoticeInput, send: boolean): Promise<AdminPopupNotice> {
+export async function createNotice(
+  input: PopupNoticeInput,
+  send: boolean,
+): Promise<AdminPopupNotice> {
   await requireSuperadmin(PATH);
   const parsed = PopupNoticeInputSchema.parse(input);
   const created = await api.adminCreateNotice({ ...parsed, send });
@@ -42,7 +45,25 @@ export async function sendNotice(id: number): Promise<AdminPopupNotice> {
   await requireSuperadmin(PATH);
   const sent = await api.adminSendNotice(id);
   revalidatePath(PATH);
+  revalidatePath("/announcements");
   return sent;
+}
+
+/** Approve a notice waiting for review. The backend only lets the owner. */
+export async function approveNotice(id: number): Promise<AdminPopupNotice> {
+  await requireSuperadmin(PATH);
+  const approved = await api.adminApproveNotice(id);
+  revalidatePath(PATH);
+  revalidatePath("/announcements");
+  return approved;
+}
+
+/** Send a notice in review back to draft, so it doesn't go out. */
+export async function returnNotice(id: number): Promise<AdminPopupNotice> {
+  await requireSuperadmin(PATH);
+  const returned = await api.adminReturnNotice(id);
+  revalidatePath(PATH);
+  return returned;
 }
 
 export async function endNotice(id: number): Promise<AdminPopupNotice> {
@@ -67,7 +88,10 @@ export async function previewNoticeAudience(rules: NoticeRule[]): Promise<Notice
   return api.adminNoticeAudiencePreview(NoticeRuleSchema.array().min(1).parse(rules));
 }
 
-export async function lookupNoticeTargets(kind: "user" | "group", q: string): Promise<NoticeLookupHit[]> {
+export async function lookupNoticeTargets(
+  kind: "user" | "group",
+  q: string,
+): Promise<NoticeLookupHit[]> {
   if (kind !== "user" && kind !== "group") return [];
   const query = q.trim().slice(0, 64);
   if (!query) return [];

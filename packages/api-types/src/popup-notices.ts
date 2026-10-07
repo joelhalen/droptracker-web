@@ -68,7 +68,7 @@ export type MyNotices = z.infer<typeof MyNoticesSchema>;
 
 // --- Admin ---------------------------------------------------------------
 
-export const NOTICE_STATES = ["draft", "scheduled", "live", "expired", "ended"] as const;
+export const NOTICE_STATES = ["draft", "review", "scheduled", "live", "expired", "ended"] as const;
 export type NoticeState = (typeof NOTICE_STATES)[number];
 
 /** Display names for the ids and tier keys an audience mentions (JSON object
@@ -83,7 +83,8 @@ export type NoticeLabels = z.infer<typeof NoticeLabelsSchema>;
 export const AdminPopupNoticeSchema = PopupNoticeSchema.extend({
   audience: NoticeRuleSchema.array(),
   audience_summary: z.string(),
-  status: z.enum(["draft", "live", "ended"]),
+  /** "review" = sent by someone other than the owner, waiting for approval (web130a). */
+  status: z.enum(["draft", "review", "live", "ended"]),
   state: z.enum(NOTICE_STATES),
   starts_at: z.number().int().nullable(),
   expires_at: z.number().int().nullable(),
@@ -94,6 +95,14 @@ export const AdminPopupNoticeSchema = PopupNoticeSchema.extend({
   seen_count: z.number().int(),
   dismissed_count: z.number().int(),
   labels: NoticeLabelsSchema.optional(),
+  /** Where it goes (web130a): the targeted pop-up, a public news post, and the
+   * Discord news channel through that post. */
+  show_popup: z.boolean().default(true),
+  publish_post: z.boolean().default(false),
+  post_to_discord: z.boolean().default(false),
+  announcement_id: z.number().int().nullable().default(null),
+  source_label: z.string().nullable().default(null),
+  reviewed_at: z.number().int().nullable().default(null),
 });
 export type AdminPopupNotice = z.infer<typeof AdminPopupNoticeSchema>;
 
@@ -113,23 +122,50 @@ export type AdminPopupNoticeDetail = z.infer<typeof AdminPopupNoticeDetailSchema
 export const AdminPopupNoticeListSchema = z.object({
   items: AdminPopupNoticeSchema.array(),
   labels: NoticeLabelsSchema,
+  /** Only approvers (the owner) send notices out; everyone else's go to review. */
+  can_approve: z.boolean().default(false),
 });
 export type AdminPopupNoticeList = z.infer<typeof AdminPopupNoticeListSchema>;
 
 /** What the composer submits. Times are unix seconds; null = "right away" /
  * "never ends". */
-export const PopupNoticeInputSchema = z.object({
-  title: z.string().trim().min(1).max(NOTICE_TITLE_MAX),
-  body_md: z.string().trim().min(1).max(NOTICE_BODY_MAX),
-  cta_label: z.string().trim().max(NOTICE_CTA_LABEL_MAX).nullable(),
-  cta_url: z.string().trim().max(512).nullable(),
-  tone: z.enum(NOTICE_TONES),
-  size: z.enum(NOTICE_SIZES),
-  audience: NoticeRuleSchema.array().min(1).max(NOTICE_MAX_RULES),
-  starts_at: z.number().int().nullable(),
-  expires_at: z.number().int().nullable(),
-});
-export type PopupNoticeInput = z.infer<typeof PopupNoticeInputSchema>;
+export const PopupNoticeInputSchema = z
+  .object({
+    title: z.string().trim().min(1).max(NOTICE_TITLE_MAX),
+    body_md: z.string().trim().min(1).max(NOTICE_BODY_MAX),
+    cta_label: z.string().trim().max(NOTICE_CTA_LABEL_MAX).nullable(),
+    cta_url: z.string().trim().max(512).nullable(),
+    tone: z.enum(NOTICE_TONES),
+    size: z.enum(NOTICE_SIZES),
+    /** Empty only when there is no pop-up. */
+    audience: NoticeRuleSchema.array().max(NOTICE_MAX_RULES),
+    starts_at: z.number().int().nullable(),
+    expires_at: z.number().int().nullable(),
+    show_popup: z.boolean().default(true),
+    publish_post: z.boolean().default(false),
+    post_to_discord: z.boolean().default(false),
+  })
+  .superRefine((v, ctx) => {
+    if (v.show_popup && v.audience.length === 0)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["audience"],
+        message: "Choose who sees the pop-up.",
+      });
+    if (!v.show_popup && !v.publish_post)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["show_popup"],
+        message: "Pick a pop-up, a news post, or both.",
+      });
+    if (v.post_to_discord && !v.publish_post)
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["post_to_discord"],
+        message: "Discord needs the news post.",
+      });
+  });
+export type PopupNoticeInput = z.input<typeof PopupNoticeInputSchema>;
 
 export const NoticeAudiencePreviewSchema = z.object({
   count: z.number().int(),

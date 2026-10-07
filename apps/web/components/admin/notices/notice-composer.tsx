@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * Write, target and send a pop-up notice (web118a).
+ * Write, target and send a notice (web118a, delivery + review web130a).
  *
- * Left: the message, its look, who gets it and when. Right: a live copy of the
- * card as visitors will see it, plus "Preview pop-up" to open the real thing
- * over this page. Sending asks once more, with the audience count, before
- * anything goes out.
+ * Left: the message, where it goes (a targeted pop-up, a public news post, the
+ * Discord news channel), its look, who gets the pop-up and when. Right: a live
+ * copy of the card as visitors will see it. Sending asks once more before
+ * anything goes out. Only the owner sends: for anyone else "Send" puts the
+ * notice in the owner's review queue instead.
  */
 import { useState, useTransition } from "react";
 import {
@@ -40,6 +41,9 @@ type Draft = {
   audience: NoticeRule[];
   starts_at: string;
   expires_at: string;
+  show_popup: boolean;
+  publish_post: boolean;
+  post_to_discord: boolean;
 };
 
 const TONES: { value: NoticeTone; label: string }[] = [
@@ -71,6 +75,9 @@ function toDraft(n?: AdminPopupNotice): Draft {
     audience: n?.audience ?? [],
     starts_at: unixToLocalInput(n?.starts_at ?? null),
     expires_at: unixToLocalInput(n?.expires_at ?? null),
+    show_popup: n?.show_popup ?? true,
+    publish_post: n?.publish_post ?? false,
+    post_to_discord: n?.post_to_discord ?? false,
   };
 }
 
@@ -82,9 +89,12 @@ function toInput(d: Draft): PopupNoticeInput {
     cta_url: d.cta_url.trim() || null,
     tone: d.tone,
     size: d.size,
-    audience: d.audience,
+    audience: d.show_popup ? d.audience : [],
     starts_at: localInputToUnix(d.starts_at),
     expires_at: localInputToUnix(d.expires_at),
+    show_popup: d.show_popup,
+    publish_post: d.publish_post,
+    post_to_discord: d.publish_post && d.post_to_discord,
   };
 }
 
@@ -96,13 +106,20 @@ function problems(d: Draft, sending: boolean): Partial<Record<keyof Draft, strin
   const label = d.cta_label.trim();
   const url = d.cta_url.trim();
   if (Boolean(label) !== Boolean(url)) out.cta_url = "A button needs both a label and a link.";
-  else if (url && !isAllowedNoticeLink(url)) out.cta_url = "Use a site path like /premium or a full https:// link.";
-  const audience = audienceProblem(d.audience);
-  if (audience) out.audience = audience;
+  else if (url && !isAllowedNoticeLink(url))
+    out.cta_url = "Use a site path like /premium or a full https:// link.";
+  if (d.show_popup) {
+    const audience = audienceProblem(d.audience);
+    if (audience) out.audience = audience;
+  }
+  if (!d.show_popup && !d.publish_post) out.show_popup = "Pick a pop-up, a news post, or both.";
   const start = localInputToUnix(d.starts_at);
   const end = localInputToUnix(d.expires_at);
   if (start && end && end <= start) out.expires_at = "The end must be after the start.";
-  else if (sending && end && end * 1000 <= Date.now()) out.expires_at = "The end is already in the past.";
+  else if (sending && end && end * 1000 <= Date.now())
+    out.expires_at = "The end is already in the past.";
+  if (sending && d.publish_post && start && start * 1000 > Date.now())
+    out.starts_at = "A news post goes out when it's sent, so it can't have a start time.";
   return out;
 }
 
@@ -110,6 +127,7 @@ export function NoticeComposer({
   editing,
   options,
   labels: initialLabels,
+  canApprove,
   onSaved,
   onCancel,
 }: {
@@ -117,7 +135,9 @@ export function NoticeComposer({
   editing?: { notice: AdminPopupNotice; mode: "edit" | "duplicate" };
   options: NoticeOptions;
   labels: NoticeLabels;
-  onSaved: (notice: AdminPopupNotice, verb: "saved" | "sent") => void;
+  /** The owner sends; anyone else's "Send" goes to the owner for review. */
+  canApprove: boolean;
+  onSaved: (notice: AdminPopupNotice, verb: "saved" | "sent" | "review") => void;
   onCancel: () => void;
 }) {
   const isEdit = editing?.mode === "edit";
@@ -142,6 +162,7 @@ export function NoticeComposer({
   const errs = showErrors ? problems(draft, confirmSend) : {};
   const liveEdit = isEdit && editing!.notice.status === "live";
   const canSend = !isEdit || editing!.notice.status === "draft";
+  const sendsOut = !isEdit || editing!.notice.status !== "live";
 
   const save = (send: boolean) => {
     setShowErrors(true);
@@ -164,7 +185,7 @@ export function NoticeComposer({
         } else {
           saved = await createNotice(input, send);
         }
-        onSaved(saved, send ? "sent" : "saved");
+        onSaved(saved, !send ? "saved" : saved.status === "review" ? "review" : "sent");
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't save this notice."));
         setConfirmSend(false);
@@ -190,12 +211,16 @@ export function NoticeComposer({
     <div className="border-osrs-bronze/30 bg-osrs-surface-1/60 rounded-2xl border p-4 sm:p-5">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-osrs-gold text-lg font-semibold">
-          {isEdit ? "Edit notice" : editing?.mode === "duplicate" ? "New notice (copy)" : "New notice"}
+          {isEdit
+            ? "Edit notice"
+            : editing?.mode === "duplicate"
+              ? "New notice (copy)"
+              : "New notice"}
         </h2>
         {liveEdit && (
           <p className="text-osrs-parchment-dark/60 text-xs">
-            This one is live. Changes reach people who haven&apos;t closed it yet. To show it to everyone again,
-            duplicate it instead.
+            This one is live. Changes reach people who haven&apos;t closed it yet. To show it to
+            everyone again, duplicate it instead.
           </p>
         )}
       </div>
@@ -266,7 +291,37 @@ export function NoticeComposer({
             </div>
           </Section>
 
-          <Section step={2} title="Look">
+          <Section step={2} title="Where it goes">
+            <div className="space-y-2">
+              <DeliveryOption
+                checked={draft.show_popup}
+                disabled={liveEdit}
+                onChange={(v) => set("show_popup", v)}
+                label="Pop-up on the site"
+                hint="Only the people you pick below. Shows once, until they close it."
+              />
+              <DeliveryOption
+                checked={draft.publish_post}
+                disabled={liveEdit}
+                onChange={(v) => {
+                  set("publish_post", v);
+                  if (!v) set("post_to_discord", false);
+                }}
+                label="News post"
+                hint="Public, on the /announcements page. The pop-up's button links to it if it has none."
+              />
+              <DeliveryOption
+                checked={draft.post_to_discord}
+                disabled={liveEdit || !draft.publish_post}
+                onChange={(v) => set("post_to_discord", v)}
+                label="Discord news channel"
+                hint="Posts the news post in our Discord and every server that follows the channel."
+              />
+              {errs.show_popup && <p className="text-osrs-red text-xs">{errs.show_popup}</p>}
+            </div>
+          </Section>
+
+          <Section step={3} title="Look">
             <div className="flex flex-wrap gap-x-6 gap-y-3">
               <Segmented
                 label="Style"
@@ -274,25 +329,40 @@ export function NoticeComposer({
                 options={TONES}
                 onChange={(v) => set("tone", v)}
               />
-              <Segmented label="Width" value={draft.size} options={SIZES} onChange={(v) => set("size", v)} />
+              <Segmented
+                label="Width"
+                value={draft.size}
+                options={SIZES}
+                onChange={(v) => set("size", v)}
+              />
             </div>
           </Section>
 
-          <Section step={3} title="Who sees it" note="Anyone matching at least one row.">
-            <AudienceBuilder
-              rules={draft.audience}
-              onChange={(rules) => set("audience", rules)}
-              options={options}
-              labels={labels}
-              onLabels={setLabels}
-              onCount={setReach}
-            />
-            {errs.audience && <p className="text-osrs-red text-xs">{errs.audience}</p>}
-          </Section>
+          {draft.show_popup && (
+            <Section step={4} title="Who sees the pop-up" note="Anyone matching at least one row.">
+              <AudienceBuilder
+                rules={draft.audience}
+                onChange={(rules) => set("audience", rules)}
+                options={options}
+                labels={labels}
+                onLabels={setLabels}
+                onCount={setReach}
+              />
+              {errs.audience && <p className="text-osrs-red text-xs">{errs.audience}</p>}
+            </Section>
+          )}
 
-          <Section step={4} title="When" note="Times are in your local time zone.">
+          <Section
+            step={draft.show_popup ? 5 : 4}
+            title="When"
+            note="Times are in your local time zone."
+          >
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Starts" hint={draft.starts_at ? undefined : "Right away."}>
+              <Field
+                label="Starts"
+                hint={draft.starts_at ? undefined : "Right away."}
+                error={errs.starts_at}
+              >
                 {(p) => (
                   <Input
                     {...p}
@@ -303,7 +373,11 @@ export function NoticeComposer({
                   />
                 )}
               </Field>
-              <Field label="Stops showing" hint={draft.expires_at ? undefined : "Never. It stays until each person closes it."} error={errs.expires_at}>
+              <Field
+                label="Stops showing"
+                hint={draft.expires_at ? undefined : "Never. It stays until each person closes it."}
+                error={errs.expires_at}
+              >
                 {(p) => (
                   <Input
                     {...p}
@@ -361,28 +435,63 @@ export function NoticeComposer({
       <div className="border-osrs-bronze/20 mt-6 flex flex-wrap items-center justify-end gap-2 border-t pt-4">
         {confirmSend ? (
           <>
-            <p className="text-osrs-parchment mr-auto text-sm">{sendQuestion(draft, reach)}</p>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmSend(false)} disabled={pending}>
+            <p className="text-osrs-parchment mr-auto text-sm">
+              {canApprove || !sendsOut
+                ? sendQuestion(draft, reach)
+                : "Send this to the owner for review? Nothing goes out until they approve it."}
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmSend(false)}
+              disabled={pending}
+            >
               Back
             </Button>
-            <Button type="button" variant="primary" size="sm" onClick={() => save(true)} disabled={pending}>
-              {pending ? "Sending…" : "Yes, send it"}
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => save(true)}
+              disabled={pending}
+            >
+              {pending ? "Sending…" : canApprove ? "Yes, send it" : "Yes, send for review"}
             </Button>
           </>
         ) : (
           <>
-            <Button type="button" variant="link" size="sm" onClick={onCancel} disabled={pending} className="mr-auto">
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              onClick={onCancel}
+              disabled={pending}
+              className="mr-auto"
+            >
               Cancel
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setPreviewOpen(true)}>
               Preview pop-up
             </Button>
-            <Button type="button" variant="secondary" size="sm" onClick={() => save(false)} disabled={pending}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => save(false)}
+              disabled={pending}
+            >
               {pending ? "Saving…" : isEdit ? "Save changes" : "Save draft"}
             </Button>
             {canSend && (
-              <Button type="button" variant="primary" size="sm" onClick={() => save(true)} disabled={pending}>
-                Send…
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={() => save(true)}
+                disabled={pending}
+              >
+                {canApprove ? "Send…" : "Send for review…"}
               </Button>
             )}
           </>
@@ -404,8 +513,24 @@ export function NoticeComposer({
 }
 
 function sendQuestion(d: Draft, reach: number | null): string {
+  if (!d.show_popup) {
+    return d.post_to_discord
+      ? "Publish this as a news post and send it to the Discord news channel now?"
+      : "Publish this as a news post now?";
+  }
+  const extra = d.post_to_discord
+    ? " It also goes out as a news post and to the Discord news channel."
+    : d.publish_post
+      ? " It also goes out as a news post."
+      : "";
+  return popupQuestion(d, reach) + extra;
+}
+
+function popupQuestion(d: Draft, reach: number | null): string {
   const who =
-    reach == null ? "everyone who matches" : `${reach.toLocaleString()} ${reach === 1 ? "account" : "accounts"}`;
+    reach == null
+      ? "everyone who matches"
+      : `${reach.toLocaleString()} ${reach === 1 ? "account" : "accounts"}`;
   const start = localInputToUnix(d.starts_at);
   if (start && start * 1000 > Date.now()) {
     const when = new Date(start * 1000).toLocaleString(undefined, {
@@ -417,6 +542,36 @@ function sendQuestion(d: Draft, reach: number | null): string {
     return `Schedule this for ${when}? It will reach ${who}, counted as of now.`;
   }
   return `Send this to ${who} now? They see it the next time they open the site.`;
+}
+
+function DeliveryOption({
+  checked,
+  disabled,
+  onChange,
+  label,
+  hint,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
+  hint: string;
+}) {
+  return (
+    <label className={`flex items-start gap-2.5 ${disabled ? "opacity-60" : "cursor-pointer"}`}>
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 size-4 shrink-0"
+      />
+      <span>
+        <span className="text-osrs-parchment block text-sm font-medium">{label}</span>
+        <span className="text-osrs-parchment-dark/60 block text-xs">{hint}</span>
+      </span>
+    </label>
+  );
 }
 
 function Section({
@@ -460,7 +615,12 @@ function Segmented<T extends string>({
       <p className="text-osrs-parchment text-sm font-medium">{label}</p>
       <div className="flex flex-wrap gap-1">
         {options.map((o) => (
-          <ToggleChip key={o.value} shape="tab" active={value === o.value} onClick={() => onChange(o.value)}>
+          <ToggleChip
+            key={o.value}
+            shape="tab"
+            active={value === o.value}
+            onClick={() => onChange(o.value)}
+          >
             {o.label}
           </ToggleChip>
         ))}

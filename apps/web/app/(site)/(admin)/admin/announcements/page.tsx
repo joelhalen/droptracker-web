@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
-import { AnnouncementComposer } from "@/components/announcement-composer";
+import Link from "next/link";
+import { Alert } from "@/components/ui";
 import { AnnouncementList } from "@/components/announcement-list";
 import { AnnouncementReviewQueue } from "@/components/announcement-review-queue";
 import { requireSuperadmin } from "@/lib/auth";
@@ -16,25 +17,26 @@ export default async function AdminAnnouncementsPage() {
 
   return (
     <div className="space-y-10">
-      <section>
-        <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
-          Waiting for review ({queue.items.length})
-        </h2>
-        <AnnouncementReviewQueue items={queue.items} canApprove={queue.can_approve} />
-      </section>
-      <div className="grid gap-10 lg:grid-cols-2">
+      <Alert variant="info">
+        New updates are written in{" "}
+        <Link href="/admin/notices" className="text-osrs-gold-bright underline">
+          Notices
+        </Link>
+        . A notice can be a targeted pop-up, a news post on this list, and a Discord post, and the
+        owner approves each one before it goes out. This page keeps the published news posts.
+      </Alert>
+      {queue.items.length > 0 && (
         <section>
           <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
-            New site-wide announcement
+            Older posts waiting for review ({queue.items.length})
           </h2>
-          <AnnouncementComposer />
+          <AnnouncementReviewQueue items={queue.items} canApprove={queue.can_approve} />
         </section>
-
-        <section>
-          <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Published</h2>
-          <AnnouncementList items={existing.items} />
-        </section>
-      </div>
+      )}
+      <section>
+        <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Published</h2>
+        <AnnouncementList items={existing.items} />
+      </section>
     </div>
   );
 }
