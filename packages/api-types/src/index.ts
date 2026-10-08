@@ -4938,6 +4938,10 @@ export const EventProgressSchema = z.object({
    * when nothing is pending (the common case). */
   pending: z.number().int().optional(),
   pending_complete: z.boolean().optional(),
+  /** Repeatable tasks only (config.repeatable): laps finished so far.
+   * `progress` stays the running total; `completed` means the cap
+   * (config.max_completions) was reached, so it never sets with no limit. */
+  completions: z.number().int().optional(),
 });
 export type EventProgress = z.infer<typeof EventProgressSchema>;
 
@@ -5022,6 +5026,8 @@ export const EventTeamTaskSchema = EventTaskSchema.extend({
   progress: z.number().default(0),
   completed: z.boolean().default(false),
   completed_at: z.number().int().nullable().optional(),
+  /** Repeatable tasks only: laps finished (see EventProgressSchema). */
+  completions: z.number().int().optional(),
 });
 export type EventTeamTask = z.infer<typeof EventTeamTaskSchema>;
 

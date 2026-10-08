@@ -172,7 +172,12 @@ export function EventTeamView({
       new Map(
         tasks.map((t) => [
           t.id,
-          { progress: t.progress, completed: t.completed, completed_at: t.completed_at },
+          {
+            progress: t.progress,
+            completed: t.completed,
+            completed_at: t.completed_at,
+            ...(typeof t.completions === "number" ? { completions: t.completions } : {}),
+          },
         ]),
       ),
   );
@@ -302,6 +307,7 @@ export function EventTeamView({
       team_score?: number;
       player_name?: string;
       bonus?: string;
+      completions?: number;
     };
     if (data.team_id !== team.id) return;
     if (typeof data.team_score === "number") setScore(data.team_score);
@@ -309,19 +315,29 @@ export function EventTeamView({
     const taskId = data.task_id;
 
     if (data.kind === "progress" || data.kind === "completion") {
-      const completed = data.kind === "completion";
+      // A repeatable task's completion frame finishes a lap; the task only
+      // closes when the frame says so (its cap reached).
+      const lapFrame = typeof data.completions === "number";
+      const lapped = lapFrame && data.kind === "completion";
+      const completed = data.kind === "completion" && (!lapFrame || data.completed === true);
       setProgress((prev) => {
         const before = prev.get(taskId);
         const after: ProgressCell = {
           progress: typeof data.progress === "number" ? data.progress : (before?.progress ?? 0),
           completed: completed || (before?.completed ?? false),
-          completed_at: completed
-            ? Math.floor(Date.now() / 1000)
-            : (before?.completed_at ?? null),
+          completed_at:
+            completed || lapped
+              ? Math.floor(Date.now() / 1000)
+              : (before?.completed_at ?? null),
+          ...(lapFrame
+            ? { completions: data.completions }
+            : before?.completions != null
+              ? { completions: before.completions }
+              : {}),
         };
         // Frames carry cumulative progress; the delta is what just happened.
         const delta = Math.max(after.progress - (before?.progress ?? 0), 0);
-        if (delta > 0 || completed) {
+        if (delta > 0 || completed || lapped) {
           const at = Math.floor(Date.now() / 1000);
           const quantity = Math.max(delta, 1);
           // Freshen the contributor's roster line so "last contribution"
@@ -337,7 +353,7 @@ export function EventTeamView({
                 task_label: task?.label ?? null,
                 task_type: task?.type ?? null,
                 quantity,
-                source_type: completed ? "completion" : null,
+                source_type: completed || lapped ? "completion" : null,
                 matched_target: null,
                 created_at: at,
               }),
@@ -350,7 +366,7 @@ export function EventTeamView({
       });
       // A completion mints a real ledger row — pull the submission log again
       // so the new line (and its screenshot) lands without a page reload.
-      if (completed) setLogVersion((v) => v + 1);
+      if (completed || lapped) setLogVersion((v) => v + 1);
     } else if (data.kind === "revoke" && !data.bonus) {
       setProgress((prev) => {
         const next = new Map(prev);
@@ -358,13 +374,18 @@ export function EventTeamView({
           progress: typeof data.progress === "number" ? data.progress : 0,
           completed: data.completed === true,
           completed_at: data.completed === true ? prev.get(taskId)?.completed_at : null,
+          ...(typeof data.completions === "number" ? { completions: data.completions } : {}),
         });
         return next;
       });
     }
   });
 
-  const completedCount = tasks.filter((t) => progress.get(t.id)?.completed).length;
+  // A repeatable task below its cap counts once it has a lap behind it.
+  const completedCount = tasks.filter((t) => {
+    const cell = progress.get(t.id);
+    return cell?.completed || (cell?.completions ?? 0) > 0;
+  }).length;
   const contributors = members.filter((m) => m.completions > 0 || m.points > 0).length;
   // The team total carries no rates flag of its own — it is a sum of the same
   // rows the members are priced from, so if any member's pricing is

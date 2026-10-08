@@ -350,6 +350,7 @@ export default async function EventDetailPage({ params }: { params: Params }) {
                     eventId={event.id}
                     live={event.status === "active"}
                     viewerTeamId={event.viewer?.team_id}
+                    eventKind={event.kind ?? "standard"}
                   />
                 ) : (
                   <EmptyState title="No tasks yet" />

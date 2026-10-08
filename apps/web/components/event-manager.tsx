@@ -31,7 +31,9 @@ import {
   SUBMISSION_POLICY_LABELS,
   TASK_TYPE_LABELS,
   TEAM_COLORS,
+  repeatBadge,
   taskGoal,
+  taskRepeat,
   teamColorMap,
   teamHasLeadership,
   withTeamRole,
@@ -1637,6 +1639,7 @@ export function EventManager({
               eventId={event.id}
               liveEvent={liveTaskEvent}
               eventTasks={tasks}
+              repeatAllowed={(event.kind ?? "standard") === "standard"}
               onSaved={(t) => {
                 setTasks((prev) => [...prev, t]);
                 setTaskFormFor(null);
@@ -1666,6 +1669,7 @@ export function EventManager({
                     initial={t}
                     liveEvent={liveTaskEvent}
                     eventTasks={tasks}
+                    repeatAllowed={(event.kind ?? "standard") === "standard"}
                     onSaved={(updated) => {
                       setTasks((prev) => prev.map((x) => (x.id === t.id ? updated : x)));
                       setTaskFormFor(null);
@@ -1687,6 +1691,14 @@ export function EventManager({
                       {t.points > 0 && (
                         <span className="text-osrs-gold-bright ml-2 text-xs">{t.points} pts</span>
                       )}
+                      {(() => {
+                        const repeat = taskRepeat(t, event.kind);
+                        return repeat ? (
+                          <span className="text-osrs-parchment-dark/60 ml-2 text-xs">
+                            {repeatBadge(repeat)}
+                          </span>
+                        ) : null;
+                      })()}
                       {t.visibility === "private" && (
                         <span
                           className="border-osrs-bronze/40 text-osrs-parchment-dark/70 ml-2 rounded border px-1 text-[10px] uppercase"

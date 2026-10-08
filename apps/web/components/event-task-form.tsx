@@ -47,6 +47,9 @@ import {
   isGoldRingName,
   isVestigeName,
   pbRequirement,
+  REPEAT_MAX_MAX,
+  REPEAT_MAX_MIN,
+  repeatEligible,
   slayerRequirement,
   slayerRequirementSummary,
   taskConfig,
@@ -574,6 +577,7 @@ export function EventTaskForm({
   submitLabel,
   liveEvent,
   eventTasks,
+  repeatAllowed,
 }: {
   groupId: number | null;
   eventId: number;
@@ -599,6 +603,10 @@ export function EventTaskForm({
   /** The event's tasks, when the caller has them. Only read to point out a
    * Gold ring task that a vestige task would also credit on the same ring. */
   eventTasks?: EventTask[];
+  /** Offer the "Repeatable" switch — standard events only. Bingo tiles, board
+   * turns and Conquest tiles finish once; sweeps and races already score
+   * every receipt (the server ignores the flag on those kinds too). */
+  repeatAllowed?: boolean;
 }) {
   const draftMode = onDraftSubmit != null;
   const editing = !draftMode && initial != null;
@@ -646,6 +654,13 @@ export function EventTaskForm({
   // player already owns counts. The default depends on the task type (item
   // lists yes, pet tasks and sweeps no), so an untouched switch (null) follows
   // whichever type is picked, and only a value unlike that default is stored.
+  // Repeatable task (config.repeatable / config.max_completions): every whole
+  // multiple of the goal is another completion worth the task's points.
+  // Empty max = no limit.
+  const [repeatable, setRepeatable] = useState(initialConfig.repeatable === true);
+  const [repeatMax, setRepeatMax] = useState<number | null>(
+    typeof initialConfig.max_completions === "number" ? initialConfig.max_completions : null,
+  );
   const initialDuplicatePets = initial ? duplicatePetsCount(initial) : null;
   const [duplicatePetsChoice, setDuplicatePetsChoice] = useState<boolean | null>(
     typeof initialConfig.duplicate_pets === "boolean" ? initialConfig.duplicate_pets : null,
@@ -1034,6 +1049,14 @@ export function EventTaskForm({
 
   /** null ⇒ valid; otherwise the reason the submit button is disabled. */
   const validate = (): string | null => {
+    if (
+      repeatApplies &&
+      repeatable &&
+      repeatMax != null &&
+      (repeatMax < REPEAT_MAX_MIN || repeatMax > REPEAT_MAX_MAX)
+    ) {
+      return `The most times per team must be ${REPEAT_MAX_MIN} to ${REPEAT_MAX_MAX.toLocaleString()}, or empty for no limit.`;
+    }
     switch (type) {
       case "item_collection":
         if (itemMode === "single") {
@@ -1456,6 +1479,35 @@ export function EventTaskForm({
     return { ...input, config: JSON.stringify({ ...cfg, duplicate_pets: duplicatePets }) };
   };
 
+  /** Fold the "Repeatable" switch into the built config, only where the
+   * event and the task shape allow it (the server rejects it elsewhere). */
+  const repeatApplies =
+    repeatAllowed === true &&
+    repeatEligible({
+      type,
+      itemMode,
+      pbMode: pbChoice === "once" ? "times" : pbChoice,
+    });
+  const withRepeat = (input: EventTaskInput): EventTaskInput => {
+    if (!repeatApplies || !repeatable) return input;
+    let cfg: Record<string, unknown> = {};
+    if (input.config) {
+      try {
+        cfg = JSON.parse(input.config) as Record<string, unknown>;
+      } catch {
+        return input;
+      }
+    }
+    return {
+      ...input,
+      config: JSON.stringify({
+        ...cfg,
+        repeatable: true,
+        ...(repeatMax != null ? { max_completions: repeatMax } : {}),
+      }),
+    };
+  };
+
   const duplicatePetsSwitch = duplicateSwitchApplies && (
     <div className="border-osrs-gold/30 bg-osrs-gold/5 grid gap-1.5 rounded-lg border p-3">
       <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
@@ -1522,7 +1574,9 @@ export function EventTaskForm({
       return;
     }
     setError(null);
-    const input = withDuplicatePets(withVestigeRings(withProgressNotify(buildInput())));
+    const input = withRepeat(
+      withDuplicatePets(withVestigeRings(withProgressNotify(buildInput()))),
+    );
     if (onDraftSubmit) {
       onDraftSubmit(input);
       return;
@@ -2457,6 +2511,50 @@ export function EventTaskForm({
             disabled={pending}
           />
           {duplicatePetsSwitch}
+        </div>
+      )}
+
+      {repeatApplies && (
+        <div className="border-osrs-gold/30 bg-osrs-gold/5 grid gap-1.5 rounded-lg border p-3">
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={repeatable}
+              onChange={(e) => setRepeatable(e.target.checked)}
+              disabled={pending}
+            />
+            <span className="text-osrs-parchment">Repeatable</span>
+          </label>
+          <p className="text-osrs-parchment-dark/60 text-xs">
+            {repeatable
+              ? "Teams can finish this task again and again. Every time progress reaches the goal again, it counts as another completion and pays the points again."
+              : "Teams finish this task once. Turn this on to let them keep completing it for more points."}
+          </p>
+          {repeatable && (
+            <label className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-osrs-parchment-dark/80">Most times per team</span>
+              <input
+                type="number"
+                min={REPEAT_MAX_MIN}
+                max={REPEAT_MAX_MAX}
+                step={1}
+                value={repeatMax ?? ""}
+                placeholder="No limit"
+                onChange={(e) => {
+                  const raw = e.target.value.trim();
+                  if (!raw) {
+                    setRepeatMax(null);
+                    return;
+                  }
+                  const n = Math.floor(Number(raw));
+                  if (Number.isFinite(n)) setRepeatMax(n);
+                }}
+                disabled={pending}
+                className={`${field} w-28`}
+              />
+              <span className="text-osrs-parchment-dark/50 text-xs">Leave empty for no limit.</span>
+            </label>
+          )}
         </div>
       )}
 

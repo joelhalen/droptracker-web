@@ -23,8 +23,10 @@ import {
   TASK_TYPE_LABELS,
   groupTasksByDifficulty,
   pbRequirement,
+  repeatBadge,
   taskConfig,
   taskGoal,
+  taskRepeat,
   teamColorMap,
   type TaskDifficultyBucket,
 } from "@/lib/events";
@@ -46,6 +48,9 @@ export type ProgressCell = {
   pending?: number;
   /** Confirming every pending row would finish the task. */
   pending_complete?: boolean;
+  /** Repeatable tasks only: laps finished so far. `progress` stays the
+   * running total, so the bar shows progress toward the NEXT lap. */
+  completions?: number;
 };
 export type ProgressMap = Map<string, ProgressCell>;
 
@@ -80,6 +85,7 @@ export function initialProgressMap(progress: EventProgress[] | undefined): Progr
       target: p.target,
       pending: p.pending,
       pending_complete: p.pending_complete,
+      ...(typeof p.completions === "number" ? { completions: p.completions } : {}),
     });
   }
   return map;
@@ -106,24 +112,36 @@ export function useLiveProgress(
       pending?: number;
       pending_complete?: boolean;
       bonus?: string;
+      completions?: number;
     };
     if (typeof data.task_id !== "number" || typeof data.team_id !== "number") return;
     const k = key(data.task_id, data.team_id);
     const frameTarget = typeof data.target === "number" ? data.target : undefined;
     if (data.kind === "progress" || data.kind === "completion") {
-      const completed = data.kind === "completion";
+      // A repeatable task's completion frame finishes a LAP; it only closes
+      // the task when the frame says so (its cap reached).
+      const lapFrame = typeof data.completions === "number";
+      const completed =
+        data.kind === "completion" && (!lapFrame || data.completed === true);
       const progress = typeof data.progress === "number" ? data.progress : null;
       setMap((prev) => {
         const next = new Map(prev);
         const existing = next.get(k);
+        const lapped = lapFrame && data.kind === "completion";
         next.set(k, {
           progress: progress ?? existing?.progress ?? 0,
           completed: completed || (existing?.completed ?? false),
-          completed_at: completed ? Math.floor(Date.now() / 1000) : existing?.completed_at,
+          completed_at:
+            completed || lapped ? Math.floor(Date.now() / 1000) : existing?.completed_at,
           target: frameTarget ?? existing?.target,
           // A confirmed completion supersedes the pending-review overlay.
-          pending: completed ? undefined : existing?.pending,
-          pending_complete: completed ? undefined : existing?.pending_complete,
+          pending: completed || lapped ? undefined : existing?.pending,
+          pending_complete: completed || lapped ? undefined : existing?.pending_complete,
+          ...(lapFrame
+            ? { completions: data.completions }
+            : existing?.completions != null
+              ? { completions: existing.completions }
+              : {}),
         });
         return next;
       });
@@ -160,6 +178,11 @@ export function useLiveProgress(
           target: frameTarget ?? existing?.target,
           pending: existing?.pending,
           pending_complete: existing?.pending_complete,
+          ...(typeof data.completions === "number"
+            ? { completions: data.completions }
+            : existing?.completions != null
+              ? { completions: existing.completions }
+              : {}),
         });
         return next;
       });
@@ -187,7 +210,12 @@ export function TaskProgressBar({
   // the roster); the pure client mirror covers rows with no progress yet.
   const target = cell?.target ?? taskThreshold(task);
   const done = cell?.completed ?? false;
-  const value = Math.min(cell?.progress ?? 0, target);
+  // Repeatable task: `progress` is the running total, so the bar tracks the
+  // current lap and a "×N" counter shows the laps already finished.
+  const laps = typeof cell?.completions === "number" ? cell.completions : null;
+  const lapProgress =
+    laps != null && !done ? Math.max((cell?.progress ?? 0) - laps * target, 0) : (cell?.progress ?? 0);
+  const value = Math.min(lapProgress, target);
   const pct = done ? 100 : Math.min(100, Math.floor((value / target) * 100));
   const binary = target === 1; // pb/skill/single-item style: done or not
   // Either-or progress is already a percentage of the closest path —
@@ -231,6 +259,14 @@ export function TaskProgressBar({
           aria-label={`${pendingCount.toLocaleString()} awaiting review`}
         />
       )}
+      {laps != null && laps > 0 && !done && (
+        <span
+          className="text-osrs-green shrink-0 tabular-nums"
+          title={`Completed ${laps.toLocaleString()} time${laps === 1 ? "" : "s"}`}
+        >
+          ✓×{laps.toLocaleString()}
+        </span>
+      )}
       <span
         className={`w-24 shrink-0 text-right tabular-nums ${
           done ? "text-osrs-green" : pendingDone ? "text-amber-400" : "text-osrs-parchment-dark/70"
@@ -238,14 +274,16 @@ export function TaskProgressBar({
         title={pendingDone ? "Done — awaiting review" : undefined}
       >
         {done
-          ? "✓ complete"
+          ? laps != null && laps > 1
+            ? `✓ ×${laps.toLocaleString()}`
+            : "✓ complete"
           : pendingDone
             ? "awaiting review"
-            : binary
+            : binary && !(laps != null && laps > 0)
               ? "not yet"
               : anyPath
                 ? `${pct}%`
-                : `${formatProgressValue(task, cell?.progress ?? 0)} / ${formatProgressValue(task, target)}`}
+                : `${formatProgressValue(task, lapProgress)} / ${formatProgressValue(task, target)}`}
       </span>
     </div>
   );
@@ -262,6 +300,7 @@ export function EventTaskBoard({
   fetchRequirements,
   difficulty: controlledDifficulty,
   onDifficultyChange,
+  eventKind,
 }: {
   tasks: EventTask[];
   teams: TeamRef[];
@@ -279,6 +318,9 @@ export function EventTaskBoard({
    * reset local state. Omit both to let the board keep its own. */
   difficulty?: TaskDifficultyBucket | null;
   onDifficultyChange?: (next: TaskDifficultyBucket | null) => void;
+  /** The event's kind — repeatable tasks only repeat on standard events, so
+   * the "Repeatable" badge needs it. Omit to show no badge. */
+  eventKind?: string | null;
 }) {
   const progressMap = useLiveProgress(eventId, live, progress);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -298,7 +340,12 @@ export function EventTaskBoard({
   const taskList = (list: EventTask[]) => (
     <ul className="divide-osrs-bronze/20 divide-y">
       {list.map((t) => {
-        const doneCount = teams.filter((tm) => progressMap.get(key(t.id, tm.id))?.completed).length;
+        const repeat = eventKind !== undefined ? taskRepeat(t, eventKind) : null;
+        // A repeatable task below its cap counts once a team has a lap in.
+        const doneCount = teams.filter((tm) => {
+          const cell = progressMap.get(key(t.id, tm.id));
+          return cell?.completed || (cell?.completions ?? 0) > 0;
+        }).length;
         return (
           <li key={t.id} className="py-3">
             <div className="flex items-center justify-between gap-3 text-sm">
@@ -308,6 +355,14 @@ export function EventTaskBoard({
                 </span>
                 {t.label}
                 {taskGoal(t) && <span className="text-osrs-parchment-dark/60"> — {taskGoal(t)}</span>}
+                {repeat && (
+                  <span
+                    className="border-osrs-gold/30 text-osrs-gold/80 ml-2 rounded border px-1.5 py-px text-[10px] whitespace-nowrap uppercase"
+                    title="Teams can complete this task more than once. Every completion pays the points again."
+                  >
+                    {repeatBadge(repeat)}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => setExpanded((cur) => (cur === t.id ? null : t.id))}

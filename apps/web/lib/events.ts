@@ -324,6 +324,72 @@ export function taskConfig(task: Pick<EventTask, "config">): Record<string, unkn
   }
 }
 
+// ── Repeatable tasks (mirrors the backend's utils/task_repeat.py) ──────────
+// A repeatable task keeps a running total: every whole multiple of its goal is
+// another completion that pays the task's points again, up to an optional cap
+// (`config.max_completions`; absent = no limit). Standard events only.
+
+export const REPEAT_MAX_MIN = 2;
+export const REPEAT_MAX_MAX = 10_000;
+
+const REPEATABLE_TASK_TYPES: ReadonlySet<string> = new Set([
+  "item_collection",
+  "kc_target",
+  "xp_target",
+  "loot_value",
+  "pet_collection",
+  "ca_target",
+  "slayer_target",
+  "pb_target",
+  "custom",
+  "ehp_target",
+  "ehb_target",
+]);
+
+/** Whether a task of this shape CAN repeat: tasks that count up (quantities,
+ * kills, XP, GP, pets, CAs, slayer tasks, kills under a time). Sets, groups,
+ * either-or tasks, levels and unique-player goals finish once. */
+export function repeatEligible({
+  type,
+  itemMode,
+  pbMode,
+}: {
+  type: string;
+  /** item_collection's config kind, or "single" for a plain item. */
+  itemMode?: string | null;
+  pbMode?: string | null;
+}): boolean {
+  if (!REPEATABLE_TASK_TYPES.has(type)) return false;
+  if (type === "item_collection") {
+    const mode = itemMode ?? "single";
+    return mode === "single" || mode === "any_of" || mode === "point_collection";
+  }
+  if (type === "pb_target") return (pbMode ?? "times") === "times";
+  return true;
+}
+
+/** A task's repeat setting as the engine applies it on an event of
+ * `eventKind`: `null` when it finishes once, else `{ max }` (`max: null` =
+ * no limit). */
+export function taskRepeat(
+  task: Pick<EventTask, "type" | "config">,
+  eventKind?: string | null,
+): { max: number | null } | null {
+  if ((eventKind ?? "standard") !== "standard") return null;
+  const cfg = taskConfig(task);
+  if (cfg.repeatable !== true) return null;
+  const itemMode = typeof cfg.kind === "string" ? cfg.kind : "single";
+  const pbMode = typeof cfg.mode === "string" ? cfg.mode : "times";
+  if (!repeatEligible({ type: task.type, itemMode, pbMode })) return null;
+  const max = cfg.max_completions;
+  return { max: typeof max === "number" && max >= 1 ? max : null };
+}
+
+/** Short badge text for a repeatable task: "Repeatable" / "Up to 5×". */
+export function repeatBadge(repeat: { max: number | null }): string {
+  return repeat.max != null ? `Repeatable, up to ${repeat.max}×` : "Repeatable";
+}
+
 /** One sub-requirement of a `kind: "groups"` config. */
 export type TaskConfigGroup = { mode: "all_of" | "any_of"; need: number; items: string[] };
 

@@ -1916,6 +1916,7 @@ function WizardTasksStep({
         <EventTaskFormWithAi
           groupId={groupId}
           eventId={detail.id}
+          repeatAllowed={(detail.kind ?? "standard") === "standard"}
           onSaved={(t) => {
             onTaskSaved(t);
             setAdding(false);
@@ -1950,6 +1951,7 @@ function WizardTasksStep({
                   groupId={groupId}
                   eventId={detail.id}
                   initial={t}
+                  repeatAllowed={(detail.kind ?? "standard") === "standard"}
                   onSaved={(updated) => {
                     onTaskSaved(updated);
                     setEditingTaskId(null);

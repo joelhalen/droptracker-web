@@ -686,6 +686,7 @@ export function EventView({
             fetchRequirements={fetchRequirements}
             difficulty={taskDifficulty}
             onDifficultyChange={setTaskDifficulty}
+            eventKind={event.kind ?? "standard"}
           />
         </div>
       )}
