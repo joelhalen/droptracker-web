@@ -6,6 +6,9 @@ import type {
   CompetitionBonusRule,
   CompetitionEventKind,
   CompetitionFormat,
+  CompetitionParty,
+  CompetitionPartyMates,
+  CompetitionPartyRequire,
   CompetitionRankingMode,
   CompetitionTeamScoring,
   EventCompetition,
@@ -165,6 +168,8 @@ export const BONUS_RULE_ICONS: Record<string, string> = {
   time_under: "⏱️",
   task: "🎯",
   milestone: "📈",
+  party: "👥",
+  learner: "🎓",
 };
 
 export function bonusRuleIcon(type: string): string {
@@ -188,7 +193,22 @@ type BonusRuleSentenceInput = {
   need?: number | null;
   items_preview?: string[] | null;
   item_count?: number | null;
+  scaling?: CompetitionBonusRule["scaling"] | null;
+  bonus_pct?: number | null;
+  max_kc?: number | null;
 };
+
+/** "clanmate" / "teammate": who a `party` rule counts, from the race's
+ * group-content setting. */
+export function mateWord(mates: CompetitionPartyMates | null | undefined): string {
+  return mates === "team" ? "teammate" : "clanmate";
+}
+
+/** `400` (percent extra) → "5×", `50` → "1.5×": what a kill ends up worth. */
+export function killMultiplier(bonusPct: number | null | undefined): string {
+  const total = (100 + Math.max(bonusPct ?? 0, 0)) / 100;
+  return `${trimZeros(total.toFixed(2))}×`;
+}
 
 /** What a `task` rule asks for, without its points or cap — "all 3 listed
  * drops", "500 pts of listed loot". Mirrors the backend's task_rule_label so
@@ -235,8 +255,12 @@ function petGoal(rule: BonusRuleSentenceInput): string {
 }
 
 /** One rule as a sentence — the wizard's live preview, the "How points work"
- * card and the Discord award line all render exactly this shape. */
-export function bonusRuleSentence(rule: BonusRuleSentenceInput): string {
+ * card and the Discord award line all render exactly this shape. `mates`
+ * names who a `party` rule counts (the race's group-content setting). */
+export function bonusRuleSentence(
+  rule: BonusRuleSentenceInput,
+  opts: { mates?: CompetitionPartyMates | null } = {},
+): string {
   const pts = `+${rule.points.toLocaleString("en-US")} pts`;
   const cap = rule.unlimited
     ? ", no limit per player"
@@ -260,6 +284,21 @@ export function bonusRuleSentence(rule: BonusRuleSentenceInput): string {
     const npc = rule.npc ? `${rule.npc} ` : "";
     const time = formatTimeMs(rule.threshold_ms ?? 0);
     return `${pts} for a ${npc}kill under ${time}${cap}`;
+  }
+  if (rule.type === "party") {
+    const who = mateWord(opts.mates);
+    if (rule.scaling === "multiply") {
+      return `+${(rule.bonus_pct ?? 0).toLocaleString("en-US")}% of a kill's points per ${who} in it${cap}`;
+    }
+    return `${pts} per ${who} in a kill${cap}`;
+  }
+  if (rule.type === "learner") {
+    const kc = Math.max(rule.max_kc ?? 100, 1).toLocaleString("en-US");
+    const who = `a kill with a learner (under ${kc} KC)`;
+    if (rule.scaling === "multiply") {
+      return `${who.charAt(0).toUpperCase()}${who.slice(1)} is worth ${killMultiplier(rule.bonus_pct)}${cap}`;
+    }
+    return `${pts} for ${who}${cap}`;
   }
   // A rule type this build doesn't know: say what it is worth, not what it is.
   return `${pts}${rule.label?.trim() ? ` for ${rule.label.trim()}` : ""}${cap}`;
@@ -294,6 +333,27 @@ export function metricSummary(
 
 function titleCase(s: string): string {
   return s.replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export const PARTY_REQUIRE_LABELS: Record<CompetitionPartyRequire, string> = {
+  off: "Every kill counts",
+  any: "Kills need clanmates",
+  all: "Every player must be a clanmate",
+};
+
+/** One line for the race card and the wizard: what a kill needs to count. */
+export function partySummary(
+  party: CompetitionParty | null | undefined,
+): string | null {
+  if (!party || party.require === "off") return null;
+  const n = Math.max(party.min_mates ?? 1, 1);
+  const who = mateWord(party.mates);
+  if (party.require === "all") {
+    return `Only raids where every player is a ${who} count.`;
+  }
+  return n === 1
+    ? `Only kills with at least one ${who} count.`
+    : `Only kills with at least ${n} ${who}s count.`;
 }
 
 /** Points-mode conversion preview: "Every 10,000 XP = 1 pt". */
@@ -371,6 +431,9 @@ export function competitionBlockToInput(
     // back into an individual one.
     format: block.format ?? "individual",
     team_scoring: block.team_scoring ?? "total",
+    // Group content rides every save too: the PATCH rebuilds the whole
+    // config, so leaving it out would switch clan-only tracking off.
+    ...(block.party ? { party: block.party } : {}),
     // Who competes is an individual-race setting; a team race's teams follow
     // the event's formation mode.
     ...(isTeamRace(block) ? {} : { participation: block.participation ?? "whole_clan" }),
@@ -390,3 +453,16 @@ export const WOM_LINK_PROBLEM_COPY: Record<string, string> = {
   finished: "That competition already ended — pick one that's upcoming or still running.",
   already_linked: "That competition is already linked to another DropTracker event.",
 };
+
+/** Raids give the plugin the whole party list; "every player must be a
+ * clanmate" is only offered when every raced boss is one (the backend
+ * enforces the same list). */
+const FULL_ROSTER_SOURCES = ["theatre of blood", "tombs of amascut", "chambers of xeric"];
+
+export function allRaids(npcs: readonly string[] | null | undefined): boolean {
+  const list = npcs ?? [];
+  return (
+    list.length > 0 &&
+    list.every((n) => FULL_ROSTER_SOURCES.some((src) => n.toLowerCase().includes(src)))
+  );
+}

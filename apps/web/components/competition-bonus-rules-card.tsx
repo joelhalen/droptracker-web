@@ -8,6 +8,7 @@ import {
   bonusRuleSentence,
   isTeamRace,
   metricSummary,
+  partySummary,
   rateSentence,
 } from "@/lib/competition";
 
@@ -27,6 +28,7 @@ export function CompetitionBonusRulesCard({
   const { competition, totals } = board;
   const metricKind = competition.metric.kind;
   const summary = metricSummary(competition);
+  const party = partySummary(competition.party);
   const pointsMode = competition.ranking.mode === "points";
   const teams = isTeamRace(competition);
   const unit = metricKind === "skill" ? "XP" : "KC";
@@ -35,6 +37,12 @@ export function CompetitionBonusRulesCard({
     <div className="border-osrs-bronze/30 bg-osrs-brown-dark/30 space-y-2.5 rounded border p-3 text-sm">
       <h3 className="text-osrs-gold font-semibold">How the race is scored</h3>
       {summary && <p className="text-osrs-parchment">{summary}</p>}
+      {party && (
+        <p className="text-osrs-parchment text-xs">
+          <span aria-hidden>👥 </span>
+          {party} Kills are counted from the DropTracker plugin, which sees who you were with.
+        </p>
+      )}
       {teams && (
         <p className="text-osrs-parchment-dark/70 text-xs">
           {competition.team_scoring === "average"
@@ -60,7 +68,7 @@ export function CompetitionBonusRulesCard({
                 {bonusRuleIcon(r.type)}
               </span>
               <span className="text-osrs-parchment-dark/85">
-                {bonusRuleSentence(r)}
+                {bonusRuleSentence(r, { mates: competition.party?.mates })}
                 {/* What "the listed drops" actually are. A player shouldn't
                     have to guess what they're racing for. */}
                 {r.items_preview?.length ? (

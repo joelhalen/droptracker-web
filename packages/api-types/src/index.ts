@@ -2635,14 +2635,41 @@ export type CompetitionTeamScoring = (typeof COMPETITION_TEAM_SCORING_MODES)[num
 
 /** `pet` — a new pet. `time_under` — a kill at or under a threshold.
  * `task` — any criteria the event task builder can express, embedded and
- * scoped to the raced boss(es). `milestone` — every N units of gained metric. */
+ * scoped to the raced boss(es). `milestone` — every N units of gained metric.
+ * `party` — per clanmate in a kill. `learner` — a kill with someone under N KC
+ * at the boss in it (both boss races only, paid on plugin kills). */
 export const COMPETITION_BONUS_RULE_TYPES = [
   "pet",
   "time_under",
   "task",
   "milestone",
+  "party",
+  "learner",
 ] as const;
 export type CompetitionBonusRuleType = (typeof COMPETITION_BONUS_RULE_TYPES)[number];
+
+/** How a `party` / `learner` rule pays: flat points per unit (per clanmate,
+ * or per learner kill), or a percentage of the kill's own points per unit. */
+export const COMPETITION_KILL_RULE_SCALINGS = ["add", "multiply"] as const;
+export type CompetitionKillRuleScaling = (typeof COMPETITION_KILL_RULE_SCALINGS)[number];
+
+/** Group content on a boss race. `off`: no gate (only says who counts for
+ * clanmate bonuses). `any`: a kill needs at least `min_mates` mates in it.
+ * `all`: every other player in it must be one (raids only). */
+export const COMPETITION_PARTY_REQUIRE_MODES = ["off", "any", "all"] as const;
+export type CompetitionPartyRequire = (typeof COMPETITION_PARTY_REQUIRE_MODES)[number];
+
+/** Who counts as a mate: anyone in the clan's WiseOldMan or DropTracker
+ * group, or (team races) the player's own team. */
+export const COMPETITION_PARTY_MATE_SCOPES = ["clan", "team"] as const;
+export type CompetitionPartyMates = (typeof COMPETITION_PARTY_MATE_SCOPES)[number];
+
+export const CompetitionPartySchema = z.object({
+  require: z.enum(COMPETITION_PARTY_REQUIRE_MODES).catch("any"),
+  mates: z.enum(COMPETITION_PARTY_MATE_SCOPES).catch("clan"),
+  min_mates: z.number().int().default(1),
+});
+export type CompetitionParty = z.infer<typeof CompetitionPartySchema>;
 
 /** How a `task` rule's progress folds — derived server-side from the embedded
  * config and mirrored from the backend's utils/task_progress.PROGRESS_KINDS. */
@@ -2691,6 +2718,12 @@ export const CompetitionBonusRuleSchema = z.object({
   threshold_ms: z.number().int().optional(),
   /** milestone rules: gained units per payout. */
   step: z.number().int().optional(),
+  /** party / learner rules: flat `points` per unit, or `bonus_pct` percent of
+   * the kill's points per unit (`multiply`). */
+  scaling: z.enum(COMPETITION_KILL_RULE_SCALINGS).catch("add").optional(),
+  bonus_pct: z.number().int().optional(),
+  /** learner rules: "fewer than N kills at the boss". */
+  max_kc: z.number().int().optional(),
   /** task rules — a DISPLAY PROJECTION of the embedded criteria, never the
    * config itself (it can be a 40-item list, and this payload is public). */
   task_kind: z.enum(EVENT_TASK_TYPES).optional(),
@@ -2761,6 +2794,9 @@ export const EventCompetitionSchema = z.object({
    * not fail every viewer's event page. */
   format: z.enum(COMPETITION_FORMATS).catch("individual"),
   team_scoring: z.enum(COMPETITION_TEAM_SCORING_MODES).catch("total"),
+  /** Group content (boss races): whether a kill needs clanmates in it, and
+   * who counts. Absent/null = no such setting. */
+  party: CompetitionPartySchema.nullable().optional(),
   /** False while the wizard hasn't picked a metric yet (activation blocks). */
   configured: z.boolean().optional(),
 });
@@ -2969,6 +3005,10 @@ export const EventCompetitionInputSchema = z.object({
         threshold_ms: z.number().int().positive().optional(),
         /** milestone rules: gained units per payout. */
         step: z.number().int().positive().optional(),
+        /** party / learner rules (boss races). */
+        scaling: z.enum(COMPETITION_KILL_RULE_SCALINGS).optional(),
+        bonus_pct: z.number().int().positive().optional(),
+        max_kc: z.number().int().positive().optional(),
         /** task rules: the criteria, in the shape the task builder emits.
          * The server re-validates it through the very same validator a real
          * task goes through, then INJECTS the raced boss(es) into its source
@@ -2994,6 +3034,15 @@ export const EventCompetitionInputSchema = z.object({
   participation: z.enum(COMPETITION_PARTICIPATION_MODES).optional(),
   format: z.enum(COMPETITION_FORMATS).optional(),
   team_scoring: z.enum(COMPETITION_TEAM_SCORING_MODES).optional(),
+  /** Group content. Omitted or null = none. */
+  party: z
+    .object({
+      require: z.enum(COMPETITION_PARTY_REQUIRE_MODES),
+      mates: z.enum(COMPETITION_PARTY_MATE_SCOPES),
+      min_mates: z.number().int().positive(),
+    })
+    .nullable()
+    .optional(),
 });
 export type EventCompetitionInput = z.infer<typeof EventCompetitionInputSchema>;
 

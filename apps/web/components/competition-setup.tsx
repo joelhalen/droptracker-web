@@ -26,6 +26,7 @@ import {
   EVENT_TASK_TYPES,
 } from "@droptracker/api-types";
 import {
+  allRaids,
   bonusRuleIcon,
   bonusRuleSentence,
   COMPETITION_FORMAT_HELP,
@@ -315,6 +316,8 @@ export function CompetitionSetup({
   // ---- Bonus rules --------------------------------------------------------
   const rules = value.bonus_rules ?? [];
   const hasPetRule = rules.some((r) => r.type === "pet");
+  const hasPartyRule = rules.some((r) => r.type === "party");
+  const hasLearnerRule = rules.some((r) => r.type === "learner");
   const setRule = (idx: number, rule: BonusRuleInput) =>
     patch({ bonus_rules: rules.map((r, i) => (i === idx ? rule : r)) });
   const removeRule = (idx: number) => {
@@ -358,6 +361,19 @@ export function CompetitionSetup({
   const raceFormat = value.format ?? "individual";
   const teamScoring = value.team_scoring ?? "total";
   const skillKey = value.metric?.key ?? value.skill ?? "";
+  // Group content (boss races): "only count kills done with clanmates".
+  const party = value.party ?? null;
+  const partyGated = !!party && party.require !== "off";
+  const raidsOnly = allRaids(npcs);
+  const setParty = (p: Partial<NonNullable<EventCompetitionInput["party"]>>) =>
+    patch({
+      party: {
+        require: party?.require ?? "any",
+        mates: party?.mates ?? "clan",
+        min_mates: party?.min_mates ?? 1,
+        ...p,
+      },
+    });
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -507,10 +523,12 @@ export function CompetitionSetup({
         ) : (
           <div className="space-y-3">
             <p className="text-osrs-parchment-dark/60 text-xs">
-              DropTracker-hosted by default — plugin data tracks the race live, topped up
-              from the WiseOldMan hiscores. Optionally mirror an existing WOM competition,
-              or have DropTracker create one for you.
+              {partyGated
+                ? "Hosted on DropTracker. Clan-only tracking counts kills from the plugin alone, so the race can't mirror or create a WiseOldMan competition."
+                : "DropTracker-hosted by default — plugin data tracks the race live, topped up from the WiseOldMan hiscores. Optionally mirror an existing WOM competition, or have DropTracker create one for you."}
             </p>
+            {!partyGated && (
+            <>
             <div className="space-y-1.5">
               <span className="text-osrs-parchment-dark/70 block text-xs">
                 Link an existing WiseOldMan competition
@@ -623,6 +641,8 @@ export function CompetitionSetup({
                 </p>
               )}
             </div>
+            </>
+            )}
           </div>
         )}
       </fieldset>
@@ -698,6 +718,97 @@ export function CompetitionSetup({
         )}
       </fieldset>
 
+      {/* ---- Group content ------------------------------------------------ */}
+      {isBoss && (
+        <fieldset className="space-y-2" disabled={disabled}>
+          <legend className="text-osrs-gold text-sm font-semibold">Group content</legend>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={partyGated}
+              disabled={linked}
+              onChange={(e) =>
+                e.target.checked
+                  ? setParty({ require: "any" })
+                  : patch({
+                      party: hasPartyRule && party ? { ...party, require: "off" } : null,
+                    })
+              }
+              className="mt-0.5"
+            />
+            <span>
+              Only count kills done with clanmates
+              <span className="text-osrs-parchment-dark/50 block text-xs">
+                {linked
+                  ? "Unlink WiseOldMan to use this: WiseOldMan can't tell who you were with."
+                  : "A clanmate is anyone in your WiseOldMan or DropTracker group. Kills come from the DropTracker plugin, which sees who was there, so WiseOldMan KC doesn't count."}
+              </span>
+            </span>
+          </label>
+          {partyGated && party && (
+            <div className="space-y-2 pl-6" role="radiogroup">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="comp-party-require"
+                  checked={party.require === "any"}
+                  onChange={() => setParty({ require: "any" })}
+                />
+                At least
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  value={party.min_mates}
+                  onChange={(e) =>
+                    setParty({
+                      min_mates: Math.min(
+                        Math.max(parseInt(e.target.value || "1", 10) || 1, 1),
+                        99,
+                      ),
+                    })
+                  }
+                  className={`${field} w-16`}
+                />
+                {party.mates === "team" ? "teammate" : "clanmate"}
+                {party.min_mates === 1 ? "" : "s"} in the kill
+              </label>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="comp-party-require"
+                  checked={party.require === "all"}
+                  disabled={!raidsOnly}
+                  onChange={() => setParty({ require: "all" })}
+                  className="mt-0.5"
+                />
+                <span className={raidsOnly ? "" : "opacity-50"}>
+                  Every player in the raid is a {party.mates === "team" ? "teammate" : "clanmate"}
+                  <span className="text-osrs-parchment-dark/50 block text-xs">
+                    {raidsOnly
+                      ? "Raids only: the plugin sees the whole raid party."
+                      : "Raids only (Theatre of Blood, Tombs of Amascut, Chambers of Xeric): other bosses don't give a full party list."}
+                  </span>
+                </span>
+              </label>
+            </div>
+          )}
+          {raceFormat === "teams" && (partyGated || hasPartyRule) && party && (
+            <label className="flex items-center gap-2 pl-6 text-sm">
+              Who counts
+              <select
+                value={party.mates}
+                onChange={(e) => setParty({ mates: e.target.value as "clan" | "team" })}
+                className={`${field} w-48`}
+              >
+                <option value="clan">Anyone in the clan</option>
+                <option value="team">Their own team</option>
+              </select>
+            </label>
+          )}
+        </fieldset>
+      )}
+
       {/* ---- Bonus rules -------------------------------------------------- */}
       <fieldset className="space-y-2" disabled={disabled}>
         <legend className="text-osrs-gold text-sm font-semibold">Bonus points</legend>
@@ -715,7 +826,7 @@ export function CompetitionSetup({
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-osrs-parchment flex items-start gap-1.5 text-sm">
                     <span aria-hidden>{bonusRuleIcon(r.type)}</span>
-                    <span>{bonusRuleSentence(r)}</span>
+                    <span>{bonusRuleSentence(r, { mates: party?.mates })}</span>
                   </span>
                   {!disabled && (
                     <span className="flex shrink-0 items-center gap-2">
@@ -739,6 +850,93 @@ export function CompetitionSetup({
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs">
+                  {(r.type === "party" || r.type === "learner") && (
+                    <label className="flex items-center gap-1.5">
+                      Pays
+                      <select
+                        value={r.scaling ?? "add"}
+                        onChange={(e) => {
+                          const scaling = e.target.value as "add" | "multiply";
+                          setRule(i, {
+                            ...r,
+                            scaling,
+                            ...(scaling === "multiply"
+                              ? { points: 1, bonus_pct: r.bonus_pct ?? (r.type === "learner" ? 400 : 100) }
+                              : { bonus_pct: undefined }),
+                          });
+                        }}
+                        className={`${field} w-36`}
+                      >
+                        <option value="add">Flat points</option>
+                        <option value="multiply">A share of the kill</option>
+                      </select>
+                    </label>
+                  )}
+                  {(r.type === "party" || r.type === "learner") && r.scaling === "multiply" && (
+                    r.type === "learner" ? (
+                      <label className="flex items-center gap-1.5">
+                        Kill worth
+                        <input
+                          type="number"
+                          min={1.01}
+                          step={0.5}
+                          value={(100 + (r.bonus_pct ?? 400)) / 100}
+                          onChange={(e) => {
+                            const times = parseFloat(e.target.value || "2") || 2;
+                            setRule(i, {
+                              ...r,
+                              bonus_pct: Math.min(
+                                Math.max(Math.round((times - 1) * 100), 1),
+                                10_000,
+                              ),
+                            });
+                          }}
+                          className={`${field} w-20`}
+                        />
+                        ×
+                      </label>
+                    ) : (
+                      <label className="flex items-center gap-1.5">
+                        +
+                        <input
+                          type="number"
+                          min={1}
+                          max={10_000}
+                          value={r.bonus_pct ?? 100}
+                          onChange={(e) =>
+                            setRule(i, {
+                              ...r,
+                              bonus_pct: Math.min(
+                                Math.max(parseInt(e.target.value || "1", 10) || 1, 1),
+                                10_000,
+                              ),
+                            })
+                          }
+                          className={`${field} w-20`}
+                        />
+                        % of the kill per {party?.mates === "team" ? "teammate" : "clanmate"}
+                      </label>
+                    )
+                  )}
+                  {r.type === "learner" && (
+                    <label className="flex items-center gap-1.5">
+                      Learner: under
+                      <input
+                        type="number"
+                        min={1}
+                        value={r.max_kc ?? 100}
+                        onChange={(e) =>
+                          setRule(i, {
+                            ...r,
+                            max_kc: Math.max(parseInt(e.target.value || "1", 10) || 1, 1),
+                          })
+                        }
+                        className={`${field} w-20`}
+                      />
+                      KC
+                    </label>
+                  )}
+                  {!((r.type === "party" || r.type === "learner") && r.scaling === "multiply") && (
                   <label className="flex items-center gap-1.5">
                     Points
                     <input
@@ -754,6 +952,7 @@ export function CompetitionSetup({
                       className={`${field} w-20`}
                     />
                   </label>
+                  )}
                   <label className="flex items-center gap-1.5">
                     Max per player
                     <input
@@ -995,6 +1194,48 @@ export function CompetitionSetup({
                 className="border-osrs-bronze/50 text-osrs-parchment hover:border-osrs-gold rounded border px-3 py-1.5 text-xs"
               >
                 + Milestone bonus
+              </button>
+            )}
+            {isBoss && !hasPartyRule && rules.length < ruleCap && (
+              <button
+                type="button"
+                onClick={() =>
+                  patch({
+                    bonus_rules: [
+                      ...rules,
+                      { type: "party", points: 1, scaling: "add", max_awards: 100, unlimited: true },
+                    ],
+                  })
+                }
+                title="Points for every clanmate in a kill: the bigger the clan group, the more it pays."
+                className="border-osrs-bronze/50 text-osrs-parchment hover:border-osrs-gold rounded border px-3 py-1.5 text-xs"
+              >
+                + Clanmate bonus
+              </button>
+            )}
+            {isBoss && !hasLearnerRule && rules.length < ruleCap && (
+              <button
+                type="button"
+                onClick={() =>
+                  patch({
+                    bonus_rules: [
+                      ...rules,
+                      {
+                        type: "learner",
+                        points: 1,
+                        scaling: "multiply",
+                        bonus_pct: 400,
+                        max_kc: 100,
+                        max_awards: 100,
+                        unlimited: true,
+                      },
+                    ],
+                  })
+                }
+                title="Extra points for everyone in a kill with a learner: someone with few kills at the boss."
+                className="border-osrs-bronze/50 text-osrs-parchment hover:border-osrs-gold rounded border px-3 py-1.5 text-xs"
+              >
+                + Learner bonus
               </button>
             )}
             {TASK_BONUS_PRESETS.filter((p) => (isBoss ? p.bosses : p.skills)).map((preset) => (

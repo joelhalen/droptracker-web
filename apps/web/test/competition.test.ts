@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  allRaids,
   bonusRuleIcon,
   bonusRuleSentence,
   bonusRuleToInput,
@@ -10,8 +11,10 @@ import {
   formatTimeMs,
   isCompetitionKind,
   isTeamRace,
+  killMultiplier,
   metricSummary,
   parseTimeToMs,
+  partySummary,
   rateSentence,
   scoreText,
   teamScoreText,
@@ -361,4 +364,67 @@ test("the team race board carries ranked teams and team-attributed rows", () => 
     [1, 2, 3],
   );
   assert.ok(board.standings.every((r) => r.team_name));
+});
+
+test("clanmate and learner rules read as sentences", () => {
+  assert.equal(
+    bonusRuleSentence({ type: "party", points: 2, unlimited: true }),
+    "+2 pts per clanmate in a kill, no limit per player",
+  );
+  assert.equal(
+    bonusRuleSentence({ type: "party", points: 1, scaling: "multiply", bonus_pct: 50 }, { mates: "team" }),
+    "+50% of a kill's points per teammate in it",
+  );
+  assert.equal(
+    bonusRuleSentence({ type: "learner", points: 4, max_kc: 100 }),
+    "+4 pts for a kill with a learner (under 100 KC)",
+  );
+  assert.equal(
+    bonusRuleSentence({ type: "learner", points: 1, scaling: "multiply", bonus_pct: 400, max_kc: 50 }),
+    "A kill with a learner (under 50 KC) is worth 5×",
+  );
+  assert.equal(killMultiplier(50), "1.5×");
+  assert.notEqual(bonusRuleIcon("party"), bonusRuleIcon("unknown"));
+});
+
+test("partySummary says what a kill needs", () => {
+  assert.equal(partySummary(null), null);
+  assert.equal(partySummary({ require: "off", mates: "clan", min_mates: 1 }), null);
+  assert.equal(
+    partySummary({ require: "any", mates: "clan", min_mates: 1 }),
+    "Only kills with at least one clanmate count.",
+  );
+  assert.equal(
+    partySummary({ require: "any", mates: "team", min_mates: 2 }),
+    "Only kills with at least 2 teammates count.",
+  );
+  assert.equal(
+    partySummary({ require: "all", mates: "clan", min_mates: 1 }),
+    "Only raids where every player is a clanmate count.",
+  );
+});
+
+test("allRaids only accepts raid sources", () => {
+  assert.equal(allRaids(["Theatre of Blood", "Theatre of Blood: Hard Mode"]), true);
+  assert.equal(allRaids(["Chambers of Xeric", "Nex"]), false);
+  assert.equal(allRaids([]), false);
+});
+
+test("the group content setting survives a manager round trip", () => {
+  const block = EventCompetitionSchema.parse({
+    ...mockEventCompetitionBlock(),
+    party: { require: "all", mates: "clan", min_mates: 1 },
+    bonus_rules: [
+      { id: 1, type: "learner", points: 1, max_awards: 100, unlimited: true,
+        label: "Kill with a learner (under 100 KC)", scaling: "multiply",
+        bonus_pct: 400, max_kc: 100 },
+    ],
+  });
+  const input = competitionBlockToInput(block);
+  assert.deepEqual(input.party, { require: "all", mates: "clan", min_mates: 1 });
+  assert.equal(input.bonus_rules?.[0]?.bonus_pct, 400);
+  assert.equal(input.bonus_rules?.[0]?.max_kc, 100);
+  assert.doesNotThrow(() => EventCompetitionInputSchema.parse(input));
+  const none = competitionBlockToInput(EventCompetitionSchema.parse(mockEventCompetitionBlock()));
+  assert.equal("party" in none, false);
 });
