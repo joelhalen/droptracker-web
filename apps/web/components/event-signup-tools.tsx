@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import type { EventDetail, EventSignup, EventTeam } from "@droptracker/api-types";
+import type {
+  EventDetail,
+  EventSignup,
+  EventSignupAllResult,
+  EventTeam,
+} from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Button, EmptyState, Input, Select } from "@/components/ui";
 import { EntityHoverCard } from "@/components/entity-hover-card";
@@ -14,6 +19,7 @@ import {
   postEventSignupMessage,
   randomizeEventSignups,
   removeEventSignup,
+  signupAllEventMembers,
   unassignEventSignup,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 
@@ -154,10 +160,11 @@ const SignupRow = memo(function SignupRow({
               {row.player_name}
             </Link>
           </EntityHoverCard>
-          {(row.group_name || row.source === "discord") && (
+          {(row.group_name || row.source !== "web") && (
             <span className="text-osrs-parchment-dark/50 flex min-w-0 items-center gap-1 text-xs">
               {row.group_name && <span className="truncate">{row.group_name}</span>}
               {row.source === "discord" && <span className="shrink-0">· via Discord</span>}
+              {row.source === "bulk" && <span className="shrink-0">· added by a manager</span>}
             </span>
           )}
         </div>
@@ -198,6 +205,27 @@ const SignupRow = memo(function SignupRow({
   );
 });
 
+/** One line summing up a "Sign up all clan members" run. */
+function signupAllNotice(res: EventSignupAllResult): string {
+  const n = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+  let text =
+    res.added === 0
+      ? "Everyone in the clan is already signed up."
+      : res.pooled
+        ? `Signed up ${n(res.added, "member")} into the pool.`
+        : `Signed up ${n(res.added, "member")} and placed ${res.placed} on teams.`;
+  const extra: string[] = [];
+  if (res.added && res.already) extra.push(`${res.already} were already in`);
+  if (res.skipped_alts)
+    extra.push(`${n(res.skipped_alts, "alt account")} skipped (one per person)`);
+  if (res.skipped_multi_clan)
+    extra.push(`${res.skipped_multi_clan} in more than one competing clan — add them by hand`);
+  if (res.unplaced) extra.push(`${res.unplaced} had no team for their clan`);
+  if (extra.length) text += ` ${extra.join("; ")}.`;
+  if (res.capped) text += " That's the most one run adds — run it again for the rest.";
+  return text;
+}
+
 /**
  * Admin sign-up tools shown on the event manager:
  *  - "Post sign-up button to Discord" for any self-sign-up event.
@@ -207,6 +235,9 @@ const SignupRow = memo(function SignupRow({
  *    leader can gauge ability at a glance while building teams. Manual team
  *    assignment (and un-assignment back to the pool), a Randomize button
  *    (re-roll as often as you like), and withdrawal are all inline.
+ *  - "Sign up all clan members" for EVERY formation mode — the one-shot,
+ *    any-kind counterpart of a SOTW/BOTW whole-clan roster. Pool events fill
+ *    the pool; the other modes also deal the new players onto teams.
  */
 export function EventSignupTools({
   groupId,
@@ -412,6 +443,24 @@ export function EventSignupTools({
     });
   };
 
+  const onSignupAll = () => {
+    const what = isPool
+      ? "Sign up every current member of the clan? They'll land in the sign-up pool."
+      : "Sign up every current member of the clan and spread them across the teams?";
+    if (!window.confirm(`${what} Anyone already in the event is left as they are.`)) return;
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      try {
+        const res = await signupAllEventMembers(groupId, eventId, clanScopeId);
+        setNotice(signupAllNotice(res));
+        refresh();
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't sign up the clan's members."));
+      }
+    });
+  };
+
   const onPostDiscord = () => {
     setError(null);
     setNotice(null);
@@ -429,7 +478,47 @@ export function EventSignupTools({
     });
   };
 
-  if (!selfSignup) return null;
+  // Whole-clan races already enter every member automatically (and the
+  // server refuses); a global event has no clan to draw from.
+  const canSignupAll =
+    event.competition?.participation !== "whole_clan" &&
+    (clanScopeId != null || event.group_id != null || clanVsClan);
+  const signupAllButton = canSignupAll ? (
+    <Button
+      variant="secondary"
+      size="sm"
+      onClick={onSignupAll}
+      disabled={pending || (!isPool && teams.length === 0)}
+      title={
+        !isPool && teams.length === 0
+          ? "Add a team first — new players are spread across the teams"
+          : `Sign up every current member of ${clanScopeId != null ? "your clan" : "the event's clan" + (clanVsClan ? "s" : "")}` +
+            (isPool ? " into the pool" : ", spread across the teams")
+      }
+    >
+      Sign up all clan members
+    </Button>
+  ) : null;
+
+  if (!selfSignup) {
+    // Admin-assigned events have no sign-up flow, but a manager can still
+    // enter the whole clan in one go.
+    if (!signupAllButton) return null;
+    return (
+      <section className="min-w-0">
+        <h3 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">Sign-ups</h3>
+        {error && <Alert variant="error">{error}</Alert>}
+        {notice && <Alert variant="success">{notice}</Alert>}
+        <div className="flex flex-wrap items-center gap-3">
+          {signupAllButton}
+          <p className="text-osrs-parchment-dark/60 text-sm">
+            Adds every current clan member to the teams, spread evenly. Nobody already in the event
+            is moved.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   const hasFilter = query.trim() !== "" || status !== "all" || clanFilter !== "all";
   const clearFilters = () => {
@@ -460,14 +549,17 @@ export function EventSignupTools({
       {notice && <Alert variant="success">{notice}</Alert>}
 
       {!isPool && (
-        <p className="text-osrs-parchment-dark/60 text-sm">
-          Players sign up from the event page
-          {event.formation_mode === "self_join"
-            ? " and pick their own team."
-            : " and are auto-assigned to a team."}{" "}
-          Switch this event to the <strong>sign-up pool</strong> mode if you&apos;d rather collect
-          sign-ups and build the teams yourself.
-        </p>
+        <div className="space-y-3">
+          {signupAllButton}
+          <p className="text-osrs-parchment-dark/60 text-sm">
+            Players sign up from the event page
+            {event.formation_mode === "self_join"
+              ? " and pick their own team."
+              : " and are auto-assigned to a team."}{" "}
+            Switch this event to the <strong>sign-up pool</strong> mode if you&apos;d rather collect
+            sign-ups and build the teams yourself.
+          </p>
+        </div>
       )}
 
       {isPool && (
@@ -487,6 +579,7 @@ export function EventSignupTools({
             >
               {clanScopeId != null ? "Add all sign-ups to the roster" : "🎲 Randomize teams"}
             </Button>
+            {signupAllButton}
             {pool == null ? (
               <span className="text-osrs-parchment-dark/60 text-xs">Loading…</span>
             ) : (

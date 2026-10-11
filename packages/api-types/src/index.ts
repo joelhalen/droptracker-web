@@ -6904,7 +6904,8 @@ export const EventSignupSchema = z.object({
   group_id: z.number().int().nullable().optional(),
   group_name: z.string().nullable().optional(),
   team_id: z.number().int().nullable(),
-  source: z.enum(["web", "discord"]).default("web"),
+  /** "bulk" = a manager's "Sign up all clan members". */
+  source: z.enum(["web", "discord", "bulk"]).catch("web"),
   signed_up_at: z.number().int().nullable().optional(),
   ehb: z.number().nullable().optional(),
   total_level: z.number().int().nullable().optional(),
@@ -6926,6 +6927,23 @@ export const EventRandomizeResultSchema = z.object({
   unassigned: z.number().int(),
 });
 export type EventRandomizeResult = z.infer<typeof EventRandomizeResultSchema>;
+
+/** POST /events/{id}/signups/all-members response — every current clan
+ * member signed up in one go. `pooled`: left in the sign-up pool (pool mode);
+ * otherwise `placed` of the `added` were dealt onto teams (`unplaced` had no
+ * team for their clan). `capped`: the per-call ceiling cut it short — run it
+ * again for the rest. */
+export const EventSignupAllResultSchema = z.object({
+  added: z.number().int(),
+  placed: z.number().int(),
+  unplaced: z.number().int(),
+  pooled: z.boolean(),
+  already: z.number().int(),
+  skipped_alts: z.number().int(),
+  skipped_multi_clan: z.number().int(),
+  capped: z.boolean(),
+});
+export type EventSignupAllResult = z.infer<typeof EventSignupAllResultSchema>;
 
 /** POST /events/{id}/populate-random response — admin scale/testing tool that
  * bulk-fills teams with random active members (balanced, clan-aware). */

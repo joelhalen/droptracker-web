@@ -1343,6 +1343,19 @@ export async function randomizeEventSignups(
   return result;
 }
 
+/** Sign up every current member of the event's clan(s); optional clan scope. */
+export async function signupAllEventMembers(
+  groupId: EventGroupId,
+  eventId: number,
+  clanGroupId?: number,
+) {
+  await assertCanManageEvent(groupId);
+  const result = await api.signupAllEventMembers(eventId, clanGroupId);
+  revalidatePath(eventAdminPath(groupId, eventId));
+  revalidatePath(`/events/${eventId}`);
+  return result;
+}
+
 /** Admin scale/testing tool: bulk-fill this event's teams with random active
  * members (balanced, clan-aware). Never moves or removes existing members. */
 export async function populateEventRandom(

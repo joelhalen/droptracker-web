@@ -9,10 +9,12 @@ import {
   EventSignupSchema,
   EventJoinResultSchema,
   EventRandomizeResultSchema,
+  EventSignupAllResultSchema,
   EventPopulateResultSchema,
   type EventSignup,
   type EventJoinResult,
   type EventRandomizeResult,
+  type EventSignupAllResult,
   type EventPopulateResult,
   type EventInvitation,
   type EventJoinInput,
@@ -312,6 +314,31 @@ export const eventMembershipApi = {
           ),
         ),
       () => ({ assigned: 0, unassigned: 0 }),
+    );
+  },
+
+
+  /** Sign up every current member of the event's clan(s); optional clan scope. */
+  async signupAllEventMembers(eventId: number, groupId?: number): Promise<EventSignupAllResult> {
+    return withFallback(
+      async () =>
+        EventSignupAllResultSchema.parse(
+          await apiSend(
+            "POST",
+            `/events/${eventId}/signups/all-members`,
+            groupId != null ? { group_id: groupId } : {},
+          ),
+        ),
+      () => ({
+        added: 0,
+        placed: 0,
+        unplaced: 0,
+        pooled: false,
+        already: 0,
+        skipped_alts: 0,
+        skipped_multi_clan: 0,
+        capped: false,
+      }),
     );
   },
 
