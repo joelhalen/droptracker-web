@@ -70,6 +70,7 @@ import {
   FORMATION_MODE_HELP,
   FORMATION_MODE_LABELS,
   rosterSizeText,
+  soloAllowed,
   SUBMISSION_POLICY_HELP,
   SUBMISSION_POLICY_LABELS,
   TASK_TYPE_LABELS,
@@ -1230,7 +1231,9 @@ export function EventSetupWizard({
               How do players get onto teams?
             </span>
             <div className="space-y-2" role="radiogroup">
-              {EVENT_FORMATION_MODES.map((m) => (
+              {EVENT_FORMATION_MODES.filter(
+                (m) => m !== "solo" || soloAllowed(detail.kind, detail.mode),
+              ).map((m) => (
                 <label
                   key={m}
                   className={`flex cursor-pointer items-start gap-2 rounded border p-2.5 ${
@@ -2084,16 +2087,26 @@ function WizardTeamsStep({
   const accents = teamColorMap(teams);
 
   const selfSignup = formationMode !== "admin_assign";
+  const solo = formationMode === "solo";
 
   return (
     <div className="space-y-4">
-      {selfSignup && (
+      {solo ? (
         <p className="text-osrs-parchment-dark/60 text-sm">
-          Players can also sign themselves up with this event&apos;s joining rules — you don&apos;t
-          have to place everyone by hand.
+          This is a free-for-all, so there are no teams to set up. Every player who signs up
+          gets an entry of their own, named after their RSN. To enter the whole clan at once,
+          use &ldquo;Sign up all members&rdquo; on the event page.
         </p>
+      ) : (
+        selfSignup && (
+          <p className="text-osrs-parchment-dark/60 text-sm">
+            Players can also sign themselves up with this event&apos;s joining rules — you
+            don&apos;t have to place everyone by hand.
+          </p>
+        )
       )}
 
+      {!solo && (
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -2140,6 +2153,7 @@ function WizardTeamsStep({
           {addingTeam ? "Adding…" : "Add team"}
         </button>
       </form>
+      )}
       {addError && <p className="text-osrs-red text-xs">{addError}</p>}
 
       {teams.length ? (
@@ -2243,7 +2257,7 @@ function WizardTeamsStep({
             );
           })}
         </ul>
-      ) : (
+      ) : solo ? null : (
         <EmptyState
           title="No teams yet"
           hint={

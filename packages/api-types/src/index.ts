@@ -2514,16 +2514,28 @@ export type EventTasksVisibility = (typeof EVENT_TASKS_VISIBILITIES)[number];
 
 /** How players get onto teams (events-prd.md D4). All but `admin_assign` let
  * players self-sign-up from the event page / a Discord button. `signup_pool`
- * collects opt-ins with no team; admins sort/randomize them later. */
+ * collects opt-ins with no team; admins sort/randomize them later. `solo` is a
+ * free-for-all: every entrant becomes a team of their own (named after their
+ * RSN), so standings, placement points and payouts rank players. */
 export const EVENT_FORMATION_MODES = [
   "self_join",
   "auto_assign",
   "signup_pool",
   "admin_assign",
+  "solo",
 ] as const;
 
 /** Formation modes that let a player sign themselves up. */
-export const EVENT_SELF_SIGNUP_MODES = ["self_join", "auto_assign", "signup_pool"] as const;
+export const EVENT_SELF_SIGNUP_MODES = [
+  "self_join",
+  "auto_assign",
+  "signup_pool",
+  "solo",
+] as const;
+
+/** Event kinds that can't run free-for-all (mirrors the backend's
+ * EVENT_SOLO_BLOCKED_KINDS); clan-vs-clan events can't either. */
+export const EVENT_SOLO_BLOCKED_KINDS = ["conquest", "sotw", "botw"] as const;
 
 /** Event ownership shape: one group (or global), or host-vs-invited-clans. */
 export const EVENT_MODES = ["standard", "clan_vs_clan"] as const;

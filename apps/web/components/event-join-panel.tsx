@@ -97,7 +97,9 @@ export function EventJoinPanel({
   const selfJoin = event.formation_mode === "self_join";
   const autoAssign = event.formation_mode === "auto_assign";
   const pool = event.formation_mode === "signup_pool";
-  const selfSignupMode = selfJoin || autoAssign || pool;
+  // Free-for-all: joining makes the player a team of their own.
+  const solo = event.formation_mode === "solo";
+  const selfSignupMode = selfJoin || autoAssign || pool || solo;
   // web70a: the API is the authority on the window — it refuses joins on this
   // same answer, and the Discord sign-up post drops its button at the same
   // moment. Defaults open for payloads predating the field.
@@ -105,7 +107,7 @@ export function EventJoinPanel({
   const canSelfSignup = selfSignupMode && signupsOpen;
   // The new sign-up surfaces (the pool, and clan-vs-clan) enter one account per
   // person; legacy standard self_join/auto_assign keep multi-account behavior.
-  const oneAccount = pool || isClanVsClan;
+  const oneAccount = pool || solo || isClanVsClan;
   const hasEntry = memberships.size > 0 || pooledIds.size > 0;
 
   if (!selfSignupMode && memberships.size === 0) {
@@ -218,7 +220,9 @@ export function EventJoinPanel({
           >
             <span>
               <span className="text-osrs-gold-bright">{player?.name ?? `Player ${pid}`}</span>
-              <span className="text-osrs-parchment-dark/60"> is on {m.teamName}</span>
+              <span className="text-osrs-parchment-dark/60">
+                {solo ? " is entered — competing on their own" : ` is on ${m.teamName}`}
+              </span>
             </span>
             <button
               onClick={() => onLeave(pid)}
@@ -266,7 +270,7 @@ export function EventJoinPanel({
       {canSelfSignup &&
         (!oneAccount || !hasEntry) &&
         freePlayers.length > 0 &&
-        (pool || eligibleTeams.length > 0) && (
+        (pool || solo || eligibleTeams.length > 0) && (
         <form onSubmit={onJoin} className="space-y-2">
           <label className="block text-sm">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
@@ -311,6 +315,13 @@ export function EventJoinPanel({
             <p className="text-osrs-parchment-dark/50 text-xs">
               You&apos;ll be placed on {isClanVsClan ? "your clan's" : "the"} smallest team
               automatically.
+            </p>
+          )}
+
+          {solo && (
+            <p className="text-osrs-parchment-dark/50 text-xs">
+              It&apos;s a free-for-all — you compete on your own, ranked against every other
+              player.
             </p>
           )}
 

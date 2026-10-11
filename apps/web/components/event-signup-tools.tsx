@@ -206,14 +206,16 @@ const SignupRow = memo(function SignupRow({
 });
 
 /** One line summing up a "Sign up all clan members" run. */
-function signupAllNotice(res: EventSignupAllResult): string {
+function signupAllNotice(res: EventSignupAllResult, solo = false): string {
   const n = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
   let text =
     res.added === 0
       ? "Everyone in the clan is already signed up."
       : res.pooled
         ? `Signed up ${n(res.added, "member")} into the pool.`
-        : `Signed up ${n(res.added, "member")} and placed ${res.placed} on teams.`;
+        : solo
+          ? `Signed up ${n(res.added, "member")} — each competes on their own.`
+          : `Signed up ${n(res.added, "member")} and placed ${res.placed} on teams.`;
   const extra: string[] = [];
   if (res.added && res.already) extra.push(`${res.already} were already in`);
   if (res.skipped_alts)
@@ -256,8 +258,11 @@ export function EventSignupTools({
   const selfSignup =
     event.formation_mode === "self_join" ||
     event.formation_mode === "auto_assign" ||
-    event.formation_mode === "signup_pool";
+    event.formation_mode === "signup_pool" ||
+    event.formation_mode === "solo";
   const isPool = event.formation_mode === "signup_pool";
+  // Free-for-all: sign-ups make their own teams, so none need to exist first.
+  const isSolo = event.formation_mode === "solo";
   const clanVsClan = event.mode === "clan_vs_clan";
   // web70a: once the window shuts, the sign-up post would be a dead button —
   // the API refuses to queue one (409), so don't offer it.
@@ -453,7 +458,7 @@ export function EventSignupTools({
     startTransition(async () => {
       try {
         const res = await signupAllEventMembers(groupId, eventId, clanScopeId);
-        setNotice(signupAllNotice(res));
+        setNotice(signupAllNotice(res, isSolo));
         refresh();
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't sign up the clan's members."));
@@ -488,12 +493,16 @@ export function EventSignupTools({
       variant="secondary"
       size="sm"
       onClick={onSignupAll}
-      disabled={pending || (!isPool && teams.length === 0)}
+      disabled={pending || (!isPool && !isSolo && teams.length === 0)}
       title={
-        !isPool && teams.length === 0
+        !isPool && !isSolo && teams.length === 0
           ? "Add a team first — new players are spread across the teams"
           : `Sign up every current member of ${clanScopeId != null ? "your clan" : "the event's clan" + (clanVsClan ? "s" : "")}` +
-            (isPool ? " into the pool" : ", spread across the teams")
+            (isPool
+              ? " into the pool"
+              : isSolo
+                ? " — each competes on their own"
+                : ", spread across the teams")
       }
     >
       Sign up all clan members
@@ -552,12 +561,21 @@ export function EventSignupTools({
         <div className="space-y-3">
           {signupAllButton}
           <p className="text-osrs-parchment-dark/60 text-sm">
-            Players sign up from the event page
-            {event.formation_mode === "self_join"
-              ? " and pick their own team."
-              : " and are auto-assigned to a team."}{" "}
-            Switch this event to the <strong>sign-up pool</strong> mode if you&apos;d rather collect
-            sign-ups and build the teams yourself.
+            {isSolo ? (
+              <>
+                Players sign up from the event page or the Discord button, and each one competes
+                on their own — a free-for-all.
+              </>
+            ) : (
+              <>
+                Players sign up from the event page
+                {event.formation_mode === "self_join"
+                  ? " and pick their own team."
+                  : " and are auto-assigned to a team."}{" "}
+                Switch this event to the <strong>sign-up pool</strong> mode if you&apos;d rather
+                collect sign-ups and build the teams yourself.
+              </>
+            )}
           </p>
         </div>
       )}

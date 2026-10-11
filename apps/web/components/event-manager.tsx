@@ -25,6 +25,7 @@ import {
 } from "@/lib/competition";
 import { CompetitionSetup } from "@/components/competition-setup";
 import {
+  FORMATION_MODE_HELP,
   FORMATION_MODE_LABELS,
   EVENT_MODE_LABELS,
   SUBMISSION_POLICY_HELP,
@@ -32,6 +33,7 @@ import {
   TASK_TYPE_LABELS,
   TEAM_COLORS,
   repeatBadge,
+  soloAllowed,
   taskGoal,
   taskRepeat,
   teamColorMap,
@@ -438,6 +440,19 @@ export function EventManager({
         setError(problem);
         return;
       }
+    }
+    // Switching to free-for-all splits every shared team into one team per
+    // player (server-side, ledger re-folded per player) — not undoable.
+    const sharedTeams = teams.filter((t) => (t.member_count ?? t.members?.length ?? 0) > 1);
+    if (
+      eventDraft.formationMode === "solo" &&
+      event.formation_mode !== "solo" &&
+      sharedTeams.length > 0 &&
+      !window.confirm(
+        `Make this event a free-for-all? ${sharedTeams.length === 1 ? "Its team" : `Its ${sharedTeams.length} teams`} will be split so every player is a team of their own, keeping their own progress and points. This can't be undone.`,
+      )
+    ) {
+      return;
     }
     startTransition(async () => {
       setError(null);
@@ -863,12 +878,22 @@ export function EventManager({
                 }
                 className={`${field} w-full`}
               >
-                {EVENT_FORMATION_MODES.map((m) => (
+                {EVENT_FORMATION_MODES.filter(
+                  (m) =>
+                    m !== "solo" ||
+                    event.formation_mode === "solo" ||
+                    soloAllowed(event.kind, event.mode),
+                ).map((m) => (
                   <option key={m} value={m}>
                     {FORMATION_MODE_LABELS[m]}
                   </option>
                 ))}
               </select>
+              {eventDraft.formationMode === "solo" && (
+                <span className="text-osrs-parchment-dark/60 mt-1 block text-xs">
+                  {FORMATION_MODE_HELP.solo}
+                </span>
+              )}
             </label>
             <label className="block text-sm">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">

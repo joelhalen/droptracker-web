@@ -10,7 +10,7 @@ import type {
   EventTeam,
   EventTeamRole,
 } from "@droptracker/api-types";
-import { EVENT_TASK_DIFFICULTIES } from "@droptracker/api-types";
+import { EVENT_SOLO_BLOCKED_KINDS, EVENT_TASK_DIFFICULTIES } from "@droptracker/api-types";
 import { formatGp } from "@/lib/format";
 
 /** Default per-team accent palette, indexed by roster order — the fallback
@@ -94,6 +94,7 @@ export const FORMATION_MODE_LABELS: Record<EventDetail["formation_mode"], string
   auto_assign: "Self sign-up — auto-assigned to a team",
   signup_pool: "Sign-up pool — admins sort teams later",
   admin_assign: "Admin assign — no self sign-up",
+  solo: "Free-for-all — everyone competes on their own",
 };
 
 /** One-line help under the formation-mode picker. */
@@ -103,10 +104,19 @@ export const FORMATION_MODE_HELP: Record<EventDetail["formation_mode"], string> 
   signup_pool:
     "Players sign up into a pool with no team. You sort them into teams when ready — by hand or with a Randomize button you can re-roll as often as you like.",
   admin_assign: "Only admins place players on teams; there is no self sign-up.",
+  solo:
+    "No teams: every player who signs up is ranked on their own, and placement points and the pot go to the top players. Switching a running event to this splits its teams — each player keeps their own progress.",
 };
 
 /** Formation modes that let a player sign themselves up. */
-export const SELF_SIGNUP_MODES = ["self_join", "auto_assign", "signup_pool"] as const;
+export const SELF_SIGNUP_MODES = ["self_join", "auto_assign", "signup_pool", "solo"] as const;
+
+/** Whether an event of this kind/ownership can run free-for-all (the backend
+ * refuses the rest with a 422). */
+export function soloAllowed(kind: string | null | undefined, mode: string | null | undefined): boolean {
+  if ((mode ?? "standard") === "clan_vs_clan") return false;
+  return !(EVENT_SOLO_BLOCKED_KINDS as readonly string[]).includes(kind ?? "standard");
+}
 
 /** Event ownership shape labels. */
 export const EVENT_MODE_LABELS: Record<EventDetail["mode"], string> = {
