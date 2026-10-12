@@ -138,7 +138,7 @@ test("a block leads with its toggles only when a toggle is declared first", () =
   assert.equal(main.leadWithToggles, true, "Notify deaths is the first thing in Deaths");
   assert.deepEqual(
     main.toggles.map((f) => f.key),
-    ["notify_deaths", "notify_deaths_safe"],
+    ["notify_deaths", "notify_deaths_safe", "notify_deaths_lms", "notify_deaths_pk_tutor"],
   );
   assert.deepEqual(main.compact.map((f) => f.key), ["channel_id_to_post_deaths"]);
 
