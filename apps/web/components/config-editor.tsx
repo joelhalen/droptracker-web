@@ -8,6 +8,7 @@ import {
   comingSoonNote,
   getConfigField,
   type ConfigField,
+  type DiscordRole,
   type GroupSubscription,
   type SubscriptionTier,
 } from "@droptracker/api-types";
@@ -38,6 +39,8 @@ import { viewerZone } from "@/components/local-time";
 import { Alert, Badge, Button, Card, controlClass, EmptyState, Input, Select, Textarea } from "@/components/ui";
 import { GpInput } from "@/components/gp-input";
 import { ChannelListDelayHint, DiscordChannelPicker } from "@/components/discord-channel-picker";
+import { DiscordRolePicker } from "@/components/discord-role-picker";
+import { fetchDiscordRoles } from "@/app/(site)/(admin)/groups/[id]/announcements/actions";
 import { BossListPicker } from "@/components/boss-list-picker";
 import { MultiSelectOptions } from "@/components/multi-select-options";
 import { BoardStylePicker } from "@/components/board-style-picker";
@@ -801,7 +804,9 @@ function InputField({
   const disabled = locked;
   const pendingNote = comingSoonNote(field);
   // A checkbox list labels each of its own boxes, and labels can't nest.
-  const Wrapper = field.type === "multiselect" ? "div" : "label";
+  // A role picker is a row of buttons, and a <label> would forward every
+  // click on it to the first one.
+  const Wrapper = field.type === "multiselect" || field.type === "role" ? "div" : "label";
   return (
     <Wrapper className={`block ${disabled ? "opacity-60" : ""}`}>
       <span className="block text-sm font-medium">
@@ -857,6 +862,13 @@ function InputField({
           onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
           disabled={disabled}
           className="w-full disabled:cursor-not-allowed"
+        />
+      ) : field.type === "role" ? (
+        <RoleFieldPicker
+          groupId={groupId}
+          value={String(value ?? "")}
+          onChange={(v) => onChange(v)}
+          disabled={disabled}
         />
       ) : field.type === "channel" ? (
         <DiscordChannelPicker
@@ -1119,5 +1131,45 @@ function LockedFieldHint({ groupId }: { groupId: number }) {
     >
       Upgrade subscription to unlock →
     </a>
+  );
+}
+
+
+/** One Discord role from the group's guild, or none. Roles load on first
+ *  render (most groups never open a settings page that has one). Clicking the
+ *  chosen role again clears it. */
+function RoleFieldPicker({
+  groupId,
+  value,
+  onChange,
+  disabled,
+}: {
+  groupId: number;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [roles, setRoles] = useState<DiscordRole[] | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetchDiscordRoles(groupId)
+      .then((res) => {
+        if (active) setRoles(res.roles);
+      })
+      .catch(() => {
+        if (active) setRoles([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [groupId]);
+  return (
+    <fieldset disabled={disabled} className="disabled:cursor-not-allowed">
+      <DiscordRolePicker
+        roles={roles}
+        selected={value ? [value] : []}
+        onToggle={(id) => onChange(id === value ? "" : id)}
+      />
+    </fieldset>
   );
 }

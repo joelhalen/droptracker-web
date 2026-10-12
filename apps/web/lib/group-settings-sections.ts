@@ -259,6 +259,7 @@ export function fieldBlocks(fields: readonly ConfigField[]): FieldBlock[] {
 
 /** Field types that take a full row rather than a grid cell. */
 export const WIDE_TYPES: ReadonlySet<ConfigField["type"]> = new Set([
+  "role",
   "text",
   "csv",
   "bosslist",

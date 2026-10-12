@@ -30,6 +30,7 @@ export type ConfigCategory =
 
 export type ConfigFieldType =
   | "channel" // Discord channel id (stored as string)
+  | "role" // Discord role id (stored as string), picked from the group's guild roles
   | "boolean"
   | "int"
   | "string"
@@ -195,6 +196,11 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "announcements_channel_id", label: "Announcements channel", category: "channels", group: "Other channels", type: "channel", help: "Channel where published announcements are syndicated (FRONTEND_PLAN.md §10).", default: null },
   { key: "activity_launch_channel", label: "Activity launcher channel", category: "channels", group: "Other channels", type: "channel", help: "Post an “Open DropTracker” card in this channel with a button that opens the in-Discord app. The bot keeps one card here and moves or removes it when you change this.", default: null },
   { key: "channel_id_to_send_logs", label: "Member log channel", category: "channels", group: "Other channels", type: "channel", help: "Channel where member join/leave log messages are posted. Leave unset to disable.", default: null },
+  // Submit button (suggestion #198): members send an entry from a button
+  // instead of remembering /submit — on the launcher card, its own card, or both.
+  { key: "submit_on_launch_card", label: "Submit button on the launcher card", category: "channels", group: "Submit button", type: "boolean", help: "Add a Submit button to the Open DropTracker card, so members can send a drop, PB or other entry without a slash command.", default: false },
+  { key: "submit_panel_channel", label: "Submit card channel", category: "channels", group: "Submit button", type: "channel", help: "Post a card with a Submit button in this channel. The bot keeps one card here and moves or removes it when you change this.", default: null },
+  { key: "submit_panel_message", label: "Submit card message", category: "channels", group: "Submit button", type: "string", help: "Optional. The text on the Submit card. Leave blank for the default.", default: "", maxLength: 250 },
 
   // --- Drop notifications -------------------------------------------------
   // Defaults must match the backend processors' runtime fallbacks
@@ -240,6 +246,15 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
     group: "Manual submissions",
     type: "channel",
     help: "Optional. Where to ping when a manual submission is held for approval (the \"Hold for admin approval\" policy). Leave unset to review only on the website.",
+    default: null,
+  },
+  {
+    key: "review_role_id",
+    label: "Review staff role",
+    category: "drops",
+    group: "Manual submissions",
+    type: "role",
+    help: "Members with this Discord role can approve or reject submissions with the buttons on review messages. Group admins always can.",
     default: null,
   },
 
@@ -517,6 +532,8 @@ function fieldSchema(f: ConfigField): z.ZodTypeAny {
           message: "Unknown option.",
         });
     }
+    case "role":
+      return z.union([z.literal(""), z.string().regex(/^\d{15,21}$/, "Pick a role.")]);
     case "channel":
     case "string":
     case "text":
