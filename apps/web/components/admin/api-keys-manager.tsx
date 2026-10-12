@@ -209,9 +209,15 @@ function MintForm({
     tier?: string;
     deliver_link?: boolean;
     deliver_to_user_id?: number | null;
+    can_submit?: boolean;
+    submit_preapproved?: boolean;
   }) => void;
 }) {
   const [ownerKind, setOwnerKind] = useState<"group" | "user" | "global">("group");
+  // Submission API (suggestion #198): group keys only, off by default.
+  const [canSubmit, setCanSubmit] = useState(false);
+  const [preapproved, setPreapproved] = useState(false);
+  const submitting = ownerKind === "group" && canSubmit;
   const [ownerId, setOwnerId] = useState("");
   const [label, setLabel] = useState("");
   const [tier, setTier] = useState(tiers[0]?.tier_key ?? "standard");
@@ -304,6 +310,36 @@ function MintForm({
         Deliver as a one-time link, DMed to the owner
         {ownerKind === "global" && " (put the recipient's user id above)"}
       </label>
+      {ownerKind === "group" && (
+        <div className="mt-2 space-y-2">
+          <label className="text-osrs-parchment-dark/70 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={canSubmit}
+              onChange={(e) => {
+                setCanSubmit(e.target.checked);
+                if (!e.target.checked) setPreapproved(false);
+              }}
+            />
+            Can submit drops, PBs and other entries for this group&apos;s members
+            (POST /v2/submissions)
+          </label>
+          <label
+            className={`text-osrs-parchment-dark/70 flex items-center gap-2 text-sm ${
+              canSubmit ? "" : "opacity-40"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={preapproved}
+              disabled={!canSubmit}
+              onChange={(e) => setPreapproved(e.target.checked)}
+            />
+            Pre-approved: the group reviews what it sends, so its submissions skip the
+            group&apos;s review and count like plugin entries on its events
+          </label>
+        </div>
+      )}
       <button
         type="button"
         disabled={!valid || pending}
@@ -319,6 +355,9 @@ function MintForm({
                   label: label.trim(),
                   tier,
                   deliver_link: deliver,
+                  ...(submitting
+                    ? { can_submit: true, submit_preapproved: preapproved }
+                    : {}),
                 },
           )
         }
@@ -369,6 +408,11 @@ function KeyCard({
                 ? `group ${apiKey.group_id}`
                 : `user ${apiKey.owner_user_id}`}
           </span>
+          {apiKey.can_submit && (
+            <span className="text-sky-300">
+              {apiKey.submit_preapproved ? "submits, pre-approved" : "submits"}
+            </span>
+          )}
           <span>used {ago(apiKey.last_used_at)}</span>
         </div>
       </div>
@@ -411,6 +455,29 @@ function KeyCard({
           {open ? "Hide overrides" : "Overrides"}
           {Object.keys(apiKey.overrides).length > 0 && " •"}
         </button>
+
+        {apiKey.can_submit && (
+          <>
+            <label className="text-osrs-parchment-dark/70 flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={apiKey.submit_preapproved}
+                disabled={pending}
+                onChange={(e) => onChange({ submit_preapproved: e.target.checked })}
+              />
+              Pre-approved
+            </label>
+            <button
+              type="button"
+              disabled={pending}
+              title="Submission access can only be granted when a key is created."
+              onClick={() => onChange({ can_submit: false })}
+              className="rounded border border-white/15 px-2 py-1 text-xs hover:bg-white/10 disabled:opacity-40"
+            >
+              Remove submit access
+            </button>
+          </>
+        )}
 
         <button
           type="button"

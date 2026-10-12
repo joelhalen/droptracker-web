@@ -259,6 +259,10 @@ export const adminApi = {
     deliver_link?: boolean;
     /** Required for a global key, which has no owner to deliver to. */
     deliver_to_user_id?: number | null;
+    /** Group keys only: may POST /v2/submissions (suggestion #198). */
+    can_submit?: boolean;
+    /** With can_submit: the group already reviews what it sends. */
+    submit_preapproved?: boolean;
   }): Promise<ApiKey> {
     return ApiKeySchema.parse(await apiSend("POST", `/admin/api-keys`, input));
   },

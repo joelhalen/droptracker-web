@@ -35,6 +35,7 @@ const CONTENTS = [
   { href: "#endpoints", label: "Endpoints" },
   { href: "#sections", label: "Sections" },
   { href: "#paging", label: "Paging a roster" },
+  { href: "#submissions", label: "Submitting entries" },
   { href: "#errors", label: "Errors" },
   { href: "#notes", label: "Notes on the data" },
 ];
@@ -430,6 +431,86 @@ while : ; do
   [ -z "$cursor" ] && break
 done`}
       />
+
+      <Heading id="submissions">Submitting entries</Heading>
+      <p className="ink-muted text-sm">
+        A group key with submissions enabled can send drops, collection log slots, personal bests,
+        combat achievements and pets for the group&apos;s members. This is for a clan that already
+        collects screenshots its own way, for example a Discord bot where staff accept each one.
+        Submissions go through the same checks as the website&apos;s submit form. Submission access
+        is switched on by DropTracker staff; open a support ticket to ask for it.
+      </p>
+      <p className="ink-muted mt-3 text-sm">
+        A <strong>pre-approved</strong> key tells us your staff already reviewed what it sends. Its
+        submissions skip your group&apos;s manual-submission review, and they count like plugin
+        entries on events your group runs or takes part in. A task or event set to require
+        confirmation still holds them for review. Without pre-approval, a submission goes through
+        your group&apos;s normal review like any manual one.
+      </p>
+      <CodeBlock
+        label="Submit a drop with a screenshot"
+        code={`curl -X POST -H "Authorization: Bearer $DT_API_KEY" \\
+  -F type=drop -F player="Zezima" -F item="Abyssal whip" -F npc="Abyssal demon" \\
+  -F external_id="discord-msg-1428123456789" -F image=@whip.png \\
+  "${API_BASE}/submissions"`}
+      />
+      <p className="ink-muted mt-3 text-sm">
+        Send JSON, or <code>multipart/form-data</code> when you attach the screenshot as an{" "}
+        <code>image</code> file (PNG, JPEG, WebP or GIF, up to 10 MB). Instead of a file you can
+        pass <code>image_url</code>, but only a Discord attachment link
+        (<code>cdn.discordapp.com</code> or <code>media.discordapp.net</code>). We copy the image,
+        because those links expire.
+      </p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="ink-rule ink-heading border-b">
+              <th className="py-1.5 pr-4 font-semibold">Field</th>
+              <th className="py-1.5 font-semibold">Notes</th>
+            </tr>
+          </thead>
+          <tbody className="ink-muted">
+            {[
+              ["type", "drop, clog, pb, ca or pet."],
+              ["player", "The member's RSN, or their DropTracker player id. They must be in your group and have used the plugin at least once."],
+              ["item", "The item, collection log slot or pet. Needed for drop, clog and pet."],
+              ["npc", "Where it came from. Needed for drop, and the boss for pb."],
+              ["quantity, value, kc", "Optional, for drops. Leave value out and we price it from the GE."],
+              ["time or time_ms", "Personal bests: a time like 1:23.4, or milliseconds. team_size is optional."],
+              ["task, tier", "Combat achievements: the task name and its tier (easy to grandmaster)."],
+              ["external_id", "Your own id for this submission, up to 64 characters. Sending the same one again returns the first answer instead of submitting twice, so retries are safe."],
+              ["obtained_at", "When the drop happened, in unix seconds. Narrows the duplicate check below to half an hour either side."],
+              ["skip_if_tracked", "Default true. Skips a drop the plugin already recorded for that player (see below)."],
+              ["note", "Free text for your own records, up to 500 characters."],
+            ].map(([field, notes]) => (
+              <tr key={field} className="ink-rule border-b last:border-0">
+                <td className="py-1.5 pr-4 align-top">
+                  <code>{field}</code>
+                </td>
+                <td className="py-1.5 align-top">{notes}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="ink-muted mt-3 text-sm">
+        <strong>Drops the plugin already caught.</strong> Members who run the plugin are tracked
+        automatically, so their screenshot would count the same drop twice. With{" "}
+        <code>skip_if_tracked</code> on, a drop the plugin recorded for that player in the last 12
+        hours (or within half an hour of <code>obtained_at</code>) comes back as{" "}
+        <code>already_tracked</code> and nothing is added. Each tracked drop covers one submission
+        only: if the plugin caught one whip and you send two, the second is recorded. If we matched
+        the wrong drop, send it again with <code>skip_if_tracked=false</code>.
+      </p>
+      <p className="ink-muted mt-3 text-sm">
+        The response has an <code>id</code> and a <code>status</code>: <code>accepted</code>,{" "}
+        <code>already_tracked</code>, or <code>rejected</code> (status 422, with the reason in{" "}
+        <code>detail</code>). Event credit is worked out a moment later, so read{" "}
+        <code>GET /v2/submissions/{"{id}"}</code> for the drop it created and the event tasks it
+        counted toward. <code>GET /v2/submissions</code> lists your group&apos;s recent
+        submissions, newest first, paged by <code>cursor</code>. A key can submit up to 30 times a
+        minute, on top of its normal request budget.
+      </p>
 
       <Heading id="errors">Errors</Heading>
       <div className="overflow-x-auto">

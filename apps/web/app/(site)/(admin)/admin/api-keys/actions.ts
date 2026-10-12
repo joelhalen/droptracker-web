@@ -35,6 +35,8 @@ export async function mintApiKey(input: {
   tier?: string;
   deliver_link?: boolean;
   deliver_to_user_id?: number | null;
+  can_submit?: boolean;
+  submit_preapproved?: boolean;
 }): Promise<Result<ApiKey>> {
   await requireSuperadmin(PATH);
   try {

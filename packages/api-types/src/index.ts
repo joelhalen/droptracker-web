@@ -3114,6 +3114,12 @@ export const ApiKeySchema = z.object({
   expires_at: z.string().nullable(),
   revoked_at: z.string().nullable(),
   overrides: ApiKeyOverridesSchema,
+  /** May POST /v2/submissions (group keys only, granted at mint). Defaulted
+   *  so a backend that predates the submission API still parses. */
+  can_submit: z.boolean().default(false),
+  /** The group already reviews what this key sends: no manual-submission
+   *  review for that group, plugin-level trust on its events. */
+  submit_preapproved: z.boolean().default(false),
   /** Present on the mint response ONLY, and never again. */
   token: z.string().optional(),
   warning: z.string().optional(),

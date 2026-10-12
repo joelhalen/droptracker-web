@@ -113,3 +113,18 @@ test("a plain mint response is still valid without the reveal fields", () => {
   });
   assert.equal(parsed.reveal_url, undefined);
 });
+
+test("submission flags default off, so an older backend still parses", () => {
+  const base = {
+    id: 1, label: "bot", state: "active" as const, tier: "standard",
+    owner_type: "group" as const, owner_user_id: null, group_id: 7,
+    display: "dtk_1_abc...", created_at: null, last_used_at: null,
+    expires_at: null, revoked_at: null, overrides: {},
+  };
+  const legacy = ApiKeySchema.parse(base);
+  assert.equal(legacy.can_submit, false);
+  assert.equal(legacy.submit_preapproved, false);
+  const submit = ApiKeySchema.parse({ ...base, can_submit: true, submit_preapproved: true });
+  assert.equal(submit.can_submit, true);
+  assert.equal(submit.submit_preapproved, true);
+});
