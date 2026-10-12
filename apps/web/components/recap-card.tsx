@@ -1,5 +1,6 @@
 import type { Recap } from "@droptracker/api-types";
 import { formatGp } from "@/lib/format";
+import { ACTIVITY_WEIGHT, primeDayOf, primeHourOf } from "@/lib/recap-prime-time";
 import { RECAP_CARD_CSS } from "./recap-card.styles";
 import { EmbedImg } from "@/components/entity-link";
 
@@ -84,12 +85,6 @@ function formatIsoDay(iso: string, withYear = false): string | null {
   const month = MONTHS_SHORT[Number(m[2]) - 1];
   if (!month) return null;
   return withYear ? `${Number(m[3])} ${month} ${m[1]}` : `${Number(m[3])} ${month}`;
-}
-
-function argmax(values: number[]): number {
-  let best = 0;
-  for (let i = 1; i < values.length; i++) if (values[i]! > values[best]!) best = i;
-  return best;
 }
 
 const ACHIEVEMENT_LABELS: Record<string, string> = {
@@ -297,15 +292,13 @@ export function RecapCard({
   const byMonth = recap.by_month ?? [];
   const clans = isGroup ? [] : (subject?.groups ?? []);
 
-  // Loot-weighted histograms: an unused-until-now field that carries the single
-  // most characterful line on the card. Omitted when the period has no rows at
-  // all rather than claiming everyone loots at midnight on a Monday.
-  const byHour = recap.activity?.by_hour ?? [];
-  const byWeekday = recap.activity?.by_weekday ?? [];
-  const hourTotal = byHour.reduce((a, b) => a + b, 0);
-  const primeHour = byHour.length === 24 && hourTotal > 0 ? argmax(byHour) : null;
+  // When the subject actually plays, counted in active hours (see
+  // `primeHourOf`). Omitted when the histograms predate that weighting or show
+  // no repeated habit, rather than naming the hour of one lucky drop.
+  const activityUsable = recap.activity?.weight === ACTIVITY_WEIGHT;
+  const primeHour = activityUsable ? primeHourOf(recap.activity?.by_hour ?? []) : null;
   const primeDay =
-    byWeekday.length === 7 && byWeekday.reduce((a, b) => a + b, 0) > 0 ? argmax(byWeekday) : null;
+    primeHour !== null ? primeDayOf(recap.activity?.by_weekday ?? []) : null;
 
   /* Stat plaques beside the hero figure. Built as a list so an unavailable one
      simply isn't there and the grid closes up. */
@@ -369,7 +362,7 @@ export function RecapCard({
         key="prime"
         label="Prime time"
         value={`${String(primeHour).padStart(2, "0")}:00 UTC`}
-        hint={primeDay !== null ? WEEKDAYS[primeDay] : undefined}
+        hint={primeDay !== null ? `most active · ${WEEKDAYS[primeDay]}` : "most active hour"}
       />,
     );
   }

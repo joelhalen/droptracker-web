@@ -8152,6 +8152,10 @@ export const RecapSchema = z.object({
     .object({
       by_hour: z.array(z.number()).optional(),
       by_weekday: z.array(z.number()).optional(),
+      /** "active_hours" — by_hour[h] = days active at h:00 UTC, by_weekday[d] =
+       *  hours active on that weekday. Absent on older snapshots, which summed
+       *  GP instead and must not be shown as play time. */
+      weight: z.string().optional(),
     })
     .optional(),
 
