@@ -207,7 +207,6 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // (data/submissions/drop.py) so the editor never shows one behavior while
   // the bot does another.
   { key: "minimum_value_to_notify", label: "Minimum value to notify", category: "drops", type: "int", help: "Suppress drop notifications below this GP value.", default: 2500000, min: 0, unit: "gp" },
-  { key: "only_include_items_over_minimum", label: "Only items over minimum", category: "drops", type: "boolean", help: "On stacked/multi-item drops, only include items above the minimum value.", default: false, seasonalMirror: true },
   { key: "only_send_messages_with_images", label: "Only send with images", category: "drops", type: "boolean", help: "Require a screenshot before posting a drop.", default: false, seasonalMirror: true },
   { key: "send_stacks_of_items", label: "Announce item stacks", category: "drops", type: "boolean", help: "Announce drops of stackable items (e.g. rune/coin stacks) when their total value passes the minimum.", default: false, seasonalMirror: true },
 
@@ -377,6 +376,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   },
   { key: "lootboard_channel_id", label: "Lootboard channel", category: "board", type: "channel", help: "Channel where the lootboard image is posted/updated.", default: null },
   { key: "lootboard_message_id", label: "Lootboard message id", category: "board", type: "string", help: "Message the bot edits when reposting the board. Managed automatically.", default: null },
+  { key: "only_include_items_over_minimum", label: "Hide items below minimum value", category: "board", type: "boolean", help: "When on, the lootboard only shows items worth at least your Minimum value to notify. When off, every tracked item for your members appears, and player totals on the board follow the same rule. Discord drop announcements are unchanged.", default: false, seasonalMirror: true },
   { key: "use_dynamic_colors", label: "Dynamic colors", category: "board", type: "boolean", help: "Color item tiles by relative value.", default: true },
   { key: "use_gp_colors", label: "GP colors", category: "board", type: "boolean", help: "Use GP-value color thresholds on the board.", default: true },
   { key: "repost_lootboard", label: "Repost lootboard", category: "board", type: "boolean", help: "Repost (vs. edit) the board on each update.", default: false },

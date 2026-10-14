@@ -90,6 +90,7 @@ test("the moved settings live where the page now says they do", () => {
     assert.equal(cat(key), "voice", key);
   }
   assert.equal(cat("lootboard_channel_id"), "board");
+  assert.equal(cat("only_include_items_over_minimum"), "board");
   assert.equal(cat("channel_id_to_post_manual_review"), "drops");
   assert.equal(cat("min_ca_tier_to_notify"), "achievements");
   // What is left of the old section is WiseOldMan and API keys only.
