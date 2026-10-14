@@ -63,7 +63,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
   drop: [
     { token: "{player_name}", help: "Player who received the drop (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who received the drop, with no profile link", sample: "RuneLite Ron" },
-    { token: "{item_name}", help: "Item name (linked to the wiki)", sample: "Abyssal whip" },
+    { token: "{item_name}", help: "Item name. Links to the wiki only in the title; use {item_link} anywhere else", sample: "Abyssal whip" },
+    { token: "{item_link}", help: "Item name linked to its wiki page", sample: "[Abyssal whip](https://oldschool.runescape.wiki/w/Abyssal_whip)" },
     // Sample is empty on purpose: the value is a Discord custom emoji, which
     // only Discord can draw. The preview renders TOKEN_SAMPLE_ICONS instead.
     {
@@ -76,6 +77,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{quantity}", help: "Quantity received", sample: "1" },
     { token: "{total_value}", help: "Stack value (value × quantity)", sample: "1,624,461" },
     { token: "{npc_name}", help: "NPC / source name", sample: "Abyssal demon" },
+    { token: "{npc_link}", help: "NPC / source linked to its wiki page", sample: "[Abyssal demon](https://oldschool.runescape.wiki/w/Abyssal_demon)" },
     { token: "{npc_id}", help: "NPC id", sample: "415" },
     { token: "{kill_count}", help: "Kill count at the drop (if tracked)", sample: "1,204" },
     { token: "{month_name}", help: "Current month name", sample: "July" },
@@ -93,7 +95,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
   clog: [
     { token: "{player_name}", help: "Player who filled the log slot (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who filled the log slot, with no profile link", sample: "RuneLite Ron" },
-    { token: "{item_name}", help: "New collection log item", sample: "Dragon warhammer" },
+    { token: "{item_name}", help: "New collection log item. Links to the wiki only in the title; use {item_link} anywhere else", sample: "Dragon warhammer" },
+    { token: "{item_link}", help: "New collection log item linked to its wiki page", sample: "[Dragon warhammer](https://oldschool.runescape.wiki/w/Dragon_warhammer)" },
     {
       token: "{item_emoji}",
       help: "The item's own icon. Around 1,450 of the most-received items have one; the rest show nothing",
@@ -102,7 +105,10 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{item_id}", help: "OSRS item id", sample: "13576" },
     { token: "{collection_name}", help: "Collection the item belongs to", sample: "Lizardman Shamans" },
     { token: "{npc_name}", help: "NPC / source name", sample: "Lizardman shaman" },
+    { token: "{npc_link}", help: "NPC / source linked to its wiki page (empty when unknown)", sample: "[Lizardman shaman](https://oldschool.runescape.wiki/w/Lizardman_shaman)" },
     { token: "{kc_received}", help: "Kill count when received", sample: "412" },
+    { token: "{slots_unlocked}", help: "Collection log slots filled, counting this one (empty if the plugin could not read it)", sample: "813" },
+    { token: "{slots_total}", help: "Collection log slots in the game", sample: "1,612" },
     { token: "{player_loot_month}", help: "Player's loot total this month", sample: "48.2M" },
     { token: "{total_tracked}", help: "Tracked members in the group", sample: "86" },
     PLUGIN_VERSION,
