@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import type { Route } from "next";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { entityPath } from "@/lib/slug";
 import type { GroupMember, WomSyncResult } from "@droptracker/api-types";
 import { setHidden, syncWom } from "@/app/(site)/(admin)/groups/[id]/members/actions";
 import { getErrorMessage } from "@/lib/errors";
+import { MAX_LEADERBOARD_QUERY, normalizeQuery } from "@/lib/points-leaderboard";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { Alert, Badge, Button, EmptyState, EntityChip } from "@/components/ui";
 
@@ -16,18 +18,129 @@ function formatCooldown(seconds: number): string {
   return `${Math.ceil(seconds / 60)} min`;
 }
 
+const SEARCH_DEBOUNCE_MS = 300;
+
+function membersHref(groupId: number, { q, page }: { q?: string; page?: number }): string {
+  const qs = new URLSearchParams();
+  const query = normalizeQuery(q);
+  if (query) qs.set("q", query);
+  if (page && page > 1) qs.set("page", String(page));
+  const suffix = qs.toString();
+  return `/groups/${groupId}/members${suffix ? `?${suffix}` : ""}`;
+}
+
+/**
+ * Name search for the roster. The list is paged on the backend (sorted by loot
+ * over the whole roster), so this drives `?q=` rather than filtering the one
+ * page we hold: typing replaces the URL after a short pause and resets to page
+ * 1. A plain GET form underneath, so Enter works before hydration too. Same
+ * shape as the points leaderboard search.
+ */
+function MembersSearch({ groupId, initialQuery }: { groupId: number; initialQuery: string }) {
+  const router = useRouter();
+  const [value, setValue] = useState(initialQuery);
+  const [pending, startTransition] = useTransition();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // What the URL currently says, so typing back to it doesn't re-navigate.
+  const applied = useRef(normalizeQuery(initialQuery));
+
+  // A `q` change from outside (back button) wins; our own navigations are
+  // already in `applied`, so a late re-render can't eat what is being typed.
+  useEffect(() => {
+    const incoming = normalizeQuery(initialQuery);
+    if (incoming === applied.current) return;
+    applied.current = incoming;
+    setValue(initialQuery);
+  }, [initialQuery]);
+
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+
+  const go = (next: string) => {
+    const q = normalizeQuery(next);
+    if (q === applied.current) return;
+    applied.current = q;
+    startTransition(() => {
+      router.replace(membersHref(groupId, { q }) as Route, { scroll: false });
+    });
+  };
+
+  const onChange = (next: string) => {
+    setValue(next);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => go(next), SEARCH_DEBOUNCE_MS);
+  };
+
+  return (
+    <form
+      role="search"
+      action={`/groups/${groupId}/members`}
+      method="get"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (timer.current) clearTimeout(timer.current);
+        go(value);
+      }}
+      className="relative w-full sm:w-72"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        className="text-osrs-parchment-dark/40 pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      >
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.5-3.5" />
+      </svg>
+      <input
+        type="search"
+        name="q"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={MAX_LEADERBOARD_QUERY}
+        placeholder="Search members…"
+        aria-label="Search members by player name"
+        autoComplete="off"
+        spellCheck={false}
+        className={`bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 focus:ring-osrs-gold/60 w-full rounded border py-2 pl-8 pr-8 text-sm focus:outline-none focus:ring-1 [&::-webkit-search-cancel-button]:hidden ${
+          pending ? "opacity-70" : ""
+        }`}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => {
+            if (timer.current) clearTimeout(timer.current);
+            setValue("");
+            go("");
+          }}
+          aria-label="Clear search"
+          className="text-osrs-parchment-dark/50 hover:text-osrs-gold-bright absolute right-2 top-1/2 -translate-y-1/2 px-1 text-base leading-none"
+        >
+          ×
+        </button>
+      )}
+    </form>
+  );
+}
+
 export function MembersManager({
   groupId,
   members,
   total,
   page = 1,
   limit = 25,
+  query = "",
 }: {
   groupId: number;
   members: GroupMember[];
   total: number;
   page?: number;
   limit?: number;
+  /** Active name search (already normalized); empty = the whole roster. */
+  query?: string;
 }) {
   const [rows, setRows] = useState(members);
   const [pending, startTransition] = useTransition();
@@ -68,9 +181,14 @@ export function MembersManager({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-osrs-parchment-dark/70 text-sm">
-          {total} member{total === 1 ? "" : "s"}
-        </span>
+        <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
+          <MembersSearch groupId={groupId} initialQuery={query} />
+          <span className="text-osrs-parchment-dark/70 text-sm">
+            {query
+              ? `${total} match${total === 1 ? "" : "es"}`
+              : `${total} member${total === 1 ? "" : "s"}`}
+          </span>
+        </div>
         <div className="flex items-center gap-3">
           {sync &&
             (sync.on_cooldown ? (
@@ -160,6 +278,11 @@ export function MembersManager({
             </tbody>
           </table>
         </div>
+      ) : query ? (
+        <EmptyState
+          title="No matching members"
+          hint={`Nobody in this group has "${query}" in their name.`}
+        />
       ) : (
         <EmptyState
           title="No members yet"
@@ -171,7 +294,7 @@ export function MembersManager({
         <div className="flex items-center justify-between pt-2 text-sm">
           {page > 1 ? (
             <Link
-              href={`/groups/${groupId}/members?page=${page - 1}` as Route}
+              href={membersHref(groupId, { q: query, page: page - 1 }) as Route}
               className="hover:text-osrs-gold-bright"
             >
               ← Previous
@@ -184,7 +307,7 @@ export function MembersManager({
           </span>
           {page < totalPages ? (
             <Link
-              href={`/groups/${groupId}/members?page=${page + 1}` as Route}
+              href={membersHref(groupId, { q: query, page: page + 1 }) as Route}
               className="hover:text-osrs-gold-bright"
             >
               Next →
