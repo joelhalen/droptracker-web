@@ -30,6 +30,25 @@ export async function savePointsSettings(
   return result;
 }
 
+// --- Pets ------------------------------------------------------------------
+export async function previewPriorOwnedPets(groupId: number) {
+  await assertAdmin(groupId);
+  return api.groupPriorOwnedPetsPreview(groupId);
+}
+
+export async function setPriorOwnedPets(groupId: number, enabled: boolean) {
+  await assertAdmin(groupId);
+  const result = await api.setGroupPriorOwnedPets(groupId, enabled);
+  revalidate(groupId);
+  return result;
+}
+
+/** The pet taxonomy (category -> pets) behind the duplicate-pets picker. */
+export async function fetchPointsPetCatalog(groupId: number) {
+  await assertAdmin(groupId);
+  return api.eventPetCategories();
+}
+
 // --- Item/NPC overrides -----------------------------------------------------
 export async function addPointMod(groupId: number, body: unknown) {
   await assertAdmin(groupId);

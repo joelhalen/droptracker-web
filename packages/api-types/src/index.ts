@@ -7412,6 +7412,9 @@ export type PointRule = z.infer<typeof PointRuleSchema>;
 export const PointSharingMethodSchema = z.enum(["equal_split", "award_all"]);
 export type PointSharingMethod = z.infer<typeof PointSharingMethodSchema>;
 
+export const PetDuplicateModeSchema = z.enum(["none", "all", "selected"]);
+export type PetDuplicateMode = z.infer<typeof PetDuplicateModeSchema>;
+
 export const PointsBehaviorSchema = z.object({
   stacks_award_points: z.boolean(),
   point_sharing: z.boolean(),
@@ -7431,8 +7434,39 @@ export const PointsBehaviorSchema = z.object({
   points_ephemeral_messages: z.boolean().default(false),
   min_submission_pts: z.number().int(),
   max_submission_pts: z.number().int(),
+  /** A member earns a pet's "New pets" points once per group. Whether a later
+   * copy (a duplicate) also pays: never (default), every pet, or only the
+   * pets in `pet_duplicate_pets`. Defaulted so a web deploy that lands before
+   * the backend restart still parses. */
+  pet_duplicates: PetDuplicateModeSchema.default("none"),
+  /** Canonical pet names; only read when `pet_duplicates` is "selected". */
+  pet_duplicate_pets: z.array(z.string()).default([]),
+  /** Flat points per duplicate; null = what a new copy of that pet pays. */
+  pet_duplicate_award: z.number().int().nullable().default(null),
+  /** Pets members owned before DropTracker saw them are paid from their stored
+   * collection log (when turned on, then hourly). Changed only through
+   * `/points/pets/prior-owned`, because turning it on pays out. */
+  pet_prior_owned: z.boolean().default(false),
 });
 export type PointsBehavior = z.infer<typeof PointsBehaviorSchema>;
+
+/** GET/POST /groups/{id}/points/pets/prior-owned: what the previously-owned
+ * pets sweep pays (preview) or paid (after turning it on). */
+export const PriorOwnedPetsResultSchema = z.object({
+  enabled: z.boolean(),
+  members: z.number().int(),
+  awards: z.number().int(),
+  points: z.number().int(),
+  by_pet: z.array(
+    z.object({
+      pet: z.string(),
+      item_id: z.number().int(),
+      members: z.number().int(),
+      points_each: z.number().int(),
+    }),
+  ),
+});
+export type PriorOwnedPetsResult = z.infer<typeof PriorOwnedPetsResultSchema>;
 
 export const PointSeasonSchema = z.object({
   id: z.number().int(),

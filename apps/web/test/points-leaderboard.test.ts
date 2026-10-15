@@ -136,4 +136,9 @@ test("behavior without the new toggle parses as off", () => {
   });
   assert.equal(parsed.points_combine_accounts, false);
   assert.equal(parsed.points_ephemeral_messages, false);
+  // Pet settings (2026-10-15): an older backend omits them; duplicates pay nothing.
+  assert.equal(parsed.pet_duplicates, "none");
+  assert.deepEqual(parsed.pet_duplicate_pets, []);
+  assert.equal(parsed.pet_duplicate_award, null);
+  assert.equal(parsed.pet_prior_owned, false);
 });

@@ -32,6 +32,7 @@ import { groupEntries, listEntryPayload } from "@/lib/point-lists";
 import { Alert, Card, EmptyState } from "@/components/ui";
 import { NameSearch } from "@/components/event-task-form";
 import { QuantityInput } from "@/components/quantity-input";
+import { PET_BEHAVIOR_KEYS, PetsSection } from "@/components/points-pets-section";
 import {
   addPointBoost,
   addPointListEntry,
@@ -273,6 +274,12 @@ export function PointsManager({
       </p>
 
       <RulesSection groupId={groupId} initial={initialSettings.rules} disabled={!enabled} />
+      <PetsSection
+        groupId={groupId}
+        initial={initialSettings.behavior}
+        newPetAward={initialSettings.rules.find((r) => r.reason === "pet")?.award ?? 0}
+        disabled={!enabled}
+      />
       <BehaviorSection groupId={groupId} initial={initialSettings.behavior} disabled={!enabled} />
       <ModsSection groupId={groupId} initial={initialMods} disabled={!enabled} />
       <ListsSection groupId={groupId} initial={initialLists} disabled={!enabled} />
@@ -408,7 +415,11 @@ function BehaviorSection({
       setError(null);
       setSaved(false);
       try {
-        const result = await savePointsSettings(groupId, { behavior });
+        // The Pets section owns the pet keys; sending this form's copy of
+        // them would overwrite what was saved there since the page loaded.
+        const general: Partial<PointsBehavior> = { ...behavior };
+        for (const key of PET_BEHAVIOR_KEYS) delete general[key];
+        const result = await savePointsSettings(groupId, { behavior: general });
         setBehavior(result.behavior);
         setSaved(true);
       } catch (err) {

@@ -23,6 +23,8 @@ import {
   PointsSettingsSchema,
   type PointRule,
   PointRuleSchema,
+  type PriorOwnedPetsResult,
+  PriorOwnedPetsResultSchema,
 } from "@droptracker/api-types";
 
 export const groupPointsApi = {
@@ -42,6 +44,25 @@ export const groupPointsApi = {
     return z
       .object({ rules: z.array(PointRuleSchema), behavior: PointsBehaviorSchema })
       .parse(await apiSend("PUT", `/groups/${groupId}/points/settings`, patch));
+  },
+
+
+  /** What turning on "pets owned before DropTracker" would pay right now. */
+  async groupPriorOwnedPetsPreview(groupId: number): Promise<PriorOwnedPetsResult> {
+    return PriorOwnedPetsResultSchema.parse(
+      await apiGet(`/groups/${groupId}/points/pets/prior-owned`, { authed: true }),
+    );
+  },
+
+
+  /** Turn the previously-owned pets option on (pays out at once) or off. */
+  async setGroupPriorOwnedPets(
+    groupId: number,
+    enabled: boolean,
+  ): Promise<PriorOwnedPetsResult & { behavior: PointsBehavior }> {
+    return PriorOwnedPetsResultSchema.extend({ behavior: PointsBehaviorSchema }).parse(
+      await apiSend("POST", `/groups/${groupId}/points/pets/prior-owned`, { enabled }),
+    );
   },
 
 
