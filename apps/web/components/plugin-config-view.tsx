@@ -38,6 +38,8 @@ const LABELS: Record<string, string> = {
   eventTeamIndicatorsPublicChat: "Also badge public chat",
   useApi: "Use API",
   receiveInGameMessages: "Receive in-game messages",
+  // 6.1.8+ (renamed so everyone starts from the new default, off)
+  inGameMessages: "Receive in-game messages",
   dropConfirmations: "Drop confirmations",
   receiveDiscordChat: "Show Discord messages in game",
   syncAccountState: "Sync account progress",
