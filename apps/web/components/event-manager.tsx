@@ -265,6 +265,8 @@ export function EventManager({
   const [event, setEvent] = useState(initialEvent);
   const [tasks, setTasks] = useState<EventTask[]>(initialEvent.tasks);
   const [teams, setTeams] = useState<EventTeam[]>(initialEvent.teams);
+  // Board games only: mirrors settings.shop.enabled from the board designer.
+  const [shopEnabled, setShopEnabled] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
@@ -2097,6 +2099,7 @@ export function EventManager({
             event={event}
             tasks={tasks}
             onTaskUpdated={onTaskUpdated}
+            onShopEnabledChange={setShopEnabled}
           />
           <div className="mt-6">
             <EventBoardTeamMover
@@ -2105,9 +2108,11 @@ export function EventManager({
               live={event.status === "active"}
             />
           </div>
-          <div className="mt-6">
-            <EventBoardShopConfig groupId={groupId} eventId={event.id} />
-          </div>
+          {shopEnabled && (
+            <div className="mt-6">
+              <EventBoardShopConfig groupId={groupId} eventId={event.id} />
+            </div>
+          )}
         </section>
       ) : (
         <section className={tab === "board" ? "" : "hidden"}>

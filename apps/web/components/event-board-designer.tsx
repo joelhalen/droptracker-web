@@ -139,11 +139,15 @@ export function EventBoardDesigner({
   tasks,
   onSaved,
   onTaskUpdated,
+  onShopEnabledChange,
 }: {
   groupId: number | null;
   event: EventDetail;
   tasks: EventTask[];
   onSaved?: (board: BoardDetail) => void;
+  /** Reports settings.shop.enabled on load and on every settings save, so the
+   * parent can hide the shop item config while the shop is switched off. */
+  onShopEnabledChange?: (enabled: boolean) => void;
   /** A task edited from inside the tile editor. The layout is untouched —
    * only the parent's task list needs the update. */
   onTaskUpdated?: (task: EventTask) => void;
@@ -213,6 +217,10 @@ export function EventBoardDesigner({
   const redoStack = useRef<DesignerTile[][]>([]);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const shopEnabled = board?.settings.shop.enabled;
+  useEffect(() => {
+    if (shopEnabled !== undefined) onShopEnabledChange?.(shopEnabled);
+  }, [shopEnabled, onShopEnabledChange]);
   const syncHistoryFlags = () => {
     setCanUndo(undoStack.current.length > 0);
     setCanRedo(redoStack.current.length > 0);
