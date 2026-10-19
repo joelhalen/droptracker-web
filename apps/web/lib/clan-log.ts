@@ -15,6 +15,8 @@ const CATEGORY_ORDER = [
   "slayer",
   "wilderness",
   "group_bosses",
+  "skilling_bosses",
+  "clues",
   "misc",
 ];
 
@@ -26,6 +28,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   slayer: "Slayer",
   wilderness: "Wilderness",
   group_bosses: "Multi-boss sets",
+  skilling_bosses: "Skilling bosses",
+  clues: "Treasure Trails",
   misc: "Miscellaneous",
 };
 

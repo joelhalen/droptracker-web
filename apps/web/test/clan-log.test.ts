@@ -93,6 +93,18 @@ test("categoryLabel falls back to a readable form for unknown keys", () => {
   assert.equal(categoryLabel("brand_new_content"), "brand new content");
 });
 
+test("the clue and skilling-boss categories sit before misc, with real labels", () => {
+  const rows = groupByCategory([
+    section("misc", "misc", []),
+    section("clue", "clues", []),
+    section("todt", "skilling_bosses", []),
+    section("cox", "raids", []),
+  ]);
+  assert.deepEqual(rows.map((r) => r.key), ["raids", "skilling_bosses", "clues", "misc"]);
+  assert.equal(categoryLabel("clues"), "Treasure Trails");
+  assert.equal(categoryLabel("skilling_bosses"), "Skilling bosses");
+});
+
 test("completionTone escalates with progress", () => {
   assert.notEqual(completionTone(100), completionTone(50));
   assert.notEqual(completionTone(10), completionTone(80));
