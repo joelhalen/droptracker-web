@@ -116,6 +116,12 @@ export default async function GroupPage({ params }: { params: Params }) {
             Personal bests
           </Link>
           <Link
+            href={`${base}/pvp` as Route}
+            className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
+          >
+            PvP
+          </Link>
+          <Link
             href={`${base}/points/leaderboard` as Route}
             className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-3 py-1.5 text-sm font-medium"
           >

@@ -11,8 +11,8 @@
  *  - group:     a group's own templates, falling back to the site defaults.
  *  - defaults:  the site-wide templates themselves (staff, /admin/embeds).
  *    "Custom" is then the stored default and "default" the embed built in
- *    code behind it — which only quest, death, diary and slayer have, so only
- *    those can be reverted.
+ *    code behind it — which only quest, death, diary, slayer and the two PvP
+ *    types have, so only those can be reverted.
  */
 import { useMemo, useState, useTransition } from "react";
 import {
@@ -217,6 +217,39 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
+  // Mirrors the backend's PvP TOKEN_DOCS (services/component_layout.py).
+  // Combat level, Wilderness level and world come from plugin 6.1.9 and up;
+  // a field whose value comes out empty is left out of the message.
+  pvp_kill: [
+    { token: "{player_name}", help: "Player who made the kill (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who made the kill, with no profile link", sample: "RuneLite Ron" },
+    { token: "{victim_name}", help: "The player who was killed (a profile link when we track them)", sample: "Zezima" },
+    { token: "{victim_name_plain}", help: "The player who was killed, with no link", sample: "Zezima" },
+    { token: "{victim_combat_level}", help: "The victim's combat level", sample: "103" },
+    { token: "{pvp_value}", help: "GP value of the loot taken", sample: "12.40M" },
+    { token: "{pvp_items}", help: "The loot, most valuable first, one item per line", sample: "Abyssal whip (1.40M)" },
+    { token: "{item_count}", help: "How many items the kill dropped", sample: "14" },
+    { token: "{top_item_name}", help: "The most valuable item taken", sample: "Abyssal whip" },
+    { token: "{item_icon}", help: "Link to the most valuable item's icon, for a thumbnail", sample: "https://www.droptracker.io/img/itemdb/4151.png" },
+    { token: "{wilderness_level}", help: "The Wilderness level of the kill", sample: "31" },
+    { token: "{world}", help: "The world the kill happened on", sample: "318" },
+    { token: "{kill_location}", help: "Where the kill happened", sample: "Lava Maze" },
+    { token: "{pvp_kills_month}", help: "The killer's PvP kills this month, counting this one", sample: "27" },
+    { token: "{pvp_loot_month}", help: "GP the killer has taken in PvP this month", sample: "184.20M" },
+    { token: "{pvp_rank}", help: "The killer's PvP loot rank in your group this month", sample: "#3" },
+    PLUGIN_VERSION,
+    ...COMMON_MEDIA,
+  ],
+  pvp_death: [
+    { token: "{player_name}", help: "Player who was killed (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+    { token: "{player_name_plain}", help: "Player who was killed, with no profile link", sample: "RuneLite Ron" },
+    { token: "{killer_name}", help: "The player who made the kill", sample: "Zezima" },
+    { token: "{killer_combat_level}", help: "The killer's combat level", sample: "126" },
+    { token: "{location}", help: "Where they died", sample: "Lava Maze" },
+    { token: "{value_lost}", help: "GP value of the items dropped", sample: "4.20M" },
+    PLUGIN_VERSION,
+    ...COMMON_MEDIA,
+  ],
   lb: [
     { token: "{next_refresh}", help: "Relative countdown to the next board update", sample: "in 10 minutes" },
     { token: "{tracked_members}", help: "Members tracked in the group", sample: "86" },
@@ -235,6 +268,10 @@ const TYPE_HELP: Record<EmbedType, string> = {
   diary: "Posted when a member completes an achievement diary.",
   slayer:
     "Posted when a member completes a slayer task. Turn it on and pick which masters to skip in your group settings, under Achievement notifications.",
+  pvp_kill:
+    "Posted to your PvP channel when a member kills another player. Set the channel and the minimum value in your group settings, under PvP.",
+  pvp_death:
+    "Posted to your PvP channel when a member is killed by another player, if you turned PvP deaths on in your group settings.",
   lb: "The message that accompanies the group's lootboard image.",
 };
 

@@ -16,6 +16,7 @@ import { BossActivityList } from "@/components/profile-stats";
 import { Badge, Card, EntityChip, NameTile, StatTile } from "@/components/ui";
 import { SOON_BADGE, SOON_TITLE, STATE_SYNC_RELEASED } from "@/lib/plugin-features";
 import { momDelta, percentileHint } from "@/lib/player-profile";
+import { PlayerPvpCard, hasPvpHistory } from "@/components/player-pvp-card";
 
 export const revalidate = 30;
 
@@ -63,9 +64,11 @@ export default async function PlayerPage({ params }: { params: Params }) {
   const loot = await api.playerLoot(playerId).catch(() => null);
   // Both feed the showcase tabs. Non-critical like the loot tracker: a profile
   // must still render for the majority who have never synced.
-  const [collectionLog, achievements] = await Promise.all([
+  const [collectionLog, achievements, pvp] = await Promise.all([
     api.playerCollectionLog(playerId).catch(() => null),
     api.playerAchievements(playerId).catch(() => null),
+    // PvP record (web136a): only shown once the player has a kill or a death.
+    api.playerPvp(playerId).catch(() => null),
   ]);
 
   // JSON-LD for richer search results (FRONTEND_PLAN.md §15 SEO).
@@ -259,6 +262,8 @@ export default async function PlayerPage({ params }: { params: Params }) {
           </div>
         </aside>
       </div>
+
+      {hasPvpHistory(pvp) && <PlayerPvpCard pvp={pvp} />}
     </div>
   );
 }

@@ -1853,6 +1853,8 @@ export const EMBED_TYPES = [
   "death",
   "diary",
   "slayer",
+  "pvp_kill",
+  "pvp_death",
   "lb",
 ] as const;
 export type EmbedType = (typeof EMBED_TYPES)[number];
@@ -1868,6 +1870,8 @@ export const EMBED_TYPE_LABELS: Record<EmbedType, string> = {
   death: "Deaths",
   diary: "Achievement diaries",
   slayer: "Slayer tasks",
+  pvp_kill: "PvP kills",
+  pvp_death: "PvP deaths",
   lb: "Lootboard",
 };
 
@@ -8323,3 +8327,6 @@ export * from "./tester-builds";
 
 // Clan bank (web131a)
 export * from "./group-bank";
+
+// PvP tracking (web136a)
+export * from "./pvp";

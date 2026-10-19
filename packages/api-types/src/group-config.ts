@@ -17,6 +17,7 @@ export type ConfigCategory =
   | "drops"
   | "achievements"
   | "deaths"
+  | "pvp"
   | "levels"
   | "milestones"
   | "pbs"
@@ -136,6 +137,7 @@ export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "drops", label: "Drop notifications" },
   { id: "achievements", label: "Achievement notifications" },
   { id: "deaths", label: "Deaths" },
+  { id: "pvp", label: "PvP" },
   { id: "levels", label: "Level notifications" },
   { id: "milestones", label: "Milestones" },
   { id: "pbs", label: "Personal bests & Hall of Fame" },
@@ -396,6 +398,22 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // --- Clan bank ------------------------------------------------------------
   { key: "bank_show_on_profile", label: "Show the clan bank on your group page", category: "bank", type: "boolean", help: "Show the bank balance and totals on your public group page once you've recorded something. Turn off to keep the bank visible to admins only.", default: true },
   { key: "bank_show_donors", label: "Show donor names", category: "bank", type: "boolean", help: "List top donors and recent bank activity by name on your group page. Turn off to show only the totals.", default: true },
+
+  // --- PvP ------------------------------------------------------------------
+  // Player kills are tracked apart from drops (backend data/submissions/pvp.py):
+  // their own standings, board and channel. Nothing posts until the PvP channel
+  // is set, and it never falls back to the drops channel.
+  { key: "channel_id_to_post_pvp", label: "PvP channel", category: "pvp", group: "Notifications", type: "channel", help: "Channel for PvP kills, and PvP deaths if you turn those on. Nothing is posted until you set it. PvP never uses the drops channel.", default: null },
+  { key: "pvp_minimum_value_to_notify", label: "Minimum kill value to post", category: "pvp", group: "Notifications", type: "int", help: "Only post kills whose loot is worth at least this much GP. Every kill still counts on the standings and the PvP board.", default: 1000000, min: 0 },
+  { key: "pvp_notify_deaths", label: "Post PvP deaths", category: "pvp", group: "Notifications", type: "boolean", help: "Also post to the PvP channel when a member is killed by another player. Deaths in LMS and other PvP minigames are left out.", default: false },
+  { key: "pvp_death_minimum_value", label: "Minimum value lost to post a PvP death", category: "pvp", group: "Notifications", type: "int", help: "Only post PvP deaths that cost at least this much GP. 0 posts them all.", default: 0, min: 0 },
+  { key: "pvp_count_member_kills", label: "Count kills on clanmates", category: "pvp", group: "What counts", type: "boolean", help: "Count kills where the victim is also in your group. Off by default, so members can't farm each other for the board.", default: false },
+  { key: "pvp_same_victim_daily_limit", label: "Kills of one player that count per day", category: "pvp", group: "What counts", type: "int", help: "How many times a day killing the same player counts. Kills past this are still recorded but don't count or post.", default: 3, min: 1, max: 100 },
+  { key: "pvp_same_victim_unlimited", label: "No daily limit on kills of one player", category: "pvp", group: "What counts", type: "boolean", help: "Count every kill of the same player, however many there are in a day.", default: false },
+  { key: "pvp_lootboard_channel_id", label: "PvP lootboard channel", category: "pvp", group: "PvP lootboard", type: "channel", help: "Channel where the PvP lootboard is posted and kept up to date. It shows only loot from player kills.", default: null },
+  { key: "pvp_loot_board_type", label: "PvP lootboard style", category: "pvp", group: "PvP lootboard", type: "boardstyle", help: "Visual style of the PvP lootboard.", default: "1" },
+  { key: "pvp_repost_lootboard", label: "Repost PvP lootboard", category: "pvp", group: "PvP lootboard", type: "boolean", help: "Repost (vs. edit) the PvP board on each update.", default: false },
+  { key: "pvp_lootboard_message_id", label: "PvP lootboard message id", category: "pvp", group: "PvP lootboard", type: "string", help: "Message the bot edits when updating the PvP board. Managed automatically.", default: null },
 
   // --- Clan chat ------------------------------------------------------------
   // Clan broadcast tracking and the chat bridge both depend on the plugin

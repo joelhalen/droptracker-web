@@ -55,7 +55,7 @@ const CATEGORY_META: Record<ConfigCategory, { nav: SettingsNav; blurb: string }>
   channels: {
     nav: "Notifications",
     blurb:
-      "Where each kind of notification is posted. Anything left unset falls back to the drops channel. Features with a channel of their own — deaths, Hall of Fame, recaps, Clan Log, the lootboard — set it in their own section.",
+      "Where each kind of notification is posted. Anything left unset falls back to the drops channel. Features with a channel of their own — deaths, PvP, Hall of Fame, recaps, Clan Log, the lootboard — set it in their own section.",
   },
   drops: {
     nav: "Notifications",
@@ -69,6 +69,11 @@ const CATEGORY_META: Record<ConfigCategory, { nav: SettingsNav; blurb: string }>
     nav: "Notifications",
     blurb:
       "Announce members' deaths, with your own randomized messages if you like — or let members write their own.",
+  },
+  pvp: {
+    nav: "Notifications",
+    blurb:
+      "Kills on other players, tracked apart from your drops: where they're posted, what counts, and the PvP lootboard.",
   },
   levels: {
     nav: "Notifications",
@@ -146,6 +151,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   },
   category("achievements"),
   category("deaths"),
+  category("pvp"),
   category("levels"),
   category("milestones"),
   category("pbs"),
