@@ -160,8 +160,10 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{player_name}", help: "Player who leveled up (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who leveled up, with no profile link", sample: "RuneLite Ron" },
     { token: "{skill_name}", help: "Skill that leveled", sample: "Slayer" },
+    { token: "{skill_emoji}", help: "The skill's icon (the first one, when several leveled at once)", sample: "" },
     { token: "{skills_names}", help: "All skills that leveled (multi)", sample: "Slayer, Attack" },
     { token: "{skills_text}", help: "Formatted level-up summary", sample: "Slayer 99 (+1)" },
+    { token: "{skills_text_emoji}", help: "The level-up summary with each skill's icon in front of it", sample: "Slayer 99 (+1)" },
     { token: "{new_level}", help: "New level", sample: "99" },
     { token: "{levels_gained}", help: "Levels gained", sample: "1" },
     { token: "{xp_total}", help: "XP in the leveled skill", sample: "13,034,431" },
@@ -306,7 +308,7 @@ function substitute(text: string, docs: PlaceholderDoc[], useSamples: boolean): 
 /**
  * A placeholder token drawn as the icon Discord will draw, not as its name.
  *
- * `{item_emoji}` is the only one so far. Sized in `em` so it tracks whatever
+ * `{item_emoji}` and `{skill_emoji}`. Sized in `em` so it tracks whatever
  * text it sits in — the title is 15px and a field value is 14px — and nudged
  * onto the text baseline the way Discord sets an inline emoji.
  */
