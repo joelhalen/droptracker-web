@@ -7068,6 +7068,10 @@ export type TicketMessage = z.infer<typeof TicketMessageSchema>;
 export const TicketDetailSchema = TicketSummarySchema.extend({
   messages: z.array(TicketMessageSchema),
   mentions: MentionMapSchema,
+  /** Is the VIEWER in the main DropTracker Discord? `null` = unknown (no
+   * linked Discord, or the bot's member cache is stale). Drives the join
+   * nudge, which shows only on `false`. */
+  discord_member: z.boolean().nullable().optional(),
 });
 export type TicketDetail = z.infer<typeof TicketDetailSchema>;
 
@@ -7306,6 +7310,9 @@ export const InboxSchema = z.object({
   items: InboxItemSchema.array(),
   total_unread: z.number().int().default(0),
   open_ticket_id: z.number().int().nullable().optional(),
+  /** Viewer in the main Discord? Same contract as `TicketDetail.discord_member`;
+   * the new-ticket form uses it before any ticket exists. */
+  discord_member: z.boolean().nullable().optional(),
 });
 export type Inbox = z.infer<typeof InboxSchema>;
 

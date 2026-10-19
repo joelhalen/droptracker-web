@@ -8,6 +8,7 @@
 import { useState, useTransition } from "react";
 import { TICKET_BODY_MAX_CHARS, type TicketType } from "@droptracker/api-types";
 import { createTicket } from "@/app/(site)/support-actions";
+import { DiscordJoinNudge } from "@/components/discord-join-nudge";
 import { Alert, Button } from "@/components/ui";
 import { TICKET_TYPES } from "@/lib/chat-widget";
 import { getErrorMessage } from "@/lib/errors";
@@ -108,6 +109,8 @@ export function NewTicketForm() {
             ? `At least ${MIN_BODY_CHARS} characters.`
             : `${body.length} / ${TICKET_BODY_MAX_CHARS}`}
       </p>
+
+      <DiscordJoinNudge discordMember={inbox?.discord_member} context="create" className="mb-3" />
 
       {error && (
         <Alert variant="error" className="mb-3">

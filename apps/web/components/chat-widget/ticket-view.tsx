@@ -13,6 +13,7 @@ import type { Route } from "next";
 import type { TicketDetail, TicketMessage } from "@droptracker/api-types";
 import { loadTicket, markTicketRead } from "@/app/(site)/support-actions";
 import { MessageRow, TicketStatusBadge, TicketTypeBadge } from "@/components/ticket-transcript";
+import { DiscordJoinNudge } from "@/components/discord-join-nudge";
 import { Alert, SkeletonRows } from "@/components/ui";
 import { getErrorMessage } from "@/lib/errors";
 import { useChatWidget } from "./widget-context";
@@ -116,6 +117,13 @@ export function TicketView({ ticketId }: { ticketId: number }) {
       </div>
 
       <div className="border-osrs-bronze/25 shrink-0 border-t px-4 py-3">
+        {ticket.status !== "closed" && (
+          <DiscordJoinNudge
+            discordMember={ticket.discord_member}
+            context="ticket"
+            className="mb-2"
+          />
+        )}
         {ticket.status === "open" ? (
           <TicketReplyComposer ticketId={ticket.ticket_id} onPosted={onPosted} />
         ) : ticket.status === "pending" ? (

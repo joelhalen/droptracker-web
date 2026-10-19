@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { AccessDenied } from "@/components/access-denied";
+import { DiscordJoinNudge } from "@/components/discord-join-nudge";
 import { TicketReplyComposer } from "@/components/chat-widget/ticket-reply-composer";
 import { TicketMetaHeader, TicketTranscript } from "@/components/ticket-transcript";
 
@@ -55,6 +56,9 @@ export default async function TicketDetailPage({ params }: { params: Params }) {
         <p className="text-osrs-parchment-dark/70 text-sm">
           We&apos;re setting up this ticket&apos;s Discord channel — replies open in a moment.
         </p>
+      )}
+      {ticket.status !== "closed" && (
+        <DiscordJoinNudge discordMember={ticket.discord_member} context="ticket" />
       )}
       <TicketTranscript ticket={ticket} />
       {/* web102a: web replies, status-gated like the widget's composer. */}
