@@ -17,6 +17,7 @@ import { Badge, Card, EntityChip, NameTile, StatTile } from "@/components/ui";
 import { SOON_BADGE, SOON_TITLE, STATE_SYNC_RELEASED } from "@/lib/plugin-features";
 import { momDelta, percentileHint } from "@/lib/player-profile";
 import { PlayerPvpCard, hasPvpHistory } from "@/components/player-pvp-card";
+import { SitePlayerClanPoints } from "@/components/player-clan-points";
 
 export const revalidate = 30;
 
@@ -193,15 +194,8 @@ export default async function PlayerPage({ params }: { params: Params }) {
               value={player.global_rank != null ? `#${player.global_rank}` : "—"}
               hint={pctHint}
             />
-            <StatTile
-              label="Points"
-              value={
-                <CountUp
-                  value={player.points ?? 0}
-                  formatted={(player.points ?? 0).toLocaleString()}
-                />
-              }
-            />
+            {/* Clan points, only for players in a clan that runs them. */}
+            <SitePlayerClanPoints playerId={player.id} />
             {/* A boss name is prose, not a figure: the tile's number-sized type
                 is why this one alone kept wrapping. */}
             <StatTile

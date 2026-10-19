@@ -175,9 +175,6 @@ function PlayerCardBody({ id, name, seed }: { id: number; name: string; seed?: E
           />
           <StatLine label="Monthly loot" value={player.total_loot?.value_formatted ?? "—"} />
           {player.top_npc && <StatLine label="Top NPC" value={player.top_npc} />}
-          {player.points != null && player.points > 0 && (
-            <StatLine label="Points" value={player.points.toLocaleString()} />
-          )}
         </div>
       ) : failed ? null : (
         <LoadingRows />

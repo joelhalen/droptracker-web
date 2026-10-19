@@ -18,7 +18,14 @@ import { ProfileShowcase, type ProfileShowcaseEmbed } from "@/components/profile
 import { PersonalBestsGrid } from "@/components/personal-bests-grid";
 import { CountUp } from "@/components/count-up";
 import { gpAmount, gpText } from "@/lib/activity/money";
-import { playerAccount, playerProfile, type PlayerAccount } from "@/lib/activity/api";
+import {
+  playerAccount,
+  playerGroupPoints,
+  playerProfile,
+  type PlayerAccount,
+} from "@/lib/activity/api";
+import { useActivityAuth } from "@/lib/activity/auth-context";
+import { PlayerClanPoints } from "@/components/player-clan-points";
 import { openExternal } from "@/lib/activity/discord-sdk";
 import { externalUrl, SITE_ORIGIN } from "@/lib/activity/external-url";
 import { momDelta, percentileHint } from "@/lib/player-profile";
@@ -41,6 +48,11 @@ const NO_ACCOUNT: PlayerAccount = { collection_log: null, achievements: null, lo
 
 export function PlayerView({ id }: { id: number }) {
   const nav = useActivityNav();
+  const { sessionToken } = useActivityAuth();
+  const loadClanPoints = useCallback(
+    () => playerGroupPoints(id, sessionToken),
+    [id, sessionToken],
+  );
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [account, setAccount] = useState<PlayerAccount | null>(null);
   const [failed, setFailed] = useState<"missing" | "error" | null>(null);
@@ -195,15 +207,7 @@ export function PlayerView({ id }: { id: number }) {
                   }
                   hint={pctHint}
                 />
-                <StatTile
-                  label="Points"
-                  value={
-                    <CountUp
-                      value={profile.points ?? 0}
-                      formatted={(profile.points ?? 0).toLocaleString()}
-                    />
-                  }
-                />
+                <PlayerClanPoints load={loadClanPoints} />
                 <StatTile
                   label="Top NPC"
                   value={

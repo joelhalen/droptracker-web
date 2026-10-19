@@ -66,7 +66,6 @@ async function playerCard(id: number) {
   const topBoss = player.top_bosses?.[0]?.name ?? player.top_npc;
   if (topBoss) stats.push({ label: "Top boss", value: topBoss });
   if (player.groups[0]) stats.push({ label: "Group", value: player.groups[0].name });
-  else if (player.points) stats.push({ label: "Points", value: num(player.points) });
 
   // Renders are 800×1200 with the figure in roughly y 270..940. Crop with
   // negative margins (satori centres absolutely positioned children in a flex

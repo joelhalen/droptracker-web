@@ -122,7 +122,7 @@ export function GroupView({ id, tab: initialTab }: { id: number; tab?: GroupTab 
         className="border-osrs-bronze/25 -mx-1 mt-3 flex gap-1 overflow-x-auto border-b px-1"
         aria-label="Group sections"
       >
-        {TABS.map((t) => (
+        {TABS.filter((t) => t.key !== "points" || profile.points_enabled !== false).map((t) => (
           <button
             key={t.key}
             type="button"

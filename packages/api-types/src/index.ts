@@ -780,6 +780,8 @@ export type AccountType = z.infer<typeof AccountTypeSchema>;
 export const PlayerProfileSchema = PlayerSummarySchema.extend({
   /** Absent until the backend ships account types or the mode was never reported. */
   account_type: z.string().optional(),
+  /** Retired site-wide points. No longer sent; clan points come from
+   * `GET /players/{id}/group-points` (PlayerGroupPointsSchema). */
   points: z.number().int().optional(),
   top_npc: z.string().optional(),
   previous_month_loot: MoneySchema.optional(),
@@ -820,6 +822,9 @@ export const GroupProfileSchema = z.object({
   flair: GroupFlairSchema.optional(),
   /** Pretty-URL slug to declare canonical (null when the name collides with another group). */
   canonical_slug: z.string().nullish(),
+  /** The clan runs its points system. Absent from an older backend: treat
+   * only an explicit `false` as off. */
+  points_enabled: z.boolean().optional(),
 });
 export type GroupProfile = z.infer<typeof GroupProfileSchema>;
 
@@ -7427,6 +7432,10 @@ export const PetDuplicateModeSchema = z.enum(["none", "all", "selected"]);
 export type PetDuplicateMode = z.infer<typeof PetDuplicateModeSchema>;
 
 export const PointsBehaviorSchema = z.object({
+  /** The clan's on-switch for its whole points system (awards, boards,
+   * profile figures). Points are on every tier, so this is what says a clan
+   * uses them. Defaulted so a web deploy before the backend restart parses. */
+  points_enabled: z.boolean().default(false),
   stacks_award_points: z.boolean(),
   point_sharing: z.boolean(),
   point_sharing_method: PointSharingMethodSchema,
@@ -7607,6 +7616,35 @@ export const PointsLeaderboardSchema = z.object({
   meta: PageMetaSchema,
 });
 export type PointsLeaderboard = z.infer<typeof PointsLeaderboardSchema>;
+
+/** One clan a player stands in, as their profile quotes it. */
+export const PlayerGroupStandingSchema = z.object({
+  group_id: z.number().int(),
+  group_name: z.string(),
+  points: z.number().int(),
+  rank: z.number().int(),
+  /** Entries on that clan's all-time board. */
+  ranked: z.number().int(),
+  /** The standing sums the Discord user's RSNs in that clan. */
+  combined: z.boolean(),
+});
+export type PlayerGroupStanding = z.infer<typeof PlayerGroupStandingSchema>;
+
+/** GET /players/{id}/group-points: the player's clan points, for profiles.
+ * Only clans with points switched on appear, and members-only boards only to
+ * their members. `featured` is the clan to show: one the viewer shares with
+ * the player (`reason: "shared"`), else their best placing (`"best"`). Null
+ * means show no points at all. */
+export const PlayerGroupPointsSchema = z.object({
+  player_id: z.number().int(),
+  featured: PlayerGroupStandingSchema.extend({
+    reason: z.enum(["shared", "best"]),
+    month_points: z.number().int(),
+    month_rank: z.number().int().nullable(),
+  }).nullable(),
+  groups: z.array(PlayerGroupStandingSchema),
+});
+export type PlayerGroupPoints = z.infer<typeof PlayerGroupPointsSchema>;
 
 export const PointsAdjustResultSchema = z.object({
   entry_id: z.number().int(),

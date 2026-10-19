@@ -102,8 +102,8 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     key: "custom_points",
     label: "Custom points system",
     category: "features",
-    help: "Configure a custom point system: award rules per submission type, per-item/NPC overrides, timed boosts, and points leaderboards.",
-    default: false,
+    help: "Configure a custom point system: award rules per submission type, per-item/NPC overrides, timed boosts, and points leaderboards. Free on every tier since 2026-10; a clan still switches it on itself (points_enabled).",
+    default: true,
   },
   {
     key: "ai_task_gen_daily",

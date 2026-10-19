@@ -273,6 +273,11 @@ export function PointsManager({
         </Link>
       </p>
 
+      <PointsSwitch
+        groupId={groupId}
+        initial={initialSettings.behavior.points_enabled}
+        disabled={!enabled}
+      />
       <RulesSection groupId={groupId} initial={initialSettings.rules} disabled={!enabled} />
       <PetsSection
         groupId={groupId}
@@ -289,6 +294,61 @@ export function PointsManager({
       <HistorySection groupId={groupId} initial={initialHistory} />
       <DangerSection groupId={groupId} />
     </div>
+  );
+}
+
+/* --- On/off switch --------------------------------------------------------- */
+
+/** The clan's switch for its whole points system. Every plan includes points,
+ * so nothing is awarded, shown on profiles or offered as a board until the
+ * clan turns this on. Saves on its own, straight away. */
+function PointsSwitch({
+  groupId,
+  initial,
+  disabled,
+}: {
+  groupId: number;
+  initial: boolean;
+  disabled: boolean;
+}) {
+  const [on, setOn] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const flip = (next: boolean) =>
+    startTransition(async () => {
+      setError(null);
+      try {
+        const result = await savePointsSettings(groupId, { behavior: { points_enabled: next } });
+        setOn(result.behavior.points_enabled);
+      } catch (err) {
+        setError(getErrorMessage(err));
+      }
+    });
+
+  return (
+    <Card padding="p-4" className="space-y-2 text-sm">
+      <label className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={disabled || pending}
+          onChange={(e) => flip(e.target.checked)}
+          className="mt-1"
+        />
+        <span>
+          <span className="text-osrs-parchment font-semibold">
+            Points system {on ? "on" : "off"}
+          </span>
+          <span className="text-osrs-parchment-dark/60 block text-xs">
+            {on
+              ? "Members earn points by the rules below. Their points show on their profiles and on your points leaderboard."
+              : "Nothing is awarded and no points are shown for this clan. Your rules are kept, so you can set them up first and turn points on when you are ready."}
+          </span>
+        </span>
+      </label>
+      {error && <Alert variant="error">{error}</Alert>}
+    </Card>
   );
 }
 
@@ -419,6 +479,8 @@ function BehaviorSection({
         // them would overwrite what was saved there since the page loaded.
         const general: Partial<PointsBehavior> = { ...behavior };
         for (const key of PET_BEHAVIOR_KEYS) delete general[key];
+        // The on/off switch saves itself (PointsSwitch); same reason.
+        delete general.points_enabled;
         const result = await savePointsSettings(groupId, { behavior: general });
         setBehavior(result.behavior);
         setSaved(true);

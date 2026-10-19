@@ -35,7 +35,6 @@ export type PlayerCard = {
   /** Total ranked players, for "Top X%" context. */
   ranked_players?: number;
   total_loot?: Money;
-  points?: number;
   top_npc?: string;
   is_supporter?: boolean;
   badges: PlayerCardBadge[];
@@ -71,7 +70,6 @@ export function toPlayerCard(p: PlayerProfile): PlayerCard {
     global_rank: p.global_rank,
     ranked_players: p.ranked_players,
     total_loot: p.total_loot,
-    points: p.points,
     top_npc: p.top_npc,
     is_supporter: p.is_supporter,
     badges: active.slice(0, CARD_BADGES).map((b) => ({

@@ -195,7 +195,6 @@ export function mockPlayerProfile(id: number): PlayerProfile {
     total_loot: money(1_234_567_890),
     // Cycle modes so mock mode exercises the badge (and its absence).
     account_type: (["ironman", "hardcore_ironman", "group_ironman", "normal"] as const)[id % 4],
-    points: 4200,
     top_npc: "Vorkath",
     previous_month_loot: money(890_000_000),
     ranked_players: 25_000,

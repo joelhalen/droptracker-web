@@ -54,6 +54,7 @@ import {
   PbBossIndexSchema,
   PendingReviewEventSchema,
   PlayerProfileSchema,
+  PlayerGroupPointsSchema,
   PlayerAchievementsSchema,
   PlayerCollectionLogSchema,
   PlayerLootTrackerSchema,
@@ -94,6 +95,7 @@ import {
   type PbBossIndex,
   type PendingReviewEvent,
   type PlayerProfile,
+  type PlayerGroupPoints,
   type SearchResults,
   type BotInvite,
   type ClaimPreview,
@@ -656,6 +658,17 @@ export async function pbBoard(npcId: number, groupId?: number): Promise<PbBossBo
 
 export async function playerProfile(id: number): Promise<PlayerProfile> {
   return PlayerProfileSchema.parse(await get(`/api/activity/players/${id}`, null));
+}
+
+/** The player's clan points as their profile shows them. Authed when signed
+ * in: the clan picked depends on the viewer, and members-only boards need it. */
+export async function playerGroupPoints(
+  id: number,
+  sessionToken: string | null,
+): Promise<PlayerGroupPoints> {
+  return PlayerGroupPointsSchema.parse(
+    await get(`/api/activity/players/${id}/group-points`, sessionToken),
+  );
 }
 
 /** The account tabs of a profile (collection log, achievements, this month's

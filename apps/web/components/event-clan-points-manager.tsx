@@ -237,9 +237,8 @@ export function EventClanPointsManager({
 
       {!scope.available && (
         <Alert variant="info">
-          This clan&apos;s points system isn&apos;t active — clan points need the Clan Points
-          feature on the group&apos;s subscription. You can set the payout up now; nothing is paid
-          until it&apos;s active.
+          This clan&apos;s points system is off. Turn it on in the clan&apos;s Points settings
+          to pay these out. You can set the payout up now, and nothing is paid until it&apos;s on.
         </Alert>
       )}
 

@@ -19,6 +19,8 @@ import {
   PointsHistoryPageSchema,
   type PointsLeaderboard,
   PointsLeaderboardSchema,
+  type PlayerGroupPoints,
+  PlayerGroupPointsSchema,
   type PointsSettings,
   PointsSettingsSchema,
   type PointRule,
@@ -238,6 +240,13 @@ export const groupPointsApi = {
     if (params.limit) q.set("limit", String(params.limit));
     return PointsLeaderboardSchema.parse(
       await apiGet(`/groups/${groupId}/points/leaderboard?${q}`, { authed: true }),
+    );
+  },
+
+  /** A player's clan points as their profile shows them (viewer-aware). */
+  async playerGroupPoints(playerId: number): Promise<PlayerGroupPoints> {
+    return PlayerGroupPointsSchema.parse(
+      await apiGet(`/players/${playerId}/group-points`, { authed: true }),
     );
   },
 };
