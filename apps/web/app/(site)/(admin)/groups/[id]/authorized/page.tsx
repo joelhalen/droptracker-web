@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { requireGroupAdminPage } from "@/lib/auth";
 import { AuthorizedUsersManager } from "@/components/authorized-users-manager";
+import { GroupDataRemovalPanel } from "@/components/data-removal";
 
 type Params = Promise<{ id: string }>;
 
@@ -17,9 +18,11 @@ export default async function AuthorizedUsersPage({ params }: { params: Params }
   // Owner-only actions inside are gated per-control on `can_manage_admins`
   // from the API — admins land here for the read-only roster.
   const user = await requireGroupAdminPage(groupId);
-  const [initial, group] = await Promise.all([
+  const [initial, group, removal] = await Promise.all([
     api.groupAuthorizedUsers(groupId),
     api.group(groupId),
+    // Best-effort: the roster must still render if this read fails.
+    api.groupDataRemoval(groupId).catch(() => ({ request: null, can_request: false })),
   ]);
 
   return (
@@ -35,6 +38,12 @@ export default async function AuthorizedUsersPage({ params }: { params: Params }
         groupName={group.name}
         initial={initial}
         viewerUserId={user.user_id}
+      />
+      <GroupDataRemovalPanel
+        groupId={groupId}
+        groupName={group.name}
+        initial={removal.request}
+        canRequest={removal.can_request}
       />
     </div>
   );

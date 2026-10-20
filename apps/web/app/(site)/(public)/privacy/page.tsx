@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 const POLICY = `
 # Privacy Policy
 
-**Effective date: 11 August 2026**
+**Effective date: 20 October 2026**
 
 DropTracker ("we", "us") is a loot- and achievement-tracking service for Old
 School RuneScape, consisting of a RuneLite plugin, a Discord bot and
@@ -140,6 +140,16 @@ windows. If a Discord server removes the bot, its configuration becomes
 inactive; ticket transcripts are retained so past support history stays
 available to the people involved.
 
+When an account or group is removed at its owner's request, its data is kept
+hidden for a 7-day grace period (so a mistaken request can be cancelled), then
+erased. A private backup of the erased data is kept for 7 more days in case
+the removal was a mistake, then deleted for good. Discord messages our bot
+posted about a removed account are edited to read *Deleted user* with their
+screenshots removed, rather than deleted, so clan channel history still reads
+in order. Records of past events keep their scores under an anonymous name.
+The removal request itself (what was asked, by which account, and when) is
+kept as a record.
+
 ## Your choices and rights
 
 - **Plugin** — configure or disable data collection at any time from the
@@ -152,6 +162,13 @@ available to the people involved.
   data we hold about you, ask us to correct it, or ask us to delete your
   account data (including gameplay submissions and screenshots). We will
   action deletion requests within 30 days.
+- **Remove an account yourself** — in your
+  [settings](https://www.droptracker.io/settings), each claimed account has a
+  "Remove this account's data" button. Because anyone can claim an unclaimed
+  name, our staff check in a support ticket that the account is really yours
+  before anything is removed. Group owners can request removal of their whole
+  group from the group's Roles & access page; the group's admins are asked to
+  confirm. See [Removing your data](https://www.droptracker.io/docs/data-removal).
 
 To exercise any of these rights, open a ticket or contact the team in our
 Discord server: [droptracker.io/discord](https://www.droptracker.io/discord).

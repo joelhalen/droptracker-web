@@ -45,9 +45,11 @@ import { fileTransfersApi } from "./file-transfers";
 import { noticesApi } from "./notices";
 import { eventConquestApi } from "./event-conquest";
 import { testerBuildsApi } from "./tester-builds";
+import { dataRemovalApi } from "./data-removal";
 
 export const api = {
   ...leaderboardsApi,
+  ...dataRemovalApi,
   ...playersApi,
   ...sitesApi,
   ...groupsApi,
