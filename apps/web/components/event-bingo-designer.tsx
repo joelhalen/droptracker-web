@@ -34,6 +34,8 @@ import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import { Alert } from "@/components/ui";
 import { EventTaskFormWithAi } from "@/components/event-task-form-ai";
 import { BoundTaskPanel, EventTaskCombobox } from "@/components/event-task-search";
+import { bingoCellName } from "@/lib/board-tasks";
+import type { BoardLayoutSummary, BoardPinRequest } from "@/lib/board-tasks";
 import { QuantityInput } from "@/components/quantity-input";
 import {
   saveEventBingo,
@@ -143,10 +145,16 @@ export function EventBingoDesigner({
   tasks,
   onSaved,
   onTaskUpdated,
+  onLayoutChange,
+  pinRequest,
 }: {
   groupId: number | null;
   event: EventDetail;
   tasks: EventTask[];
+  /** Reports the cells (for the task form's "place on the board" picker). */
+  onLayoutChange?: (layout: BoardLayoutSummary | null) => void;
+  /** Pin a just-created task to a cell, through the normal edit + autosave. */
+  pinRequest?: BoardPinRequest | null;
   /** Fired with the refreshed detail after a successful save (the PUT can
    * create/delete tasks, so the whole manager state refreshes). */
   onSaved: (detail: EventDetail) => void;
@@ -329,6 +337,33 @@ export function EventBingoDesigner({
     markDirty();
   };
 
+  useEffect(() => {
+    onLayoutChange?.({
+      kind: "bingo",
+      editable,
+      slots: cells.map((cell, idx) => ({
+        idx,
+        name: bingoCellName(idx, size),
+        taskId: cell.taskId,
+        empty: cell.taskId == null && !cell.library && !cell.newTask,
+      })),
+    });
+  }, [cells, size, editable, onLayoutChange]);
+  const appliedPin = useRef<number | null>(null);
+  useEffect(() => {
+    if (!pinRequest || appliedPin.current === pinRequest.nonce) return;
+    if (!editable || pinRequest.idx >= cells.length) return;
+    appliedPin.current = pinRequest.nonce;
+    updateCell(pinRequest.idx, {
+      taskId: pinRequest.taskId,
+      library: null,
+      points: null,
+      newTask: null,
+    });
+    // updateCell only touches refs + stable setters; re-run on a new request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinRequest, editable]);
+
   /** "Fill for me": generated tasks go into cells that are free and carry no
    * label of their own (a deliberately labelled free space stays free). */
   const [showGenerator, setShowGenerator] = useState(false);
@@ -367,8 +402,8 @@ export function EventBingoDesigner({
             ? "The event has ended — the bingo board is a frozen record."
             : "The event has started, so the bingo board is locked. Cell completions now come " +
               "from the engine and the Review queue. Need to fix the board mid-event? Turn on " +
-              "“Allow live edits” in the event settings (Edit, next to the event name) — changes " +
-              "re-check every team's cells and line bonuses, and everything is audited."}
+              "“Allow live edits” on the General tab. Changes re-check every team's cells and " +
+              "line bonuses, and everything is audited."}
         </Alert>
         {event.bingo ? (
           <div

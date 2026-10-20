@@ -6,12 +6,9 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition, useEffect } from "react";
 import type { EventParticipant } from "@droptracker/api-types";
 import {
-  EVENT_FORMATION_MODES,
-  EVENT_SUBMISSION_POLICIES,
   type EventCompetitionInput,
   type EventDetail,
   type EventReadiness,
-  type EventScheduleInput,
   type EventTask,
   type EventTeam,
   type EventTeamBulkAddResult,
@@ -25,15 +22,11 @@ import {
 } from "@/lib/competition";
 import { CompetitionSetup } from "@/components/competition-setup";
 import {
-  FORMATION_MODE_HELP,
-  FORMATION_MODE_LABELS,
   EVENT_MODE_LABELS,
-  SUBMISSION_POLICY_HELP,
   SUBMISSION_POLICY_LABELS,
   TASK_TYPE_LABELS,
   TEAM_COLORS,
   repeatBadge,
-  soloAllowed,
   taskGoal,
   taskRepeat,
   teamColorMap,
@@ -41,7 +34,6 @@ import {
   withTeamRole,
 } from "@/lib/events";
 import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
-import { materializeSchedule } from "@/lib/event-schedule";
 import { confirmDiscard } from "@/lib/use-unsaved-changes";
 import { Alert, Button, EmptyState } from "@/components/ui";
 import {
@@ -94,9 +86,11 @@ import {
 import { EventTemplateSaver } from "@/components/event-template-saver";
 import { EventReview } from "@/components/event-review";
 import { EventAuditLog } from "@/components/event-audit-log";
-import { EventScheduleBuilder } from "@/components/event-schedule-builder";
-import { LocalTime, ScoringWindowBadge, TimezoneNote } from "@/components/local-time";
+import { LocalTime, ScoringWindowBadge } from "@/components/local-time";
 import { useDetailCrumb } from "@/components/tab-nav";
+import { EventGeneralSetup, GENERAL_TAB_LEAVE_MESSAGE } from "@/components/event-general-setup";
+import { boardTileTags } from "@/lib/board-tasks";
+import type { BoardLayoutSummary, BoardPinRequest } from "@/lib/board-tasks";
 
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-3 py-2 text-sm outline-none";
@@ -109,20 +103,6 @@ const ROLE_BADGE: Record<EventTeamRole, { label: string; className: string }> = 
     className: "border-osrs-bronze/40 bg-osrs-bronze/15 text-osrs-parchment-dark/80",
   },
 };
-
-/** Convert a datetime-local value to unix seconds (or null). */
-const toUnix = (v: string): number | null => (v ? Math.floor(new Date(v).getTime() / 1000) : null);
-/** Convert unix seconds to a datetime-local value (or ""). */
-const fromUnix = (v: number | null): string => {
-  if (!v) return "";
-  const d = new Date(v * 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
-
-/** An event's stored recurring rule as builder input (null = continuous). */
-const scheduleInputFor = (event: EventDetail): EventScheduleInput | null =>
-  event.schedule?.rule ? { tz: "UTC", rule: event.schedule.rule } : null;
 
 /** Colored draft/active/past chip (explicit lifecycle, Task 21). */
 function StatusChip({ status }: { status: EventDetail["status"] }) {
@@ -144,6 +124,7 @@ function StatusChip({ status }: { status: EventDetail["status"] }) {
  * one endless scroll — including the Discord settings that lived on their own
  * page — now sits behind one tab bar under the always-visible header. */
 const MANAGER_TABS = [
+  { key: "general", label: "General" },
   { key: "competition", label: "Competition" },
   { key: "tasks", label: "Tasks" },
   { key: "teams", label: "Teams" },
@@ -157,9 +138,9 @@ const MANAGER_TABS = [
 type ManagerTab = (typeof MANAGER_TABS)[number]["key"];
 
 /** Maps a readiness blocker's `target` to the manager tab that fixes it, so
- * the "Fix →" link jumps straight there. `dates` has no tab (the schedule is
- * edited from the header form), so it gets no jump. */
+ * the "Fix →" link jumps straight there. */
 const READINESS_TARGET_TAB: Record<string, ManagerTab | undefined> = {
+  dates: "general",
   teams: "teams",
   board: "board",
   tasks: "tasks",
@@ -242,7 +223,7 @@ function ReadinessPanel({
                 onClick={() => onGoto(b.target)}
                 className="text-osrs-gold-bright shrink-0 whitespace-nowrap text-xs hover:underline"
               >
-                Fix in {READINESS_TARGET_TAB[b.target]} →
+                Fix in {MANAGER_TABS.find((t) => t.key === READINESS_TARGET_TAB[b.target])?.label} →
               </button>
             )}
           </li>
@@ -267,6 +248,22 @@ export function EventManager({
   const [teams, setTeams] = useState<EventTeam[]>(initialEvent.teams);
   // Board games only: mirrors settings.shop.enabled from the board designer.
   const [shopEnabled, setShopEnabled] = useState(false);
+  // Suggestion #200: the board/bingo designer reports its slots so a new task
+  // can be placed on a tile straight from the task form; the pin itself goes
+  // back through the designer (its undo + autosave).
+  const [boardLayout, setBoardLayout] = useState<BoardLayoutSummary | null>(null);
+  const [pinRequest, setPinRequest] = useState<BoardPinRequest | null>(null);
+  const [newTaskSlot, setNewTaskSlot] = useState<number | null>(null);
+  const slotTags = useMemo(
+    () =>
+      boardLayout?.kind === "board"
+        ? boardTileTags(
+            tasks,
+            boardLayout.slots.map((sl) => ({ idx: sl.idx, task_id: sl.taskId })),
+          )
+        : undefined,
+    [boardLayout, tasks],
+  );
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmingEnd, setConfirmingEnd] = useState(false);
@@ -285,6 +282,8 @@ export function EventManager({
   );
   // Reported by the Discord panel; gates every switch away from its tab.
   const [discordDirty, setDiscordDirty] = useState(false);
+  // Same for the General tab's event settings form.
+  const [generalDirty, setGeneralDirty] = useState(false);
   const router = useRouter();
   // Delete flow: the type-to-confirm modal is open when non-null; the string
   // is what the admin has typed so far (must match the event name to enable).
@@ -295,6 +294,7 @@ export function EventManager({
   const selectTab = (next: ManagerTab) => {
     if (next === tab) return;
     if (tab === "discord" && !confirmDiscard(discordDirty, DISCORD_TAB_LEAVE_MESSAGE)) return;
+    if (tab === "general" && !confirmDiscard(generalDirty, GENERAL_TAB_LEAVE_MESSAGE)) return;
     setTab(next);
   };
 
@@ -377,116 +377,6 @@ export function EventManager({
         router.refresh();
       } else {
         setError(res.message);
-      }
-    });
-  };
-
-  const [editingEvent, setEditingEvent] = useState(false);
-  const [eventDraft, setEventDraft] = useState({
-    name: event.name,
-    description: event.description ?? "",
-    startsAt: fromUnix(event.starts_at),
-    endsAt: fromUnix(event.ends_at),
-    schedule: scheduleInputFor(event),
-    formationMode: event.formation_mode,
-    joinCode: event.join_code ?? "",
-    isPrivate: event.visibility === "private",
-    requiresConfirmation: event.requires_confirmation,
-    allowLiveEdits: event.allow_live_edits,
-    effortVisibility: event.effort_visibility,
-    tasksVisibility: event.tasks_visibility,
-    allowLateSignups: event.allow_late_signups,
-    submissionPolicy: event.submission_policy,
-    leadershipEnabled: event.leadership.enabled,
-    coLeaders: event.leadership.co_leaders,
-    leaderSelection: event.leadership.selection,
-  });
-
-  const startEditEvent = () => {
-    setError(null);
-    setEventDraft({
-      name: event.name,
-      description: event.description ?? "",
-      startsAt: fromUnix(event.starts_at),
-      endsAt: fromUnix(event.ends_at),
-      schedule: scheduleInputFor(event),
-      formationMode: event.formation_mode,
-      joinCode: event.join_code ?? "",
-      isPrivate: event.visibility === "private",
-      requiresConfirmation: event.requires_confirmation,
-      allowLiveEdits: event.allow_live_edits,
-      effortVisibility: event.effort_visibility,
-      tasksVisibility: event.tasks_visibility,
-      allowLateSignups: event.allow_late_signups,
-      submissionPolicy: event.submission_policy,
-      leadershipEnabled: event.leadership.enabled,
-      coLeaders: event.leadership.co_leaders,
-      leaderSelection: event.leadership.selection,
-    });
-    setEditingEvent(true);
-  };
-
-  const saveEditEvent = () => {
-    if (!eventDraft.name.trim()) return;
-    // Board-game events are refused a schedule (their turn timers keep running
-    // between windows) — send null so a kind change clears any stored rule.
-    const schedule =
-      event.kind === "board_game" || event.kind === "conquest" ? null : eventDraft.schedule;
-    if (schedule) {
-      const problem = materializeSchedule(
-        schedule.rule,
-        toUnix(eventDraft.startsAt),
-        toUnix(eventDraft.endsAt),
-      ).error;
-      if (problem) {
-        setError(problem);
-        return;
-      }
-    }
-    // Switching to free-for-all splits every shared team into one team per
-    // player (server-side, ledger re-folded per player) — not undoable.
-    const sharedTeams = teams.filter((t) => (t.member_count ?? t.members?.length ?? 0) > 1);
-    if (
-      eventDraft.formationMode === "solo" &&
-      event.formation_mode !== "solo" &&
-      sharedTeams.length > 0 &&
-      !window.confirm(
-        `Make this event a free-for-all? ${sharedTeams.length === 1 ? "Its team" : `Its ${sharedTeams.length} teams`} will be split so every player is a team of their own, keeping their own progress and points. This can't be undone.`,
-      )
-    ) {
-      return;
-    }
-    startTransition(async () => {
-      setError(null);
-      try {
-        const res = await updateGroupEvent(groupId, event.id, {
-          name: eventDraft.name,
-          description: eventDraft.description || undefined,
-          starts_at: toUnix(eventDraft.startsAt),
-          ends_at: toUnix(eventDraft.endsAt),
-          schedule,
-          formation_mode: eventDraft.formationMode,
-          join_code: eventDraft.joinCode.trim() || null,
-          visibility: eventDraft.isPrivate ? "private" : "public",
-          requires_confirmation: eventDraft.requiresConfirmation,
-          allow_live_edits: eventDraft.allowLiveEdits,
-          effort_visibility: eventDraft.effortVisibility,
-          tasks_visibility: eventDraft.tasksVisibility,
-          allow_late_signups: eventDraft.allowLateSignups,
-          submission_policy: eventDraft.submissionPolicy,
-          leadership: {
-            enabled: eventDraft.leadershipEnabled,
-            co_leaders: eventDraft.coLeaders,
-            selection: eventDraft.leaderSelection,
-          },
-        });
-        const { event: updated } = unwrapActionResult(res);
-        setEvent(updated);
-        setTasks(updated.tasks);
-        setTeams(updated.teams);
-        setEditingEvent(false);
-      } catch (err) {
-        setError(getErrorMessage(err, "Couldn't save the event. Please try again."));
       }
     });
   };
@@ -821,319 +711,6 @@ export function EventManager({
 
   return (
     <div className="space-y-10">
-      {editingEvent ? (
-        <div className="border-osrs-bronze/30 space-y-3 rounded border p-4">
-          <input
-            value={eventDraft.name}
-            onChange={(e) => setEventDraft((d) => ({ ...d, name: e.target.value }))}
-            placeholder="Event name"
-            className={field}
-          />
-          <textarea
-            value={eventDraft.description}
-            onChange={(e) => setEventDraft((d) => ({ ...d, description: e.target.value }))}
-            placeholder="Description (optional)"
-            rows={2}
-            className={field}
-          />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Starts</span>
-              <input
-                type="datetime-local"
-                value={eventDraft.startsAt}
-                onChange={(e) => setEventDraft((d) => ({ ...d, startsAt: e.target.value }))}
-                className={field}
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Ends</span>
-              <input
-                type="datetime-local"
-                value={eventDraft.endsAt}
-                onChange={(e) => setEventDraft((d) => ({ ...d, endsAt: e.target.value }))}
-                className={field}
-              />
-            </label>
-          </div>
-          <TimezoneNote className="text-osrs-parchment-dark/60 block text-xs" />
-          {/* Recurring windows (web82a) — the same builder the setup wizard
-              uses; elapsed windows on a live event are frozen server-side. */}
-          <EventScheduleBuilder
-            value={eventDraft.schedule}
-            onChange={(schedule) => setEventDraft((d) => ({ ...d, schedule }))}
-            startsAt={toUnix(eventDraft.startsAt)}
-            endsAt={toUnix(eventDraft.endsAt)}
-            kind={event.kind}
-            status={event.status}
-          />
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block text-sm">
-              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Team formation</span>
-              <select
-                value={eventDraft.formationMode}
-                onChange={(e) =>
-                  setEventDraft((d) => ({
-                    ...d,
-                    formationMode: e.target.value as EventDetail["formation_mode"],
-                  }))
-                }
-                className={`${field} w-full`}
-              >
-                {EVENT_FORMATION_MODES.filter(
-                  (m) =>
-                    m !== "solo" ||
-                    event.formation_mode === "solo" ||
-                    soloAllowed(event.kind, event.mode),
-                ).map((m) => (
-                  <option key={m} value={m}>
-                    {FORMATION_MODE_LABELS[m]}
-                  </option>
-                ))}
-              </select>
-              {eventDraft.formationMode === "solo" && (
-                <span className="text-osrs-parchment-dark/60 mt-1 block text-xs">
-                  {FORMATION_MODE_HELP.solo}
-                </span>
-              )}
-            </label>
-            <label className="block text-sm">
-              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-                Join code (self join only — blank for open signup)
-              </span>
-              <input
-                value={eventDraft.joinCode}
-                onChange={(e) => setEventDraft((d) => ({ ...d, joinCode: e.target.value }))}
-                maxLength={32}
-                placeholder="Optional code players must enter"
-                className={`${field} w-full`}
-              />
-            </label>
-          </div>
-          <label className="block text-sm">
-            <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-              Submission policy
-            </span>
-            <select
-              value={eventDraft.submissionPolicy}
-              onChange={(e) =>
-                setEventDraft((d) => ({
-                  ...d,
-                  submissionPolicy: e.target.value as EventDetail["submission_policy"],
-                }))
-              }
-              className={`${field} w-full`}
-            >
-              {EVENT_SUBMISSION_POLICIES.map((p) => (
-                <option key={p} value={p}>
-                  {SUBMISSION_POLICY_LABELS[p]}
-                </option>
-              ))}
-            </select>
-            <span className="text-osrs-parchment-dark/60 mt-1 block text-xs">
-              {SUBMISSION_POLICY_HELP[eventDraft.submissionPolicy]}
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={eventDraft.requiresConfirmation}
-              onChange={(e) =>
-                setEventDraft((d) => ({ ...d, requiresConfirmation: e.target.checked }))
-              }
-              className="mt-0.5 size-4"
-            />
-            <span>
-              Require manual confirmation for <em>every</em> completion
-              <span className="text-osrs-parchment-dark/60 block text-xs">
-                All automatic completions queue in Review until an admin confirms them. You can also
-                require review per task below.
-              </span>
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={eventDraft.allowLiveEdits}
-              onChange={(e) =>
-                setEventDraft((d) => ({ ...d, allowLiveEdits: e.target.checked }))
-              }
-              className="mt-0.5 size-4"
-            />
-            <span>
-              Allow live edits after the event starts
-              <span className="text-osrs-parchment-dark/60 block text-xs">
-                Keeps the bingo board editable while the event runs. Tasks and teams are always
-                adjustable mid-event — scoring changes ask whether to re-score existing progress.
-                Every change is audited.
-              </span>
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={eventDraft.effortVisibility === "admins"}
-              onChange={(e) =>
-                setEventDraft((d) => ({
-                  ...d,
-                  effortVisibility: e.target.checked ? "admins" : "public",
-                }))
-              }
-              className="mt-0.5 size-4"
-            />
-            <span>
-              Keep EHE private to event managers
-              <span className="text-osrs-parchment-dark/60 block text-xs">
-                EHE (Efficient Hours towards Event) estimates how long each player spent
-                working on this event&apos;s tasks. It stays on the team and player pages by
-                default; tick this to confine it to your effort report, which some clans
-                prefer since a public per-member effort column can read as
-                &ldquo;here&apos;s who did the least&rdquo;. Effort is recorded either way, so
-                you can un-tick it later and the full history appears.
-              </span>
-            </span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={eventDraft.tasksVisibility === "admins"}
-              onChange={(e) =>
-                setEventDraft((d) => ({
-                  ...d,
-                  tasksVisibility: e.target.checked ? "admins" : "public",
-                }))
-              }
-              className="mt-0.5 size-4"
-            />
-            <span>
-              Hide the board and tasks from participants
-              <span className="text-osrs-parchment-dark/60 block text-xs">
-                Only event admins and event managers see the task list, the bingo board or
-                game-board tiles, and the board images posted to Discord and shown in-game.
-                Everyone else still sees the event, its teams and standings, and is told what
-                they completed as it happens. Use it to play blind, or to keep a board under
-                wraps until you un-tick it and reveal it.
-              </span>
-            </span>
-          </label>
-          {eventDraft.formationMode !== "admin_assign" && (
-            <label className="flex cursor-pointer items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={eventDraft.allowLateSignups}
-                onChange={(e) =>
-                  setEventDraft((d) => ({ ...d, allowLateSignups: e.target.checked }))
-                }
-                className="mt-0.5 size-4"
-              />
-              <span>
-                Keep sign-ups open after the event starts
-                <span className="text-osrs-parchment-dark/60 block text-xs">
-                  Off by default: sign-ups close when the event begins and the Discord sign-up
-                  post drops its button. Turn this on to let latecomers join mid-event — you can
-                  still add players by hand either way.
-                </span>
-              </span>
-            </label>
-          )}
-          <label className="flex cursor-pointer items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={eventDraft.isPrivate}
-              onChange={(e) => setEventDraft((d) => ({ ...d, isPrivate: e.target.checked }))}
-              className="mt-0.5 size-4"
-            />
-            <span>
-              Keep this event private
-              <span className="text-osrs-parchment-dark/60 block text-xs">
-                Hidden from the public events list and search — only members of the
-                {isClanVsClan ? " participating clans" : " group"} and event admins can see it.
-              </span>
-            </span>
-          </label>
-
-          {/* Team leadership (web48a): leaders hold executive authority — on
-              board-game events they trigger the rolls and run the shop. */}
-          <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-3">
-            <legend className="text-osrs-parchment-dark/70 px-1 text-xs">Team leadership</legend>
-            <label className="flex cursor-pointer items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={eventDraft.leadershipEnabled}
-                onChange={(e) =>
-                  setEventDraft((d) => ({ ...d, leadershipEnabled: e.target.checked }))
-                }
-                className="mt-0.5 size-4"
-              />
-              <span>
-                Teams have a leader
-                <span className="text-osrs-parchment-dark/60 block text-xs">
-                  The leader makes the executive calls for their team — on board-game events only
-                  they can trigger dice rolls and buy or use shop items. Pick each team&apos;s
-                  leader on the Teams tab.
-                </span>
-              </span>
-            </label>
-            {eventDraft.leadershipEnabled && (
-              <>
-                <label className="flex cursor-pointer items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={eventDraft.coLeaders}
-                    onChange={(e) => setEventDraft((d) => ({ ...d, coLeaders: e.target.checked }))}
-                    className="mt-0.5 size-4"
-                  />
-                  <span>
-                    Allow a co-leader
-                    <span className="text-osrs-parchment-dark/60 block text-xs">
-                      Shares the leader&apos;s authority; the leader can appoint their own.
-                    </span>
-                  </span>
-                </label>
-                <label className="block text-sm sm:max-w-xs">
-                  <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-                    How leaders are chosen
-                  </span>
-                  <select
-                    value={eventDraft.leaderSelection}
-                    onChange={(e) =>
-                      setEventDraft((d) => ({
-                        ...d,
-                        leaderSelection: e.target.value as "admin" | "election",
-                      }))
-                    }
-                    className={`${field} w-full`}
-                  >
-                    <option value="admin">Admins assign leaders</option>
-                    <option value="election">Teams elect their leader (majority vote)</option>
-                  </select>
-                  <span className="text-osrs-parchment-dark/60 mt-1 block text-xs">
-                    Admin assignment always works as an override, either way. Members vote on
-                    their team&apos;s page.
-                  </span>
-                </label>
-              </>
-            )}
-          </fieldset>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={saveEditEvent}
-              disabled={pending || !eventDraft.name.trim()}
-            >
-              {pending ? "Saving…" : "Save"}
-            </Button>
-            <button
-              onClick={() => setEditingEvent(false)}
-              disabled={pending}
-              className="text-osrs-parchment-dark/60 hover:text-osrs-gold-bright text-sm"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div>
@@ -1187,10 +764,11 @@ export function EventManager({
                 </Link>
               )}
               <button
-                onClick={startEditEvent}
+                onClick={() => selectTab("general")}
                 className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright text-sm"
+                title="Name, dates, sign-ups, review rules and privacy"
               >
-                Edit
+                Edit details
               </button>
               {groupId != null && event.status !== "draft" && (
                 <Link
@@ -1401,7 +979,6 @@ export function EventManager({
             </button>
           </div>
         </div>
-      )}
 
       {error && <Alert variant="error">{error}</Alert>}
 
@@ -1506,7 +1083,7 @@ export function EventManager({
                   : t.label}
               {/* Unsaved-work marker, so a switched-away Discord draft is
                   visible from any tab. */}
-              {t.key === "discord" && discordDirty && (
+              {((t.key === "discord" && discordDirty) || (t.key === "general" && generalDirty)) && (
                 <span className="text-osrs-gold-bright ml-1" title="Unsaved changes">
                   ●
                 </span>
@@ -1515,6 +1092,17 @@ export function EventManager({
           ))}
         </div>
       </div>
+
+      {/* General setup: name, dates, sign-ups, review rules, privacy. */}
+      <section className={tab === "general" ? "" : "hidden"}>
+        <EventGeneralSetup
+          groupId={groupId}
+          event={event}
+          teams={teams}
+          onSaved={applyDetail}
+          onDirtyChange={setGeneralDirty}
+        />
+      </section>
 
       {/* Competition (sotw/botw, web105a) */}
       {isCompetitionKind(event.kind) && (
@@ -1661,6 +1249,31 @@ export function EventManager({
         )}
         {taskFormFor === -1 && (
           <div className="mb-4">
+            {boardLayout?.editable && boardLayout.slots.length > 0 && (
+              <label className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-osrs-parchment-dark/80">
+                  {boardLayout.kind === "board" ? "Place on tile" : "Place on the board"}
+                </span>
+                <select
+                  value={newTaskSlot ?? ""}
+                  onChange={(e) =>
+                    setNewTaskSlot(e.target.value === "" ? null : Number(e.target.value))
+                  }
+                  className="border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold max-w-full rounded border px-2 py-1.5 text-sm outline-none"
+                >
+                  <option value="">Not on the board yet</option>
+                  {boardLayout.slots.map((sl) => {
+                    const holder = sl.taskId != null ? tasks.find((t) => t.id === sl.taskId) : null;
+                    return (
+                      <option key={sl.idx} value={sl.idx}>
+                        {sl.name}
+                        {holder ? `: replaces ${holder.label}` : sl.empty ? " (empty)" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+            )}
             <EventTaskFormWithAi
               groupId={groupId}
               eventId={event.id}
@@ -1670,8 +1283,15 @@ export function EventManager({
               onSaved={(t) => {
                 setTasks((prev) => [...prev, t]);
                 setTaskFormFor(null);
+                if (newTaskSlot != null && boardLayout?.editable) {
+                  setPinRequest({ idx: newTaskSlot, taskId: t.id, nonce: Date.now() });
+                }
+                setNewTaskSlot(null);
               }}
-              onCancel={() => setTaskFormFor(null)}
+              onCancel={() => {
+                setTaskFormFor(null);
+                setNewTaskSlot(null);
+              }}
             />
           </div>
         )}
@@ -1711,6 +1331,14 @@ export function EventManager({
                       <span className="text-osrs-parchment-dark/50 mr-2 text-xs uppercase">
                         {TASK_TYPE_LABELS[t.type]}
                       </span>
+                      {slotTags?.get(t.id) && (
+                        <span
+                          className="text-osrs-gold mr-1.5 font-semibold"
+                          title="The board tile(s) this task is pinned to"
+                        >
+                          {slotTags.get(t.id)}
+                        </span>
+                      )}
                       {t.label}
                       {taskGoal(t) && (
                         <span className="text-osrs-parchment-dark/60"> — {taskGoal(t)}</span>
@@ -2100,6 +1728,8 @@ export function EventManager({
             tasks={tasks}
             onTaskUpdated={onTaskUpdated}
             onShopEnabledChange={setShopEnabled}
+            onLayoutChange={setBoardLayout}
+            pinRequest={pinRequest}
           />
           <div className="mt-6">
             <EventBoardTeamMover
@@ -2127,6 +1757,8 @@ export function EventManager({
               applyDetail(detail);
             }}
             onTaskUpdated={onTaskUpdated}
+            onLayoutChange={setBoardLayout}
+            pinRequest={pinRequest}
           />
         </section>
       )}
@@ -2173,7 +1805,13 @@ export function EventManager({
 
       {/* Verification queue / ledger / manual awards (Task 18) */}
       <div className={tab === "review" ? "" : "hidden"}>
-        <EventReview groupId={groupId} eventId={event.id} tasks={tasks} teams={teams} />
+        <EventReview
+          groupId={groupId}
+          eventId={event.id}
+          tasks={tasks}
+          teams={teams}
+          eventKind={event.kind}
+        />
       </div>
 
       {/* Full event audit log — every point + admin action, filterable (web57a) */}

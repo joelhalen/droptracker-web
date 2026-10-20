@@ -54,13 +54,18 @@ const haystack = (t: EventTask): string =>
 /** Filter + sort an in-memory task list. Every term must match (AND), so
  * "barrows 50" narrows rather than widens. Returns the input array untouched
  * when the filter is empty. */
-export function filterTasks(tasks: EventTask[], f: TaskFilter): EventTask[] {
+export function filterTasks(
+  tasks: EventTask[],
+  f: TaskFilter,
+  tags?: ReadonlyMap<number, string>,
+): EventTask[] {
   const terms = f.query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   let out = tasks;
   if (f.type) out = out.filter((t) => t.type === f.type);
   if (terms.length) {
     out = out.filter((t) => {
-      const hay = haystack(t);
+      const tag = tags?.get(t.id);
+      const hay = tag ? `${tag.toLowerCase()} ${haystack(t)}` : haystack(t);
       return terms.every((term) => hay.includes(term));
     });
   }
@@ -177,6 +182,7 @@ export function EventTaskCombobox({
   disabled = false,
   placeholder = "Search this event's tasks…",
   clearLabel = "Clear",
+  tags,
 }: {
   tasks: EventTask[];
   value: number | null;
@@ -184,6 +190,9 @@ export function EventTaskCombobox({
   disabled?: boolean;
   placeholder?: string;
   clearLabel?: string;
+  /** Short per-task badge shown before the label and matched by the search,
+   * e.g. a board tile number ("#37"). */
+  tags?: ReadonlyMap<number, string>;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -193,8 +202,8 @@ export function EventTaskCombobox({
 
   const selected = value != null ? (tasks.find((t) => t.id === value) ?? null) : null;
   const matches = useMemo(
-    () => filterTasks(tasks, { query, type: "", sort: "order" }),
-    [tasks, query],
+    () => filterTasks(tasks, { query, type: "", sort: "order" }, tags),
+    [tasks, query, tags],
   );
   const rows = matches.slice(0, MAX_ROWS);
 
@@ -261,7 +270,13 @@ export function EventTaskCombobox({
           aria-controls={listId}
           aria-autocomplete="list"
           aria-label="Search this event's tasks"
-          value={open ? query : (selected?.label ?? "")}
+          value={
+            open
+              ? query
+              : selected
+                ? `${tags?.get(selected.id) ? `${tags.get(selected.id)} · ` : ""}${selected.label}`
+                : ""
+          }
           disabled={disabled}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -302,7 +317,12 @@ export function EventTaskCombobox({
                   } ${t.id === value ? "text-osrs-gold-bright" : ""}`}
                 >
                   <span className="min-w-0">
-                    <span className="block truncate">{t.label}</span>
+                    <span className="block truncate">
+                      {tags?.get(t.id) && (
+                        <span className="text-osrs-gold mr-1.5 font-semibold">{tags.get(t.id)}</span>
+                      )}
+                      {t.label}
+                    </span>
                     <span className="text-osrs-parchment-dark/50 block truncate text-[11px]">
                       {TASK_TYPE_LABELS[t.type]}
                       {taskGoal(t) ? ` · ${taskGoal(t)}` : ""}

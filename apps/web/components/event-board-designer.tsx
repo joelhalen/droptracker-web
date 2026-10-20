@@ -43,6 +43,8 @@ import { BoundTaskPanel, EventTaskCombobox } from "@/components/event-task-searc
 import { ItemDbIcon } from "@/components/item-db-icon";
 import { QuantityInput } from "@/components/quantity-input";
 import { BoardLinksOverlay } from "@/components/board-links-overlay";
+import { BoardTileList } from "@/components/event-board-tile-list";
+import type { BoardLayoutSummary, BoardPinRequest } from "@/lib/board-tasks";
 import { relinkAfterDelete, suggestLinks, validateBoardLinks } from "@/lib/board-links";
 import type { LinkTile } from "@/lib/board-links";
 
@@ -140,6 +142,8 @@ export function EventBoardDesigner({
   onSaved,
   onTaskUpdated,
   onShopEnabledChange,
+  onLayoutChange,
+  pinRequest,
 }: {
   groupId: number | null;
   event: EventDetail;
@@ -148,6 +152,10 @@ export function EventBoardDesigner({
   /** Reports settings.shop.enabled on load and on every settings save, so the
    * parent can hide the shop item config while the shop is switched off. */
   onShopEnabledChange?: (enabled: boolean) => void;
+  /** Reports the tiles (for the task form's "place on tile" picker). */
+  onLayoutChange?: (layout: BoardLayoutSummary | null) => void;
+  /** Pin a just-created task to a tile, through the normal edit + autosave. */
+  pinRequest?: BoardPinRequest | null;
   /** A task edited from inside the tile editor. The layout is untouched —
    * only the parent's task list needs the update. */
   onTaskUpdated?: (task: EventTask) => void;
@@ -159,6 +167,12 @@ export function EventBoardDesigner({
   const [board, setBoard] = useState<BoardDetail | null>(null);
   const [tiles, setTiles] = useState<DesignerTile[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
+  // Suggestion #200: "list" edits every tile as a row; "board" is the canvas.
+  const [view, setView] = useState<"board" | "list">("board");
+  // Clicking empty board space adds a tile only while this is on. It starts
+  // on for an empty board and off once there are tiles, so a misclick on a
+  // generated grid no longer drops a stray tile.
+  const [placeMode, setPlaceMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "dirty" | "saving" | "saved" | "error">(
     "idle",
@@ -217,6 +231,30 @@ export function EventBoardDesigner({
   const redoStack = useRef<DesignerTile[][]>([]);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const loaded = board != null;
+  useEffect(() => {
+    if (!onLayoutChange) return;
+    if (!loaded) return onLayoutChange(null);
+    onLayoutChange({
+      kind: "board",
+      editable,
+      slots: tiles.map((t, idx) => ({
+        idx,
+        name: `#${idx}${t.tileKind === "start" ? " (start)" : t.tileKind === "finish" ? " (finish)" : ""}`,
+        taskId: t.taskId,
+        empty: t.taskId == null && !t.difficulty,
+      })),
+    });
+  }, [loaded, tiles, editable, onLayoutChange]);
+  const appliedPin = useRef<number | null>(null);
+  useEffect(() => {
+    if (!pinRequest || appliedPin.current === pinRequest.nonce) return;
+    if (!editable || !tilesRef.current[pinRequest.idx]) return;
+    appliedPin.current = pinRequest.nonce;
+    updateTile(pinRequest.idx, { taskId: pinRequest.taskId, difficulty: null });
+    // updateTile only touches refs + stable setters; re-run on a new request.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinRequest, editable]);
   const shopEnabled = board?.settings.shop.enabled;
   useEffect(() => {
     if (shopEnabled !== undefined) onShopEnabledChange?.(shopEnabled);
@@ -354,6 +392,7 @@ export function EventBoardDesigner({
         if (cancelled) return;
         setBoard(b);
         setTiles(tilesFromBoard(b));
+        setPlaceMode(b.tiles.length === 0);
         clearHistory(); // fresh board load starts with an empty undo stack
       })
       .catch((err) => !cancelled && setError(getErrorMessage(err, "Couldn't load the board.")));
@@ -382,6 +421,11 @@ export function EventBoardDesigner({
     if (linkPickFor != null) {
       // Clicking empty board while picking a link target = cancel the pick.
       setLinkPickFor(null);
+      return;
+    }
+    if (!placeMode) {
+      // Not placing: an empty-board click just closes the open tile.
+      if (selectedRef.current != null) closeEditor();
       return;
     }
     const pos = fractionAt(e);
@@ -556,6 +600,7 @@ export function EventBoardDesigner({
     );
     setTiles(zigzagTiles(100));
     setSelected(null);
+    setPlaceMode(false);
     markDirty();
   };
 
@@ -571,6 +616,7 @@ export function EventBoardDesigner({
     pushHistory();
     setTiles([]);
     setSelected(null);
+    setPlaceMode(true);
     markDirty();
   };
 
@@ -652,6 +698,7 @@ export function EventBoardDesigner({
     setSelected(null);
     setLinkPickFor(null);
     clearHistory();
+    setPlaceMode(detail.tiles.length === 0);
     savedRevRef.current = revRef.current;
     setSaveState("saved");
     setLastGenSeed(seedUsed);
@@ -836,6 +883,51 @@ export function EventBoardDesigner({
         <SaveStatus state={saveState} onSave={() => flushRef.current()} />
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="border-osrs-bronze/40 inline-flex overflow-hidden rounded border text-sm">
+          {(["board", "list"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => {
+                // The tile editor only lives on the canvas; close it (and
+                // flush) so autosave keeps adopting the server's layout.
+                if (v === "list" && selectedRef.current != null) closeEditor();
+                setView(v);
+              }}
+              aria-pressed={view === v}
+              className={`px-3 py-1.5 ${
+                view === v
+                  ? "bg-osrs-bronze text-osrs-parchment"
+                  : "text-osrs-parchment-dark/70 hover:text-osrs-gold-bright"
+              }`}
+            >
+              {v === "board" ? "Board" : "List"}
+            </button>
+          ))}
+        </div>
+        {view === "board" && editable && (
+          <label
+            className="flex items-center gap-1.5 text-sm"
+            title="While on, clicking an empty spot on the board adds a tile there"
+          >
+            <input
+              type="checkbox"
+              checked={placeMode}
+              onChange={(e) => setPlaceMode(e.target.checked)}
+            />
+            Click to add tiles
+          </label>
+        )}
+        <span className="text-osrs-parchment-dark/50 text-xs">
+          {view === "list"
+            ? "Pick each tile's task in order. Open a tile for links, tile type and points."
+            : placeMode
+              ? "Click an empty spot to add a tile. Click a tile to edit it."
+              : "Click a tile to edit it."}
+        </span>
+      </div>
+
       {genOpen && editable && (
         <div className="border-osrs-gold/30 bg-osrs-brown-dark/40 space-y-3 rounded border p-3">
           <h4 className="text-osrs-gold text-sm font-semibold">Procedural board generator</h4>
@@ -1002,8 +1094,22 @@ export function EventBoardDesigner({
         </Alert>
       )}
 
+      {view === "list" && (
+        <BoardTileList
+          tiles={tiles}
+          tasks={tasks}
+          editable={editable}
+          onChange={updateTile}
+          onOpen={(idx) => {
+            setView("board");
+            setSelected(idx);
+          }}
+        />
+      )}
+
       {/* The board surface */}
       <div
+        hidden={view !== "board"}
         ref={imgRef}
         onClick={onBoardClick}
         className="border-osrs-bronze/30 relative w-full overflow-hidden rounded border bg-black/30 select-none"
@@ -1012,7 +1118,9 @@ export function EventBoardDesigner({
         aria-label={
           linkPickFor != null
             ? `Board designer — click the tile that tile ${linkPickFor} should link to`
-            : "Board designer — click to place a tile"
+            : placeMode
+              ? "Board designer: click to place a tile"
+              : "Board designer: click a tile to edit it"
         }
       >
         {board.background_url ? (
@@ -1070,7 +1178,7 @@ export function EventBoardDesigner({
         ))}
       </div>
 
-      {selected != null && tiles[selected] && (
+      {view === "board" && selected != null && tiles[selected] && (
         <TileEditor
           // Keyed by tile so switching tiles resets the editor's own UI state
           // (task search box, open task form) instead of carrying it over.

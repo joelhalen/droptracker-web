@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import type { EventCompletion, EventTask, EventTeam } from "@droptracker/api-types";
+import type { BoardDetail, EventCompletion, EventTask, EventTeam } from "@droptracker/api-types";
 import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import {
   completionMatchesFilter,
@@ -15,11 +15,14 @@ import { Alert, EmptyState } from "@/components/ui";
 import { LocalTime } from "@/components/local-time";
 import { QuantityInput } from "@/components/quantity-input";
 import { EventCreditReceipt } from "@/components/event-credit-receipt";
+import { EventTaskCombobox } from "@/components/event-task-search";
+import { boardInstanceInfo, boardTileTags } from "@/lib/board-tasks";
 import type { EventScoreChange } from "@/lib/event-credit-receipt";
 import {
   awardEventCompletion,
   confirmEventCompletion,
   confirmEventCompletionsBulk,
+  fetchEventBoard,
   listEventCompletions,
   rejectEventCompletion,
   revokeEventCompletion,
@@ -44,13 +47,49 @@ export function EventReview({
   eventId,
   tasks,
   teams,
+  eventKind,
 }: {
   groupId: number | null;
   eventId: number;
   tasks: EventTask[];
   teams: EventTeam[];
+  /** Board games label tasks by tile and aim awards at each team's tile. */
+  eventKind?: string;
 }) {
   const router = useRouter();
+  const isBoardGame = eventKind === "board_game";
+  // Board games: the layout (tile → task) and where every team stands. Read
+  // on mount and after each award (a completed tile task moves the piece).
+  const [board, setBoard] = useState<BoardDetail | null>(null);
+  const loadBoard = useCallback(async () => {
+    if (!isBoardGame) return;
+    try {
+      setBoard(await fetchEventBoard(groupId, eventId));
+    } catch {
+      // The award form still works without it, just without tile hints.
+    }
+  }, [isBoardGame, groupId, eventId]);
+  useEffect(() => {
+    void loadBoard();
+  }, [loadBoard]);
+  const tileTags = useMemo(
+    () => (board ? boardTileTags(tasks, board.tiles) : undefined),
+    [board, tasks],
+  );
+  // A landing clones the tile's task into a per-team instance with the same
+  // label. The award picker lists the originals only (the server lands an
+  // award on the team's live instance); the ledger filter names the team.
+  const teamNames = useMemo(() => new Map(teams.map((t) => [t.id, t.name])), [teams]);
+  const awardTasks = useMemo(
+    () => (isBoardGame ? tasks.filter((t) => !boardInstanceInfo(t)) : tasks),
+    [isBoardGame, tasks],
+  );
+  const filterLabel = (t: EventTask) => {
+    const tag = tileTags?.get(t.id);
+    const inst = isBoardGame ? boardInstanceInfo(t) : null;
+    const team = inst?.teamId != null ? teamNames.get(inst.teamId) : undefined;
+    return `${tag ? `${tag} · ` : ""}${t.label}${team ? ` (${team})` : ""}`;
+  };
   const [status, setStatus] = useState<StatusFilter>("pending");
   const [teamFilter, setTeamFilter] = useState(0);
   const [taskFilter, setTaskFilter] = useState(0);
@@ -228,9 +267,10 @@ export function EventReview({
   };
 
   // Manual award form (the escape hatch for pre-join credit and custom tasks).
-  // Two modes: "complete" (server fills whatever progress remains — the
-  // default; awarding quantity 1 against a 50-KC task completes nothing) and
-  // "progress" (add an explicit quantity toward the goal). Multi-part tasks
+  // Two modes: "progress" (add an explicit quantity toward the goal — the
+  // default, since most awards are one more drop toward a count; suggestion
+  // #200) and "complete" (server fills whatever progress remains, so a
+  // 50-KC task can be finished in one row). Multi-part tasks
   // (item lists / either-or paths) additionally take a part selection so the
   // award credits a specific item or KC/GP path instead of generic wildcard
   // progress; "complete" always fills the whole task, so the selector only
@@ -246,13 +286,23 @@ export function EventReview({
     taskId: 0,
     teamId: 0,
     player: "",
-    mode: "complete" as "complete" | "progress",
+    mode: "progress" as "complete" | "progress",
     credit: "gained" as "gained" | "bonus",
     quantity: 1,
     part: "",
     note: "",
   });
   const awardTask = tasks.find((t) => t.id === award.taskId);
+  // Board games: the task on the chosen team's tile, as the original the
+  // picker lists (an instance maps back through source_task_id).
+  const teamPos = board?.positions.find((p) => p.team_id === award.teamId);
+  const tileTask = teamPos?.current_task ?? null;
+  const tileSourceId = tileTask
+    ? (boardInstanceInfo(tasks.find((t) => t.id === tileTask.id) ?? { config: null })
+        ?.sourceTaskId ?? tileTask.id)
+    : null;
+  const offTile =
+    isBoardGame && !!teamPos && award.taskId > 0 && tileSourceId !== award.taskId;
   const isRace = awardTask?.type === "competition";
   const raceIsBoss = isRace && awardTask ? taskConfig(awardTask).metric_kind === "boss" : false;
   const roster = useMemo(
@@ -319,6 +369,7 @@ export function EventReview({
         });
         const result = unwrapActionResult(res);
         setAward((a) => ({ ...a, note: "" }));
+        void loadBoard();
         setReceipt(
           result.score_change
             ? { from: "award", title: "Award applied", change: result.score_change }
@@ -419,7 +470,7 @@ export function EventReview({
               <option value={0}>All tasks</option>
               {tasks.map((t) => (
                 <option key={t.id} value={t.id}>
-                  {t.label}
+                  {filterLabel(t)}
                 </option>
               ))}
             </select>
@@ -466,6 +517,11 @@ export function EventReview({
               )}
               <span className="min-w-0 flex-1">
                 <span className="block truncate">
+                  {tileTags?.get(c.task_id) && (
+                    <span className="text-osrs-gold mr-1.5 font-semibold">
+                      {tileTags.get(c.task_id)}
+                    </span>
+                  )}
                   {c.task_label ?? `Task #${c.task_id}`}
                   {c.matched_target && (
                     <span className="text-osrs-parchment-dark/70"> — {c.matched_target}</span>
@@ -523,23 +579,36 @@ export function EventReview({
 
       <form onSubmit={onAward} className="mt-5 grid gap-2">
         <div className="grid gap-2 sm:grid-cols-[1fr_9rem_10rem_9rem_5rem_1fr_auto]">
-        <select
-          value={award.taskId}
-          onChange={(e) =>
-            setAward((a) => ({ ...a, taskId: Number(e.target.value), part: "", credit: "gained" }))
+        <EventTaskCombobox
+          tasks={awardTasks}
+          value={award.taskId || null}
+          onChange={(taskId) =>
+            setAward((a) => ({ ...a, taskId: taskId ?? 0, part: "", credit: "gained" }))
           }
-          className={field}
-        >
-          <option value={0}>Manual award: task…</option>
-          {tasks.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+          tags={tileTags}
+          placeholder={isBoardGame ? "Manual award: task or tile #…" : "Manual award: task…"}
+        />
         <select
           value={award.teamId}
-          onChange={(e) => setAward((a) => ({ ...a, teamId: Number(e.target.value), player: "" }))}
+          onChange={(e) => {
+            const teamId = Number(e.target.value);
+            setAward((a) => {
+              // Board games: picking a team with no task chosen yet aims the
+              // award at the task on that team's tile.
+              const pos = board?.positions.find((p) => p.team_id === teamId);
+              const cur = pos?.current_task;
+              const src = cur
+                ? (boardInstanceInfo(tasks.find((t) => t.id === cur.id) ?? { config: null })
+                    ?.sourceTaskId ?? cur.id)
+                : null;
+              return {
+                ...a,
+                teamId,
+                player: "",
+                ...(a.taskId === 0 && src != null ? { taskId: src, part: "" } : {}),
+              };
+            });
+          }}
           className={field}
         >
           <option value={0}>Team…</option>
@@ -618,6 +687,37 @@ export function EventReview({
           {awarding ? "Awarding…" : "Award"}
         </button>
         </div>
+        {isBoardGame && teamPos && (
+          <p className="text-osrs-parchment-dark/70 text-xs">
+            {teamPos.team_name} is on tile #{teamPos.tile_idx}
+            {tileTask ? (
+              <>
+                : {tileTask.label} ({tileTask.progress.toLocaleString()}/
+                {tileTask.target.toLocaleString()})
+                {tileSourceId !== award.taskId && tileSourceId != null && (
+                  <>
+                    {" "}
+                    <button
+                      type="button"
+                      onClick={() => setAward((a) => ({ ...a, taskId: tileSourceId, part: "" }))}
+                      className="text-osrs-gold-bright hover:underline"
+                    >
+                      Use this task
+                    </button>
+                  </>
+                )}
+              </>
+            ) : (
+              ", with no task to complete right now."
+            )}
+          </p>
+        )}
+        {offTile && (
+          <p className="text-osrs-gold/90 text-xs">
+            This isn&apos;t the task on {teamPos?.team_name}&apos;s tile. The award still scores,
+            but it won&apos;t move their piece.
+          </p>
+        )}
         {playerInvalid && (
           <p className="text-osrs-red text-xs">
             “{award.player.trim()}” isn’t on this team’s roster — pick a name from the list.
