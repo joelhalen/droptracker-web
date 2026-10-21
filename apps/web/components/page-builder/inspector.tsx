@@ -700,7 +700,8 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
           <Toggle label="Show rank" checked={block.show_rank !== false} onChange={(show_rank) => set({ show_rank })} />
           <Toggle label="Visitors can re-sort" checked={block.sortable !== false} onChange={(sortable) => set({ sortable })} />
           <p className="text-osrs-parchment-dark/55 text-xs">
-            Members who hide their profile are never listed.
+            Publishing a page with this block makes your member list public; taking it off makes
+            it private again. Members who hide their profile are never listed.
           </p>
         </>
       );
