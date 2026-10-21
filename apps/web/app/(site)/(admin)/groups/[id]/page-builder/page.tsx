@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { requireGroupAdminPage } from "@/lib/auth";
+import { lowestTierWithEntitlement } from "@/lib/entitlements";
 import { PageBuilder } from "@/components/page-builder/page-builder";
 
 export const metadata: Metadata = { title: "Page design" };
@@ -26,9 +27,10 @@ export default async function GroupPageBuilderPage({
   await requireGroupAdminPage(groupId);
   const members = (await searchParams).for === "members";
   const scope = members ? "member_default" : "group";
-  const [group, state] = await Promise.all([
+  const [group, state, tiers] = await Promise.all([
     api.group(groupId),
     api.layoutBuilderState(scope, groupId),
+    api.subscriptionTiers().catch(() => []),
   ]);
   const base = `/groups/${groupId}/page-builder`;
   return (
@@ -42,6 +44,7 @@ export default async function GroupPageBuilderPage({
       liveUrl={`/groups/${groupId}`}
       exitUrl={`/groups/${groupId}/admin`}
       upgradeUrl={`/groups/${groupId}/subscription`}
+      planName={lowestTierWithEntitlement(tiers, "custom_site")?.name}
       groupId={groupId}
       tabs={[
         { label: "Group page", href: base, active: !members },

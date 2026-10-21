@@ -23,15 +23,12 @@ import {
 } from "@droptracker/api-types";
 import type { api } from "@/lib/api";
 import { BLOCK_DEF } from "@/lib/page-layout/catalog";
-import { entityPath } from "@/lib/slug";
-import { CountUp } from "@/components/count-up";
-import { EntityHoverCard } from "@/components/entity-hover-card";
 import { GroupBankPanel } from "@/components/group-bank-panel";
 import { GroupSupportCard } from "@/components/group-support-card";
 import { LiveDropTicker } from "@/components/live-drop-ticker";
 import { BossActivityList, RecordsShowcase, TopPlayersList } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
-import { EntityChip, NameTile, StatTile, TierBadge } from "@/components/ui";
+import { NameTile, TierBadge } from "@/components/ui";
 import {
   AnnouncementsBlock,
   EventStandingsBlock,
@@ -43,6 +40,7 @@ import {
   RecapBlock,
   WomAchievementsBlock,
 } from "@/components/site-blocks/renderer";
+import { ClanLogBlock, EventsListBlock, GroupStats, HighlightsBlock, PointsBlock, PvpSummaryBlock } from "./group-data-blocks";
 import { BannerFrame, BlockSlot, LayoutFrame, LayoutGrid, LIGHT_SURFACES, PreviewPlaceholder } from "./frame";
 import { LinkRow, renderSharedBlock, type LinkItem } from "./shared-blocks";
 
@@ -158,63 +156,6 @@ function groupLinks(ctx: GroupPageContext, keys: readonly string[]): LinkItem[] 
   return keys.map((k) => all[k]).filter((x): x is LinkItem => x != null);
 }
 
-function StatsTiles({ group, stats }: { group: GroupProfile; stats: readonly string[] }) {
-  const tiles = stats.map((key) => {
-    switch (key) {
-      case "members":
-        return (
-          <StatTile
-            key={key}
-            label="Members"
-            value={<CountUp value={group.member_count} formatted={group.member_count.toLocaleString()} />}
-          />
-        );
-      case "rank":
-        return <StatTile key={key} label="Global rank" value={`#${group.global_rank ?? "—"}`} />;
-      case "monthly_loot":
-        return (
-          <StatTile
-            key={key}
-            label="Monthly loot"
-            value={
-              group.monthly_loot ? (
-                <CountUp value={group.monthly_loot.value} formatted={group.monthly_loot.value_formatted} />
-              ) : (
-                "—"
-              )
-            }
-          />
-        );
-      case "top_player":
-        return (
-          <div key={key} className="bg-osrs-surface-2/70 rounded-lg px-4 py-3">
-            <div className="text-osrs-parchment-dark/60 text-xs tracking-wide uppercase">Top player</div>
-            {group.top_player ? (
-              <EntityHoverCard kind="player" id={group.top_player.id} name={group.top_player.name} className="flex min-w-0">
-                <EntityChip
-                  href={entityPath("players", group.top_player.id, group.top_player.name)}
-                  name={group.top_player.name}
-                  size="sm"
-                  className="mt-1.5"
-                  subtitle={group.top_player.total_loot?.value_formatted}
-                  playerId={group.top_player.id}
-                />
-              </EntityHoverCard>
-            ) : (
-              <div className="text-osrs-gold-bright mt-0.5 text-2xl font-bold">—</div>
-            )}
-          </div>
-        );
-      default:
-        return null;
-    }
-  });
-  const shown = tiles.filter(Boolean);
-  if (shown.length === 0) return null;
-  const cols = shown.length >= 4 ? "sm:grid-cols-4" : shown.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2";
-  return <div className={`stagger-children grid grid-cols-2 gap-3 ${cols}`}>{shown}</div>;
-}
-
 /** Content for one block, or null when it has nothing to show right now. */
 function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolean): ReactNode | null {
   const shared = renderSharedBlock(block, { light });
@@ -228,7 +169,7 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
         <GroupSupportCard groupId={group.id} summary={ctx.subSummary} signedIn={ctx.signedIn} />
       ) : null;
     case "stats_row":
-      return <StatsTiles group={group} stats={block.stats} />;
+      return <GroupStats ctx={ctx} stats={block.stats} columns={block.columns} />;
     case "bank":
       return ctx.bank?.visible && ctx.bank.has_activity ? (
         <GroupBankPanel bank={ctx.bank} manageHref={ctx.bank.can_manage ? `/groups/${group.id}/bank` : null} />
@@ -261,7 +202,7 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
         />
       );
     case "leaderboard":
-      return <LeaderboardBlock groupId={group.id} limit={block.limit} />;
+      return <LeaderboardBlock groupId={group.id} limit={block.limit} period={block.period} />;
     case "npc_board":
       return block.npc_id ? (
         <NpcBoardBlock groupId={group.id} npcId={block.npc_id} period={block.period} limit={block.limit} />
@@ -287,6 +228,32 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
       );
     case "live_ticker":
       return <LiveDropTicker scope={`group:${group.id}`} />;
+    case "clan_log":
+      return (
+        <ClanLogBlock
+          groupId={group.id}
+          base={ctx.base}
+          view={block.view}
+          showCategories={block.show_categories}
+          recent={block.recent}
+        />
+      );
+    case "points_leaderboard":
+      return <PointsBlock group={group} base={ctx.base} limit={block.limit} />;
+    case "pvp_summary":
+      return (
+        <PvpSummaryBlock
+          groupId={group.id}
+          base={ctx.base}
+          period={block.period}
+          limit={block.limit}
+          showRecent={block.show_recent}
+        />
+      );
+    case "events_list":
+      return <EventsListBlock groupId={group.id} show={block.show} limit={block.limit} />;
+    case "highlights":
+      return <HighlightsBlock scope="group" id={group.id} types={block.types} limit={block.limit} />;
     default:
       return null;
   }
@@ -306,6 +273,11 @@ const EMPTY_HINT: Partial<Record<string, string>> = {
   buttons: "Add a button in the settings.",
   group_links: "None of the chosen links apply to this group yet.",
   stats_row: "Pick at least one stat.",
+  clan_log: "Shows once members fill the collection log.",
+  points_leaderboard: "Shows when clan points are on and members have some.",
+  pvp_summary: "Shows after a member's first PvP kill.",
+  events_list: "Shows when the group runs a public event.",
+  highlights: "Shows once members get the chosen kinds of loot.",
 };
 
 export function GroupPageView({

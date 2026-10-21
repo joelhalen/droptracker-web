@@ -105,6 +105,20 @@ export function BlockSlot({
     case "parchment":
       inner = <div className="pl-surface-parchment pl-ink-light">{body}</div>;
       break;
+    case "window":
+      // The game's interface window (components/osrs-panel OsrsWindow): the
+      // heading lives in the title bar.
+      inner = (
+        <div className="border-osrs-bronze/60 bg-osrs-surface-1 overflow-hidden rounded-md border-2 shadow-lg">
+          <div className="border-osrs-bronze/50 bg-osrs-surface-3 border-b px-3 py-2">
+            <h2 className="font-osrs text-osrs-gold-bright text-lg leading-none tracking-wide">{title || label}</h2>
+          </div>
+          <div className="p-4">
+            <Suspense fallback={<BlockSkeleton />}>{children}</Suspense>
+          </div>
+        </div>
+      );
+      break;
     case "card":
     case "stone":
     case "panel":

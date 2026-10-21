@@ -191,9 +191,17 @@ export async function PbBoardBlock({
   );
 }
 
-export async function LeaderboardBlock({ groupId, limit }: { groupId: number; limit: number }) {
+export async function LeaderboardBlock({
+  groupId,
+  limit,
+  period = "month",
+}: {
+  groupId: number;
+  limit: number;
+  period?: string;
+}) {
   const scope = `group:${groupId}`;
-  const page = await api.playerLeaderboard({ scope, period: "month", limit }).catch(() => null);
+  const page = await api.playerLeaderboard({ scope, period, limit }).catch(() => null);
   if (!page || page.entries.length === 0) return <EmptyState title="No ranked players yet" />;
   return <LeaderboardTable entries={page.entries.slice(0, limit)} scope={scope} kind="players" />;
 }

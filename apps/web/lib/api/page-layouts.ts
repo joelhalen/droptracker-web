@@ -1,5 +1,8 @@
+import { z } from "zod";
 import { apiGet, apiSend } from "./_client";
 import {
+  SubmissionSchema,
+  type Submission,
   LayoutBuilderStateSchema,
   PublicGroupLayoutSchema,
   PublicPlayerLayoutSchema,
@@ -38,6 +41,21 @@ export const pageLayoutsApi = {
       tags: [layoutTag("player", playerId)],
     });
     return PublicPlayerLayoutSchema.parse(raw);
+  },
+
+  /** Typed recent activity for the Highlights blocks: drops, collection log
+   * slots, PBs and pets, newest first, hidden players left out. */
+  async highlights(
+    scope: "group" | "player",
+    id: number,
+    types: readonly string[],
+    limit: number,
+  ): Promise<Submission[]> {
+    const q = new URLSearchParams({ types: types.join(","), limit: String(limit) });
+    const raw = await apiGet(`/${scope === "group" ? "groups" : "players"}/${id}/highlights?${q}`, {
+      revalidate: 30,
+    });
+    return z.object({ items: z.array(SubmissionSchema) }).parse(raw).items;
   },
 
   // --- builder (session-authed) --------------------------------------------

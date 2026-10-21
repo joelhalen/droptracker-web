@@ -76,6 +76,8 @@ export type PageBuilderProps = {
   exitUrl: string;
   /** Where the upgrade prompt links. */
   upgradeUrl: string;
+  /** Plan that unlocks publishing, e.g. "Sponsor" (named in the prompt). */
+  planName?: string;
   /** Scope tabs, e.g. "Group page" / "Member profiles". */
   tabs?: { label: string; href: string; active: boolean }[];
   /** Group id for the PB boss picker (group pages only). */
@@ -463,7 +465,7 @@ export function PageBuilder(props: PageBuilderProps) {
       return res.state;
     }
     if (res.code === "entitlement_required") {
-      setNotice(<UpgradeNotice kind={kind} url={props.upgradeUrl} />);
+      setNotice(<UpgradeNotice kind={kind} url={props.upgradeUrl} plan={props.planName} />);
     } else {
       setError(res.error);
     }
@@ -472,7 +474,7 @@ export function PageBuilder(props: PageBuilderProps) {
 
   const publish = async () => {
     if (!state.can_publish) {
-      setNotice(<UpgradeNotice kind={kind} url={props.upgradeUrl} />);
+      setNotice(<UpgradeNotice kind={kind} url={props.upgradeUrl} plan={props.planName} />);
       return;
     }
     if (dirty.current || status === "saving") {
@@ -813,12 +815,13 @@ export function PageBuilder(props: PageBuilderProps) {
   );
 }
 
-function UpgradeNotice({ kind, url }: { kind: "group" | "player"; url: string }) {
+function UpgradeNotice({ kind, url, plan }: { kind: "group" | "player"; url: string; plan?: string }) {
+  const tier = plan ? `the ${plan} plan` : "a higher plan";
   return (
     <span>
       {kind === "group"
-        ? "Publishing a custom design is a Supporter perk for groups. Your draft is saved and you can keep editing and previewing."
-        : "Publishing a custom profile is a Supporter perk. Your draft is saved and you can keep editing and previewing."}{" "}
+        ? `Publishing a custom group page needs ${tier} or above. Your draft is saved and you can keep editing and previewing.`
+        : `Publishing a custom profile needs ${tier}. Your draft is saved and you can keep editing and previewing.`}{" "}
       <a href={url} className="text-osrs-gold-bright underline">
         See plans
       </a>

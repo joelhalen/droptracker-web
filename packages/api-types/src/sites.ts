@@ -213,7 +213,9 @@ export const SiteResolveSchema = z.object({
   mode: z.enum(SITE_MODES).catch("builder"),
   /** Absolute destination when mode isn't "builder". */
   redirect_target: z.string().nullish(),
-  group_id: z.number().int().optional(),
+  /** Also present on an "unavailable" (lapsed or unpublished) address, so the
+   * parked card can link to the group page. Null when suspended. */
+  group_id: z.number().int().nullish(),
   group_name: z.string().optional(),
   icon_url: z.string().nullish(),
   theme_key: z.string().optional(),

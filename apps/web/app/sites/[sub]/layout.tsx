@@ -153,8 +153,17 @@ export default async function TenantSiteLayout({
               ? "This site has been suspended for violating the DropTracker hosted-content terms."
               : "This clan site is not currently available."}
           </p>
-          <a className="text-osrs-gold mt-6 inline-block underline" href="https://www.droptracker.io/">
-            DropTracker.io
+          {/* A lapsed or switched-off address still has a group behind it:
+              send the visitor there rather than dead-ending. */}
+          <a
+            className="text-osrs-gold mt-6 inline-block underline"
+            href={
+              !suspended && site.group_id
+                ? `https://www.droptracker.io/groups/${site.group_id}`
+                : "https://www.droptracker.io/"
+            }
+          >
+            {!suspended && site.group_id ? "Visit the clan on DropTracker" : "DropTracker.io"}
           </a>
         </div>
       </div>

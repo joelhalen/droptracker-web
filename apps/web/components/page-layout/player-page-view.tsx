@@ -23,8 +23,11 @@ import { ProfileBadgeIcons } from "@/components/player-badges";
 import { PlayerPvpCard, hasPvpHistory } from "@/components/player-pvp-card";
 import { ProfileShowcase } from "@/components/profile-showcase";
 import { BossActivityList } from "@/components/profile-stats";
+import { CollectionLogBrowser } from "@/components/collection-log-browser";
+import { CombatAchievementsBrowser } from "@/components/combat-achievements-browser";
 import { SubmissionList } from "@/components/submission-list";
 import { Badge, EntityChip, NameTile, StatTile } from "@/components/ui";
+import { HighlightsBlock } from "./group-data-blocks";
 import { BannerFrame, BlockSlot, LayoutFrame, LayoutGrid, LIGHT_SURFACES, PreviewPlaceholder } from "./frame";
 import { LinkRow, renderSharedBlock, type LinkItem } from "./shared-blocks";
 
@@ -115,7 +118,18 @@ function playerLinks(ctx: PlayerPageContext, keys: readonly string[]): LinkItem[
   return keys.map((k) => all[k]).filter((x): x is LinkItem => x != null);
 }
 
-function PlayerStatTiles({ ctx, stats, stacked }: { ctx: PlayerPageContext; stats: readonly string[]; stacked?: boolean }) {
+function PlayerStatTiles({
+  ctx,
+  stats,
+  stacked,
+  columns = "auto",
+}: {
+  ctx: PlayerPageContext;
+  stats: readonly string[];
+  stacked?: boolean;
+  columns?: string;
+}) {
+  const { collectionLog: clog, achievements: ach, pvp } = ctx;
   const { player } = ctx;
   const pctHint = percentileHint(player.global_rank, player.ranked_players);
   const delta = momDelta(player.total_loot?.value, player.previous_month_loot?.value);
@@ -148,6 +162,53 @@ function PlayerStatTiles({ ctx, stats, stacked }: { ctx: PlayerPageContext; stat
       case "clan_points":
         // Renders nothing for players outside a clan that runs points.
         return <SitePlayerClanPoints key={key} playerId={player.id} />;
+      case "last_month_loot":
+        return <StatTile key={key} label="Last month" value={player.previous_month_loot?.value_formatted ?? "—"} />;
+      case "clog_slots": {
+        // The game's own slot count when the log has been synced, else what
+        // we've recorded (see the obtained/obtained_unique note in memory).
+        const have = clog?.slots ?? clog?.obtained_unique;
+        const of = clog?.slots_total ?? clog?.total;
+        return (
+          <StatTile
+            key={key}
+            label="Collection log"
+            value={have != null && clog?.has_synced ? have.toLocaleString() : "—"}
+            hint={have != null && of && clog?.has_synced ? `of ${of.toLocaleString()} slots` : undefined}
+          />
+        );
+      }
+      case "ca_tasks": {
+        const ca = ach?.combat_achievements;
+        return (
+          <StatTile
+            key={key}
+            label="Combat achievements"
+            value={ca?.tasks_completed != null ? ca.tasks_completed.toLocaleString() : "—"}
+            hint={ca?.total ? `of ${ca.total.toLocaleString()} tasks` : undefined}
+          />
+        );
+      }
+      case "quests": {
+        const q = ach?.quests;
+        const total = q ? q.finished + q.in_progress + q.not_started : 0;
+        return (
+          <StatTile
+            key={key}
+            label="Quests"
+            value={q && ach?.has_synced ? q.finished.toLocaleString() : "—"}
+            hint={q && total ? `of ${total} done` : undefined}
+          />
+        );
+      }
+      case "combat_level":
+        return <StatTile key={key} label="Combat level" value={ach?.combat_level != null ? String(ach.combat_level) : "—"} />;
+      case "pbs_count":
+        return <StatTile key={key} label="Personal bests" value={String(player.personal_bests?.length ?? 0)} />;
+      case "badges_count":
+        return <StatTile key={key} label="Badges" value={String(player.badges?.length ?? 0)} />;
+      case "pvp_kills":
+        return <StatTile key={key} label="PvP kills this month" value={pvp ? String(pvp.stats.kills ?? 0) : "—"} />;
       case "top_npc":
         return (
           <StatTile
@@ -161,10 +222,53 @@ function PlayerStatTiles({ ctx, stats, stacked }: { ctx: PlayerPageContext; stat
         return null;
     }
   });
-  return stacked ? (
-    <div className="space-y-2">{tiles}</div>
-  ) : (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{tiles}</div>
+  if (stacked) return <div className="space-y-2">{tiles}</div>;
+  const n = tiles.filter(Boolean).length;
+  const cols =
+    columns === "2" || (columns === "auto" && n <= 2)
+      ? "grid-cols-2"
+      : columns === "3" || (columns === "auto" && n === 3)
+        ? "grid-cols-2 sm:grid-cols-3"
+        : "grid-cols-2 sm:grid-cols-4";
+  return <div className={`grid gap-3 ${cols}`}>{tiles}</div>;
+}
+
+function ProgressList({
+  rows,
+  headline,
+}: {
+  rows: { name: string; done: number; total: number }[];
+  headline?: { done: number; total: number };
+}) {
+  const pct = (d: number, t: number) => (t > 0 ? Math.min(100, (d / t) * 100) : 0);
+  return (
+    <div className="space-y-3">
+      {headline && (
+        <div className="flex items-baseline justify-between">
+          <span className="text-osrs-gold-bright text-2xl font-bold">{Math.round(pct(headline.done, headline.total))}%</span>
+          <span className="text-osrs-parchment-dark/70 text-sm">
+            {headline.done.toLocaleString()} of {headline.total.toLocaleString()}
+          </span>
+        </div>
+      )}
+      <ul className="grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
+        {rows
+          .filter((r) => r.total > 0)
+          .map((r) => (
+            <li key={r.name}>
+              <div className="mb-1 flex justify-between text-xs">
+                <span>{r.name}</span>
+                <span className="text-osrs-parchment-dark/70 tabular-nums">
+                  {r.done}/{r.total}
+                </span>
+              </div>
+              <div className="bg-osrs-surface-3 h-2 overflow-hidden rounded-full">
+                <div className="bg-osrs-gold h-full rounded-full" style={{ width: `${pct(r.done, r.total)}%` }} />
+              </div>
+            </li>
+          ))}
+      </ul>
+    </div>
   );
 }
 
@@ -192,7 +296,55 @@ function renderPlayerBlock(block: PageBlock, ctx: PlayerPageContext, light: bool
         />
       );
     case "player_stats":
-      return block.stats.length > 0 ? <PlayerStatTiles ctx={ctx} stats={block.stats} /> : null;
+      return block.stats.length > 0 ? <PlayerStatTiles ctx={ctx} stats={block.stats} columns={block.columns} /> : null;
+    case "player_clog": {
+      const clog = ctx.collectionLog;
+      if (!clog?.has_synced || clog.tabs.length === 0) return null;
+      if (block.view === "browser") return <CollectionLogBrowser tabs={clog.tabs} details={clog.details} />;
+      return <ProgressList rows={clog.tabs.map((t) => ({ name: t.name, done: t.obtained, total: t.total }))} />;
+    }
+    case "player_ca": {
+      const ca = ctx.achievements?.combat_achievements;
+      if (!ctx.achievements?.has_synced || !ca) return null;
+      if (block.view === "browser") return <CombatAchievementsBrowser combat={ca} />;
+      return (
+        <ProgressList
+          rows={(ca.tiers ?? []).map((t) => ({ name: t.tier, done: t.completed, total: t.total }))}
+          headline={ca.tasks_completed != null && ca.total ? { done: ca.tasks_completed, total: ca.total } : undefined}
+        />
+      );
+    }
+    case "player_quests": {
+      const a = ctx.achievements;
+      if (!a?.has_synced) return null;
+      const q = a.quests;
+      const totals = [0, 1, 2, 3].map((tier) =>
+        a.diaries.reduce((sum, area) => sum + (area.tiers.find((t) => t.tier === tier)?.completed ?? 0), 0),
+      );
+      return (
+        <div className="space-y-4">
+          {q && (
+            <div className="grid grid-cols-3 gap-3">
+              <StatTile label="Finished" value={String(q.finished)} />
+              <StatTile label="In progress" value={String(q.in_progress)} />
+              <StatTile label="Not started" value={String(q.not_started)} />
+            </div>
+          )}
+          {a.diaries.length > 0 && (
+            <div>
+              <div className="text-osrs-parchment-dark/60 mb-1.5 text-xs tracking-wide uppercase">Diary tasks done</div>
+              <div className="grid grid-cols-4 gap-3">
+                {["Easy", "Medium", "Hard", "Elite"].map((name, i) => (
+                  <StatTile key={name} label={name} value={String(totals[i] ?? 0)} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+    case "player_highlights":
+      return <HighlightsBlock scope="player" id={player.id} types={block.types} limit={block.limit} />;
     case "personal_bests":
       return (player.personal_bests?.length ?? 0) > 0 ? (
         <div>
@@ -244,6 +396,10 @@ const EMPTY_HINT: Partial<Record<string, string>> = {
   player_pvp: "Shows after a first PvP kill or death.",
   player_recent_drops: "Shows once the player submits loot.",
   player_badges: "Shows once the player earns a badge.",
+  player_clog: "Shows once the collection log syncs from the plugin.",
+  player_ca: "Shows once combat achievements sync from the plugin.",
+  player_quests: "Shows once quests and diaries sync from the plugin.",
+  player_highlights: "Shows once the player gets the chosen kinds of loot.",
   markdown: "Write something in the settings.",
   image: "Add an image address in the settings.",
   buttons: "Add a button in the settings.",

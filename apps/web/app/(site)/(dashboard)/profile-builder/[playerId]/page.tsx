@@ -30,6 +30,7 @@ export default async function ProfileBuilderPage({ params }: { params: Promise<{
       liveUrl={`/players/${playerId}`}
       exitUrl="/dashboard"
       upgradeUrl="/premium"
+      planName="Supporter"
     />
   );
 }

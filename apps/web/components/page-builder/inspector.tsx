@@ -10,6 +10,8 @@ import {
   BLOCK_SURFACES,
   GROUP_LINK_KEYS,
   GROUP_STATS,
+  HIGHLIGHT_TYPES,
+  MAX_STATS,
   PLAYER_LINK_KEYS,
   PLAYER_STATS,
   type BlockSurface,
@@ -135,12 +137,16 @@ function KeyList({
   labels,
   value,
   onChange,
+  max,
 }: {
   all: readonly string[];
   labels: Record<string, string>;
   value: string[];
   onChange: (next: string[]) => void;
+  /** Most items that can be on at once. */
+  max?: number;
 }) {
+  const full = max != null && value.length >= max;
   const ordered = [...value, ...all.filter((k) => !value.includes(k))];
   const move = (key: string, dir: -1 | 1) => {
     const i = value.indexOf(key);
@@ -162,6 +168,7 @@ function KeyList({
             <input
               type="checkbox"
               checked={on}
+              disabled={!on && full}
               className="accent-osrs-gold"
               onChange={() => onChange(on ? value.filter((k) => k !== key) : [...value, key])}
               aria-label={`Show ${labels[key] ?? key}`}
@@ -310,13 +317,41 @@ const GROUP_STAT_LABELS: Record<string, string> = {
   rank: "Global rank",
   monthly_loot: "Monthly loot",
   top_player: "Top player",
+  top_boss: "Top boss this month",
+  records_held: "Clan records held",
+  clan_log: "Clan Log completion",
+  pvp_kills: "PvP kills this month",
+  pvp_loot: "PvP loot this month",
+  points_leader: "Points leader",
+  bank_balance: "Clan bank balance",
+  events_running: "Events running",
 };
 const PLAYER_STAT_LABELS: Record<string, string> = {
   monthly_loot: "Monthly loot",
   rank: "Global rank",
   clan_points: "Clan points",
   top_npc: "Top NPC",
+  last_month_loot: "Last month's loot",
+  clog_slots: "Collection log slots",
+  ca_tasks: "Combat achievements",
+  quests: "Quests done",
+  combat_level: "Combat level",
+  pbs_count: "Personal bests set",
+  badges_count: "Badges",
+  pvp_kills: "PvP kills this month",
 };
+const HIGHLIGHT_LABELS: Record<string, string> = {
+  drop: "Big drops",
+  pet: "Pets",
+  clog: "Collection log slots",
+  pb: "Personal bests",
+};
+const COLUMN_OPTS = [
+  { value: "auto", label: "Auto" },
+  { value: "2", label: "2" },
+  { value: "3", label: "3" },
+  { value: "4", label: "4" },
+] as const;
 
 const LINK_STYLE_OPTS = [
   { value: "outline", label: "Outline" },
@@ -337,6 +372,8 @@ const PERIOD_OPTS = [
 
 /** Blocks that are too dense to sit in a narrow column. */
 const WIDE_ONLY = new Set(["records", "lootboard", "member_roster", "player_showcase", "personal_bests"]);
+/** Wide only when showing the full view. */
+const WIDE_VIEWS: Record<string, string> = { clan_log: "board", player_clog: "browser", player_ca: "browser" };
 
 /* --- block inspector ------------------------------------------------------------- */
 
@@ -457,14 +494,20 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
     case "player_stats": {
       const isGroup = block.type === "stats_row";
       return (
-        <Row label="Stats">
-          <KeyList
-            all={isGroup ? GROUP_STATS : PLAYER_STATS}
-            labels={isGroup ? GROUP_STAT_LABELS : PLAYER_STAT_LABELS}
-            value={(block.stats as string[]) ?? []}
-            onChange={(stats) => set({ stats })}
-          />
-        </Row>
+        <>
+          <Row label={`Stats (up to ${MAX_STATS})`} hint="Tick what to show; the arrows set the order.">
+            <KeyList
+              all={isGroup ? GROUP_STATS : PLAYER_STATS}
+              labels={isGroup ? GROUP_STAT_LABELS : PLAYER_STAT_LABELS}
+              value={(block.stats as string[]) ?? []}
+              onChange={(stats) => set({ stats })}
+              max={MAX_STATS}
+            />
+          </Row>
+          <Row label="Tiles per row" hint="Phones always show two.">
+            <Segmented value={(str("columns") || "auto") as "auto"} options={[...COLUMN_OPTS]} onChange={(columns) => set({ columns })} />
+          </Row>
+        </>
       );
     }
     case "records":
@@ -479,7 +522,95 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
     case "personal_bests":
       return how("limit", 12, 1, 60, "Shown before “Show all”");
     case "leaderboard":
-      return how("limit", 10, 3, 50, "Players to show");
+      return (
+        <>
+          <Row label="Period">
+            <Segmented value={(str("period") || "month") as "month"} options={[...PERIOD_OPTS]} onChange={(period) => set({ period })} />
+          </Row>
+          {how("limit", 10, 3, 50, "Players to show")}
+        </>
+      );
+    case "points_leaderboard":
+      return how("limit", 10, 3, 50, "Members to show");
+    case "clan_log":
+      return (
+        <>
+          <Row label="Show">
+            <Segmented
+              value={(str("view") || "summary") as "summary"}
+              options={[
+                { value: "summary", label: "Progress" },
+                { value: "board", label: "Full log" },
+              ]}
+              onChange={(view) => set({ view })}
+            />
+          </Row>
+          {str("view") !== "board" && (
+            <>
+              <Toggle label="Progress per category" checked={block.show_categories !== false} onChange={(show_categories) => set({ show_categories })} />
+              {how("recent", 6, 0, 20, "Latest unlocks to show")}
+            </>
+          )}
+        </>
+      );
+    case "pvp_summary":
+      return (
+        <>
+          <Row label="Period">
+            <Segmented
+              value={(str("period") || "month") as "month"}
+              options={[
+                { value: "month", label: "This month" },
+                { value: "all", label: "All time" },
+              ]}
+              onChange={(period) => set({ period })}
+            />
+          </Row>
+          {how("limit", 5, 3, 25, "Killers and kills to show")}
+          <Toggle label="Show recent kills" checked={block.show_recent !== false} onChange={(show_recent) => set({ show_recent })} />
+        </>
+      );
+    case "events_list":
+      return (
+        <>
+          <Row label="Show">
+            <Segmented
+              value={(str("show") || "active_and_past") as "active"}
+              options={[
+                { value: "active", label: "Running now" },
+                { value: "active_and_past", label: "Running and finished" },
+              ]}
+              onChange={(show) => set({ show })}
+            />
+          </Row>
+          {how("limit", 4, 1, 10, "Events to show")}
+          <p className="text-osrs-parchment-dark/55 text-xs">Private events are never listed.</p>
+        </>
+      );
+    case "highlights":
+    case "player_highlights":
+      return (
+        <>
+          <Row label="Include">
+            <KeyList all={HIGHLIGHT_TYPES} labels={HIGHLIGHT_LABELS} value={(block.types as string[]) ?? []} onChange={(types) => set({ types })} />
+          </Row>
+          {how("limit", 8, 1, 25, "How many to show")}
+        </>
+      );
+    case "player_clog":
+    case "player_ca":
+      return (
+        <Row label="Show">
+          <Segmented
+            value={(str("view") || "summary") as "summary"}
+            options={[
+              { value: "summary", label: "Progress" },
+              { value: "browser", label: block.type === "player_clog" ? "Browsable log" : "Every task" },
+            ]}
+            onChange={(view) => set({ view })}
+          />
+        </Row>
+      );
     case "announcements":
       return how("limit", 3, 1, 10, "Posts to show");
     case "lootboard":
@@ -620,7 +751,7 @@ export function BlockInspector({
   groupId?: number;
 }) {
   const def = BLOCK_DEF[block.type];
-  const wideOnly = WIDE_ONLY.has(block.type);
+  const wideOnly = WIDE_ONLY.has(block.type) || (WIDE_VIEWS[block.type] != null && block.view === WIDE_VIEWS[block.type]);
   return (
     <div>
       <div className="border-osrs-bronze/20 flex items-center gap-2 border-b px-4 py-3">

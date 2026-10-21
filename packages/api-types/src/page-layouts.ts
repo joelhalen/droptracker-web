@@ -18,7 +18,7 @@ export const BLOCK_WIDTHS = ["full", "two_thirds", "half", "third"] as const;
 export type BlockWidth = (typeof BLOCK_WIDTHS)[number];
 
 /** OSRS-styled containers a block can sit in. */
-export const BLOCK_SURFACES = ["plain", "card", "stone", "parchment", "scroll", "panel"] as const;
+export const BLOCK_SURFACES = ["plain", "card", "stone", "window", "parchment", "scroll", "panel"] as const;
 export type BlockSurface = (typeof BLOCK_SURFACES)[number];
 
 export const HIDE_ON = ["none", "mobile", "desktop"] as const;
@@ -41,8 +41,43 @@ export type GroupLinkKey = (typeof GROUP_LINK_KEYS)[number];
 export const PLAYER_LINK_KEYS = ["collection_log", "achievements", "recap"] as const;
 export type PlayerLinkKey = (typeof PLAYER_LINK_KEYS)[number];
 
-export const GROUP_STATS = ["members", "rank", "monthly_loot", "top_player"] as const;
-export const PLAYER_STATS = ["monthly_loot", "rank", "clan_points", "top_npc"] as const;
+export const GROUP_STATS = [
+  "members",
+  "rank",
+  "monthly_loot",
+  "top_player",
+  "top_boss",
+  "records_held",
+  "clan_log",
+  "pvp_kills",
+  "pvp_loot",
+  "points_leader",
+  "bank_balance",
+  "events_running",
+] as const;
+export type GroupStatKey = (typeof GROUP_STATS)[number];
+export const PLAYER_STATS = [
+  "monthly_loot",
+  "rank",
+  "clan_points",
+  "top_npc",
+  "last_month_loot",
+  "clog_slots",
+  "ca_tasks",
+  "quests",
+  "combat_level",
+  "pbs_count",
+  "badges_count",
+  "pvp_kills",
+] as const;
+export type PlayerStatKey = (typeof PLAYER_STATS)[number];
+export const GROUP_STATS_DEFAULT: GroupStatKey[] = ["members", "rank", "monthly_loot", "top_player"];
+export const PLAYER_STATS_DEFAULT: PlayerStatKey[] = ["monthly_loot", "rank", "clan_points", "top_npc"];
+/** At most this many stats in one row (the validator caps it too). */
+export const MAX_STATS = 8;
+export const STAT_COLUMNS = ["auto", "2", "3", "4"] as const;
+export const HIGHLIGHT_TYPES = ["drop", "pet", "clog", "pb"] as const;
+export type HighlightType = (typeof HIGHLIGHT_TYPES)[number];
 
 export const THEME_PRESETS = ["default", "dusk", "parchment", "wilderness"] as const;
 export type ThemePreset = (typeof THEME_PRESETS)[number];
@@ -92,7 +127,12 @@ export const PageBlockSchema = z.discriminatedUnion("type", [
     align: z.enum(ALIGNS).catch("left"),
   }),
   z.object({ ...base, type: z.literal("support_card") }),
-  z.object({ ...base, type: z.literal("stats_row"), stats: z.array(z.enum(GROUP_STATS)).catch([...GROUP_STATS]) }),
+  z.object({
+    ...base,
+    type: z.literal("stats_row"),
+    stats: z.array(z.enum(GROUP_STATS)).catch([...GROUP_STATS_DEFAULT]),
+    columns: z.enum(STAT_COLUMNS).catch("auto"),
+  }),
   z.object({ ...base, type: z.literal("bank") }),
   z.object({ ...base, type: z.literal("records"), limit: limit(8) }),
   z.object({ ...base, type: z.literal("top_players"), limit: limit(10) }),
@@ -105,7 +145,34 @@ export const PageBlockSchema = z.discriminatedUnion("type", [
     bosses: z.array(z.object({ npc_id: z.number().int(), team_sizes: z.array(z.string()).catch([]) })).catch([]),
     rows: limit(5),
   }),
-  z.object({ ...base, type: z.literal("leaderboard"), limit: limit(10) }),
+  z.object({ ...base, type: z.literal("leaderboard"), limit: limit(10), period: period4 }),
+  z.object({
+    ...base,
+    type: z.literal("clan_log"),
+    view: z.enum(["summary", "board"]).catch("summary"),
+    show_categories: z.boolean().catch(true),
+    recent: limit(6),
+  }),
+  z.object({ ...base, type: z.literal("points_leaderboard"), limit: limit(10) }),
+  z.object({
+    ...base,
+    type: z.literal("pvp_summary"),
+    period: z.enum(["month", "all"]).catch("month"),
+    limit: limit(5),
+    show_recent: z.boolean().catch(true),
+  }),
+  z.object({
+    ...base,
+    type: z.literal("events_list"),
+    show: z.enum(["active", "active_and_past"]).catch("active_and_past"),
+    limit: limit(4),
+  }),
+  z.object({
+    ...base,
+    type: z.literal("highlights"),
+    types: z.array(z.enum(HIGHLIGHT_TYPES)).catch(["pet", "clog", "pb"]),
+    limit: limit(8),
+  }),
   z.object({
     ...base,
     type: z.literal("npc_board"),
@@ -137,7 +204,21 @@ export const PageBlockSchema = z.discriminatedUnion("type", [
     align: z.enum(ALIGNS).catch("left"),
   }),
   z.object({ ...base, type: z.literal("player_showcase") }),
-  z.object({ ...base, type: z.literal("player_stats"), stats: z.array(z.enum(PLAYER_STATS)).catch([...PLAYER_STATS]) }),
+  z.object({
+    ...base,
+    type: z.literal("player_stats"),
+    stats: z.array(z.enum(PLAYER_STATS)).catch([...PLAYER_STATS_DEFAULT]),
+    columns: z.enum(STAT_COLUMNS).catch("auto"),
+  }),
+  z.object({ ...base, type: z.literal("player_clog"), view: z.enum(["summary", "browser"]).catch("summary") }),
+  z.object({ ...base, type: z.literal("player_ca"), view: z.enum(["summary", "browser"]).catch("summary") }),
+  z.object({ ...base, type: z.literal("player_quests") }),
+  z.object({
+    ...base,
+    type: z.literal("player_highlights"),
+    types: z.array(z.enum(HIGHLIGHT_TYPES)).catch(["pet", "clog", "pb"]),
+    limit: limit(8),
+  }),
   z.object({ ...base, type: z.literal("personal_bests"), limit: limit(12) }),
   z.object({ ...base, type: z.literal("top_bosses"), limit: limit(10) }),
   z.object({ ...base, type: z.literal("player_groups") }),

@@ -23,6 +23,7 @@ import type {
 import { SITE_SUBDOMAIN_RE, SITE_PAGE_SLUG_RE } from "@droptracker/api-types";
 import type { SubscriptionTier } from "@droptracker/api-types";
 import { SITE_THEMES, type SiteThemeKey } from "@/lib/site-themes";
+import { lowestTierWithEntitlement } from "@/lib/entitlements";
 import { Alert, Button, buttonVariants, Card, Input, Select, Textarea } from "@/components/ui";
 import { Field, type Block } from "./block-forms";
 import { PageEditor } from "./page-editor";
@@ -75,6 +76,7 @@ export function SiteBuilder({
   meta,
   group,
   canBuild,
+  tiers = [],
 }: {
   groupId: number;
   initialSite: SiteAdmin | null;
@@ -82,7 +84,7 @@ export function SiteBuilder({
   group: GroupProfile;
   /** Whether this group may use the builder half (custom_site entitlement). */
   canBuild: boolean;
-  /** Unused since the builder was retired (web137a); kept for the caller. */
+  /** Names the plan in the upgrade prompt. */
   tiers?: SubscriptionTier[];
 }) {
   const [site, setSite] = useState<SiteAdmin | null>(initialSite);
@@ -132,6 +134,22 @@ export function SiteBuilder({
       else setError(result.error);
     });
   }
+
+  const planName = lowestTierWithEntitlement(tiers, "custom_site")?.name ?? "a higher";
+  const upsell = (
+    <Card className="border-osrs-gold/30">
+      <h2 className="text-osrs-gold text-lg font-semibold">A short address for your clan</h2>
+      <p className="text-osrs-parchment-dark/80 mt-2 max-w-2xl text-sm">
+        A {meta.sites_domain} address that sends visitors to your group page or any link you choose,
+        alongside a fully custom group page. Both come with the {planName} plan and above.
+      </p>
+      <a href={`/groups/${groupId}/subscription`} className={buttonVariants({ variant: "secondary", className: "mt-4" })}>
+        View plans
+      </a>
+    </Card>
+  );
+
+  if (!site && !canBuild) return upsell;
 
   if (!site) {
     return (
@@ -192,6 +210,12 @@ export function SiteBuilder({
     <div className="space-y-6">
       {error && <Alert variant="error">{error}</Alert>}
       {notice && <Alert variant="success">{notice}</Alert>}
+      {!canBuild && (
+        <Alert variant="info">
+          Your address is parked while the group is below the {planName} plan: visitors see a card
+          linking to your group page. Renew to switch it back on.
+        </Alert>
+      )}
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
