@@ -3,6 +3,7 @@ import { requireGroupAdminPage } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { GroupSetupChecklist, serverInviteUrl } from "@/components/group-setup-checklist";
 
 export const metadata: Metadata = { title: "Group admin" };
 
@@ -28,10 +29,16 @@ export default async function GroupAdminOverview({ params }: { params: Params })
   await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
-  const group = await api.group(groupId);
+  const [group, setup, invite] = await Promise.all([
+    api.group(groupId),
+    // Setup checklist (web138a); best-effort so the Overview always renders.
+    api.groupSetupStatus(groupId).catch(() => null),
+    api.botInvite().catch(() => null),
+  ]);
 
   return (
     <div className="space-y-6">
+      {setup && <GroupSetupChecklist status={setup} inviteUrl={serverInviteUrl(invite?.invite_url, setup.guild_id)} />}
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Members" value={String(group.member_count)} />
         <Stat label="Global rank" value={`#${group.global_rank ?? "—"}`} />

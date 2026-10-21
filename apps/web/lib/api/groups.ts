@@ -3,6 +3,8 @@ import { apiGet, apiSend, apiSendForm, withFallback } from "./_client";
 import { type DiscordChannelList, type PbBossList } from "./types";
 import {
   GroupDiagnosticsSchema,
+  SetupStatusSchema,
+  type SetupStatus,
   GroupMembersPageSchema,
   GroupProfileSchema,
   BotInviteSchema,
@@ -544,6 +546,12 @@ export const groupsApi = {
         guild_id: input.guild_id,
       }),
     );
+  },
+
+
+  /** The group setup checklist (web138a): bot, channels, posting, WOM, plugin. */
+  async groupSetupStatus(groupId: number): Promise<SetupStatus> {
+    return SetupStatusSchema.parse(await apiGet(`/groups/${groupId}/setup-status`, { authed: true }));
   },
 
 

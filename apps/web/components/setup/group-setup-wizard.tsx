@@ -141,6 +141,10 @@ export function GroupSetupWizard({
   const [channelsPolls, setChannelsPolls] = useState(0);
   const [lootboardChannel, setLootboardChannel] = useState("");
   const [dropsChannel, setDropsChannel] = useState("");
+  // The drops channel is soft-required (web138a): setup can finish without
+  // one, but then the rail and the finish screen say so.
+  const [dropsSaved, setDropsSaved] = useState(false);
+  const [skippedDrops, setSkippedDrops] = useState(false);
   const [savingChannels, setSavingChannels] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
@@ -358,6 +362,7 @@ export function GroupSetupWizard({
     if (lootboardChannel) patch.lootboard_channel_id = lootboardChannel;
     if (dropsChannel) patch.channel_id_to_post_loot = dropsChannel;
     if (Object.keys(patch).length === 0) {
+      setSkippedDrops(true);
       gotoStep(4);
       return;
     }
@@ -365,6 +370,8 @@ export function GroupSetupWizard({
     setError(null);
     try {
       await client.saveConfig(createdGroupId, patch);
+      setDropsSaved(Boolean(dropsChannel));
+      setSkippedDrops(!dropsChannel);
       gotoStep(4);
     } catch (err) {
       setError(
@@ -381,8 +388,8 @@ export function GroupSetupWizard({
   const identityReady = name.trim().length >= 1 && name.trim().length <= 30;
 
   const stepDone = useMemo(
-    () => [serverReady, womReady, created, created, false],
-    [serverReady, womReady, created],
+    () => [serverReady, womReady, created, dropsSaved, false],
+    [serverReady, womReady, created, dropsSaved],
   );
 
   const guildDisplayName =
@@ -718,7 +725,15 @@ export function GroupSetupWizard({
             </>
           )}
           <div className="flex justify-between">
-            <button type="button" className={ghostBtn} onClick={() => gotoStep(4)}>
+            <button
+              type="button"
+              className={ghostBtn}
+              title="Your group works without one, but nothing posts to Discord until you pick it."
+              onClick={() => {
+                setSkippedDrops(!dropsSaved);
+                gotoStep(4);
+              }}
+            >
               Skip for now
             </button>
             <Button
@@ -735,11 +750,24 @@ export function GroupSetupWizard({
       {/* ── Step 5: Finish ─────────────────────────────────────────────── */}
       {step.key === "finish" && createdGroupId != null && (
         <div className="space-y-4">
-          <Alert variant="success">
-            <span>
-              <strong>{name.trim() || "Your group"}</strong> is live on DropTracker!
-            </span>
-          </Alert>
+          {skippedDrops ? (
+            <Alert variant="info">
+              <span className="block">
+                <strong>{name.trim() || "Your group"}</strong> is set up, but{" "}
+                <strong>nothing will post to Discord</strong> until you pick a drops channel. Members&apos;
+                loot is tracked either way.
+              </span>
+              <button type="button" className="text-osrs-gold-bright mt-2 underline" onClick={() => gotoStep(3)}>
+                Pick a drops channel
+              </button>
+            </Alert>
+          ) : (
+            <Alert variant="success">
+              <span>
+                <strong>{name.trim() || "Your group"}</strong> is live on DropTracker!
+              </span>
+            </Alert>
+          )}
           <ul className="space-y-2 text-sm">
             <li>
               ✅ Members install the{" "}
@@ -755,6 +783,9 @@ export function GroupSetupWizard({
             <li>
               ✅ Members claim their RSNs (on the website dashboard or with{" "}
               <code>/claim-rsn</code> in your server) so drops link to their Discord.
+            </li>
+            <li>
+              ✅ Members are in your Wise Old Man group: that&apos;s how their drops count for the clan.
             </li>
             <li>
               ✅ Fine-tune notifications, minimum values, and more in{" "}

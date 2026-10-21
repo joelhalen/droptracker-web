@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ detail: "Invalid group details." }, { status: 400 });
   }
   try {
-    const res = await upstreamForward("POST", `/groups`, bearer, input);
+    // `surface` records the sign-up path on the group (web138a).
+    const res = await upstreamForward("POST", `/groups`, bearer, { ...(input as object), surface: "activity" });
     const body = await res.json().catch(() => ({}));
     return NextResponse.json(body, { status: res.status });
   } catch (err) {
