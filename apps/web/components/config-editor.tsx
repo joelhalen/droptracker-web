@@ -25,6 +25,7 @@ import {
   blockLayout,
   fieldBlocks,
   navGroups,
+  isFieldShown,
   seasonalKey,
   sectionAnchor,
   sectionForKey,
@@ -45,6 +46,7 @@ import { BossListPicker } from "@/components/boss-list-picker";
 import { MultiSelectOptions } from "@/components/multi-select-options";
 import { BoardStylePicker } from "@/components/board-style-picker";
 import { DeathMessageListEditor } from "@/components/death-message-list-editor";
+import { PetListField } from "@/components/pet-list-field";
 import { SettingsBlock, SettingsSectionShell, SettingsSubheading } from "@/components/settings-section";
 import type { DiscordChannel, LootboardStyle } from "@/lib/api";
 
@@ -679,7 +681,7 @@ function FieldGrid({
       )}
       {wide.length > 0 && (
         <div className={`space-y-4 ${compact.length > 0 ? "mt-4" : ""}`}>
-          {wide.map((f) => (
+          {wide.filter((f) => isFieldShown(f, keyFor, values)).map((f) => (
             <InputField
               key={keyFor(f)}
               field={f}
@@ -806,7 +808,8 @@ function InputField({
   // A checkbox list labels each of its own boxes, and labels can't nest.
   // A role picker is a row of buttons, and a <label> would forward every
   // click on it to the first one.
-  const Wrapper = field.type === "multiselect" || field.type === "role" ? "div" : "label";
+  const Wrapper =
+    field.type === "multiselect" || field.type === "role" || field.type === "petlist" ? "div" : "label";
   return (
     <Wrapper className={`block ${disabled ? "opacity-60" : ""}`}>
       <span className="block text-sm font-medium">
@@ -890,6 +893,13 @@ function InputField({
       ) : field.type === "bosslist" ? (
         <BossListPicker
           bosses={bosses}
+          value={String(value ?? "")}
+          onChange={(v) => onChange(v)}
+          disabled={disabled}
+        />
+      ) : field.type === "petlist" ? (
+        <PetListField
+          groupId={groupId}
           value={String(value ?? "")}
           onChange={(v) => onChange(v)}
           disabled={disabled}

@@ -1747,7 +1747,7 @@ export function mockGroupNotificationLayouts(): GroupNotificationLayoutsResponse
 
 /* Staff defaults (mirrors web_api/routes/notification_defaults.py). */
 const MOCK_BUILTIN_EMBED_TYPES: readonly string[] = [
-  "quest", "death", "diary", "slayer", "pvp_kill", "pvp_death",
+  "quest", "death", "diary", "slayer", "pvp_kill", "pvp_death", "pet_dupe",
 ];
 
 export function mockEmbedDefaults(): EmbedDefaultsResponse {

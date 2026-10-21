@@ -59,6 +59,20 @@ const PLUGIN_VERSION: PlaceholderDoc = {
   sample: "5.4.0",
 };
 
+const PET_PLACEHOLDERS: PlaceholderDoc[] = [
+  { token: "{player_name}", help: "Player who received the pet (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
+  { token: "{player_name_plain}", help: "Player who received the pet, with no profile link", sample: "RuneLite Ron" },
+  { token: "{pet_name}", help: "Pet name", sample: "Pet zilyana" },
+  { token: "{source}", help: "Where the pet came from", sample: "Commander Zilyana" },
+  { token: "{npc_name}", help: "NPC name", sample: "Commander Zilyana" },
+  { token: "{killcount}", help: "Kill count at the pet", sample: "1,432" },
+  { token: "{milestone}", help: "Milestone text", sample: "1,432 kills" },
+  { token: "{duplicate}", help: "Whether it's a duplicate", sample: "No" },
+  { token: "{previously_owned}", help: "Whether previously owned", sample: "No" },
+  PLUGIN_VERSION,
+  ...COMMON_MEDIA,
+];
+
 const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
   drop: [
     { token: "{player_name}", help: "Player who received the drop (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
@@ -143,19 +157,8 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     PLUGIN_VERSION,
     ...COMMON_MEDIA,
   ],
-  pet: [
-    { token: "{player_name}", help: "Player who received the pet (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
-    { token: "{player_name_plain}", help: "Player who received the pet, with no profile link", sample: "RuneLite Ron" },
-    { token: "{pet_name}", help: "Pet name", sample: "Pet zilyana" },
-    { token: "{source}", help: "Where the pet came from", sample: "Commander Zilyana" },
-    { token: "{npc_name}", help: "NPC name", sample: "Commander Zilyana" },
-    { token: "{killcount}", help: "Kill count at the pet", sample: "1,432" },
-    { token: "{milestone}", help: "Milestone text", sample: "1,432 kills" },
-    { token: "{duplicate}", help: "Whether it's a duplicate", sample: "No" },
-    { token: "{previously_owned}", help: "Whether previously owned", sample: "No" },
-    PLUGIN_VERSION,
-    ...COMMON_MEDIA,
-  ],
+  pet: PET_PLACEHOLDERS,
+  pet_dupe: PET_PLACEHOLDERS,
   level_up: [
     { token: "{player_name}", help: "Player who leveled up (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who leveled up, with no profile link", sample: "RuneLite Ron" },
@@ -262,6 +265,8 @@ const TYPE_HELP: Record<EmbedType, string> = {
   pb: "Posted when a member sets a new personal best.",
   ca: "Posted when a member completes a combat achievement task.",
   pet: "Posted when a member receives a pet.",
+  pet_dupe:
+    "Posted when a member receives a pet they already have, if your group settings announce duplicates. Without this design, duplicates use your Pets design.",
   level_up: "Posted when a member levels up a skill.",
   quest: "Posted when a member completes a quest.",
   death: "Posted when a tracked member dies in-game.",

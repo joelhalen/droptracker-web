@@ -42,7 +42,8 @@ export type ConfigFieldType =
   | "boardstyle" // lootboards-table row id, picked from GET /lootboard-styles
   | "select"
   | "multiselect" // comma-separated `options` values, in option order ("" = none chosen)
-  | "messagelist"; // JSON array of message templates ("" = unset), edited via a list widget
+  | "messagelist" // JSON array of message templates ("" = unset), edited via a list widget
+  | "petlist"; // JSON array of canonical pet names ("" = none), picked from the events pet catalog
 
 export interface ConfigField {
   key: string;
@@ -264,6 +265,24 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // as the drop toggles above.
   { key: "notify_clogs", label: "Notify collection logs", category: "achievements", group: "Collection log & pets", type: "boolean", help: "Post a notification on new collection-log slots.", default: true, seasonalMirror: true },
   { key: "notify_pets", label: "Notify pets", category: "achievements", group: "Collection log & pets", type: "boolean", help: "Post a notification on pet drops.", default: true, seasonalMirror: true },
+  // Which duplicate pets are announced (backend utils/pet_notifications.py).
+  // No stored row = "all", what every group did before this existed.
+  {
+    key: "notify_pet_duplicates",
+    label: "Duplicate pets",
+    category: "achievements",
+    group: "Collection log & pets",
+    type: "select",
+    help: "Whether a pet the member already has is announced: every duplicate, none, or only the pets you choose.",
+    default: "all",
+    options: [
+      { value: "all", label: "Every duplicate" },
+      { value: "none", label: "Never" },
+      { value: "selected", label: "Only pets I choose" },
+    ],
+    seasonalMirror: true,
+  },
+  { key: "notify_pet_duplicate_pets", label: "Announce duplicates of", category: "achievements", group: "Collection log & pets", type: "petlist", help: "The pets whose duplicates are announced when Duplicate pets is set to Only pets I choose.", default: "", seasonalMirror: true },
   { key: "notify_cas", label: "Notify combat achievements", category: "achievements", group: "Combat achievements", type: "boolean", help: "Post a notification on combat-achievement completions.", default: true, seasonalMirror: true },
   {
     key: "min_ca_tier_to_notify",
@@ -530,6 +549,27 @@ export function formatMultiselect(field: ConfigField, chosen: Iterable<string>):
     .join(",");
 }
 
+/**
+ * Pet names from a stored `petlist` value (a JSON array; "" = none), or null
+ * when it isn't one. The backend checks the names against its pet catalog.
+ */
+export function parsePetList(raw: string): string[] | null {
+  if (raw.trim() === "") return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.some((n) => typeof n !== "string")) return null;
+    return parsed as string[];
+  } catch {
+    return null;
+  }
+}
+
+/** The stored form of a `petlist` choice: a sorted JSON array, "" for none. */
+export function formatPetList(names: Iterable<string>): string {
+  const unique = [...new Set([...names].map((n) => n.trim()).filter(Boolean))].sort();
+  return unique.length ? JSON.stringify(unique) : "";
+}
+
 /** Per-field Zod validator derived from the registry. */
 function fieldSchema(f: ConfigField): z.ZodTypeAny {
   switch (f.type) {
@@ -564,6 +604,13 @@ function fieldSchema(f: ConfigField): z.ZodTypeAny {
       if (f.maxLength != null) return z.string().trim().max(f.maxLength);
       return z.string();
     }
+    case "petlist":
+      return z
+        .string()
+        .max(MESSAGE_LIST_MAX_RAW_LENGTH)
+        .refine((raw) => raw === "" || parsePetList(raw) !== null, {
+          message: "Must be a list of pet names.",
+        });
     case "messagelist":
       return z.string().max(MESSAGE_LIST_MAX_RAW_LENGTH).superRefine((raw, ctx) => {
         const issue = messageListIssue(raw);

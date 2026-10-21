@@ -271,7 +271,31 @@ export const WIDE_TYPES: ReadonlySet<ConfigField["type"]> = new Set([
   "bosslist",
   "multiselect",
   "messagelist",
+  "petlist",
 ]);
+
+/**
+ * Fields that only mean something under another field's value, and are shown
+ * only then. Hidden fields keep their stored value; this is presentation.
+ */
+const SHOWN_WHEN: Record<string, { key: string; equals: string }> = {
+  notify_pet_duplicate_pets: { key: "notify_pet_duplicates", equals: "selected" },
+};
+
+/** Whether `field` is shown, given the form's current (unsaved) values.
+ * `keyFor` maps a field to its storage key (seasonal mirrors are prefixed). */
+export function isFieldShown(
+  field: ConfigField,
+  keyFor: (field: ConfigField) => string,
+  values: Readonly<Record<string, unknown>>,
+): boolean {
+  const rule = SHOWN_WHEN[field.key];
+  if (!rule) return true;
+  const parent = GROUP_CONFIG_FIELDS.find((f) => f.key === rule.key);
+  if (!parent) return true;
+  const current = values[keyFor(parent)] ?? parent.default;
+  return String(current ?? "") === rule.equals;
+}
 
 export interface BlockLayout {
   /** True when the block's first field is a toggle: its switches (usually a

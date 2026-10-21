@@ -27,17 +27,13 @@ import {
   setPriorOwnedPets,
 } from "@/app/(site)/(admin)/groups/[id]/points/manage/actions";
 import { getErrorMessage } from "@/lib/errors";
-import { PET_CATEGORY_LABELS } from "@/lib/events";
 import { Alert, Card } from "@/components/ui";
 import { ItemDbIcon } from "@/components/item-db-icon";
+import { groupPetCatalog, PetPicker } from "@/components/pet-picker";
 import { QuantityInput } from "@/components/quantity-input";
 
 const field =
   "bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-osrs-gold/60";
-
-/** Picker order. A pet shows once, under the first group it belongs to, so
- * the raids pets sit under Raids rather than repeating under Bosses. */
-const CATEGORY_ORDER = ["raids", "boss", "skilling", "minigame", "clue", "misc"];
 
 const MODE_OPTIONS: { value: PetDuplicateMode; label: string; help: string }[] = [
   { value: "none", label: "Never", help: "Only the first copy of each pet pays." },
@@ -49,8 +45,6 @@ const MODE_OPTIONS: { value: PetDuplicateMode; label: string; help: string }[] =
   },
 ];
 
-type PetEntry = { name: string; id: number | null };
-
 /** Pet keys shared by the Behavior section, which must not save them. */
 export const PET_BEHAVIOR_KEYS = [
   "pet_duplicates",
@@ -58,23 +52,6 @@ export const PET_BEHAVIOR_KEYS = [
   "pet_duplicate_award",
   "pet_prior_owned",
 ] as const;
-
-function groupCatalog(catalog: EventPetCategory[]): { key: string; pets: PetEntry[] }[] {
-  const byKey = new Map(catalog.map((c) => [c.key, c.pets]));
-  const keys = [...CATEGORY_ORDER, ...catalog.map((c) => c.key).filter((k) => !CATEGORY_ORDER.includes(k))];
-  const seen = new Set<string>();
-  const out: { key: string; pets: PetEntry[] }[] = [];
-  for (const key of keys) {
-    const pets = (byKey.get(key) ?? []).filter((p) => {
-      const k = p.name.toLowerCase();
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-    if (pets.length) out.push({ key, pets });
-  }
-  return out;
-}
 
 export function PetsSection({
   groupId,
@@ -99,7 +76,6 @@ export function PetsSection({
   const [pending, startTransition] = useTransition();
 
   const [catalog, setCatalog] = useState<EventPetCategory[] | null>(null);
-  const [query, setQuery] = useState("");
   useEffect(() => {
     if (mode !== "selected" || catalog !== null) return;
     let cancelled = false;
@@ -111,28 +87,7 @@ export function PetsSection({
     };
   }, [mode, catalog, groupId]);
 
-  const groups = useMemo(() => groupCatalog(catalog ?? []), [catalog]);
-  const allPets = useMemo(() => groups.flatMap((g) => g.pets), [groups]);
-  const needle = query.trim().toLowerCase();
-
-  const togglePet = (name: string) =>
-    setChosen((prev) => {
-      const next = new Set(prev);
-      const k = name.toLowerCase();
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
-      return next;
-    });
-
-  const setMany = (pets: PetEntry[], on: boolean) =>
-    setChosen((prev) => {
-      const next = new Set(prev);
-      for (const p of pets) {
-        if (on) next.add(p.name.toLowerCase());
-        else next.delete(p.name.toLowerCase());
-      }
-      return next;
-    });
+  const allPets = useMemo(() => groupPetCatalog(catalog ?? []).flatMap((g) => g.pets), [catalog]);
 
   const save = () =>
     startTransition(async () => {
@@ -203,84 +158,13 @@ export function PetsSection({
         </fieldset>
 
         {mode === "selected" && (
-          <div className="border-osrs-bronze/25 space-y-3 rounded border p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search pets…"
-                aria-label="Search pets"
-                className={`${field} w-full sm:w-64`}
-              />
-              <span className="text-osrs-parchment-dark/70 text-xs">
-                {chosen.size} of {allPets.length || "…"} pets pay on duplicates
-              </span>
-            </div>
-            {catalog === null ? (
-              <p className="text-osrs-parchment-dark/60 text-xs">Loading pets…</p>
-            ) : groups.length === 0 ? (
-              <Alert variant="error">Couldn&apos;t load the pet list. Please refresh.</Alert>
-            ) : (
-              groups.map((g) => {
-                const shown = needle
-                  ? g.pets.filter((p) => p.name.toLowerCase().includes(needle))
-                  : g.pets;
-                if (!shown.length) return null;
-                const picked = g.pets.filter((p) => chosen.has(p.name.toLowerCase())).length;
-                return (
-                  <div key={g.key} className="space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-osrs-gold/90 text-xs font-semibold uppercase">
-                        {PET_CATEGORY_LABELS[g.key] ?? g.key}
-                      </span>
-                      <span className="text-osrs-parchment-dark/50 text-xs">
-                        {picked}/{g.pets.length}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => setMany(g.pets, true)}
-                        className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright text-xs underline-offset-2 hover:underline"
-                      >
-                        Select all
-                      </button>
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => setMany(g.pets, false)}
-                        className="text-osrs-parchment-dark/70 hover:text-osrs-gold-bright text-xs underline-offset-2 hover:underline"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {shown.map((p) => {
-                        const on = chosen.has(p.name.toLowerCase());
-                        return (
-                          <button
-                            key={p.name}
-                            type="button"
-                            disabled={disabled}
-                            onClick={() => togglePet(p.name)}
-                            aria-pressed={on}
-                            className={`flex items-center gap-1.5 rounded border px-2 py-1 text-xs ${
-                              on
-                                ? "border-osrs-gold/70 bg-osrs-gold/15 text-osrs-parchment"
-                                : "border-osrs-bronze/25 text-osrs-parchment-dark/70 hover:border-osrs-bronze/60"
-                            } disabled:opacity-50`}
-                          >
-                            <ItemDbIcon itemId={p.id} size={18} gray={!on} />
-                            {p.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+          <PetPicker
+            catalog={catalog}
+            chosen={chosen}
+            onChange={setChosen}
+            disabled={disabled}
+            summary={(picked, total) => `${picked} of ${total ?? "…"} pets pay on duplicates`}
+          />
         )}
 
         {mode !== "none" && (

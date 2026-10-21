@@ -272,3 +272,12 @@ export async function setMemberDeathMessageBlock(
     throw err;
   }
 }
+
+/** Server Action: the pet catalog, for the "petlist" picker. */
+export async function fetchGroupPetCatalog(groupId: number) {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  return api.eventPetCategories();
+}
