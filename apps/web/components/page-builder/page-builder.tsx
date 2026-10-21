@@ -654,9 +654,9 @@ export function PageBuilder(props: PageBuilderProps) {
   );
 
   return (
-    <div className="bg-osrs-surface-0 fixed inset-0 z-[60] flex flex-col">
+    <div className="bg-osrs-surface-0 fixed inset-0 z-[60] flex flex-col" data-page-builder>
       {/* Top bar */}
-      <header className="border-osrs-bronze/30 bg-osrs-surface-1 flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
+      <header data-builder-pane="topbar" className="border-osrs-bronze/30 bg-osrs-surface-1 flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-3 py-2">
         <Link href={props.exitUrl as Route} className="text-osrs-parchment-dark/80 hover:text-osrs-gold-bright text-sm">
           ← Done
         </Link>
@@ -770,6 +770,7 @@ export function PageBuilder(props: PageBuilderProps) {
 
       <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[17rem_minmax(0,1fr)_20rem]">
         <aside
+          data-builder-pane="blocks"
           className={`border-osrs-bronze/25 bg-osrs-surface-1 min-h-0 border-r max-lg:max-h-[45vh] ${
             pane === "settings" ? "max-lg:hidden" : ""
           }`}
@@ -797,6 +798,7 @@ export function PageBuilder(props: PageBuilderProps) {
           </div>
         </main>
         <aside
+          data-builder-pane="inspector"
           className={`border-osrs-bronze/25 bg-osrs-surface-1 min-h-0 border-l max-lg:max-h-[45vh] ${
             pane === "settings" ? "" : "max-lg:hidden"
           }`}

@@ -590,12 +590,9 @@ function SurfacePicker({ value, onChange }: { value: BlockSurface; onChange: (s:
         >
           <span
             className={`mb-1 block h-8 w-full overflow-hidden rounded-sm ${
-              s === "plain"
-                ? "border border-dashed border-current/30"
-                : s === "scroll"
-                  ? "pl-ink-light bg-[url('/scroll/backdrop_745.gif')] bg-cover"
-                  : `pl-surface-${s} !p-0`
+              s === "plain" ? "border border-dashed border-current/30" : s === "scroll" ? "" : `pl-surface-${s} !p-0`
             }`}
+            style={s === "scroll" ? { background: "url(/scroll/backdrop_745.gif) center / cover" } : undefined}
           />
           {SURFACE_LABELS[s].label}
         </button>
