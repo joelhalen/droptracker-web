@@ -162,7 +162,7 @@ kept as a record.
   data we hold about you, ask us to correct it, or ask us to delete your
   account data (including gameplay submissions and screenshots). We will
   action deletion requests within 30 days.
-- **Remove an account yourself** — in your
+- **Remove an account yourself:** in your
   [settings](https://www.droptracker.io/settings), each claimed account has a
   "Remove this account's data" button. Because anyone can claim an unclaimed
   name, our staff check in a support ticket that the account is really yours
