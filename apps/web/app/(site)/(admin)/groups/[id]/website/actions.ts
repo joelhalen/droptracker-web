@@ -53,7 +53,8 @@ export async function claimSiteAction(
   subdomain: string,
 ): Promise<SiteActionResult<SiteAdmin>> {
   try {
-    const denied = await guard(groupId, true);
+    // Free for every group: an address is a redirect (web137a).
+    const denied = await guard(groupId, false);
     if (denied) return { ok: false, error: denied };
     const site = await api.claimSite(groupId, subdomain);
     revalidateSite(groupId, site.subdomain);
@@ -76,7 +77,9 @@ export async function updateSiteAction(
   },
 ): Promise<SiteActionResult<SiteAdmin>> {
   try {
-    const denied = await guard(groupId, true);
+    // Pointing the address somewhere is free; the Web API still requires the
+    // subscription for the (retired) builder-only fields.
+    const denied = await guard(groupId, false);
     if (denied) return { ok: false, error: denied };
     const site = await api.updateSite(groupId, input);
     revalidateSite(groupId, site.subdomain);

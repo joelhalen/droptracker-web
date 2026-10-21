@@ -7,7 +7,7 @@
  * layout wrapper only, so the site header and footer stay DropTracker's and
  * a group's colours never leak into the rest of the site.
  */
-import type { CSSProperties, ReactNode } from "react";
+import { Suspense, type CSSProperties, type ReactNode } from "react";
 import type { BlockSurface, BlockWidth, PageTheme } from "@droptracker/api-types";
 import { SITE_THEMES } from "@/lib/site-themes";
 import { ScrollPanel } from "@/components/scroll-panel";
@@ -89,10 +89,12 @@ export function BlockSlot({
   children: ReactNode;
 }) {
   const light = LIGHT_SURFACES.has(surface);
+  // Each block streams on its own: a slow data block (a PB board, the
+  // lootboard) never holds up the rest of the page, or the builder preview.
   const body = (
     <>
       {title ? <BlockTitle title={title} light={light} /> : null}
-      {children}
+      <Suspense fallback={<BlockSkeleton />}>{children}</Suspense>
     </>
   );
   let inner: ReactNode;
@@ -124,6 +126,10 @@ export function BlockSlot({
       {inner}
     </section>
   );
+}
+
+function BlockSkeleton() {
+  return <div className="bg-osrs-surface-2/60 h-28 animate-pulse rounded-lg" aria-hidden />;
 }
 
 /** What the builder preview shows where a block has nothing to display yet.

@@ -220,7 +220,7 @@ export type GroupEntitlements = z.infer<typeof GroupEntitlementsSchema>;
 // instead of failing the whole settings payload.
 export const UserEntitlementsSchema = z.object(
   Object.fromEntries(
-    USER_ENTITLEMENT_FIELDS.map((f) => [f.key, fieldValueSchema(f).catch(f.default as never)]),
+    USER_ENTITLEMENT_FIELDS.map((f) => [f.key, (fieldValueSchema(f) as z.ZodTypeAny).catch(f.default)]),
   ),
 );
 export type UserEntitlements = z.infer<typeof UserEntitlementsSchema>;

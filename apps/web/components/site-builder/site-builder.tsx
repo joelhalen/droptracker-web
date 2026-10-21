@@ -23,7 +23,6 @@ import type {
 import { SITE_SUBDOMAIN_RE, SITE_PAGE_SLUG_RE } from "@droptracker/api-types";
 import type { SubscriptionTier } from "@droptracker/api-types";
 import { SITE_THEMES, type SiteThemeKey } from "@/lib/site-themes";
-import { lowestTierWithEntitlement } from "@/lib/entitlements";
 import { Alert, Button, buttonVariants, Card, Input, Select, Textarea } from "@/components/ui";
 import { Field, type Block } from "./block-forms";
 import { PageEditor } from "./page-editor";
@@ -35,25 +34,21 @@ import {
   publishSiteAction,
   publishSitePageAction,
   saveSitePageAction,
-  sitePreviewTokenAction,
   updateSiteAction,
 } from "@/app/(site)/(admin)/groups/[id]/website/actions";
 
+// The "Show a site I build" mode was retired with web137a: groups design
+// their DropTracker page in Page design instead, and the address points there.
 const MODE_OPTIONS: Array<{ value: SiteMode; label: string; help: string }> = [
   {
-    value: "builder",
-    label: "Show a site I build",
-    help: "Design pages with the block editor below.",
-  },
-  {
     value: "group_page",
-    label: "Redirect to our DropTracker page",
-    help: "Visitors land on your group's profile — no site to maintain.",
+    label: "Our DropTracker page",
+    help: "Visitors land on your group page, in the design you made in Page design.",
   },
   {
     value: "redirect",
     label: "Redirect somewhere else",
-    help: "Point the address at your Discord invite, forum, or any https:// link.",
+    help: "Your Discord invite, forum, or any https:// link.",
   },
 ];
 
@@ -80,7 +75,6 @@ export function SiteBuilder({
   meta,
   group,
   canBuild,
-  tiers,
 }: {
   groupId: number;
   initialSite: SiteAdmin | null;
@@ -88,7 +82,8 @@ export function SiteBuilder({
   group: GroupProfile;
   /** Whether this group may use the builder half (custom_site entitlement). */
   canBuild: boolean;
-  tiers: SubscriptionTier[];
+  /** Unused since the builder was retired (web137a); kept for the caller. */
+  tiers?: SubscriptionTier[];
 }) {
   const [site, setSite] = useState<SiteAdmin | null>(initialSite);
   const [error, setError] = useState<string | null>(null);
@@ -113,13 +108,8 @@ export function SiteBuilder({
   // navigation
   const [nav, setNav] = useState<SiteNavItem[]>(initialSite?.nav ?? []);
 
-  const upgradeTier = useMemo(
-    () => lowestTierWithEntitlement(tiers, "custom_site"),
-    [tiers],
-  );
-
   // what the subdomain does
-  const [mode, setMode] = useState(initialSite?.mode ?? "builder");
+  const [mode, setMode] = useState<SiteMode>(initialSite?.mode === "builder" || !initialSite ? "group_page" : initialSite.mode);
   const [redirectUrl, setRedirectUrl] = useState(initialSite?.redirect_url ?? "");
 
   // page editor
@@ -146,10 +136,10 @@ export function SiteBuilder({
   if (!site) {
     return (
       <Card>
-        <h2 className="text-osrs-gold mb-2 text-lg font-semibold">Claim your site address</h2>
+        <h2 className="text-osrs-gold mb-2 text-lg font-semibold">Claim a short address</h2>
         <p className="text-osrs-parchment-dark/80 mb-4 max-w-2xl text-sm">
-          Pick the subdomain your clan&apos;s website will live on. 3–30 characters: lowercase
-          letters, numbers and hyphens.
+          A free {meta.sites_domain} address that sends visitors to your group page or any link
+          you choose. 3 to 30 characters: lowercase letters, numbers and hyphens.
         </p>
         {error && <Alert variant="error">{error}</Alert>}
         <div className="flex flex-wrap items-center gap-2">
@@ -212,31 +202,12 @@ export function SiteBuilder({
               </a>
             </h2>
             <p className="text-osrs-parchment-dark/70 text-sm">
-              {site.published ? "Site is live." : "Site is not published yet."}
+              {site.published ? "Address is live." : "Address is switched off."}
               {site.needs_review && " Search-engine indexing is pending review."}
               {site.suspended && ` SUSPENDED: ${site.suspend_reason ?? ""}`}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={pending}
-              onClick={() =>
-                run(
-                  () => sitePreviewTokenAction(groupId),
-                  ({ token, site_url }) => {
-                    const slug = editing?.slug ?? "home";
-                    window.open(
-                      `${site_url}__preview/${slug}?token=${encodeURIComponent(token)}`,
-                      "_blank",
-                    );
-                  },
-                )
-              }
-            >
-              Open draft preview
-            </Button>
             <Button
               variant="secondary"
               size="sm"
@@ -246,23 +217,19 @@ export function SiteBuilder({
                   () => publishSiteAction(groupId, !site.published),
                   (s) => {
                     setSite(s);
-                    setNotice(s.published ? "Site published." : "Site unpublished.");
+                    setNotice(s.published ? "Address switched on." : "Address switched off.");
                   },
                 )
               }
             >
-              {site.published ? "Unpublish site" : "Publish site"}
+              {site.published ? "Switch off" : "Switch on"}
             </Button>
           </div>
         </div>
       </Card>
 
       <Card>
-        <h3 className="text-osrs-gold mb-1 font-semibold">What this address does</h3>
-        <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
-          Not every clan wants to run a site — your address can simply point somewhere
-          you already have.
-        </p>
+        <h3 className="text-osrs-gold mb-1 font-semibold">Where this address goes</h3>
         <div className="space-y-2">
           {MODE_OPTIONS.map((opt) => (
             <label
@@ -352,38 +319,19 @@ export function SiteBuilder({
         </button>
       </Card>
 
-      {mode !== "builder" && canBuild && (
-        <Card>
-          <p className="text-osrs-parchment-dark/75 text-sm">
-            Page building is paused while this address is a redirect. Your pages are kept —
-            switch back to &quot;Show a site I build&quot; above to use them again.
-          </p>
-        </Card>
-      )}
-
-      {!canBuild && (
-        <Card className="border-osrs-gold/30">
-          <h3 className="text-osrs-gold font-semibold">Want a full website?</h3>
-          <p className="text-osrs-parchment-dark/80 mt-2 text-sm">
-            Redirects are free for every clan. Building your own pages — live loot
-            boards, leaderboards, rosters and custom design — comes with a subscription.
-            {upgradeTier && (
-              <>
-                {" "}
-                Available on the{" "}
-                <span className="text-osrs-gold-bright font-medium">{upgradeTier.name}</span>{" "}
-                plan and above.
-              </>
-            )}
-          </p>
-          <a
-            href={`/groups/${groupId}/subscription`}
-            className={buttonVariants({ variant: "secondary", className: "mt-4" })}
-          >
-            View subscription options
-          </a>
-        </Card>
-      )}
+      <Card>
+        <h3 className="text-osrs-gold font-semibold">Make the page your own</h3>
+        <p className="text-osrs-parchment-dark/80 mt-2 text-sm">
+          Your group page can carry your own layout, colours and banner. Design it in Page
+          design; this address shows it automatically.
+        </p>
+        <a
+          href={`/groups/${groupId}/page-builder`}
+          className={buttonVariants({ variant: "secondary", className: "mt-4" })}
+        >
+          Open Page design
+        </a>
+      </Card>
 
       {canBuild && mode === "builder" && editing && (
         <PageEditor
