@@ -6,18 +6,20 @@ import { EventNotificationPrefs } from "@/components/event-notification-prefs";
 import { MemberDeathMessages } from "@/components/member-death-messages";
 import { NitroBoostCard } from "@/components/nitro-boost-card";
 import { ThemePicker } from "@/components/theme";
+import { AccountDataRemoval } from "@/components/data-removal";
 
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   // requireUser guarantees a non-null session even though the layout also gates.
-  await requireUser("/settings");
-  const [settings, nitro, notificationPrefs, deathMessages] = await Promise.all([
+  const user = await requireUser("/settings");
+  const [settings, nitro, notificationPrefs, deathMessages, removals] = await Promise.all([
     api.settings(),
     api.myNitroBoost(),
     api.notificationPrefs(),
     // Best-effort: the rest of the page must still render if this read fails.
     api.myDeathMessages().catch(() => null),
+    api.myDataRemovals().catch(() => ({ requests: [] })),
   ]);
 
   return (
@@ -48,6 +50,13 @@ export default async function SettingsPage() {
       </section>
 
       <NitroBoostCard initial={nitro} />
+
+      <section className="max-w-xl">
+        <AccountDataRemoval
+          accounts={user.players.map((p) => ({ id: p.id, name: p.name }))}
+          initial={removals.requests}
+        />
+      </section>
     </div>
   );
 }
