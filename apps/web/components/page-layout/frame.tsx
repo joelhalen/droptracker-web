@@ -132,6 +132,47 @@ function BlockSkeleton() {
   return <div className="bg-osrs-surface-2/60 h-28 animate-pulse rounded-lg" aria-hidden />;
 }
 
+const BANNER_MIN_HEIGHT = { sm: "min-h-28 sm:min-h-32", md: "min-h-36 sm:min-h-48", lg: "min-h-48 sm:min-h-72" } as const;
+
+/**
+ * The banner header (group pages and profiles). Height grows with its
+ * content, so a long name that wraps on a phone is never clipped. The
+ * fallback gradient and the text colours are fixed rather than taken from
+ * the page palette: they sit on a dark photo-style scrim, and a light palette
+ * (Parchment) would otherwise turn the banner white under a gold title.
+ */
+export function BannerFrame({
+  theme,
+  children,
+  aside,
+}: {
+  theme: PageTheme;
+  children: ReactNode;
+  aside?: ReactNode;
+}) {
+  return (
+    <header className="rise-in">
+      <div
+        className={`relative flex items-end overflow-hidden rounded-2xl border border-black/40 ${BANNER_MIN_HEIGHT[theme.banner_height]}`}
+        style={
+          theme.banner_url
+            ? { backgroundImage: `url(${JSON.stringify(theme.banner_url)})`, backgroundSize: "cover", backgroundPosition: "center" }
+            : { background: "linear-gradient(135deg, #4a3f30 0%, #231c14 60%, #15110c 100%)" }
+        }
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
+        <div
+          className="relative flex w-full flex-wrap items-end justify-between gap-3 p-4 pt-16 sm:p-6 sm:pt-20"
+          style={{ "--dt-gold": "#ffb83f", "--dt-text": "#f4ecdb", "--dt-text-muted": "#e0d4b8" } as CSSProperties}
+        >
+          {children}
+          {aside}
+        </div>
+      </div>
+    </header>
+  );
+}
+
 /** What the builder preview shows where a block has nothing to display yet.
  * Visitors never see it: the public render drops the block instead. */
 export function PreviewPlaceholder({ label, hint }: { label: string; hint: string }) {

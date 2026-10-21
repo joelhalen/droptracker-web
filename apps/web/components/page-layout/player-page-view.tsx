@@ -25,7 +25,7 @@ import { ProfileShowcase } from "@/components/profile-showcase";
 import { BossActivityList } from "@/components/profile-stats";
 import { SubmissionList } from "@/components/submission-list";
 import { Badge, EntityChip, NameTile, StatTile } from "@/components/ui";
-import { BlockSlot, LayoutFrame, LayoutGrid, LIGHT_SURFACES, PreviewPlaceholder } from "./frame";
+import { BannerFrame, BlockSlot, LayoutFrame, LayoutGrid, LIGHT_SURFACES, PreviewPlaceholder } from "./frame";
 import { LinkRow, renderSharedBlock, type LinkItem } from "./shared-blocks";
 
 type Api = typeof api;
@@ -37,8 +37,6 @@ export type PlayerPageContext = {
   achievements: Awaited<ReturnType<Api["playerAchievements"]>> | null;
   pvp: Awaited<ReturnType<Api["playerPvp"]>> | null;
 };
-
-const BANNER_HEIGHT = { sm: "h-28 sm:h-32", md: "h-36 sm:h-48", lg: "h-48 sm:h-72" } as const;
 
 function PlayerHeader({ ctx, theme }: { ctx: PlayerPageContext; theme: PageTheme }) {
   const { player } = ctx;
@@ -67,25 +65,15 @@ function PlayerHeader({ ctx, theme }: { ctx: PlayerPageContext; theme: PageTheme
 
   if (banner) {
     return (
-      <header className="rise-in">
-        <div
-          className={`border-osrs-bronze/40 relative overflow-hidden rounded-2xl border ${BANNER_HEIGHT[theme.banner_height]}`}
-          style={
-            theme.banner_url
-              ? { backgroundImage: `url(${JSON.stringify(theme.banner_url)})`, backgroundSize: "cover", backgroundPosition: "center" }
-              : { background: "linear-gradient(135deg, var(--dt-surface-3), var(--dt-brown-dark))" }
-          }
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 flex items-end gap-4 p-4 sm:p-6">
-            <NameTile name={player.name} size="lg" playerId={player.id} />
-            <div className="min-w-0">
-              {name}
-              {subtitle}
-            </div>
+      <BannerFrame theme={theme}>
+        <div className="flex min-w-0 items-end gap-4">
+          <NameTile name={player.name} size="lg" playerId={player.id} />
+          <div className="min-w-0">
+            {name}
+            {subtitle}
           </div>
         </div>
-      </header>
+      </BannerFrame>
     );
   }
   return (

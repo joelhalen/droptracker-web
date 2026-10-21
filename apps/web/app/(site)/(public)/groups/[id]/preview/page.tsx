@@ -31,7 +31,7 @@ export default async function GroupLayoutPreview({
   const { id } = await params;
   const groupId = Number(id);
   if (!Number.isFinite(groupId)) notFound();
-  await requireGroupAdminPage(groupId);
+  const viewer = await requireGroupAdminPage(groupId);
   const { for: target, player } = await searchParams;
   const group = await orNotFound(api.group(groupId));
 
@@ -42,6 +42,8 @@ export default async function GroupLayoutPreview({
       group.top_player?.id ||
       group.top_players?.[0]?.id ||
       group.recent_submissions.find((sub) => sub.player_id)?.player_id ||
+      // Quiet group: preview on the editor's own account instead.
+      viewer.players[0]?.id ||
       null;
     if (!sample) {
       return (

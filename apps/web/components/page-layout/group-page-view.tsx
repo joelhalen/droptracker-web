@@ -43,7 +43,7 @@ import {
   RecapBlock,
   WomAchievementsBlock,
 } from "@/components/site-blocks/renderer";
-import { BlockSlot, LayoutFrame, LayoutGrid, LIGHT_SURFACES, PreviewPlaceholder } from "./frame";
+import { BannerFrame, BlockSlot, LayoutFrame, LayoutGrid, LIGHT_SURFACES, PreviewPlaceholder } from "./frame";
 import { LinkRow, renderSharedBlock, type LinkItem } from "./shared-blocks";
 
 type Api = typeof api;
@@ -59,8 +59,6 @@ export type GroupPageContext = {
   manage: { href: string; label: string } | null;
   hasActiveEvents?: boolean;
 };
-
-const BANNER_HEIGHT = { sm: "h-28 sm:h-32", md: "h-36 sm:h-48", lg: "h-48 sm:h-72" } as const;
 
 function GroupHeader({ ctx, theme }: { ctx: GroupPageContext; theme: PageTheme }) {
   const { group, manage } = ctx;
@@ -101,28 +99,15 @@ function GroupHeader({ ctx, theme }: { ctx: GroupPageContext; theme: PageTheme }
 
   if (banner) {
     return (
-      <header className="rise-in">
-        <div
-          className={`border-osrs-bronze/40 relative overflow-hidden rounded-2xl border ${BANNER_HEIGHT[theme.banner_height]}`}
-          style={
-            theme.banner_url
-              ? { backgroundImage: `url(${JSON.stringify(theme.banner_url)})`, backgroundSize: "cover", backgroundPosition: "center" }
-              : { background: "linear-gradient(135deg, var(--dt-surface-3), var(--dt-brown-dark))" }
-          }
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-end justify-between gap-3 p-4 sm:p-6">
-            <div className="flex min-w-0 items-end gap-4">
-              {icon}
-              <div className="min-w-0">
-                {title}
-                {description && <p className="max-w-2xl text-sm text-white/85 sm:text-base">{description}</p>}
-              </div>
-            </div>
-            {manageLink}
+      <BannerFrame theme={theme} aside={manageLink}>
+        <div className="flex min-w-0 items-end gap-4">
+          {icon}
+          <div className="min-w-0">
+            {title}
+            {description && <p className="max-w-2xl text-sm text-white/85 sm:text-base">{description}</p>}
           </div>
         </div>
-      </header>
+      </BannerFrame>
     );
   }
 
