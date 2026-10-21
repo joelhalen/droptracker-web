@@ -1330,6 +1330,50 @@ export const AuthorizedUsersResponseSchema = z.object({
 });
 export type AuthorizedUsersResponse = z.infer<typeof AuthorizedUsersResponseSchema>;
 
+/* ---------------------------------------------------------------------------
+ * Data removal (web137a): a player or group asking to be erased. Requests are
+ * verified by staff in a support ticket, then purged after a 7-day grace.
+ * ------------------------------------------------------------------------- */
+export const DataRemovalStatusSchema = z.enum([
+  "awaiting_verification",
+  "scheduled",
+  "completed",
+  "cancelled",
+  "rejected",
+  "failed",
+]);
+export type DataRemovalStatus = z.infer<typeof DataRemovalStatusSchema>;
+
+export const DataRemovalRequestSchema = z.object({
+  id: z.number().int(),
+  kind: z.enum(["player", "group"]),
+  subject_id: z.number().int(),
+  subject_name: z.string(),
+  status: DataRemovalStatusSchema,
+  ticket_id: z.number().int().nullable(),
+  /** Players only: what to type in the game chatbox for the screenshot. */
+  verification_phrase: z.string().nullable(),
+  /** Unix seconds; set once staff approve. */
+  purge_after: z.number().int().nullable(),
+  created_at: z.number().int().nullable(),
+  decided_at: z.number().int().nullable(),
+  completed_at: z.number().int().nullable(),
+  can_cancel: z.boolean(),
+});
+export type DataRemovalRequest = z.infer<typeof DataRemovalRequestSchema>;
+
+export const MyDataRemovalsSchema = z.object({
+  requests: z.array(DataRemovalRequestSchema),
+});
+export type MyDataRemovals = z.infer<typeof MyDataRemovalsSchema>;
+
+export const GroupDataRemovalSchema = z.object({
+  request: DataRemovalRequestSchema.nullable(),
+  /** Only the group's owner (or site staff) may ask. */
+  can_request: z.boolean(),
+});
+export type GroupDataRemoval = z.infer<typeof GroupDataRemovalSchema>;
+
 /**
  * Notification blacklist — items and NPCs a group never wants announced in its
  * Discord channels. The submission is still recorded, scored and counted on the
