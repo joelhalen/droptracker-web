@@ -8410,6 +8410,12 @@ export * from "./tier-flair";
 // Group mini-sites (sites-v1)
 export * from "./sites";
 
+// Customizable group pages + player profiles (web137a)
+export * from "./page-layouts";
+
+// Group setup checklist (web138a)
+export * from "./group-setup";
+
 // Targeted site pop-ups (web118a)
 export * from "./popup-notices";
 export * from "./tester-builds";

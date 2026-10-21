@@ -34,8 +34,16 @@ export default async function DashboardPage() {
                     playerId={p.id}
                   />
                 </EntityHoverCard>
-                <span className="text-osrs-gold-bright text-sm tabular-nums">
-                  {p.total_loot?.value_formatted ?? "—"}
+                <span className="flex shrink-0 items-center gap-3">
+                  <span className="text-osrs-gold-bright text-sm tabular-nums">
+                    {p.total_loot?.value_formatted ?? "—"}
+                  </span>
+                  <Link
+                    href={`/profile-builder/${p.id}` as Route}
+                    className="border-osrs-bronze/50 hover:bg-osrs-bronze/30 rounded border px-2 py-1 text-xs"
+                  >
+                    Customize
+                  </Link>
                 </span>
               </li>
             ))}

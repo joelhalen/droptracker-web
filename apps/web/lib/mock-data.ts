@@ -482,6 +482,7 @@ export function mockAccountSettings(): AccountSettings {
     supporter_entitlements: {
       dm_submissions: true,
       supporter_flair: true,
+      custom_profile: true,
       video_submissions: true,
     },
     players: [
@@ -1526,7 +1527,7 @@ export function mockUserSubscription(): UserSubscription {
     amount_cents: 750,
     current_period_end: Math.floor(Date.now() / 1000) + 18 * 86400,
     cancel_at_period_end: false,
-    entitlements: { dm_submissions: true, supporter_flair: true, video_submissions: true },
+    entitlements: { dm_submissions: true, supporter_flair: true, custom_profile: true, video_submissions: true },
   };
 }
 

@@ -116,9 +116,9 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
   },
   {
     key: "custom_site",
-    label: "Custom clan website",
+    label: "Custom group page",
     category: "features",
-    help: "A multi-page mini-site for the group on its own subdomain of the sites domain, built from blocks with live DropTracker data.",
+    help: "Design the group's public page (and the default profile layout for its members) in the page builder: choose the blocks, their order, size and style, colours and a banner.",
     default: false,
   },
 ];
@@ -145,6 +145,13 @@ export const USER_ENTITLEMENT_FIELDS: EntitlementField[] = [
     label: "Supporter flair",
     category: "supporter",
     help: "A distinct supporter display style on your public profile and site listings.",
+    default: false,
+  },
+  {
+    key: "custom_profile",
+    label: "Custom profile page",
+    category: "supporter",
+    help: "Design your own public player profile in the page builder. Overrides the layout your clan sets for its members.",
     default: false,
   },
   {
@@ -209,8 +216,12 @@ export const GroupEntitlementsSchema = z.object(
 export type GroupEntitlements = z.infer<typeof GroupEntitlementsSchema>;
 
 /** Resolved supporter entitlements for a user (every registry key present). */
+// A key the backend doesn't send yet (web deployed ahead of it) reads as off
+// instead of failing the whole settings payload.
 export const UserEntitlementsSchema = z.object(
-  Object.fromEntries(USER_ENTITLEMENT_FIELDS.map((f) => [f.key, fieldValueSchema(f)])),
+  Object.fromEntries(
+    USER_ENTITLEMENT_FIELDS.map((f) => [f.key, (fieldValueSchema(f) as z.ZodTypeAny).catch(f.default)]),
+  ),
 );
 export type UserEntitlements = z.infer<typeof UserEntitlementsSchema>;
 

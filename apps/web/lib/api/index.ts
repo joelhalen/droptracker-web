@@ -9,6 +9,7 @@
 import { leaderboardsApi } from "./leaderboards";
 import { playersApi } from "./players";
 import { sitesApi } from "./sites";
+import { pageLayoutsApi } from "./page-layouts";
 import { groupsApi } from "./groups";
 import { pluginConfigApi } from "./plugin-config";
 import { eventsApi } from "./events";
@@ -52,6 +53,7 @@ export const api = {
   ...dataRemovalApi,
   ...playersApi,
   ...sitesApi,
+  ...pageLayoutsApi,
   ...groupsApi,
   ...pluginConfigApi,
   ...eventsApi,

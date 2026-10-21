@@ -28,6 +28,7 @@ import { BossActivityList, RecordsShowcase, TopPlayersList } from "@/components/
 import { RecapCard } from "@/components/recap-card";
 import { SubmissionList } from "@/components/submission-list";
 import { Card, EmptyState, StatTile } from "@/components/ui";
+import { BlockEmpty } from "@/components/page-layout/frame";
 
 function StatsRow({ group, stats }: { group: GroupProfile; stats: string[] }) {
   const tiles = stats.map((key) => {
@@ -126,21 +127,28 @@ function ButtonsBlock({ block }: { block: Extract<SiteBlock, { type: "buttons" }
 
 const DIVIDER_SPACE = { sm: "py-2", md: "py-5", lg: "py-10" } as const;
 
-/* --- data blocks: async server components, each owns its fetch + fallback --- */
+/* --- data blocks: async server components, each owns its fetch + fallback.
+   Exported for the page builder's group pages (components/page-layout/). --- */
 
-async function LootboardBlock({ groupId, period }: { groupId: number; period: string }) {
+export async function LootboardBlock({ groupId, period }: { groupId: number; period: string }) {
   const board = await api.lootboard(groupId, period).catch(() => null);
-  if (!board) return <EmptyState title="Lootboard unavailable" />;
+  if (!board) return <BlockEmpty hint="Lootboard unavailable" />;
   return <LootboardCanvas board={board} />;
 }
 
-async function PbBoardBlock({
+export async function PbBoardBlock({
   groupId,
   selections,
+  rows,
+  maxSizes,
 }: {
   groupId: number;
   /** Empty `team_sizes` on a selection = every size for that boss. */
   selections: Array<{ npc_id: number; team_sizes: string[] }>;
+  /** Entries per team-size board (page builder). Absent = all of them. */
+  rows?: number;
+  /** Team-size boards per boss when none were picked (page builder). */
+  maxSizes?: number;
 }) {
   let picks = selections;
   if (picks.length === 0) {
@@ -148,7 +156,7 @@ async function PbBoardBlock({
     // block is never blank on a fresh page.
     const index = await api.pbBosses(groupId).catch(() => null);
     const first = index?.bosses[0]?.npc_id;
-    if (first == null) return <EmptyState title="No personal bests yet" />;
+    if (first == null) return <BlockEmpty hint="No personal bests yet" />;
     picks = [{ npc_id: first, team_sizes: [] }];
   }
 
@@ -157,15 +165,16 @@ async function PbBoardBlock({
       picks.slice(0, 8).map(async (pick) => {
         const board = await api.pbBoard(pick.npc_id, groupId).catch(() => null);
         if (!board) return null;
-        if (pick.team_sizes.length === 0) return board;
         const wanted = new Set(pick.team_sizes);
-        const filtered = board.boards.filter((b) => wanted.has(b.team_size));
-        return filtered.length > 0 ? { ...board, boards: filtered } : null;
+        let boards = pick.team_sizes.length === 0 ? board.boards : board.boards.filter((b) => wanted.has(b.team_size));
+        if (pick.team_sizes.length === 0 && maxSizes) boards = boards.slice(0, maxSizes);
+        if (rows) boards = boards.map((b) => ({ ...b, entries: b.entries.slice(0, rows) }));
+        return boards.length > 0 ? { ...board, boards } : null;
       }),
     )
   ).filter((b): b is NonNullable<typeof b> => b != null);
 
-  if (boards.length === 0) return <EmptyState title="No ranked times yet" />;
+  if (boards.length === 0) return <BlockEmpty hint="No ranked times yet" />;
   return (
     <div className="space-y-6">
       {boards.map((board) => (
@@ -183,28 +192,36 @@ async function PbBoardBlock({
   );
 }
 
-async function LeaderboardBlock({ groupId, limit }: { groupId: number; limit: number }) {
+export async function LeaderboardBlock({
+  groupId,
+  limit,
+  period = "month",
+}: {
+  groupId: number;
+  limit: number;
+  period?: string;
+}) {
   const scope = `group:${groupId}`;
-  const page = await api.playerLeaderboard({ scope, period: "month", limit }).catch(() => null);
-  if (!page || page.entries.length === 0) return <EmptyState title="No ranked players yet" />;
+  const page = await api.playerLeaderboard({ scope, period, limit }).catch(() => null);
+  if (!page || page.entries.length === 0) return <BlockEmpty hint="No ranked players yet" />;
   return <LeaderboardTable entries={page.entries.slice(0, limit)} scope={scope} kind="players" />;
 }
 
-async function RecapBlock({ groupId, period }: { groupId: number; period: string }) {
+export async function RecapBlock({ groupId, period }: { groupId: number; period: string }) {
   // "month"/"year" resolve to the newest frozen card via the recap index.
   const index = await api.recapIndex("group", groupId).catch(() => null);
   const match = index?.periods.find((p) => p.kind === period);
   const recap = match
     ? await api.recap("group", groupId, match.period).catch(() => null)
     : null;
-  if (!recap) return <EmptyState title="No recap yet" hint="Recaps appear after the period ends." />;
+  if (!recap) return <BlockEmpty hint="No recap yet. Recaps appear after the period ends." />;
   return <RecapCard recap={recap} fluid />;
 }
 
-async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
+export async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
   const page = await api.announcements(`group:${groupId}`).catch(() => null);
   const items = page?.items.slice(0, limit) ?? [];
-  if (items.length === 0) return <EmptyState title="No announcements yet" />;
+  if (items.length === 0) return <BlockEmpty hint="No announcements yet" />;
   return (
     <ul className="space-y-4">
       {items.map((a) => (
@@ -224,7 +241,7 @@ async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: 
   );
 }
 
-async function MemberRosterBlock({
+export async function MemberRosterBlock({
   groupId,
   limit,
   sort,
@@ -242,10 +259,7 @@ async function MemberRosterBlock({
   const roster = await api.siteRoster(groupId, limit, sort).catch(() => null);
   if (!roster || roster.members.length === 0) {
     return (
-      <EmptyState
-        title="Roster not available"
-        hint="The group can enable its public member list in the site settings."
-      />
+      <BlockEmpty hint="The member list goes public when you publish this page." />
     );
   }
   return (
@@ -260,7 +274,7 @@ async function MemberRosterBlock({
   );
 }
 
-async function EventStandingsBlock({ groupId, eventId }: { groupId: number; eventId?: number }) {
+export async function EventStandingsBlock({ groupId, eventId }: { groupId: number; eventId?: number }) {
   let id = eventId;
   let eventName: string | null = null;
   if (id == null) {
@@ -272,7 +286,7 @@ async function EventStandingsBlock({ groupId, eventId }: { groupId: number; even
   }
   const teams = id != null ? await api.eventTeams(id).catch(() => null) : null;
   if (!teams || teams.teams.length === 0) {
-    return <EmptyState title="No event running" hint="Standings appear during events." />;
+    return <BlockEmpty hint="No event running. Standings appear during events." />;
   }
   const sorted = [...teams.teams].sort((a, b) => b.score - a.score);
   return (
@@ -304,7 +318,7 @@ async function EventStandingsBlock({ groupId, eventId }: { groupId: number; even
   );
 }
 
-async function NpcBoardBlock({
+export async function NpcBoardBlock({
   groupId,
   npcId,
   period,
@@ -318,20 +332,17 @@ async function NpcBoardBlock({
   const scope = `group:${groupId}:npc:${npcId}`;
   const page = await api.playerLeaderboard({ scope, period, limit }).catch(() => null);
   if (!page || page.entries.length === 0) {
-    return <EmptyState title="No tracked kills yet" hint="Drops from this boss will rank here." />;
+    return <BlockEmpty hint="No tracked kills yet. Drops from this boss will rank here." />;
   }
   return <LeaderboardTable entries={page.entries.slice(0, limit)} scope={scope} kind="players" />;
 }
 
-async function WomAchievementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
+export async function WomAchievementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
   const payload = await api.womAchievements(groupId, limit).catch(() => null);
   const items = payload?.items ?? [];
   if (items.length === 0) {
     return (
-      <EmptyState
-        title="No recent achievements"
-        hint="Achievements come from Wise Old Man once the group is linked."
-      />
+      <BlockEmpty hint="No recent achievements. Achievements come from Wise Old Man once the group is linked." />
     );
   }
   return (

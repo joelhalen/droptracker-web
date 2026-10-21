@@ -36,6 +36,7 @@ import {
   type ClosedMemory,
 } from "@/lib/site-notices";
 import { useMe } from "@/lib/use-me";
+import { inBuilderPreview, useInBuilderPreview } from "@/lib/page-layout/preview-frame";
 import { NoticeDialog } from "./notice-dialog";
 
 /** Pages where a pop-up would get in the way of the work being done there. */
@@ -59,7 +60,9 @@ function writeMemory(key: string, memory: ClosedMemory) {
 
 export function SiteNotices() {
   const me = useMe();
-  if (!me) return null;
+  // Never inside the page builder's preview frame (web137a).
+  const inPreview = useInBuilderPreview();
+  if (!me || inPreview) return null;
   return <SiteNoticesInner userId={me.user_id} />;
 }
 
@@ -74,6 +77,7 @@ function SiteNoticesInner({ userId }: { userId: number }) {
 
   // Load once, after the page settles and the tab is visible.
   useEffect(() => {
+    if (inBuilderPreview()) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 

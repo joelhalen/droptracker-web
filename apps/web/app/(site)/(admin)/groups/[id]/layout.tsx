@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SetupBanner } from "@/components/group-setup-checklist";
 import { forbidden, notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { requireUser, canAdminGroup, canManageEvents, isGroupOwnerless } from "@/lib/auth";
@@ -40,12 +41,14 @@ export default async function GroupAdminLayout({
   // admin tab. Best-effort: header still renders if the billing API is down.
   // The manual-review pending count drives the Submissions tab badge (small
   // payload; best-effort so a hiccup never blocks the shell).
-  const [subscription, tiers, manualQueue, bank] = await Promise.all([
+  const [subscription, tiers, manualQueue, bank, setup] = await Promise.all([
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
     api.manualSubmissions(groupId).catch(() => null),
     // Pending-donation count for the Bank tab badge (web131a).
     isAdmin ? api.groupBank(groupId).catch(() => null) : null,
+    // Setup health for the red banner (web138a).
+    isAdmin ? api.groupSetupStatus(groupId).catch(() => null) : null,
   ]);
 
   const eventsTab: NavTab = {
@@ -74,6 +77,9 @@ export default async function GroupAdminLayout({
         // Not locked: claiming an address and pointing it at your Discord or
         // DropTracker page is free. The subscription gates the page builder,
         // which is upsold inside the tab.
+        // Not locked: anyone can design and preview; publishing is the
+        // custom_site perk, upsold inside the builder.
+        { href: `/groups/${groupId}/page-builder`, label: "Page design" },
         { href: `/groups/${groupId}/website`, label: "Website" },
         { href: `/groups/${groupId}/announcements`, label: "Announcements" },
         { href: `/groups/${groupId}/members`, label: "Members" },
@@ -132,6 +138,9 @@ export default async function GroupAdminLayout({
           {group.global_rank != null && <> · Global rank #{group.global_rank}</>}
         </p>
       </header>
+
+      {/* web138a: something that stops the group posting to Discord. */}
+      {isAdmin && <SetupBanner status={setup} groupId={groupId} />}
 
       {/* web86a: a group whose owner couldn't be identified on migration has
           nobody able to manage its admin roster until someone claims it. Shown

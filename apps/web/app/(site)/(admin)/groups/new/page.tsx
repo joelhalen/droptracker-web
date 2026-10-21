@@ -21,8 +21,8 @@ export default async function NewGroupPage({
       <div>
         <h1 className="text-osrs-gold text-2xl font-bold">Create a group</h1>
         <p className="text-osrs-parchment-dark/70 text-sm">
-          Connect your Discord server, link your Wise Old Man group, and go live — we&apos;ll walk
-          you through it.
+          Connect your Discord server, link your Wise Old Man group, and go live. We&apos;ll walk you
+          through it.
         </p>
       </div>
       <SiteGroupSetup

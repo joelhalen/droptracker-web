@@ -37,7 +37,7 @@ async function guard(groupId: number, needEntitlement: boolean): Promise<string 
   if (needEntitlement && !user.is_superadmin) {
     const sub = await api.groupSubscription(groupId).catch(() => null);
     if (!hasEntitlement(sub, "custom_site")) {
-      return "The custom website requires a higher subscription tier.";
+      return "A custom address needs a higher subscription tier.";
     }
   }
   return null;
@@ -53,6 +53,7 @@ export async function claimSiteAction(
   subdomain: string,
 ): Promise<SiteActionResult<SiteAdmin>> {
   try {
+    // A subscriber perk (custom_site, the $10 tier and up).
     const denied = await guard(groupId, true);
     if (denied) return { ok: false, error: denied };
     const site = await api.claimSite(groupId, subdomain);
@@ -76,6 +77,7 @@ export async function updateSiteAction(
   },
 ): Promise<SiteActionResult<SiteAdmin>> {
   try {
+    // A subscriber perk (custom_site), like claiming it.
     const denied = await guard(groupId, true);
     if (denied) return { ok: false, error: denied };
     const site = await api.updateSite(groupId, input);
