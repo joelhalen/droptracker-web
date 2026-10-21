@@ -62,7 +62,7 @@ const STEPS: { key: StepKey; label: string; blurb: string }[] = [
     label: "Channels",
     blurb: "Choose where the lootboard and drop notifications should post. You can skip this.",
   },
-  { key: "finish", label: "Finish", blurb: "You're live! A few pointers for what's next." },
+  { key: "finish", label: "Finish", blurb: "What's left, and what to tell your members." },
 ];
 
 /** Accept a bare id or a pasted wise-old-man.net group URL. */
