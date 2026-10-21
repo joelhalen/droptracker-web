@@ -138,10 +138,16 @@ export async function LootboardBlock({ groupId, period }: { groupId: number; per
 export async function PbBoardBlock({
   groupId,
   selections,
+  rows,
+  maxSizes,
 }: {
   groupId: number;
   /** Empty `team_sizes` on a selection = every size for that boss. */
   selections: Array<{ npc_id: number; team_sizes: string[] }>;
+  /** Entries per team-size board (page builder). Absent = all of them. */
+  rows?: number;
+  /** Team-size boards per boss when none were picked (page builder). */
+  maxSizes?: number;
 }) {
   let picks = selections;
   if (picks.length === 0) {
@@ -158,10 +164,11 @@ export async function PbBoardBlock({
       picks.slice(0, 8).map(async (pick) => {
         const board = await api.pbBoard(pick.npc_id, groupId).catch(() => null);
         if (!board) return null;
-        if (pick.team_sizes.length === 0) return board;
         const wanted = new Set(pick.team_sizes);
-        const filtered = board.boards.filter((b) => wanted.has(b.team_size));
-        return filtered.length > 0 ? { ...board, boards: filtered } : null;
+        let boards = pick.team_sizes.length === 0 ? board.boards : board.boards.filter((b) => wanted.has(b.team_size));
+        if (pick.team_sizes.length === 0 && maxSizes) boards = boards.slice(0, maxSizes);
+        if (rows) boards = boards.map((b) => ({ ...b, entries: b.entries.slice(0, rows) }));
+        return boards.length > 0 ? { ...board, boards } : null;
       }),
     )
   ).filter((b): b is NonNullable<typeof b> => b != null);

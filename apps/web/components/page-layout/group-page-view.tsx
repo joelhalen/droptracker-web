@@ -271,6 +271,8 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
         <PbBoardBlock
           groupId={group.id}
           selections={block.bosses.map((b) => ({ npc_id: b.npc_id, team_sizes: b.team_sizes }))}
+          rows={block.rows}
+          maxSizes={3}
         />
       );
     case "leaderboard":

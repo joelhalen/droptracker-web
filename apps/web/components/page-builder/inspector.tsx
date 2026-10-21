@@ -503,13 +503,16 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
       );
     case "pb_board":
       return groupId ? (
-        <Row label="Bosses" hint="Pick up to 8. Leave empty to show your most contested boss.">
+        <>
+        {how("rows", 5, 3, 25, "Players per board")}
+        <Row label="Bosses" hint="Pick up to 8. Leave empty to show your most contested boss (top 3 team sizes).">
           <PbBossSelect
             groupId={groupId}
             value={(block.bosses as PbSelection[]) ?? []}
             onChange={(next) => set({ bosses: next.map((b) => ({ npc_id: b.npc_id, team_sizes: b.team_sizes })) })}
           />
         </Row>
+        </>
       ) : null;
     case "npc_board":
       return (

@@ -103,6 +103,7 @@ export const PageBlockSchema = z.discriminatedUnion("type", [
     ...base,
     type: z.literal("pb_board"),
     bosses: z.array(z.object({ npc_id: z.number().int(), team_sizes: z.array(z.string()).catch([]) })).catch([]),
+    rows: limit(5),
   }),
   z.object({ ...base, type: z.literal("leaderboard"), limit: limit(10) }),
   z.object({

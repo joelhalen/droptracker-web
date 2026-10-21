@@ -65,7 +65,7 @@ export const BLOCK_DEFS: BlockDef[] = [
   { type: "live_ticker", label: "Live drop feed", description: "Drops as they happen.", icon: "⚡", category: "loot", scope: "group", surface: "plain", props: {} },
   // records
   { type: "records", label: "Clan records", description: "Fastest kills held by members.", icon: "⏱", category: "records", scope: "group", surface: "plain", props: { limit: 8 } },
-  { type: "pb_board", label: "PB board", description: "Ranked times for chosen bosses.", icon: "⏲", category: "records", scope: "group", surface: "card", props: { bosses: [] } },
+  { type: "pb_board", label: "PB board", description: "Ranked times for chosen bosses.", icon: "⏲", category: "records", scope: "group", surface: "card", props: { bosses: [], rows: 5 } },
   // community
   { type: "announcements", label: "Announcements", description: "Your latest news posts.", icon: "📣", category: "community", scope: "group", surface: "card", props: { limit: 3 } },
   { type: "event_standings", label: "Event standings", description: "Team scores for a running event.", icon: "🚩", category: "community", scope: "group", surface: "card", props: { event_id: null } },
