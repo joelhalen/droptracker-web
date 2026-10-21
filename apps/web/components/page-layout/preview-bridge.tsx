@@ -6,9 +6,10 @@
  * sees is what visitors get. This bridge makes it interactive:
  *
  *   builder → frame  {type: "dt-pl-select", id}   highlight + scroll to a block
- *                    {type: "dt-pl-reload"}       re-render after a draft save
+ *                    {type: "dt-pl-reload"}       re-render in place (unused by the
+ *                                                 builder, which double-buffers frames)
  *   frame → builder  {type: "dt-pl-click", id}    a block was clicked
- *                    {type: "dt-pl-ready"}        first paint / after reload
+ *                    {type: "dt-pl-ready"}        hydrated: safe to swap this frame in
  *
  * Links inside the frame never navigate (a stray click would leave the
  * preview), and messages are only accepted from our own origin.

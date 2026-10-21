@@ -194,7 +194,17 @@ export function PageBuilder(props: PageBuilderProps) {
   });
   const [, forceHistory] = useState(0);
 
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  // Two preview frames, double-buffered: a refresh loads the new draft into
+  // the hidden one and swaps it in once painted, keeping the scroll position.
+  // Reloading a whole document is more robust than refreshing in place, and
+  // the editor never sees a blank or half-rendered page.
+  const frameA = useRef<HTMLIFrameElement>(null);
+  const frameB = useRef<HTMLIFrameElement>(null);
+  const [frameSrc, setFrameSrc] = useState<[string, string]>([props.previewUrl, "about:blank"]);
+  const [activeFrame, setActiveFrame] = useState<0 | 1>(0);
+  const activeRef = useRef<0 | 1>(0);
+  const pendingFrame = useRef<0 | 1 | null>(null);
+  const previewVersion = useRef(0);
   const stageRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState({ w: 1000, h: 700 });
   const dirty = useRef(false);
@@ -208,14 +218,41 @@ export function PageBuilder(props: PageBuilderProps) {
 
   /* --- preview frame messaging ----------------------------------------------------- */
 
-  const postToFrame = useCallback((msg: Record<string, unknown>) => {
-    iframeRef.current?.contentWindow?.postMessage(msg, window.location.origin);
-  }, []);
+  const frameEl = useCallback((i: 0 | 1) => (i === 0 ? frameA.current : frameB.current), []);
+
+  const postToFrame = useCallback(
+    (msg: Record<string, unknown>) => {
+      frameEl(activeRef.current)?.contentWindow?.postMessage(msg, window.location.origin);
+    },
+    [frameEl],
+  );
+
+  const reloadPreview = useCallback(() => {
+    const next: 0 | 1 = activeRef.current === 0 ? 1 : 0;
+    previewVersion.current += 1;
+    pendingFrame.current = next;
+    const url = `${props.previewUrl}${props.previewUrl.includes("?") ? "&" : "?"}v=${previewVersion.current}`;
+    setFrameSrc((cur) => (next === 0 ? [url, cur[1]] : [cur[0], url]));
+  }, [props.previewUrl]);
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin || e.source !== iframeRef.current?.contentWindow) return;
+      if (e.origin !== window.location.origin) return;
       const data = e.data as { type?: string; id?: string | null };
+      const fromActive = e.source === frameEl(activeRef.current)?.contentWindow;
+      const pending = pendingFrame.current;
+      const fromPending = pending != null && e.source === frameEl(pending)?.contentWindow;
+      if (data?.type === "dt-pl-ready" && fromPending) {
+        // Swap the freshly rendered draft in, at the same scroll position.
+        const y = frameEl(activeRef.current)?.contentWindow?.scrollY ?? 0;
+        frameEl(pending)?.contentWindow?.scrollTo(0, y);
+        activeRef.current = pending;
+        pendingFrame.current = null;
+        setActiveFrame(pending);
+        postToFrame({ type: "dt-pl-select", id: selectedIdRef.current });
+        return;
+      }
+      if (!fromActive) return;
       if (data?.type === "dt-pl-click") {
         setSelectedId(data.id ?? null);
         if (data.id) setPane("settings");
@@ -224,7 +261,7 @@ export function PageBuilder(props: PageBuilderProps) {
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [postToFrame]);
+  }, [frameEl, postToFrame]);
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
@@ -369,14 +406,14 @@ export function PageBuilder(props: PageBuilderProps) {
         setState(res.state);
         setStatus("saved");
         setError(null);
-        postToFrame({ type: "dt-pl-reload" });
+        reloadPreview();
       } else {
         setStatus("error");
         setError(res.error);
       }
     }, SAVE_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [layout, scope, subjectId, postToFrame]);
+  }, [layout, scope, subjectId, reloadPreview]);
 
   // Warn before leaving with an unsaved edit.
   useEffect(() => {
@@ -464,7 +501,7 @@ export function PageBuilder(props: PageBuilderProps) {
       dirty.current = false;
       setLayout(fresh);
       setSelectedId(null);
-      postToFrame({ type: "dt-pl-reload" });
+      reloadPreview();
     }
   };
 
@@ -744,7 +781,19 @@ export function PageBuilder(props: PageBuilderProps) {
             className="absolute top-3 left-1/2 origin-top overflow-hidden rounded-lg border border-black/40 shadow-2xl"
             style={{ width: deviceWidth, height: frameHeight, transform: `translateX(-50%) scale(${scale})` }}
           >
-            <iframe ref={iframeRef} src={props.previewUrl} title="Page preview" className="size-full bg-[var(--dt-surface-0)]" />
+            {([0, 1] as const).map((i) => (
+              <iframe
+                key={i}
+                ref={i === 0 ? frameA : frameB}
+                src={frameSrc[i]}
+                title={i === activeFrame ? "Page preview" : "Page preview (loading)"}
+                aria-hidden={i !== activeFrame}
+                tabIndex={i === activeFrame ? 0 : -1}
+                className={`absolute inset-0 size-full bg-[var(--dt-surface-0)] ${
+                  i === activeFrame ? "" : "pointer-events-none opacity-0"
+                }`}
+              />
+            ))}
           </div>
         </main>
         <aside
