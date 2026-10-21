@@ -126,15 +126,16 @@ function ButtonsBlock({ block }: { block: Extract<SiteBlock, { type: "buttons" }
 
 const DIVIDER_SPACE = { sm: "py-2", md: "py-5", lg: "py-10" } as const;
 
-/* --- data blocks: async server components, each owns its fetch + fallback --- */
+/* --- data blocks: async server components, each owns its fetch + fallback.
+   Exported for the page builder's group pages (components/page-layout/). --- */
 
-async function LootboardBlock({ groupId, period }: { groupId: number; period: string }) {
+export async function LootboardBlock({ groupId, period }: { groupId: number; period: string }) {
   const board = await api.lootboard(groupId, period).catch(() => null);
   if (!board) return <EmptyState title="Lootboard unavailable" />;
   return <LootboardCanvas board={board} />;
 }
 
-async function PbBoardBlock({
+export async function PbBoardBlock({
   groupId,
   selections,
 }: {
@@ -183,14 +184,14 @@ async function PbBoardBlock({
   );
 }
 
-async function LeaderboardBlock({ groupId, limit }: { groupId: number; limit: number }) {
+export async function LeaderboardBlock({ groupId, limit }: { groupId: number; limit: number }) {
   const scope = `group:${groupId}`;
   const page = await api.playerLeaderboard({ scope, period: "month", limit }).catch(() => null);
   if (!page || page.entries.length === 0) return <EmptyState title="No ranked players yet" />;
   return <LeaderboardTable entries={page.entries.slice(0, limit)} scope={scope} kind="players" />;
 }
 
-async function RecapBlock({ groupId, period }: { groupId: number; period: string }) {
+export async function RecapBlock({ groupId, period }: { groupId: number; period: string }) {
   // "month"/"year" resolve to the newest frozen card via the recap index.
   const index = await api.recapIndex("group", groupId).catch(() => null);
   const match = index?.periods.find((p) => p.kind === period);
@@ -201,7 +202,7 @@ async function RecapBlock({ groupId, period }: { groupId: number; period: string
   return <RecapCard recap={recap} fluid />;
 }
 
-async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
+export async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
   const page = await api.announcements(`group:${groupId}`).catch(() => null);
   const items = page?.items.slice(0, limit) ?? [];
   if (items.length === 0) return <EmptyState title="No announcements yet" />;
@@ -224,7 +225,7 @@ async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: 
   );
 }
 
-async function MemberRosterBlock({
+export async function MemberRosterBlock({
   groupId,
   limit,
   sort,
@@ -260,7 +261,7 @@ async function MemberRosterBlock({
   );
 }
 
-async function EventStandingsBlock({ groupId, eventId }: { groupId: number; eventId?: number }) {
+export async function EventStandingsBlock({ groupId, eventId }: { groupId: number; eventId?: number }) {
   let id = eventId;
   let eventName: string | null = null;
   if (id == null) {
@@ -304,7 +305,7 @@ async function EventStandingsBlock({ groupId, eventId }: { groupId: number; even
   );
 }
 
-async function NpcBoardBlock({
+export async function NpcBoardBlock({
   groupId,
   npcId,
   period,
@@ -323,7 +324,7 @@ async function NpcBoardBlock({
   return <LeaderboardTable entries={page.entries.slice(0, limit)} scope={scope} kind="players" />;
 }
 
-async function WomAchievementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
+export async function WomAchievementsBlock({ groupId, limit }: { groupId: number; limit: number }) {
   const payload = await api.womAchievements(groupId, limit).catch(() => null);
   const items = payload?.items ?? [];
   if (items.length === 0) {

@@ -23,8 +23,11 @@ export function PersonalBestsGrid({
   pbs,
   imgBase = IMG_BASE,
   onOpenBoss,
+  initial = INITIAL_CARDS,
 }: {
   pbs: PersonalBestSummary[];
+  /** Cards shown before "Show all" (page-builder setting). */
+  initial?: number;
   /** The Discord Activity passes "/img": its iframe CSP only allows same-origin images. */
   imgBase?: string;
   /** Replaces the NPC page link. The Activity has no site routes, so it opens
@@ -35,7 +38,7 @@ export function PersonalBestsGrid({
   // Which entry has its loadout open. One at a time: the panels are large, and
   // opening several turns the grid into a wall of item icons.
   const [openLoadout, setOpenLoadout] = useState<number | null>(null);
-  const visible = showAll ? pbs : pbs.slice(0, INITIAL_CARDS);
+  const visible = showAll ? pbs : pbs.slice(0, initial);
   return (
     <div>
       <div className="stagger-children grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -95,7 +98,7 @@ export function PersonalBestsGrid({
           </Card>
         ))}
       </div>
-      {pbs.length > INITIAL_CARDS && (
+      {pbs.length > initial && (
         <Button
           variant="ghost"
           size="sm"

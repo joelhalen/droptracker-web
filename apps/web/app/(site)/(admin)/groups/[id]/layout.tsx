@@ -74,6 +74,9 @@ export default async function GroupAdminLayout({
         // Not locked: claiming an address and pointing it at your Discord or
         // DropTracker page is free. The subscription gates the page builder,
         // which is upsold inside the tab.
+        // Not locked: anyone can design and preview; publishing is the
+        // custom_site perk, upsold inside the builder.
+        { href: `/groups/${groupId}/page-builder`, label: "Page design" },
         { href: `/groups/${groupId}/website`, label: "Website" },
         { href: `/groups/${groupId}/announcements`, label: "Announcements" },
         { href: `/groups/${groupId}/members`, label: "Members" },

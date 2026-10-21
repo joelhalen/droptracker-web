@@ -10,6 +10,7 @@ type Params = Promise<{ id: string }>;
 
 const CARDS = [
   { slug: "settings", title: "Settings", desc: "Notifications, lootboard, points, integrations." },
+  { slug: "page-builder", title: "Page design", desc: "Design your public group page and members' profiles." },
   { slug: "announcements", title: "Announcements", desc: "Post news and syndicate to Discord." },
   { slug: "members", title: "Members", desc: "WOM sync, hide/unhide players." },
   { slug: "events", title: "Events", desc: "Create events, tasks, teams, and bingo." },
