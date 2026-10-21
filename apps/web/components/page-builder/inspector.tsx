@@ -336,7 +336,7 @@ const PERIOD_OPTS = [
 ] as const;
 
 /** Blocks that are too dense to sit in a narrow column. */
-const WIDE_ONLY = new Set(["records", "lootboard", "pb_board", "member_roster", "player_showcase", "personal_bests", "leaderboard"]);
+const WIDE_ONLY = new Set(["records", "lootboard", "member_roster", "player_showcase", "personal_bests"]);
 
 /* --- block inspector ------------------------------------------------------------- */
 

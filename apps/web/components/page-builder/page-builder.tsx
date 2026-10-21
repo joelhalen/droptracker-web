@@ -201,6 +201,8 @@ export function PageBuilder(props: PageBuilderProps) {
   const activeRef = useRef<0 | 1>(0);
   const pendingFrame = useRef<0 | 1 | null>(null);
   const previewVersion = useRef(0);
+  // Header and page-style edits happen at the top of the page: show them.
+  const scrollPreviewTop = useRef(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState({ w: 1000, h: 700 });
   const dirty = useRef(false);
@@ -240,7 +242,8 @@ export function PageBuilder(props: PageBuilderProps) {
       const fromPending = pending != null && e.source === frameEl(pending)?.contentWindow;
       if (data?.type === "dt-pl-ready" && fromPending) {
         // Swap the freshly rendered draft in, at the same scroll position.
-        const y = frameEl(activeRef.current)?.contentWindow?.scrollY ?? 0;
+        const y = scrollPreviewTop.current ? 0 : (frameEl(activeRef.current)?.contentWindow?.scrollY ?? 0);
+        scrollPreviewTop.current = false;
         frameEl(pending)?.contentWindow?.scrollTo(0, y);
         activeRef.current = pending;
         pendingFrame.current = null;
@@ -329,6 +332,9 @@ export function PageBuilder(props: PageBuilderProps) {
   };
 
   const updateTheme = (patch: Partial<PageTheme>) => {
+    if ("header_style" in patch || "banner_url" in patch || "banner_height" in patch || "show_description" in patch) {
+      scrollPreviewTop.current = true;
+    }
     commit({ ...layout, theme: { ...layout.theme, ...patch } }, `theme:${Object.keys(patch).join(",")}`);
   };
 
