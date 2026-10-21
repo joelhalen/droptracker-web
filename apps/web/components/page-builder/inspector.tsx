@@ -18,7 +18,7 @@ import {
 import { BLOCK_DEF, SURFACE_LABELS } from "@/lib/page-layout/catalog";
 import { Input, Textarea } from "@/components/ui";
 import { PbBossSelect, type PbSelection } from "@/components/site-builder/pb-boss-select";
-import { searchBuilderNpcs } from "@/app/(site)/page-builder-actions";
+import { searchNpcs } from "@/lib/page-layout/builder-client";
 
 export type Block = Record<string, unknown> & { id: string; type: string };
 
@@ -204,7 +204,7 @@ function NpcTypeahead({
     }
     const mine = ++seq.current;
     const t = setTimeout(() => {
-      searchBuilderNpcs(query)
+      searchNpcs(query)
         .then((r) => mine === seq.current && setResults(r.slice(0, 8)))
         .catch(() => mine === seq.current && setResults([]));
     }, 250);

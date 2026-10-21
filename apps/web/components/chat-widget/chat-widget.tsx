@@ -38,6 +38,7 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { useEventStream } from "@/lib/use-event-stream";
 import { useMe } from "@/lib/use-me";
+import { inBuilderPreview, useInBuilderPreview } from "@/lib/page-layout/preview-frame";
 import { ChatWidgetProvider, type ChatWidgetContextValue, type WidgetHint } from "./widget-context";
 
 // Lazy: the panel (and everything it imports — thread panel, transcript,
@@ -50,8 +51,10 @@ const REFRESH_DEBOUNCE_MS = 2_000;
 
 export function ChatWidget() {
   const me = useMe();
+  // Not inside the page builder's preview frame either (web137a).
+  const inPreview = useInBuilderPreview();
   // Loading and signed-out render nothing — zero cost for visitors.
-  if (!me) return null;
+  if (!me || inPreview) return null;
   return <ChatWidgetInner me={me} />;
 }
 
@@ -88,6 +91,7 @@ function ChatWidgetInner({ me }: { me: Me }) {
 
   // First load on mount — the badge must work with the panel closed.
   useEffect(() => {
+    if (inBuilderPreview()) return;
     refreshInbox();
   }, [refreshInbox]);
 

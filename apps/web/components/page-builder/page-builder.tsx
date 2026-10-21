@@ -46,13 +46,9 @@ import {
   newBlockId,
   templatesFor,
 } from "@/lib/page-layout/catalog";
-import {
-  discardLayoutDraftAction,
-  publishLayoutAction,
-  saveLayoutDraftAction,
-  unpublishLayoutAction,
-  type BuilderResult,
-} from "@/app/(site)/page-builder-actions";
+import type { BuilderResult } from "@/lib/page-layout/builder-ops";
+import { builderOp } from "@/lib/page-layout/builder-client";
+import { PREVIEW_FRAME_NAME } from "@/lib/page-layout/preview-frame";
 import { BlockInspector, PageInspector, Segmented, type Block } from "./inspector";
 
 const MAX_BLOCKS = 40;
@@ -399,7 +395,7 @@ export function PageBuilder(props: PageBuilderProps) {
     const mine = ++saveSeq.current;
     setStatus("saving");
     const t = setTimeout(async () => {
-      const res = await saveLayoutDraftAction(scope, subjectId, layout);
+      const res = await builderOp("save", scope, subjectId, layout);
       if (mine !== saveSeq.current) return; // a newer save is in flight
       if (res.ok) {
         dirty.current = false;
@@ -478,7 +474,7 @@ export function PageBuilder(props: PageBuilderProps) {
       return;
     }
     await run(
-      () => publishLayoutAction(scope, subjectId),
+      () => builderOp("publish", scope, subjectId),
       <span>
         Published. <a className="underline" href={props.liveUrl} target="_blank" rel="noreferrer">See it live</a>
       </span>,
@@ -490,11 +486,11 @@ export function PageBuilder(props: PageBuilderProps) {
       kind === "group" && scope === "group"
         ? "Switch back to the standard group page? Your design stays saved here."
         : "Switch back to the standard layout? Your design stays saved here.",
-    ) && run(() => unpublishLayoutAction(scope, subjectId), "Back to the standard layout. Your design is still saved.");
+    ) && run(() => builderOp("unpublish", scope, subjectId), "Back to the standard layout. Your design is still saved.");
 
   const discard = async () => {
     if (!window.confirm(state.published ? "Throw away your unpublished changes?" : "Start over from the standard layout?")) return;
-    const next = await run(() => discardLayoutDraftAction(scope, subjectId), "Changes discarded.");
+    const next = await run(() => builderOp("discard", scope, subjectId), "Changes discarded.");
     if (next) {
       const fresh = cloneLayout(next.draft ?? defaultLayout(scope));
       history.current = { stack: [cloneLayout(fresh)], index: 0, lastKey: "", lastAt: 0 };
@@ -786,6 +782,7 @@ export function PageBuilder(props: PageBuilderProps) {
               <iframe
                 key={i}
                 ref={i === 0 ? frameA : frameB}
+                name={PREVIEW_FRAME_NAME}
                 src={frameSrc[i]}
                 title={i === activeFrame ? "Page preview" : "Page preview (loading)"}
                 aria-hidden={i !== activeFrame}

@@ -1,14 +1,15 @@
-"use server";
-
 /**
- * Server Actions for the page builder (web137a): group pages, member profile
- * layouts and players' own profiles.
+ * Server side of the page builder (web137a): group pages, member profile
+ * layouts and players' own profiles. Called by the /api/page-builder route.
  *
- * They return a discriminated result instead of throwing, because Next
- * redacts thrown Server Action messages in production and the builder needs
- * the backend's real validation text ("Block 3 (Buttons): links must start
- * with https://"). The Web API does every permission and entitlement check;
- * the guard here only stops obviously wrong callers early.
+ * Not Server Actions on purpose: Next runs a page's Server Actions one at a
+ * time, so a slow site-wide one (the notices or support inbox load) would
+ * hold up every autosave behind it. A plain route has no queue.
+ *
+ * Results are discriminated rather than thrown so the builder can show the
+ * backend's own validation text ("Block 3 (Buttons): links must start with
+ * https://"). The Web API does every permission and entitlement check; the
+ * guard here only stops obviously wrong callers early.
  */
 import { revalidatePath, revalidateTag } from "next/cache";
 import type { LayoutBuilderState, LayoutScope, PageLayout } from "@droptracker/api-types";
@@ -45,7 +46,7 @@ function revalidateLive(scope: LayoutScope, id: number) {
   // 30s cache window; there is no per-group tag over every member.
 }
 
-export async function saveLayoutDraftAction(
+export async function saveDraft(
   scope: LayoutScope,
   id: number,
   layout: PageLayout,
@@ -59,7 +60,7 @@ export async function saveLayoutDraftAction(
   }
 }
 
-export async function publishLayoutAction(scope: LayoutScope, id: number): Promise<BuilderResult> {
+export async function publish(scope: LayoutScope, id: number): Promise<BuilderResult> {
   try {
     const denied = await guard(scope, id);
     if (denied) return { ok: false, error: denied };
@@ -71,7 +72,7 @@ export async function publishLayoutAction(scope: LayoutScope, id: number): Promi
   }
 }
 
-export async function unpublishLayoutAction(scope: LayoutScope, id: number): Promise<BuilderResult> {
+export async function unpublish(scope: LayoutScope, id: number): Promise<BuilderResult> {
   try {
     const denied = await guard(scope, id);
     if (denied) return { ok: false, error: denied };
@@ -83,7 +84,7 @@ export async function unpublishLayoutAction(scope: LayoutScope, id: number): Pro
   }
 }
 
-export async function discardLayoutDraftAction(scope: LayoutScope, id: number): Promise<BuilderResult> {
+export async function discard(scope: LayoutScope, id: number): Promise<BuilderResult> {
   try {
     const denied = await guard(scope, id);
     if (denied) return { ok: false, error: denied };
@@ -97,4 +98,24 @@ export async function discardLayoutDraftAction(scope: LayoutScope, id: number): 
 export async function searchBuilderNpcs(q: string) {
   if (q.trim().length < 2) return [];
   return api.searchEventNpcs(q.trim()).catch(() => []);
+}
+
+export type BuilderOp = "save" | "publish" | "unpublish" | "discard";
+
+export async function runBuilderOp(
+  op: BuilderOp,
+  scope: LayoutScope,
+  id: number,
+  layout?: PageLayout,
+): Promise<BuilderResult> {
+  switch (op) {
+    case "save":
+      return layout ? saveDraft(scope, id, layout) : { ok: false, error: "Nothing to save." };
+    case "publish":
+      return publish(scope, id);
+    case "unpublish":
+      return unpublish(scope, id);
+    case "discard":
+      return discard(scope, id);
+  }
 }
