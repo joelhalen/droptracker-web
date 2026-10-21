@@ -129,6 +129,7 @@ export function BlockSlot({
   }
   return (
     <section
+      data-pl-slot=""
       className={`rise-in min-w-0 ${WIDTH_CLASS[width]} ${preview ? "" : HIDE_CLASS[hideOn]}`}
       {...(preview
         ? {
@@ -184,6 +185,20 @@ export function BannerFrame({
         </div>
       </div>
     </header>
+  );
+}
+
+/**
+ * Returned by a data block that loads its own data and found nothing to
+ * show. The page can't know that before the block renders, so the marker
+ * does the hiding: visitors never see the block's slot at all (CSS
+ * `:has()` in globals.css), the builder preview shows the hint instead.
+ */
+export function BlockEmpty({ hint }: { hint: string }) {
+  return (
+    <div data-pl-empty="" className="border-osrs-bronze/40 text-osrs-parchment-dark/70 rounded-lg border border-dashed px-4 py-5 text-center text-xs">
+      {hint}
+    </div>
   );
 }
 

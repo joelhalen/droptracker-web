@@ -18,6 +18,7 @@ import { EntityHoverCard } from "@/components/entity-hover-card";
 import { PvpKillList } from "@/components/pvp-kill-list";
 import { SubmissionList } from "@/components/submission-list";
 import { Badge, EntityChip, StatTile } from "@/components/ui";
+import { BlockEmpty } from "./frame";
 import type { GroupPageContext } from "./group-page-view";
 
 /* --- stats row ---------------------------------------------------------------- */
@@ -149,7 +150,7 @@ export async function GroupStats({
   };
 
   const tiles = stats.map(tile).filter(Boolean);
-  if (tiles.length === 0) return null;
+  if (tiles.length === 0) return <BlockEmpty hint="Pick at least one stat." />;
   return <div className={`stagger-children grid gap-3 ${COLS[columns] ?? autoCols(tiles.length)}`}>{tiles}</div>;
 }
 
@@ -161,6 +162,20 @@ function Bar({ pct }: { pct: number }) {
       <div className="bg-osrs-gold h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
     </div>
   );
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  gwd: "God Wars",
+  group_bosses: "Group bosses",
+  desert_treasure: "Desert Treasure",
+  tob: "Theatre of Blood",
+  cox: "Chambers of Xeric",
+  toa: "Tombs of Amascut",
+};
+
+/** Clan Log category keys ("desert_treasure") as readable labels. */
+function categoryLabel(key: string): string {
+  return CATEGORY_LABELS[key] ?? key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
 export async function ClanLogBlock({
@@ -177,7 +192,7 @@ export async function ClanLogBlock({
   recent: number;
 }) {
   const log = await api.clanLog(groupId).catch(() => null);
-  if (!log || log.summary.total === 0) return null;
+  if (!log || log.summary.total === 0) return <BlockEmpty hint="Shows once members fill the collection log." />;
   if (view === "board") {
     return <ClanLogBoard board={log} />;
   }
@@ -199,7 +214,7 @@ export async function ClanLogBlock({
           {cats.map(([name, c]) => (
             <li key={name}>
               <div className="mb-1 flex justify-between text-xs">
-                <span>{name}</span>
+                <span>{categoryLabel(name)}</span>
                 <span className="text-osrs-parchment-dark/70 tabular-nums">
                   {c.obtained}/{c.total}
                 </span>
@@ -236,10 +251,10 @@ export async function ClanLogBlock({
 /* --- clan points ---------------------------------------------------------------- */
 
 export async function PointsBlock({ group, base, limit }: { group: GroupProfile; base: string; limit: number }) {
-  if (group.points_enabled === false) return null;
+  if (group.points_enabled === false) return <BlockEmpty hint="Clan points are switched off for this group." />;
   const board = await api.groupPointsLeaderboard(group.id, { limit }).catch(() => null);
   const rows = board?.entries.slice(0, limit) ?? [];
-  if (rows.length === 0) return null;
+  if (rows.length === 0) return <BlockEmpty hint="Shows once members have clan points." />;
   return (
     <div>
       <ol className="divide-osrs-bronze/20 divide-y">
@@ -276,7 +291,9 @@ export async function PvpSummaryBlock({
   showRecent: boolean;
 }) {
   const pvp = await api.groupPvp(groupId, period).catch(() => null);
-  if (!pvp || (pvp.totals.kills === 0 && pvp.recent.length === 0)) return null;
+  if (!pvp || (pvp.totals.kills === 0 && pvp.recent.length === 0)) {
+    return <BlockEmpty hint="Shows after a member's first PvP kill in this period." />;
+  }
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
@@ -330,7 +347,7 @@ export async function EventsListBlock({
     ...active.filter((e) => e.visibility !== "private"),
     ...past.filter((e) => e.visibility !== "private").sort((a, b) => (b.ends_at ?? 0) - (a.ends_at ?? 0)),
   ].slice(0, limit);
-  if (rows.length === 0) return null;
+  if (rows.length === 0) return <BlockEmpty hint="Shows when the group runs a public event." />;
   return (
     <ul className="divide-osrs-bronze/20 divide-y">
       {rows.map((e) => (
@@ -372,8 +389,8 @@ export async function HighlightsBlock({
   types: readonly HighlightType[];
   limit: number;
 }) {
-  if (types.length === 0) return null;
+  if (types.length === 0) return <BlockEmpty hint="Pick at least one kind of highlight." />;
   const items = await api.highlights(scope, id, types, limit).catch(() => []);
-  if (items.length === 0) return null;
+  if (items.length === 0) return <BlockEmpty hint="Shows once the chosen kinds of loot come in." />;
   return <SubmissionList submissions={items} showPlayer={scope === "group"} />;
 }

@@ -595,3 +595,9 @@ body {
 [data-pl-preview] [data-block-id][data-selected]::before {
   display: block;
 }
+
+/* A data block that found nothing (BlockEmpty) takes its whole slot with it
+ * for visitors. The builder preview keeps it, showing the hint. */
+[data-pl-slot]:has([data-pl-empty]):not([data-block-id]) {
+  display: none;
+}
