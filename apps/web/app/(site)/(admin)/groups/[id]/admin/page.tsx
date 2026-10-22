@@ -3,7 +3,7 @@ import { requireGroupAdminPage } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
-import { GroupSetupChecklist, serverInviteUrl } from "@/components/group-setup-checklist";
+import { GroupSetupChecklist, serverInviteUrl, showSetupChecklist } from "@/components/group-setup-checklist";
 
 export const metadata: Metadata = { title: "Group admin" };
 
@@ -38,7 +38,7 @@ export default async function GroupAdminOverview({ params }: { params: Params })
 
   return (
     <div className="space-y-6">
-      {setup && <GroupSetupChecklist status={setup} inviteUrl={serverInviteUrl(invite?.invite_url, setup.guild_id)} />}
+      {setup && showSetupChecklist(setup) && <GroupSetupChecklist status={setup} inviteUrl={serverInviteUrl(invite?.invite_url, setup.guild_id)} />}
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Members" value={String(group.member_count)} />
         <Stat label="Global rank" value={`#${group.global_rank ?? "—"}`} />

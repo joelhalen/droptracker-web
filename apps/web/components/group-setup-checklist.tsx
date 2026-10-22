@@ -1,6 +1,7 @@
 /**
  * The group setup checklist (web138a), from GET /groups/{id}/setup-status.
- * Shown on the group admin Overview; each problem carries the button that
+ * Shown on the group admin Overview while the group is onboarding or something
+ * is failing (`showSetupChecklist`); each problem carries the button that
  * fixes it. `SetupBanner` is the one-line version admin pages show while
  * something is actually broken.
  */
@@ -44,6 +45,12 @@ function fixLink(fix: string, groupId: number, inviteUrl: string | null): { labe
 export function serverInviteUrl(base: string | null | undefined, guildId: string | null): string | null {
   if (!base) return null;
   return guildId ? `${base}&guild_id=${guildId}&disable_guild_select=true` : base;
+}
+
+/** Onboarding, or something broken. A settled group that's working (or only
+ * has optional warnings) doesn't need the panel taking up its Overview. */
+export function showSetupChecklist(status: SetupStatus): boolean {
+  return status.onboarding || status.summary.failing > 0;
 }
 
 export function GroupSetupChecklist({

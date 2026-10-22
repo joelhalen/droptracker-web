@@ -19,6 +19,8 @@ export type SetupCheck = z.infer<typeof SetupCheckSchema>;
 export const SetupStatusSchema = z.object({
   group_id: z.number().int(),
   guild_id: z.string().nullable(),
+  /** Young or never posted: show the whole checklist even when nothing fails. */
+  onboarding: z.boolean().catch(true),
   checks: z.array(SetupCheckSchema),
   alerts: z.array(z.object({ kind: z.string(), since: z.string().nullable(), detail: z.string().nullish() })).catch([]),
   summary: z.object({
