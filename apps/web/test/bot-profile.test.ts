@@ -17,6 +17,12 @@ const profile = {
   banner_url: null,
   applied: { nick: "Loot Goblin", bio: null, avatar_url: null, banner_url: null },
   status: "pending",
+  defaults: {
+    name: "DropTracker.io",
+    avatar_url: "https://cdn.discordapp.com/avatars/1/a_x.gif?size=256",
+    banner_url: null,
+    bio: "Track your drops.",
+  },
   last_error: null,
   applied_at: null,
   updated_at: 1761123456,
@@ -52,6 +58,12 @@ test("admin gallery payload parses with history", () => {
     ],
   });
   assert.equal(parsed.profiles[0]?.history.length, 1);
+});
+
+test("a save can set or clear the images", () => {
+  const parsed = BotProfileInputSchema.parse({ nick: null, bio: null, avatar_url: "https://x/a.png", banner_url: null });
+  assert.equal(parsed.avatar_url, "https://x/a.png");
+  assert.equal(parsed.banner_url, null);
 });
 
 test("nickname input is capped at Discord's 32 characters", () => {

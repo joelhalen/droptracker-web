@@ -16,11 +16,21 @@ export const BotProfileFieldsSchema = z.object({
 });
 export type BotProfileFields = z.infer<typeof BotProfileFieldsSchema>;
 
+export const BotProfileDefaultsSchema = z.object({
+  name: z.string(),
+  avatar_url: z.string().nullable(),
+  banner_url: z.string().nullable(),
+  bio: z.string().nullable(),
+});
+export type BotProfileDefaults = z.infer<typeof BotProfileDefaultsSchema>;
+
 export const BotProfileSchema = BotProfileFieldsSchema.extend({
   entitled: z.boolean(),
   /** What the bot last applied in Discord. */
   applied: BotProfileFieldsSchema,
   status: z.enum(BOT_PROFILE_STATUSES).catch("default"),
+  /** The core bot's own look, used wherever a field is unset. */
+  defaults: BotProfileDefaultsSchema,
   last_error: z.string().nullable(),
   /** Epoch seconds. */
   applied_at: z.number().int().nullable(),
@@ -36,9 +46,13 @@ export const BotProfileSchema = BotProfileFieldsSchema.extend({
 });
 export type BotProfile = z.infer<typeof BotProfileSchema>;
 
+/** A full save. null means "use the bot's own"; image URLs come from the
+ * upload endpoint, which only stages them. */
 export const BotProfileInputSchema = z.object({
   nick: z.string().max(32).nullable().optional(),
   bio: z.string().max(190).nullable().optional(),
+  avatar_url: z.string().nullable().optional(),
+  banner_url: z.string().nullable().optional(),
 });
 export type BotProfileInput = z.infer<typeof BotProfileInputSchema>;
 

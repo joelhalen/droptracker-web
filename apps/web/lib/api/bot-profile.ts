@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { apiGet, apiSend, apiSendForm } from "./_client";
 import {
   AdminBotProfilesResponseSchema,
@@ -10,8 +11,8 @@ import {
 
 /**
  * Custom bot profile (web139a): the bot's nickname, bio, avatar and banner in
- * a group's Discord server. Saves are stored by the Web API and applied by the
- * core bot within seconds. Backend: web_api/routes/bot_profile.py.
+ * a group's Discord server. Images are staged by upload and only take effect
+ * with a save, which the core bot applies within seconds. Backend: web_api/routes/bot_profile.py.
  */
 export const botProfileApi = {
   async groupBotProfile(groupId: number): Promise<BotProfile> {
@@ -22,12 +23,11 @@ export const botProfileApi = {
     return BotProfileSchema.parse(await apiSend("PUT", `/groups/${groupId}/bot-profile`, input));
   },
 
-  async uploadGroupBotImage(groupId: number, kind: BotProfileImageKind, form: FormData): Promise<BotProfile> {
-    return BotProfileSchema.parse(await apiSendForm("POST", `/groups/${groupId}/bot-profile/${kind}`, form));
-  },
-
-  async removeGroupBotImage(groupId: number, kind: BotProfileImageKind): Promise<BotProfile> {
-    return BotProfileSchema.parse(await apiSend("DELETE", `/groups/${groupId}/bot-profile/${kind}`, {}));
+  /** Stage an image for the next save. The bot does not change until saveGroupBotProfile. */
+  async uploadGroupBotImage(groupId: number, kind: BotProfileImageKind, form: FormData): Promise<{ url: string }> {
+    return z
+      .object({ url: z.string() })
+      .parse(await apiSendForm("POST", `/groups/${groupId}/bot-profile/uploads/${kind}`, form));
   },
 
   async resetGroupBotProfile(groupId: number): Promise<BotProfile> {
