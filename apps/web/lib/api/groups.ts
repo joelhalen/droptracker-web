@@ -26,6 +26,8 @@ import {
   type GuildStatus,
   type AuthorizedUsersResponse,
   AuthorizedUsersResponseSchema,
+  type VerificationCodeIssueResponse,
+  VerificationCodeIssueResponseSchema,
   type EventManagersResponse,
   EventManagersResponseSchema,
   type BlacklistEntryType,
@@ -265,6 +267,22 @@ export const groupsApi = {
           }),
         ),
       () => mockAuthorizedUsers(),
+    );
+  },
+
+
+  /** web141a: create the plugin verification code and show it once (owner). */
+  async revealGroupVerificationCode(groupId: number): Promise<VerificationCodeIssueResponse> {
+    return VerificationCodeIssueResponseSchema.parse(
+      await apiSend("POST", `/groups/${groupId}/verification-code/reveal`, {}),
+    );
+  },
+
+
+  /** web141a: replace the active code with a new one, shown once (owner). */
+  async resetGroupVerificationCode(groupId: number): Promise<VerificationCodeIssueResponse> {
+    return VerificationCodeIssueResponseSchema.parse(
+      await apiSend("POST", `/groups/${groupId}/verification-code/reset`, {}),
     );
   },
 

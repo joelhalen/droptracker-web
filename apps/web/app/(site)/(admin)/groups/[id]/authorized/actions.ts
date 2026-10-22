@@ -70,3 +70,23 @@ export async function setAdminPolicy(groupId: number, discordPermsGrantAdmin: bo
   revalidate(groupId);
   return result;
 }
+
+/**
+ * web141a: create the plugin verification code and return it, once. The
+ * backend allows only the group's actual owner (no staff bypass); this check
+ * just turns the common refusal into a readable message.
+ */
+export async function revealVerificationCode(groupId: number) {
+  await assertOwner(groupId);
+  const result = await api.revealGroupVerificationCode(groupId);
+  revalidate(groupId);
+  return result;
+}
+
+/** web141a: replace the active code with a new one, returned once. */
+export async function resetVerificationCode(groupId: number) {
+  await assertOwner(groupId);
+  const result = await api.resetGroupVerificationCode(groupId);
+  revalidate(groupId);
+  return result;
+}

@@ -1327,8 +1327,43 @@ export const AuthorizedUsersResponseSchema = z.object({
   can_manage_admins: z.boolean().default(false),
   /** Whether Discord "Manage Server" still confers implicit admin here. */
   discord_perms_grant_admin: z.boolean().default(true),
+  /** web141a: the plugin verification code's state (never the code). */
+  verification_code: z
+    .lazy(() => GroupVerificationCodeStatusSchema)
+    .default({ active: false, can_manage: false }),
 });
 export type AuthorizedUsersResponse = z.infer<typeof AuthorizedUsersResponseSchema>;
+
+/**
+ * Plugin verification code (web141a): the second factor for administering a
+ * group from the RuneLite plugin. The code itself is returned exactly once, by
+ * reveal/reset (`code`); every other payload carries only this status.
+ */
+export const GroupVerificationCodeStatusSchema = z.object({
+  active: z.boolean(),
+  issued_at: z.string().nullable().optional(),
+  issued_by_user_id: z.number().int().nullable().optional(),
+  issued_via: z.enum(["create", "reveal", "reset"]).nullable().optional(),
+  cleared_at: z.string().nullable().optional(),
+  cleared_reason: z.string().nullable().optional(),
+  /** Whether the VIEWER may reveal/reset: the group's real owner only. */
+  can_manage: z.boolean().default(false),
+});
+export type GroupVerificationCodeStatus = z.infer<typeof GroupVerificationCodeStatusSchema>;
+
+/** POST /groups/{id}/verification-code/{reveal,reset}: the roster plus the code. */
+export const VerificationCodeIssueResponseSchema = AuthorizedUsersResponseSchema.extend({
+  code: z.string().regex(/^\d{3}-\d{3}-\d{3}$/),
+});
+export type VerificationCodeIssueResponse = z.infer<typeof VerificationCodeIssueResponseSchema>;
+
+/** Staff view (GET/POST /admin/groups/{id}/verification-code[/clear]). */
+export const AdminVerificationCodeStatusSchema = GroupVerificationCodeStatusSchema.omit({
+  can_manage: true,
+}).extend({
+  owner_user_id: z.number().int().nullable().default(null),
+});
+export type AdminVerificationCodeStatus = z.infer<typeof AdminVerificationCodeStatusSchema>;
 
 /* ---------------------------------------------------------------------------
  * Data removal (web137a): a player or group asking to be erased. Requests are
@@ -1614,6 +1649,9 @@ export const CreateGroupResultSchema = z.object({
   name: z.string().optional(),
   wom_id: z.number().int().nullable().optional(),
   guild_id: z.string().nullable().optional(),
+  /** web141a: the new group's plugin verification code, shown this once. Null
+   * if issuing it failed; the owner can then reveal it from Roles & access. */
+  verification_code: z.string().nullable().optional(),
 });
 export type CreateGroupResult = z.infer<typeof CreateGroupResultSchema>;
 

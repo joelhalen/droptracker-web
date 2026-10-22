@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { GroupPicker } from "@/components/admin/group-picker";
 import { GroupCompPanel } from "@/components/admin/group-comp-panel";
+import { GroupVerificationCodeAdmin } from "@/components/admin/group-verification-code-admin";
 import { requireSuperadmin } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Groups" };
@@ -17,13 +18,16 @@ export default async function AdminGroupsPage({ searchParams }: { searchParams: 
 
   let overview: Awaited<ReturnType<typeof api.adminGroupOverview>> | null = null;
   let tiers: Awaited<ReturnType<typeof api.subscriptionTiers>> = [];
+  let codeStatus: Awaited<ReturnType<typeof api.adminGroupVerificationCode>> | null = null;
   let error: string | null = null;
 
   if (hasGroup) {
     try {
-      [overview, tiers] = await Promise.all([
+      [overview, tiers, codeStatus] = await Promise.all([
         api.adminGroupOverview(groupId),
         api.subscriptionTiers(),
+        // Optional panel: a failure here must not hide the rest of the page.
+        api.adminGroupVerificationCode(groupId).catch(() => null),
       ]);
     } catch (e) {
       error = (e as Error).message || "Failed to load group.";
@@ -48,7 +52,10 @@ export default async function AdminGroupsPage({ searchParams }: { searchParams: 
           {error}
         </div>
       ) : overview ? (
-        <GroupCompPanel overview={overview} tiers={tiers} />
+        <>
+          <GroupCompPanel overview={overview} tiers={tiers} />
+          {codeStatus && <GroupVerificationCodeAdmin groupId={groupId} initial={codeStatus} />}
+        </>
       ) : null}
     </div>
   );

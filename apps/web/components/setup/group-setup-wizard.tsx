@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button } from "@/components/ui";
+import { VerificationCodeReveal } from "@/components/verification-code-reveal";
 import { getErrorMessage } from "@/lib/errors";
 import { CHANNELS_POLL_INTERVAL_MS, shouldKeepPollingChannels } from "@/lib/group-setup-channels";
 import {
@@ -97,6 +98,9 @@ export function GroupSetupWizard({
   const createdGroupIdRef = useRef<number | null>(initialGroupId);
   const [createdGroupId, setCreatedGroupId] = useState<number | null>(initialGroupId);
   const created = createdGroupId != null;
+  // web141a: the plugin verification code, returned once by the create call.
+  // Held only in memory and dropped when the owner confirms they saved it.
+  const [verificationCode, setVerificationCode] = useState<string | null>(null);
 
   const clampStep = useCallback(
     (idx: number) => {
@@ -300,6 +304,7 @@ export function GroupSetupWizard({
       });
       createdGroupIdRef.current = res.id;
       setCreatedGroupId(res.id);
+      setVerificationCode(res.verification_code ?? null);
       setStepIdx(3);
       env.persistStep?.({ groupId: res.id, step: 3 });
     } catch (err) {
@@ -674,6 +679,14 @@ export function GroupSetupWizard({
             </Button>
           </div>
         </div>
+      )}
+
+      {/* ── Plugin verification code: shown once, over whichever step ──── */}
+      {verificationCode && (
+        <VerificationCodeReveal
+          code={verificationCode}
+          onDone={() => setVerificationCode(null)}
+        />
       )}
 
       {/* ── Step 4: Channels ───────────────────────────────────────────── */}

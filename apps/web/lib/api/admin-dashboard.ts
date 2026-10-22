@@ -1,6 +1,8 @@
 import { apiGet, apiSend, withFallback } from "./_client";
 import { type AdminOverview, type AdminDataList, type AdminDataRecord, type AdminLogs, type AdminGroupOverview, type AdminAuditLog, type AdminUserOverview } from "./types";
 import {
+  AdminVerificationCodeStatusSchema,
+  type AdminVerificationCodeStatus,
   GroupSubscriptionSchema,
   AdminSubscriptionsOverviewSchema,
   type GroupSubscription,
@@ -38,6 +40,25 @@ export const adminDashboardApi = {
           await apiGet(`/admin/subscriptions/overview`, { authed: true }),
         ),
       () => mockAdminSubscriptionsOverview(),
+    );
+  },
+
+
+  // --- Superadmin: plugin verification code (web141a) ------------------
+  // Staff see whether a code exists and can withdraw it; never the code.
+  async adminGroupVerificationCode(groupId: number): Promise<AdminVerificationCodeStatus> {
+    return AdminVerificationCodeStatusSchema.parse(
+      await apiGet(`/admin/groups/${groupId}/verification-code`, { authed: true }),
+    );
+  },
+
+
+  async adminClearGroupVerificationCode(
+    groupId: number,
+    note: string,
+  ): Promise<AdminVerificationCodeStatus> {
+    return AdminVerificationCodeStatusSchema.parse(
+      await apiSend("POST", `/admin/groups/${groupId}/verification-code/clear`, { note }),
     );
   },
 

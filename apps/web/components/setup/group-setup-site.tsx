@@ -38,7 +38,7 @@ export function SiteGroupSetup({
       lookupWom: (womId) => lookupWom(womId),
       createGroup: async (input) => {
         const res = await createGroup(input);
-        return { id: res.id };
+        return { id: res.id, verification_code: res.verification_code };
       },
       listChannels: (groupId) => fetchWizardChannels(groupId),
       saveConfig: async (groupId, patch) => {

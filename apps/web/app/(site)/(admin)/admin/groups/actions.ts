@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { GroupSubscription } from "@droptracker/api-types";
+import type { AdminVerificationCodeStatus, GroupSubscription } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { requireSuperadmin } from "@/lib/auth";
 
@@ -33,4 +33,19 @@ export async function searchGroups(
   if (!q.trim()) return [];
   const results = await api.search(q);
   return results.groups;
+}
+
+/**
+ * Server Action: withdraw a group's plugin verification code (web141a), for an
+ * owner who lost theirs. Staff never see the code; the owner reveals a new one
+ * from Roles & access afterwards.
+ */
+export async function clearVerificationCode(
+  groupId: number,
+  note: string,
+): Promise<AdminVerificationCodeStatus> {
+  await requireSuperadmin("/admin/groups");
+  const status = await api.adminClearGroupVerificationCode(groupId, note);
+  revalidatePath("/admin/groups");
+  return status;
 }

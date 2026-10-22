@@ -23,6 +23,7 @@ import {
 } from "@/app/(site)/(admin)/groups/[id]/authorized/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Badge, Button, NameTile, RoleBadge } from "@/components/ui";
+import { GroupVerificationCodePanel } from "@/components/group-verification-code";
 
 function displayName(u: AuthorizedUser): string {
   return u.username || (u.discord_id ? `Discord user ${u.discord_id}` : `User #${u.user_id}`);
@@ -350,6 +351,14 @@ export function AuthorizedUsersManager({
           )}
         </ul>
       </section>
+
+      {/* ---- Plugin verification code (web141a) ------------------------ */}
+      <GroupVerificationCodePanel
+        groupId={groupId}
+        status={state.verification_code}
+        ownerless={ownerless}
+        onRoster={setState}
+      />
 
       {/* ---- Discord policy -------------------------------------------- */}
       <section className="space-y-2">

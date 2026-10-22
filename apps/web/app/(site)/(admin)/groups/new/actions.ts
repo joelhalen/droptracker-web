@@ -63,7 +63,8 @@ export async function createGroup(input: CreateGroupInput) {
   const parsed = CreateGroupInputSchema.parse(input);
   try {
     const result = await api.createGroup(parsed);
-    return { ok: true as const, id: result.id };
+    // The code is shown once, by the wizard; nothing else can read it back.
+    return { ok: true as const, id: result.id, verification_code: result.verification_code ?? null };
   } catch (err) {
     unwrap(err);
   }
