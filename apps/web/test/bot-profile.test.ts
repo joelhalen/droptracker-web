@@ -60,6 +60,11 @@ test("admin gallery payload parses with history", () => {
   assert.equal(parsed.profiles[0]?.history.length, 1);
 });
 
+test("the bio signature falls back when an older payload lacks it", () => {
+  const parsed = BotProfileSchema.parse(profile);
+  assert.match(parsed.limits.bio_signature, /^Powered by The DropTracker\nhttps:\/\/www\.droptracker\.io$/);
+});
+
 test("a save can set or clear the images", () => {
   const parsed = BotProfileInputSchema.parse({ nick: null, bio: null, avatar_url: "https://x/a.png", banner_url: null });
   assert.equal(parsed.avatar_url, "https://x/a.png");

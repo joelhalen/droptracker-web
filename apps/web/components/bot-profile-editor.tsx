@@ -351,7 +351,9 @@ export function BotProfileEditor({ groupId, initial }: { groupId: number; initia
   }
 
   const name = nick.trim() || defaults.name;
-  const shownBio = bio.trim() || defaults.bio;
+  // A custom bio always ends with the signature (the bot adds it on apply);
+  // the bot's own default bio is shown as it is.
+  const shownBio = bio.trim() ? `${bio.trim()}\n\n${profile.limits.bio_signature}` : defaults.bio;
 
   return (
     <div className="space-y-4">
@@ -421,6 +423,14 @@ export function BotProfileEditor({ groupId, initial }: { groupId: number; initia
             />
           )}
         </Field>
+        <div className="border-osrs-bronze/30 bg-osrs-brown-dark/40 max-w-xl rounded-lg border border-dashed px-3 py-2">
+          <p className="text-osrs-parchment-dark/60 text-[11px] font-semibold tracking-wide uppercase">
+            Always added under a custom bio
+          </p>
+          <p className="text-osrs-parchment-dark/80 mt-1 text-sm whitespace-pre-line">
+            {profile.limits.bio_signature}
+          </p>
+        </div>
       </Card>
 
       <Card padding="p-5" className="space-y-4">

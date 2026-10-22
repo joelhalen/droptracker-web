@@ -39,6 +39,8 @@ export const BotProfileSchema = BotProfileFieldsSchema.extend({
     nick_max: z.number().int(),
     bio_max: z.number().int(),
     bio_max_lines: z.number().int(),
+    /** Always added under a custom bio when the bot applies it. */
+    bio_signature: z.string().default("Powered by The DropTracker\nhttps://www.droptracker.io"),
     avatar_size: z.tuple([z.number().int(), z.number().int()]),
     banner_size: z.tuple([z.number().int(), z.number().int()]),
     image_cooldown_seconds: z.number().int(),
