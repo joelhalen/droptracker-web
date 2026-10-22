@@ -1926,6 +1926,15 @@ export const EMBED_TYPE_LABELS: Record<EmbedType, string> = {
   lb: "Lootboard",
 };
 
+/**
+ * Types whose message carries text above the embed ("X received a drop:").
+ * The lootboard edits one standing message and sends none.
+ */
+export const EMBED_CONTENT_TYPES: readonly EmbedType[] = EMBED_TYPES.filter((t) => t !== "lb");
+export const EMBED_CONTENT_MAX = 2000;
+/** @everyone / @here are refused in message text; roles and users are fine. */
+export const MASS_MENTION_RE = /@(everyone|here)\b/i;
+
 export const EmbedFieldSchema = z.object({
   name: z.string(),
   value: z.string(),
@@ -1950,6 +1959,12 @@ export const GroupEmbedSchema = z.object({
   image: z.string().nullable().default(null),
   timestamp: z.boolean().default(false),
   fields: z.array(EmbedFieldSchema).default([]),
+  /**
+   * The message text sent above the embed. Null keeps the built-in line (see
+   * `default_content`); "" sends no text. `{player_mention}` pings the player
+   * when their settings allow it.
+   */
+  content: z.string().nullable().default(null),
 });
 export type GroupEmbed = z.infer<typeof GroupEmbedSchema>;
 
@@ -1960,6 +1975,8 @@ export const GroupEmbedsResponseSchema = z.object({
       embed_type: z.enum(EMBED_TYPES),
       custom: GroupEmbedSchema.nullable(),
       default: GroupEmbedSchema.nullable(),
+      /** The text a design with null `content` is sent with; null = none (lb). */
+      default_content: z.string().nullable().default(null),
     }),
   ),
 });
@@ -1984,6 +2001,14 @@ export const GroupEmbedInputSchema = z
     image: z.string().max(200).nullable().optional(),
     timestamp: z.boolean().default(false),
     fields: z.array(EmbedFieldSchema).max(25).default([]),
+    content: z
+      .string()
+      .max(EMBED_CONTENT_MAX)
+      .refine((c) => !MASS_MENTION_RE.test(c), {
+        message: "Message text can't ping @everyone or @here. Mention a role instead.",
+      })
+      .nullable()
+      .optional(),
   })
   .refine((e) => e.title.trim() !== "" || e.description.trim() !== "" || e.fields.length > 0, {
     message: "An embed needs a title, a description or at least one field.",
@@ -2004,6 +2029,8 @@ export const EmbedDefaultEntrySchema = z.object({
   embed_type: z.enum(EMBED_TYPES),
   template: GroupEmbedSchema.nullable(),
   builtin: GroupEmbedSchema.nullable(),
+  /** The message text the sender writes when the default sets none. */
+  builtin_content: z.string().nullable().default(null),
   custom_count: z.number().int(),
   override_count: z.number().int(),
 });
@@ -2013,6 +2040,66 @@ export const EmbedDefaultsResponseSchema = z.object({
   embeds: z.array(EmbedDefaultEntrySchema),
 });
 export type EmbedDefaultsResponse = z.infer<typeof EmbedDefaultsResponseSchema>;
+
+/**
+ * Notification footers (web140a, `custom_footer` entitlement): replace or
+ * remove the DropTracker footer, for every message (`all`) or per type
+ * (`types`; a type left out follows `all`, or its fallback type first).
+ */
+export const FOOTER_TYPES = [
+  "drop",
+  "clog",
+  "pb",
+  "ca",
+  "pet",
+  "pet_dupe",
+  "level_up",
+  "xp_milestone",
+  "kc",
+  "rank",
+  "quest",
+  "death",
+  "diary",
+  "slayer",
+  "pvp_kill",
+  "pvp_death",
+  "lb",
+] as const;
+export type FooterType = (typeof FOOTER_TYPES)[number];
+
+export const FOOTER_TYPE_LABELS: Record<FooterType, string> = {
+  ...EMBED_TYPE_LABELS,
+  xp_milestone: "XP milestones",
+  kc: "Kill count milestones",
+  rank: "Hiscore rank milestones",
+};
+
+export const FOOTER_MODES = ["default", "none", "custom"] as const;
+export type FooterMode = (typeof FOOTER_MODES)[number];
+export const FOOTER_TEXT_MAX = 2048;
+
+export const FooterChoiceSchema = z.object({
+  mode: z.enum(FOOTER_MODES),
+  text: z.string().nullable().default(null),
+});
+export type FooterChoice = z.infer<typeof FooterChoiceSchema>;
+
+export const NotificationFootersSchema = z.object({
+  entitled: z.boolean(),
+  /** The DropTracker footer, as sent when nothing is chosen. */
+  default_footer: z.string().nullable(),
+  footer_types: z.array(z.enum(FOOTER_TYPES)),
+  fallback_types: z.record(z.string(), z.string()).default({}),
+  all: FooterChoiceSchema.nullable(),
+  types: z.record(z.string(), FooterChoiceSchema).default({}),
+});
+export type NotificationFooters = z.infer<typeof NotificationFootersSchema>;
+
+export const NotificationFootersInputSchema = z.object({
+  all: FooterChoiceSchema.nullable(),
+  types: z.record(z.string(), FooterChoiceSchema),
+});
+export type NotificationFootersInput = z.infer<typeof NotificationFootersInputSchema>;
 
 /**
  * Superadmin: backend service control (FRONTEND_PLAN.md §9, §14.1

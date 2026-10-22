@@ -16,12 +16,16 @@
  */
 import { useMemo, useState, useTransition } from "react";
 import {
+  EMBED_CONTENT_MAX,
+  EMBED_CONTENT_TYPES,
   EMBED_TYPES,
   EMBED_TYPE_LABELS,
+  MASS_MENTION_RE,
   type EmbedType,
   type GroupEmbed,
   type GroupEmbedInput,
   type GroupEmbedsResponse,
+  type NotificationFooters,
 } from "@droptracker/api-types";
 import {
   resetGroupEmbedAction,
@@ -35,6 +39,7 @@ import { flattenTitleMarkdown, sampleIconFor, tidyTitle } from "@/lib/embeds";
 import { getErrorMessage } from "@/lib/errors";
 import { DEATH_EMBED_PLACEHOLDERS } from "@/lib/death-placeholders";
 import { defaultReach, type DefaultUsage } from "@/lib/notification-defaults";
+import { resolveFooter } from "@/lib/notification-footers";
 import { Alert, Button, Card, Checkbox, Input, Textarea } from "@/components/ui";
 
 export type EmbedEditorScope =
@@ -52,6 +57,13 @@ const COMMON_MEDIA: PlaceholderDoc[] = [
   { token: "{video_url}", help: "Video URL (when submitted)", sample: "" },
   { token: "{video_link}", help: "Markdown link to the video", sample: "" },
 ];
+
+/** Message text only: a mention inside an embed never pings. */
+const PLAYER_MENTION: PlaceholderDoc = {
+  token: "{player_mention}",
+  help: "Pings the player (when their settings allow it), then links their profile",
+  sample: "@RuneLite Ron ([RuneLite Ron](https://www.droptracker.io/players/1))",
+};
 
 const PLUGIN_VERSION: PlaceholderDoc = {
   token: "{plugin_version}",
@@ -293,6 +305,10 @@ type Draft = {
   image: string;
   timestamp: boolean;
   fields: DraftField[];
+  /** Message text above the embed, as edited. */
+  content: string;
+  /** True while the text is the built-in one (saved as null). */
+  contentDefault: boolean;
 };
 
 const EMPTY_DRAFT: Draft = {
@@ -304,11 +320,30 @@ const EMPTY_DRAFT: Draft = {
   image: "",
   timestamp: false,
   fields: [],
+  content: "",
+  contentDefault: true,
 };
 
-function draftFrom(embed: GroupEmbed | null | undefined): Draft {
-  if (!embed) return { ...EMPTY_DRAFT, fields: [] };
+/**
+ * ``own`` is the stored design (the group's, or staff's default); ``base`` is
+ * what is sent without one. Message text follows the same split: the design's
+ * own text, else ``defaultContent`` (the built-in line), marked as such so
+ * saving keeps following it.
+ */
+function draftFrom(
+  own: GroupEmbed | null | undefined,
+  base: GroupEmbed | null | undefined,
+  defaultContent: string | null | undefined,
+): Draft {
+  const embed = own ?? base;
+  const ownContent = own?.content ?? null;
+  const content = {
+    content: ownContent ?? defaultContent ?? "",
+    contentDefault: ownContent === null,
+  };
+  if (!embed) return { ...EMPTY_DRAFT, fields: [], ...content };
   return {
+    ...content,
     title: embed.title,
     url: embed.url ?? "",
     description: embed.description,
@@ -320,8 +355,10 @@ function draftFrom(embed: GroupEmbed | null | undefined): Draft {
   };
 }
 
-function toInput(draft: Draft): GroupEmbedInput {
+function toInput(draft: Draft, type: EmbedType): GroupEmbedInput {
   return {
+    content:
+      !EMBED_CONTENT_TYPES.includes(type) || draft.contentDefault ? null : draft.content.trim(),
     title: draft.title.trim(),
     url: draft.url.trim() || null,
     description: draft.description,
@@ -475,12 +512,17 @@ function DiscordPreview({
   draft,
   docs,
   useSamples,
+  showContent,
+  footer,
 }: {
   draft: Draft;
   docs: PlaceholderDoc[];
   useSamples: boolean;
+  showContent: boolean;
+  footer: string | null;
 }) {
-  const sub = (t: string) => substitute(t, docs, useSamples);
+  const sub = (t: string) => substitute(t, [...docs, PLAYER_MENTION], useSamples);
+  const footerText = footer ? sub(footer) : "";
   const stripColor = /^#[0-9a-fA-F]{6}$/.test(draft.color) ? draft.color : "#1e1f22";
   const visibleFields = draft.fields.filter((f) => f.name.trim() || f.value.trim());
   const now = new Date();
@@ -503,6 +545,11 @@ function DiscordPreview({
             </span>
             <span className="text-xs text-[#949ba4]">{timeText}</span>
           </div>
+          {showContent && draft.content.trim() && (
+            <div className="mt-0.5 text-sm leading-snug break-words whitespace-pre-line text-[#dbdee1]">
+              <PreviewText text={sub(draft.content)} useSamples={useSamples} />
+            </div>
+          )}
           <div
             className="mt-1 grid max-w-[520px] grid-cols-1 rounded border-l-4 bg-[#2b2d31] py-3 pr-4 pl-3"
             style={{ borderLeftColor: stripColor }}
@@ -547,10 +594,17 @@ function DiscordPreview({
                 className="mt-3 max-h-64 w-full rounded object-cover"
               />
             )}
-            <div className="mt-2 flex items-center gap-1 text-[11px] text-[#949ba4]">
-              <span>Powered by DropTracker | droptracker.io</span>
-              {draft.timestamp && <span>• {timeText}</span>}
-            </div>
+            {(footerText.trim() || draft.timestamp) && (
+              <div className="mt-2 flex items-center gap-1 text-[11px] text-[#949ba4]">
+                {footerText.trim() && <span>{footerText}</span>}
+                {draft.timestamp && (
+                  <span>
+                    {footerText.trim() ? "• " : ""}
+                    {timeText}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -564,9 +618,12 @@ function DiscordPreview({
 export function EmbedEditor({
   scope,
   initial,
+  footers,
 }: {
   scope: EmbedEditorScope;
   initial: GroupEmbedsResponse;
+  /** The group's footer choices, so the preview shows the footer it is sent. */
+  footers?: NotificationFooters | null;
 }) {
   const staff = scope.kind === "defaults";
   const byType = useMemo(() => {
@@ -578,9 +635,10 @@ export function EmbedEditor({
   const [customByType, setCustomByType] = useState<Partial<Record<EmbedType, GroupEmbed | null>>>(
     () => Object.fromEntries(initial.embeds.map((e) => [e.embed_type, e.custom])),
   );
-  const [draft, setDraft] = useState<Draft>(() =>
-    draftFrom(byType.get("drop")?.custom ?? byType.get("drop")?.default),
-  );
+  const [draft, setDraft] = useState<Draft>(() => {
+    const e = byType.get("drop");
+    return draftFrom(e?.custom, e?.default, e?.default_content);
+  });
   const [dirty, setDirty] = useState(false);
   const [useSamples, setUseSamples] = useState(true);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -592,6 +650,11 @@ export function EmbedEditor({
   // fall back to a built-in embed, and most types have none.
   const canReset = hasCustom && (!staff || Boolean(entry?.default));
   const docs = PLACEHOLDERS[selected];
+  const hasContent = EMBED_CONTENT_TYPES.includes(selected);
+  const defaultContent = entry?.default_content ?? "";
+  const previewFooter = staff
+    ? (footers?.default_footer ?? resolveFooter(null, selected))
+    : resolveFooter(footers, selected);
   const typeNoun = `${EMBED_TYPE_LABELS[selected].toLowerCase()} template`;
 
   let status: string;
@@ -618,7 +681,7 @@ export function EmbedEditor({
     // customByType holds every type (null once reset), so it alone says
     // whether a template is still stored — `e.custom` is the page-load copy.
     const stored = t in customByType ? customByType[t] : e?.custom;
-    setDraft(draftFrom(stored ?? e?.default));
+    setDraft(draftFrom(stored, e?.default, e?.default_content));
     setDirty(false);
     setMessage(null);
   };
@@ -649,6 +712,13 @@ export function EmbedEditor({
       });
       return;
     }
+    if (hasContent && !draft.contentDefault && MASS_MENTION_RE.test(draft.content)) {
+      setMessage({
+        tone: "error",
+        text: "Message text can't ping @everyone or @here. Mention a role instead.",
+      });
+      return;
+    }
     if (
       staff &&
       !window.confirm(
@@ -659,7 +729,7 @@ export function EmbedEditor({
       return;
     startTransition(async () => {
       try {
-        const input = toInput(draft);
+        const input = toInput(draft, selected);
         const res =
           scope.kind === "defaults"
             ? await saveEmbedDefaultAction(selected, input)
@@ -669,7 +739,7 @@ export function EmbedEditor({
           return;
         }
         setCustomByType((m) => ({ ...m, [selected]: res.data }));
-        setDraft(draftFrom(res.data));
+        setDraft(draftFrom(res.data, entry?.default, entry?.default_content));
         setDirty(false);
         setMessage({
           tone: "success",
@@ -699,7 +769,7 @@ export function EmbedEditor({
           return;
         }
         setCustomByType((m) => ({ ...m, [selected]: null }));
-        setDraft(draftFrom(entry?.default));
+        setDraft(draftFrom(null, entry?.default, entry?.default_content));
         setDirty(false);
         setMessage({
           tone: "success",
@@ -753,6 +823,58 @@ export function EmbedEditor({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Form */}
         <Card padding="p-5" className="space-y-4">
+          {hasContent && (
+            <div>
+              <label className="text-osrs-parchment mb-1 block text-sm font-medium">
+                Message text
+                <span className="text-osrs-parchment-dark/50 ml-2 text-xs font-normal">
+                  {draft.contentDefault
+                    ? "default"
+                    : `${draft.content.length}/${EMBED_CONTENT_MAX}`}
+                </span>
+              </label>
+              <Textarea
+                value={draft.content}
+                maxLength={EMBED_CONTENT_MAX}
+                rows={2}
+                onChange={(e) => update({ content: e.target.value, contentDefault: false })}
+                className="w-full"
+                placeholder="Leave empty to send the embed with no text above it"
+              />
+              <div className="mt-1 flex flex-wrap items-start justify-between gap-2">
+                <p className="text-osrs-parchment-dark/50 text-xs">
+                  The line sent above the embed. Use{" "}
+                  <code className="text-osrs-gold-bright">{"{player_mention}"}</code> to ping the
+                  player (only if their own settings allow it); a name inside the embed never
+                  pings. Any placeholder below works here, and you can mention a role like{" "}
+                  <code>{"<@&role id>"}</code>. @everyone and @here are not allowed.
+                </p>
+                {!draft.contentDefault && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    type="button"
+                    onClick={() => update({ content: defaultContent, contentDefault: true })}
+                  >
+                    Use the default text
+                  </Button>
+                )}
+              </div>
+              {!draft.contentDefault && draft.content.trim() === "" && (
+                <p className="text-osrs-parchment-dark/70 mt-1 text-xs">
+                  No text will be sent above the embed, so the player is not pinged.
+                </p>
+              )}
+              {!draft.contentDefault &&
+                draft.content.trim() !== "" &&
+                !draft.content.includes("{player_mention}") && (
+                  <p className="text-osrs-parchment-dark/70 mt-1 text-xs">
+                    Without {"{player_mention}"} the player is not pinged.
+                  </p>
+                )}
+            </div>
+          )}
+
           <div>
             <label className="text-osrs-parchment mb-1 block text-sm font-medium">
               Title
@@ -973,7 +1095,25 @@ export function EmbedEditor({
                 Fill placeholders with sample data
               </label>
             </div>
-            <DiscordPreview draft={draft} docs={docs} useSamples={useSamples} />
+            <DiscordPreview
+              draft={draft}
+              docs={docs}
+              useSamples={useSamples}
+              showContent={hasContent}
+              footer={previewFooter}
+            />
+            {scope.kind === "group" && (
+              <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
+                The footer is set on the{" "}
+                <a
+                  href={`/groups/${scope.groupId}/embeds?tab=footer`}
+                  className="text-osrs-gold hover:underline"
+                >
+                  Footer
+                </a>{" "}
+                tab.
+              </p>
+            )}
           </Card>
 
           <Card padding="p-5">
@@ -981,11 +1121,11 @@ export function EmbedEditor({
               Placeholders for {EMBED_TYPE_LABELS[selected].toLowerCase()}
             </h3>
             <p className="text-osrs-parchment-dark/60 mb-3 text-xs">
-              Click a placeholder to copy it, then paste it into the title, description, or any
-              field. It is replaced with live data when the notification is sent.
+              Click a placeholder to copy it, then paste it into the message text, title,
+              description, or any field. It is replaced with live data when the notification is sent.
             </p>
             <div className="space-y-1.5">
-              {docs.map((d) => (
+              {(hasContent ? [PLAYER_MENTION, ...docs] : docs).map((d) => (
                 <button
                   key={d.token}
                   type="button"

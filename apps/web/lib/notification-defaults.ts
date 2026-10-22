@@ -31,6 +31,8 @@ export function embedEditorEntries(resp: EmbedDefaultsResponse): GroupEmbedsResp
       embed_type: e.embed_type,
       custom: e.template,
       default: e.builtin,
+      // Staff edit group 1's own text; null on it means the sender's line.
+      default_content: e.builtin_content,
     })),
   };
 }

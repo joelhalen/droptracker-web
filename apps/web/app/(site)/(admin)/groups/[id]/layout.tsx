@@ -67,7 +67,10 @@ export default async function GroupAdminLayout({
         {
           href: `/groups/${groupId}/embeds`,
           label: "Embeds",
-          locked: !hasEntitlement(subscription, "custom_embeds", { isSuperadmin: user.is_superadmin }),
+          // Open on any plan with either perk: the Footer tab is on every paid plan.
+          locked:
+            !hasEntitlement(subscription, "custom_embeds", { isSuperadmin: user.is_superadmin }) &&
+            !hasEntitlement(subscription, "custom_footer", { isSuperadmin: user.is_superadmin }),
         },
         {
           href: `/groups/${groupId}/hall-of-fame`,

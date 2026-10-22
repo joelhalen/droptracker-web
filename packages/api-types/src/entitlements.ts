@@ -128,6 +128,13 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     help: "Give the DropTracker bot its own nickname, avatar, banner and bio inside the group's Discord server.",
     default: false,
   },
+  {
+    key: "custom_footer",
+    label: "Custom message footer",
+    category: "features",
+    help: "Remove the DropTracker footer from the group's Discord notifications, or replace it with the group's own, for every notification or per notification type.",
+    default: false,
+  },
 ];
 
 export type EntitlementKey = (typeof ENTITLEMENT_FIELDS)[number]["key"];

@@ -5,6 +5,9 @@ import {
   GroupEmbedSchema,
   GroupEmbedsResponseSchema,
   GroupNotificationLayoutsResponseSchema,
+  NotificationFootersSchema,
+  type NotificationFooters,
+  type NotificationFootersInput,
   NotificationLayoutDefaultsResponseSchema,
   NotificationLayoutMetaSchema,
   SavedNotificationLayoutSchema,
@@ -42,6 +45,7 @@ import {
   mockEmbedDefaults,
   mockEventLayoutDefaults,
   mockGroupEmbeds,
+  mockNotificationFooters,
   mockEventLayoutMeta,
   mockEventLayouts,
   mockGroupEventLayouts,
@@ -96,6 +100,44 @@ export const layoutsApi = {
         return { ok: true } as const;
       },
       () => ({ ok: true }) as const,
+    );
+  },
+
+
+  // --- Notification footers (web140a, custom_footer) ---------------------
+  /** The group's footer choices: for every message and per type. */
+  async notificationFooters(groupId: number): Promise<NotificationFooters> {
+    return withFallback(
+      async () =>
+        NotificationFootersSchema.parse(
+          await apiGet(`/groups/${groupId}/notification-footers`, { authed: true }),
+        ),
+      () => mockNotificationFooters(),
+    );
+  },
+
+  /** Replace the group's footer choices. Requires the `custom_footer` entitlement. */
+  async saveNotificationFooters(
+    groupId: number,
+    input: NotificationFootersInput,
+  ): Promise<NotificationFooters> {
+    return withFallback(
+      async () =>
+        NotificationFootersSchema.parse(
+          await apiSend("PUT", `/groups/${groupId}/notification-footers`, input),
+        ),
+      () => ({ ...mockNotificationFooters(), all: input.all, types: input.types }),
+    );
+  },
+
+  /** Back to the DropTracker footer everywhere. Needs no entitlement. */
+  async resetNotificationFooters(groupId: number): Promise<NotificationFooters> {
+    return withFallback(
+      async () =>
+        NotificationFootersSchema.parse(
+          await apiSend("DELETE", `/groups/${groupId}/notification-footers`, {}),
+        ),
+      () => mockNotificationFooters(),
     );
   },
 

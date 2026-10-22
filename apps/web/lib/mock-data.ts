@@ -42,6 +42,7 @@ import type {
   EventMessageLayout,
   GroupEventLayoutsResponse,
   GroupNotificationLayoutsResponse,
+  NotificationFooters,
   GroupHofLayoutResponse,
   HofLayout,
   HofLayoutMeta,
@@ -115,7 +116,12 @@ import type {
   TesterBuildChange,
   TesterBuilds,
 } from "@droptracker/api-types";
-import { EMBED_TYPES, GROUP_CONFIG_FIELDS, LOOT_ALL_TIME } from "@droptracker/api-types";
+import {
+  EMBED_TYPES,
+  FOOTER_TYPES,
+  GROUP_CONFIG_FIELDS,
+  LOOT_ALL_TIME,
+} from "@droptracker/api-types";
 import { defaultMaxAwards, itemTotal } from "./loot-sweep";
 import { slugify } from "./slug";
 
@@ -1370,6 +1376,7 @@ export function mockGroupSubscription(groupId: number): GroupSubscription {
       ai_task_gen_daily: 75,
       custom_site: true,
       custom_bot_profile: true,
+      custom_footer: true,
     },
   };
 }
@@ -1554,6 +1561,7 @@ export function mockGroupEmbeds(): GroupEmbedsResponse {
                 { name: "Value", value: "{total_value} gp", inline: true },
                 { name: "Group rank", value: "#{group_rank}", inline: true },
               ],
+              content: "{player_mention} just got {item_name}!",
             }
           : null,
       default: {
@@ -1566,8 +1574,21 @@ export function mockGroupEmbeds(): GroupEmbedsResponse {
         image: null,
         timestamp: false,
         fields: [{ name: "Player", value: "{player_name}", inline: true }],
+        content: null,
       },
+      default_content: embed_type === "lb" ? null : "{player_mention} received a drop:",
     })),
+  };
+}
+
+export function mockNotificationFooters(): NotificationFooters {
+  return {
+    entitled: true,
+    default_footer: "Powered by the DropTracker | https://www.droptracker.io/",
+    footer_types: [...FOOTER_TYPES],
+    fallback_types: { pet_dupe: "pet", xp_milestone: "level_up" },
+    all: { mode: "custom", text: "Clan Example | {month_name}" },
+    types: { pb: { mode: "none", text: null } },
   };
 }
 
@@ -1761,6 +1782,7 @@ export function mockEmbedDefaults(): EmbedDefaultsResponse {
         embed_type,
         template: builtin ? null : embed,
         builtin: builtin ? embed : null,
+        builtin_content: embed_type === "lb" ? null : "{player_mention} received a drop:",
         custom_count: embed_type === "drop" ? 3 : 0,
         override_count: embed_type === "drop" ? 1 : 0,
       };
