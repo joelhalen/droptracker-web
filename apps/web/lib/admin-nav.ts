@@ -36,6 +36,12 @@ export const ADMIN_SECTIONS: AdminNavSection[] = [
       { href: "/admin/testers", minRole: "developer", label: "Testers", desc: "Plugin test builds: pipeline status, downloads, and what each Bug Tester is running." },
       { href: "/admin/lookup", minRole: "developer", label: "Lookup", desc: "Cross-content search across players, groups, and drops." },
       { href: "/admin/audit", minRole: "developer", label: "Audit log", desc: "Every admin action taken on the site." },
+      {
+        href: "/admin/bot-profiles",
+        minRole: "developer",
+        label: "Bot profiles",
+        desc: "Every group's custom bot name, avatar, banner and bio, with recent changes.",
+      },
     ],
   },
   {

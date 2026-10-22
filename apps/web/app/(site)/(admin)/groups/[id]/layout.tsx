@@ -74,6 +74,11 @@ export default async function GroupAdminLayout({
           label: "Hall of Fame",
           locked: !hasEntitlement(subscription, "hall_of_fame", { isSuperadmin: user.is_superadmin }),
         },
+        {
+          href: `/groups/${groupId}/bot`,
+          label: "Bot appearance",
+          locked: !hasEntitlement(subscription, "custom_bot_profile", { isSuperadmin: user.is_superadmin }),
+        },
         // Not locked: claiming an address and pointing it at your Discord or
         // DropTracker page is free. The subscription gates the page builder,
         // which is upsold inside the tab.

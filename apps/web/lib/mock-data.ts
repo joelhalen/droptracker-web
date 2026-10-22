@@ -1369,6 +1369,7 @@ export function mockGroupSubscription(groupId: number): GroupSubscription {
       custom_points: true,
       ai_task_gen_daily: 75,
       custom_site: true,
+      custom_bot_profile: true,
     },
   };
 }

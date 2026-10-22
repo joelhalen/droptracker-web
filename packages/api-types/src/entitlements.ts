@@ -121,6 +121,13 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
     help: "Design the group's public page (and the default profile layout for its members) in the page builder: choose the blocks, their order, size and style, colours and a banner.",
     default: false,
   },
+  {
+    key: "custom_bot_profile",
+    label: "Custom bot appearance",
+    category: "features",
+    help: "Give the DropTracker bot its own nickname, avatar, banner and bio inside the group's Discord server.",
+    default: false,
+  },
 ];
 
 export type EntitlementKey = (typeof ENTITLEMENT_FIELDS)[number]["key"];

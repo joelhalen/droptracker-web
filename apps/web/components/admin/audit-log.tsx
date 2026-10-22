@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, useState } from "react";
 import type { AdminAuditEntry, AdminAuditLog } from "@/lib/api";
 import { Button } from "@/components/ui";
+import { BotProfileThumbs } from "@/components/admin/bot-profile-thumbs";
 import { formatRelativeTime } from "@/lib/format";
 
 const field =
@@ -161,12 +162,14 @@ export function AuditLogViewer({
                             <pre className="bg-osrs-brown-dark/80 border-osrs-bronze/20 max-h-48 overflow-auto rounded border p-2 text-xs">
                               {prettyValue(entry.before)}
                             </pre>
+                            {entry.action.startsWith("bot_profile.") && <BotProfileThumbs raw={entry.before} />}
                           </div>
                           <div>
                             <div className="text-osrs-parchment-dark/50 mb-1 text-xs uppercase">After</div>
                             <pre className="bg-osrs-brown-dark/80 border-osrs-bronze/20 max-h-48 overflow-auto rounded border p-2 text-xs">
                               {prettyValue(entry.after)}
                             </pre>
+                            {entry.action.startsWith("bot_profile.") && <BotProfileThumbs raw={entry.after} />}
                           </div>
                         </div>
                       </td>

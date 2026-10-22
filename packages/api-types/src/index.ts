@@ -8418,6 +8418,9 @@ export * from "./page-layouts";
 // Group setup checklist (web138a)
 export * from "./group-setup";
 
+// Custom bot profile (web139a)
+export * from "./bot-profile";
+
 // Targeted site pop-ups (web118a)
 export * from "./popup-notices";
 export * from "./tester-builds";

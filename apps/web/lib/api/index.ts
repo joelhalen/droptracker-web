@@ -47,6 +47,7 @@ import { noticesApi } from "./notices";
 import { eventConquestApi } from "./event-conquest";
 import { testerBuildsApi } from "./tester-builds";
 import { dataRemovalApi } from "./data-removal";
+import { botProfileApi } from "./bot-profile";
 
 export const api = {
   ...leaderboardsApi,
@@ -90,6 +91,7 @@ export const api = {
   ...noticesApi,
   ...eventConquestApi,
   ...testerBuildsApi,
+  ...botProfileApi,
 };
 
 export * from "./types";
