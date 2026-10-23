@@ -42,7 +42,7 @@ export const DOWNLOAD_CACHE_CONTROL = "private, no-store";
 // --- Download handler ----------------------------------------------------
 
 export type DownloadPlan =
-  | { kind: "accel"; file: string }
+  | { kind: "accel"; file: string; saveAs?: string }
   | { kind: "login" }
   | { kind: "page" };
 
@@ -58,7 +58,17 @@ export function downloadResponsePlan(status: number, body: unknown): DownloadPla
   if (status === 401) return { kind: "login" };
   if (status !== 200) return { kind: "page" };
   const parsed = TesterBuildDownloadSchema.pick({ file: true }).safeParse(body);
-  return parsed.success ? { kind: "accel", file: parsed.data.file } : { kind: "page" };
+  if (!parsed.success) return { kind: "page" };
+  const file = parsed.data.file;
+  // A website download is served a personal copy (the build plus the tester's
+  // update key) under its own name. `filename` is the build's name, which the
+  // browser saves it as. It reaches a header too, so it is held to the same
+  // pattern, and simply left out when it does not match.
+  const filename = (body as { filename?: unknown }).filename;
+  if (typeof filename === "string" && filename !== file && SAFE_ZIP_NAME.test(filename)) {
+    return { kind: "accel", file, saveAs: filename };
+  }
+  return { kind: "accel", file };
 }
 
 /**
@@ -66,11 +76,11 @@ export function downloadResponsePlan(status: number, body: unknown): DownloadPla
  * `X-Accel-Redirect` and serves the file itself, keeping the type, disposition
  * and cache headers set here.
  */
-export function accelHeaders(file: string): Record<string, string> {
+export function accelHeaders(file: string, saveAs: string = file): Record<string, string> {
   return {
     "X-Accel-Redirect": ACCEL_PREFIX + file,
     "Content-Type": "application/zip",
-    "Content-Disposition": `attachment; filename="${file}"`,
+    "Content-Disposition": `attachment; filename="${saveAs}"`,
     "Cache-Control": DOWNLOAD_CACHE_CONTROL,
     "X-Content-Type-Options": "nosniff",
   };

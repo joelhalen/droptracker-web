@@ -39,6 +39,11 @@ export function HowToRun() {
         . The launcher also asks about this the first time you run it.
       </li>
       <li>
+        Keep that folder. Each time you run the launcher it checks for a newer test build and
+        updates itself, so you only download from here once. Your download has a personal update
+        key in it, so please don&apos;t share the folder.
+      </li>
+      <li>
         It uses your normal RuneLite profile and Plugin Hub plugins. The README in the zip has the
         details.
       </li>

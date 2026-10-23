@@ -105,6 +105,25 @@ test("the full download response still validates the file name", () => {
   assert.throws(() => TesterBuildDownloadSchema.parse({ ...ok, file: "../x.zip" }));
 });
 
+test("a personal copy is saved under the build's own name", () => {
+  const personal = "tester-0123456789abcdef01234567.zip";
+  const plan = downloadResponsePlan(200, { file: personal, filename: ZIP });
+  assert.deepEqual(plan, { kind: "accel", file: personal, saveAs: ZIP });
+  const headers = accelHeaders(personal, ZIP);
+  assert.equal(headers["X-Accel-Redirect"], `/_tester-builds/${personal}`);
+  assert.equal(headers["Content-Disposition"], `attachment; filename="${ZIP}"`);
+});
+
+test("an unsafe save-as name is dropped, never put in a header", () => {
+  const personal = "tester-0123456789abcdef01234567.zip";
+  for (const filename of ['quote".zip', "line\r\nX-Evil: 1.zip", "../x.zip", 7, null]) {
+    assert.deepEqual(downloadResponsePlan(200, { file: personal, filename }), {
+      kind: "accel",
+      file: personal,
+    });
+  }
+});
+
 test("the hand-off headers name the internal location and are never cacheable", () => {
   const headers = accelHeaders(ZIP);
   assert.equal(headers["X-Accel-Redirect"], `/_tester-builds/${ZIP}`);

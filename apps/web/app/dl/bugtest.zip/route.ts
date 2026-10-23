@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     }
     return redirectTo(pagePath);
   }
-  return new Response(null, { status: 200, headers: accelHeaders(plan.file) });
+  return new Response(null, { status: 200, headers: accelHeaders(plan.file, plan.saveAs) });
 }
 
 /**
