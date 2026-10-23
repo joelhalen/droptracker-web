@@ -421,6 +421,21 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // --- Clan Log -----------------------------------------------------------
   { key: "clan_log_enabled", label: "Post a live Clan Log board", category: "clan_log", type: "boolean", help: "Keep a standing message in your Discord showing how far through every boss's uniques your clan is, edited automatically as members pull things. Your board is always on the website and available through /clan-log — this is only the Discord message.", default: false },
   { key: "clan_log_channel_id", label: "Clan Log channel", category: "clan_log", type: "channel", help: "Where the standing Clan Log message lives. Pick a channel of its own: the bot edits this message continuously, so it will bury conversation in a busy channel.", default: null },
+  // Which window the standing message shows. Relative, so it follows the
+  // calendar: "This year" is whatever year it is now.
+  {
+    key: "clan_log_period",
+    label: "Clan Log period",
+    category: "clan_log",
+    type: "select",
+    help: "Which time window the Discord message shows: everything your clan has ever obtained, this year only, or this month only. Year and month boards start over on the 1st (UTC).",
+    default: "all",
+    options: [
+      { value: "all", label: "All time" },
+      { value: "year", label: "This year" },
+      { value: "month", label: "This month" },
+    ],
+  },
   { key: "clan_log_message_id", label: "Clan Log message id", category: "clan_log", type: "string", help: "Message the bot edits when updating the board. Managed automatically.", default: null, managed: true },
 
   // --- Clan bank ------------------------------------------------------------
