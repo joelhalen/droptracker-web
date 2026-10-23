@@ -1,92 +1,100 @@
 /**
- * The /tools directory: third-party tools and communities DropTracker uses or
- * recommends. Repo-versioned (like /privacy) rather than CMS-backed, so an
- * entry is one object below and changes go through review.
+ * The /tools directory: tools and communities The DropTracker uses or points
+ * players to. Listings live in the database (web146a) and are edited on the
+ * page itself: staff manage everything, and a listing's maintainers can edit
+ * its content. See `web_api/routes/community_listings.py`.
  *
- * Visible copy follows the site style: short, plain, no em-dashes.
+ * Dependency-free (only `zod`) so server code and client components can both
+ * import it. Visible copy follows the site style: short, plain, no em-dashes.
  */
+import { z } from "zod";
 
-export type ToolCategory = "tools" | "communities";
-
-export type ToolLink = { label: string; href: string };
-
-export type ToolEntry = {
-  name: string;
-  category: ToolCategory;
-  /** One or two sentences on what it is. */
-  description: string;
-  /** How DropTracker itself relies on it, when it does. */
-  usedFor?: string;
-  tags: string[];
-  /** First entry is the primary link (the card's title links there too). */
-  links: [ToolLink, ...ToolLink[]];
-  /** Monogram tile accent (any CSS color). Falls back to a hue from the name. */
-  accent?: string;
-};
-
-export const TOOL_CATEGORIES: { id: ToolCategory; title: string; blurb: string }[] = [
+/** Goal-based sections, in page order. Keep in step with
+ * `web_api/community_listings.py` SECTIONS. */
+export const TOOL_SECTIONS = [
   {
-    id: "tools",
-    title: "Tools we use",
-    blurb: "Services and projects The DropTracker is built on or works alongside.",
+    id: "events",
+    title: "Running an event",
+    blurb: "Tools for planning and running clan events.",
   },
   {
-    id: "communities",
-    title: "Communities",
+    id: "progress",
+    title: "Tracking progress",
+    blurb: "See how you and your clan are doing over time.",
+  },
+  {
+    id: "clans",
+    title: "Finding a clan",
     blurb: "Places to find a clan, meet other players, or get involved.",
   },
-];
+  {
+    id: "foundations",
+    title: "What we build on",
+    blurb: "Projects The DropTracker relies on every day.",
+  },
+] as const;
 
-export const TOOLS: ToolEntry[] = [
-  {
-    name: "Wise Old Man",
-    category: "tools",
-    description:
-      "Open-source progress tracker for Old School RuneScape. Tracks XP, boss kills and activity over time, and runs clan competitions.",
-    usedFor:
-      "Group rosters sync from Wise Old Man, and Skill and Boss of the Week results use its XP and kill-count gains.",
-    tags: ["Progress tracking", "Competitions", "Open source"],
-    links: [
-      { label: "wiseoldman.net", href: "https://wiseoldman.net" },
-      { label: "GitHub", href: "https://github.com/wise-old-man/wise-old-man" },
-    ],
-    accent: "#3b82f6",
-  },
-  {
-    name: "Old School RuneScape Wiki",
-    category: "tools",
-    description:
-      "The community-run wiki for the game. It also runs a real-time Grand Exchange price API built with RuneLite.",
-    usedFor: "Item prices and boss drop tables on The DropTracker come from the wiki.",
-    tags: ["Reference", "Prices"],
-    links: [
-      { label: "oldschool.runescape.wiki", href: "https://oldschool.runescape.wiki" },
-      { label: "Real-time prices", href: "https://prices.runescape.wiki" },
-    ],
-    accent: "#b8860b",
-  },
-  {
-    name: "RuneLite",
-    category: "tools",
-    description: "The open-source third-party client for Old School RuneScape, with a hub of community plugins.",
-    usedFor: "Our plugin runs on RuneLite and is installed from the Plugin Hub.",
-    tags: ["Client", "Plugins", "Open source"],
-    links: [
-      { label: "runelite.net", href: "https://runelite.net" },
-      { label: "Plugin Hub", href: "https://runelite.net/plugin-hub" },
-    ],
-    accent: "#d97706",
-  },
-  {
-    name: "OSRS Clans",
-    category: "communities",
-    description:
-      "A directory for finding and recruiting clans, with a list of community groups and clan utilities.",
-    tags: ["Clan directory", "Recruiting"],
-    links: [
-      { label: "osrsclans.cc", href: "https://osrsclans.cc" },
-      { label: "Communities", href: "https://osrsclans.cc/communities" },
-    ],
-    accent: "#16a34a",
-  },
-];
+export type ToolSection = (typeof TOOL_SECTIONS)[number]["id"];
+export const TOOL_SECTION_IDS = TOOL_SECTIONS.map((s) => s.id) as [ToolSection, ...ToolSection[]];
+
+export const ToolLinkSchema = z.object({ label: z.string(), href: z.string() });
+export type ToolLink = z.infer<typeof ToolLinkSchema>;
+
+export const ToolMaintainerSchema = z.object({ user_id: z.number().int(), username: z.string() });
+export type ToolMaintainer = z.infer<typeof ToolMaintainerSchema>;
+
+export const ToolListingSchema = z.object({
+  id: z.number().int(),
+  slug: z.string(),
+  name: z.string(),
+  section: z.enum(TOOL_SECTION_IDS),
+  summary: z.string(),
+  details: z.string().nullable(),
+  fit_label: z.string().nullable(),
+  fit_note: z.string().nullable(),
+  tags: z.string().array(),
+  links: ToolLinkSchema.array(),
+  logo_url: z.string().nullable(),
+  accent: z.string().nullable(),
+  sort_order: z.number().int(),
+  visible: z.boolean(),
+  can_edit: z.boolean(),
+  updated_at: z.string().nullable(),
+  /** Only sent when the viewer can edit this listing. */
+  maintainers: ToolMaintainerSchema.array().optional(),
+});
+export type ToolListing = z.infer<typeof ToolListingSchema>;
+
+export const ToolDirectorySchema = z.object({
+  listings: ToolListingSchema.array(),
+  can_admin: z.boolean(),
+});
+export type ToolDirectory = z.infer<typeof ToolDirectorySchema>;
+
+/** What the editor sends. Maintainers may only send the content fields. */
+export type ToolListingInput = {
+  name: string;
+  summary: string;
+  details: string | null;
+  tags: string[];
+  links: ToolLink[];
+  logo_url: string | null;
+  accent: string | null;
+  // Staff only:
+  slug?: string;
+  section?: ToolSection;
+  fit_label?: string | null;
+  fit_note?: string | null;
+  sort_order?: number;
+  visible?: boolean;
+};
+
+export const MAINTAINER_FIELDS = [
+  "name",
+  "summary",
+  "details",
+  "tags",
+  "links",
+  "logo_url",
+  "accent",
+] as const;

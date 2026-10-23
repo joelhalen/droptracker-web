@@ -26,6 +26,7 @@ import { docsApi } from "./docs";
 import { redirectsApi } from "./redirects";
 import { adminWidgetApi } from "./admin-widget";
 import { statusApi } from "./status";
+import { toolsApi } from "./tools";
 import { platformApi } from "./platform";
 import { devApi } from "./dev";
 import { itemValuesApi } from "./item-values";
@@ -71,6 +72,7 @@ export const api = {
   ...redirectsApi,
   ...adminWidgetApi,
   ...statusApi,
+  ...toolsApi,
   ...platformApi,
   ...devApi,
   ...itemValuesApi,
