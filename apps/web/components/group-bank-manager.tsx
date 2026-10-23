@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import {
   BANK_KIND_LABELS,
   BANK_OUTFLOW_KINDS,
+  type BankEntrySource,
   type BankEntryStatus,
   type BankRecordableKind,
   type GroupBankEntry,
@@ -58,6 +59,22 @@ const STATUS_BADGE: Record<BankEntryStatus, { label: string; variant: "green" | 
   rejected: { label: "Rejected", variant: "red" },
   void: { label: "Removed", variant: "neutral" },
 };
+
+/** Where a row came from, for anything staff didn't record themselves. */
+const SOURCE_LABELS: Record<Exclude<BankEntrySource, "staff">, string> = {
+  member: "Self-reported",
+  discord: "Via Discord",
+  coffer: "In-game coffer",
+};
+
+function SourceBadge({ source }: { source: BankEntrySource }) {
+  if (source === "staff") return null;
+  return (
+    <Badge variant="sky" size="sm">
+      {SOURCE_LABELS[source]}
+    </Badge>
+  );
+}
 
 function SignedGp({ money }: { money: Money }) {
   const negative = money.value < 0;
@@ -287,11 +304,7 @@ function LedgerRow({
               {status.label}
             </Badge>
           )}
-          {e.source !== "staff" && (
-            <Badge variant="sky" size="sm">
-              {e.source === "discord" ? "Via Discord" : "Self-reported"}
-            </Badge>
-          )}
+          <SourceBadge source={e.source} />
         </div>
         <div className="text-osrs-parchment-dark/60 mt-0.5 text-xs">
           {formatDate(e.created_at)}
@@ -474,7 +487,8 @@ function PendingQueue({
                   )}
                   <SignedGp money={e.amount} />
                 </div>
-                <div className="text-osrs-parchment-dark/60 text-xs">
+                <div className="text-osrs-parchment-dark/60 flex flex-wrap items-center gap-x-1 text-xs">
+                  <SourceBadge source={e.source} />
                   {formatDate(e.created_at)}
                   {e.submitted_by && <> · submitted by {e.submitted_by}</>}
                   {e.note && <> · {e.note}</>}

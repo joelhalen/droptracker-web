@@ -35,7 +35,9 @@ export const BANK_OUTFLOW_KINDS: readonly BankEntryKind[] = ["withdrawal", "payo
 export const BANK_ENTRY_STATUSES = ["pending", "confirmed", "rejected", "void"] as const;
 export type BankEntryStatus = (typeof BANK_ENTRY_STATUSES)[number];
 
-export const BANK_ENTRY_SOURCES = ["staff", "member", "discord"] as const;
+/** `coffer` rows were synced from an in-game clan coffer broadcast (web144a). */
+export const BANK_ENTRY_SOURCES = ["staff", "member", "discord", "coffer"] as const;
+export type BankEntrySource = (typeof BANK_ENTRY_SOURCES)[number];
 
 export const BANK_KIND_LABELS: Record<BankEntryKind, string> = {
   donation: "Donation",
