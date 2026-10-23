@@ -11,6 +11,7 @@ import {
   NotificationBlacklistPanel,
 } from "@/components/notification-blacklist-card";
 import { TimeframeBoardPanel } from "@/components/timeframe-board-card";
+import { BoardRepostPanel } from "@/components/board-repost-card";
 
 export const metadata: Metadata = { title: "Group settings" };
 
@@ -67,6 +68,11 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
           blacklist: <NotificationBlacklistPanel groupId={groupId} initial={blacklist} />,
           always: <NotificationAlwaysListPanel groupId={groupId} initial={alwaysList} />,
           timeframeBoard: <TimeframeBoardPanel groupId={groupId} />,
+          lootboardRepost: <BoardRepostPanel groupId={groupId} board="lootboard" name="lootboard" />,
+          pvpLootboardRepost: (
+            <BoardRepostPanel groupId={groupId} board="pvp_lootboard" name="PvP lootboard" />
+          ),
+          clanLogRepost: <BoardRepostPanel groupId={groupId} board="clan_log" name="Clan Log" />,
           memberDeathMessages: (
             <MemberDeathMessagesReview groupId={groupId} initial={memberDeathMessages} />
           ),

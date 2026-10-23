@@ -297,7 +297,7 @@ export function ConfigEditor({
   const changed = useMemo(() => {
     const patch: ConfigMap = {};
     for (const f of GROUP_CONFIG_FIELDS) {
-      if (isFieldLocked(f)) continue;
+      if (f.managed || isFieldLocked(f)) continue;
       const v = values[f.key] ?? null;
       if (v !== (baseline[f.key] ?? null)) patch[f.key] = v;
     }

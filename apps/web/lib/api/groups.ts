@@ -20,6 +20,7 @@ import {
   GroupDiscordRolesSchema,
   type CreateGroupInput,
   type GroupConfigPatch,
+  type RepostBoard,
   type GroupDiagnostics,
   type GroupMembersPage,
   type GroupProfile,
@@ -140,6 +141,11 @@ export const groupsApi = {
   },
 
 
+  /** Start a standing board over in its channel (the bot posts a fresh one). */
+  async repostGroupBoard(groupId: number, board: RepostBoard): Promise<{ ok: true }> {
+    await apiSend("POST", `/groups/${groupId}/boards/${board}/repost`, {});
+    return { ok: true } as const;
+  },
   async updateGroupConfig(groupId: number, patch: GroupConfigPatch): Promise<{ ok: true }> {
     return withFallback(
       async () => {

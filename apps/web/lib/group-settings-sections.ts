@@ -178,7 +178,13 @@ export const sectionAnchor = (id: SettingsSectionId) => `cfg-${id}`;
 /* --- Inserts -------------------------------------------------------------- */
 
 /** Editors that are not registry fields but belong inside a registry section. */
-export type SettingsInsertId = "groupIcon" | "timeframeBoard" | "memberDeathMessages";
+export type SettingsInsertId =
+  | "groupIcon"
+  | "timeframeBoard"
+  | "memberDeathMessages"
+  | "lootboardRepost"
+  | "pvpLootboardRepost"
+  | "clanLogRepost";
 
 export interface SettingsInsert {
   id: SettingsInsertId;
@@ -204,6 +210,29 @@ export const SETTINGS_INSERTS: readonly SettingsInsert[] = [
     label: "Custom timeframe lootboard",
     keywords: ["timeframe", "date range", "custom board", "generate", "png", "image", "event", "competition"],
   },
+  // Re-post board: stands in for the bot-managed message id, which is no
+  // longer shown (ConfigField.managed).
+  {
+    id: "lootboardRepost",
+    section: "board",
+    position: "bottom",
+    label: "Re-post the lootboard",
+    keywords: ["repost", "re-post", "message", "message id", "reset", "missing", "not updating", "stuck"],
+  },
+  {
+    id: "pvpLootboardRepost",
+    section: "pvp",
+    position: "bottom",
+    label: "Re-post the PvP lootboard",
+    keywords: ["repost", "re-post", "message", "message id", "reset", "missing", "not updating", "stuck"],
+  },
+  {
+    id: "clanLogRepost",
+    section: "clan_log",
+    position: "bottom",
+    label: "Re-post the Clan Log",
+    keywords: ["repost", "re-post", "message", "message id", "reset", "missing", "not updating", "stuck"],
+  },
   {
     id: "memberDeathMessages",
     section: "deaths",
@@ -223,8 +252,9 @@ export const SEASONAL_FIELDS: readonly ConfigField[] = GROUP_CONFIG_FIELDS.filte
   (f) => f.seasonalMirror,
 );
 
+/** A category's editable fields. Bot-managed ones (message ids) are never shown. */
 export function fieldsForCategory(id: ConfigCategory): ConfigField[] {
-  return GROUP_CONFIG_FIELDS.filter((f) => f.category === id);
+  return GROUP_CONFIG_FIELDS.filter((f) => f.category === id && !f.managed);
 }
 
 export function categoryLabel(id: ConfigCategory): string {

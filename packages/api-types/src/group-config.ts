@@ -93,6 +93,15 @@ export interface ConfigField {
   /** Subscription entitlement required to edit this field (Task 15). */
   entitlement?: string;
   /**
+   * Written by the bot itself: the id of a standing message it edits in place.
+   * Never rendered by the editor and never accepted in a save
+   * (GroupConfigPatchSchema drops it, and the backend refuses it). Admins
+   * who pasted an id here pointed the bot at a message it couldn't edit, and
+   * their board stopped updating. The settings page offers Re-post board
+   * instead (POST /groups/{id}/boards/{board}/repost).
+   */
+  managed?: boolean;
+  /**
    * Sub-heading the settings page groups this field under, within its
    * category ("Hall of Fame", "Chat bridge"). Presentational only: the web
    * editor renders one block per group in registry order, and a block whose
@@ -396,7 +405,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
     default: "1",
   },
   { key: "lootboard_channel_id", label: "Lootboard channel", category: "board", type: "channel", help: "Channel where the lootboard image is posted/updated.", default: null },
-  { key: "lootboard_message_id", label: "Lootboard message id", category: "board", type: "string", help: "Message the bot edits when reposting the board. Managed automatically.", default: null },
+  { key: "lootboard_message_id", label: "Lootboard message id", category: "board", type: "string", help: "Message the bot edits when reposting the board. Managed automatically.", default: null, managed: true },
   { key: "only_include_items_over_minimum", label: "Hide items below minimum value", category: "board", type: "boolean", help: "When on, the lootboard only shows items worth at least your Minimum value to notify. When off, every tracked item for your members appears, and player totals on the board follow the same rule. Discord drop announcements are unchanged.", default: false, seasonalMirror: true },
   { key: "use_dynamic_colors", label: "Dynamic colors", category: "board", type: "boolean", help: "Color item tiles by relative value.", default: true },
   { key: "use_gp_colors", label: "GP colors", category: "board", type: "boolean", help: "Use GP-value color thresholds on the board.", default: true },
@@ -412,7 +421,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // --- Clan Log -----------------------------------------------------------
   { key: "clan_log_enabled", label: "Post a live Clan Log board", category: "clan_log", type: "boolean", help: "Keep a standing message in your Discord showing how far through every boss's uniques your clan is, edited automatically as members pull things. Your board is always on the website and available through /clan-log — this is only the Discord message.", default: false },
   { key: "clan_log_channel_id", label: "Clan Log channel", category: "clan_log", type: "channel", help: "Where the standing Clan Log message lives. Pick a channel of its own: the bot edits this message continuously, so it will bury conversation in a busy channel.", default: null },
-  { key: "clan_log_message_id", label: "Clan Log message id", category: "clan_log", type: "string", help: "Message the bot edits when updating the board. Managed automatically.", default: null },
+  { key: "clan_log_message_id", label: "Clan Log message id", category: "clan_log", type: "string", help: "Message the bot edits when updating the board. Managed automatically.", default: null, managed: true },
 
   // --- Clan bank ------------------------------------------------------------
   { key: "bank_show_on_profile", label: "Show the clan bank on your group page", category: "bank", type: "boolean", help: "Show the bank balance and totals on your public group page once you've recorded something. Turn off to keep the bank visible to admins only.", default: true },
@@ -432,7 +441,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "pvp_lootboard_channel_id", label: "PvP lootboard channel", category: "pvp", group: "PvP lootboard", type: "channel", help: "Channel where the PvP lootboard is posted and kept up to date. It shows only loot from player kills.", default: null },
   { key: "pvp_loot_board_type", label: "PvP lootboard style", category: "pvp", group: "PvP lootboard", type: "boardstyle", help: "Visual style of the PvP lootboard.", default: "1" },
   { key: "pvp_repost_lootboard", label: "Repost PvP lootboard", category: "pvp", group: "PvP lootboard", type: "boolean", help: "Repost (vs. edit) the PvP board on each update.", default: false },
-  { key: "pvp_lootboard_message_id", label: "PvP lootboard message id", category: "pvp", group: "PvP lootboard", type: "string", help: "Message the bot edits when updating the PvP board. Managed automatically.", default: null },
+  { key: "pvp_lootboard_message_id", label: "PvP lootboard message id", category: "pvp", group: "PvP lootboard", type: "string", help: "Message the bot edits when updating the PvP board. Managed automatically.", default: null, managed: true },
 
   // --- Clan chat ------------------------------------------------------------
   // Clan broadcast tracking and the chat bridge both depend on the plugin
@@ -628,11 +637,16 @@ function fieldSchema(f: ConfigField): z.ZodTypeAny {
  */
 export const GroupConfigPatchSchema: z.ZodTypeAny = z.object(
   Object.fromEntries(
-    allConfigKeys().map((key) => {
-      const field = getConfigField(key)!;
-      return [key, fieldSchema(field).nullable().optional()];
-    }),
+    allConfigKeys()
+      .filter((key) => !getConfigField(key)?.managed)
+      .map((key) => {
+        const field = getConfigField(key)!;
+        return [key, fieldSchema(field).nullable().optional()];
+      }),
   ),
 );
 
 export type GroupConfigPatch = Record<string, string | number | boolean | null | undefined>;
+
+/** Standing boards the settings page can re-post (POST /groups/{id}/boards/{board}/repost). */
+export type RepostBoard = "lootboard" | "pvp_lootboard" | "clan_log";

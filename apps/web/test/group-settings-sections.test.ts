@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   CONFIG_CATEGORIES,
   GROUP_CONFIG_FIELDS,
+  GroupConfigPatchSchema,
   type ConfigField,
 } from "@droptracker/api-types";
 import {
@@ -181,7 +182,7 @@ test("visibleSections narrows to matching fields, keeps a whole section when its
   // A section title: every field of it, inserts included.
   const board = visibleSections("Lootboard").find((v) => v.section.id === "board")!;
   assert.equal(board.fields.length, fieldsForCategory("board").length);
-  assert.deepEqual(board.inserts.map((i) => i.id), ["timeframeBoard"]);
+  assert.deepEqual(board.inserts.map((i) => i.id), ["timeframeBoard", "lootboardRepost"]);
 
   // An insert's own keyword shows its section with just the insert.
   const icon = visibleSections("avatar");
@@ -214,4 +215,16 @@ test("sectionForKey sends a seasonal mirror to the Seasonal section and a base k
   const pets = GROUP_CONFIG_FIELDS.find((f) => f.key === "notify_pets")!;
   assert.equal(sectionForKey("seasonal_notify_pets", pets), "seasonal");
   assert.equal(sectionForKey("notify_pets", pets), "achievements");
+});
+
+test("bot-managed message ids are never shown, saved, or left without a Re-post", () => {
+  const managed = GROUP_CONFIG_FIELDS.filter((f) => f.managed).map((f) => f.key).sort();
+  assert.deepEqual(managed, ["clan_log_message_id", "lootboard_message_id", "pvp_lootboard_message_id"]);
+  for (const f of GROUP_CONFIG_FIELDS.filter((f) => f.managed)) {
+    assert.ok(!fieldsForCategory(f.category).some((g) => g.key === f.key), `${f.key} is rendered`);
+    // The save schema drops it, so even a hand-crafted patch can't send one.
+    assert.deepEqual(GroupConfigPatchSchema.parse({ [f.key]: "123456789012345678" }), {});
+    // Its section offers Re-post instead.
+    assert.ok(SETTINGS_INSERTS.some((i) => i.section === f.category && i.id.endsWith("Repost")), f.key);
+  }
 });

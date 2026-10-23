@@ -10,6 +10,7 @@ import {
   type GroupConfigPatch,
   type GroupMemberDeathMessages,
   type NotificationBlacklist,
+  type RepostBoard,
 } from "@droptracker/api-types";
 import { api, ApiError, type DiscordChannelList, type LootboardStyleList, type PbBossList } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
@@ -44,6 +45,21 @@ export async function saveGroupConfig(groupId: number, patch: GroupConfigPatch) 
   // rendered by the admin shell header and every public group page, so drop the
   // whole subtree's cache instead of just this page.
   if ("group_name" in parsed) revalidatePath(`/groups/${groupId}`, "layout");
+  return { ok: true as const };
+}
+
+/** Server Action: have the bot post a standing board afresh in its channel. */
+export async function repostGroupBoard(groupId: number, board: RepostBoard) {
+  const user = await getUser();
+  if (!user || !canAdminGroup(user, groupId)) {
+    throw new Error("Forbidden: you do not administer this group.");
+  }
+  try {
+    await api.repostGroupBoard(groupId, board);
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
   return { ok: true as const };
 }
 
