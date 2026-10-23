@@ -29,6 +29,9 @@ export type ReceiptsFetcher = (
   eventId: number,
   taskId: number,
   item: string,
+  /** The group's index in the set: picks the entry when the item repeats
+   * across groups (Dragon 2h under two wilderness bosses). */
+  group?: number,
 ) => Promise<LootSweepReceipts>;
 
 const cache = new Map<string, LootSweepReceipts>();
@@ -45,13 +48,14 @@ function load(
   eventId: number,
   taskId: number,
   item: string,
+  group?: number,
 ): Promise<LootSweepReceipts> {
-  const key = `${eventId}:${taskId}:${item.toLowerCase()}`;
+  const key = `${eventId}:${taskId}:${group ?? ""}:${item.toLowerCase()}`;
   const hit = cache.get(key);
   if (hit) return Promise.resolve(hit);
   const pending = inflight.get(key);
   if (pending) return pending;
-  const promise = fetcher(eventId, taskId, item)
+  const promise = fetcher(eventId, taskId, item, group)
     .then((data) => {
       cache.set(key, data);
       return data;
@@ -78,6 +82,7 @@ export function LootSweepReceiptCard({
   eventId,
   set,
   item,
+  groupIdx,
   team,
   count,
   banked,
@@ -88,6 +93,8 @@ export function LootSweepReceiptCard({
   eventId: number;
   set: Pick<LootSweepSet, "task_id" | "label" | "decay_percent" | "decay_mode">;
   item: LootSweepConfigItem;
+  /** The item's group in the set (the same name can sit in two groups). */
+  groupIdx?: number;
   team: { id: number; name: string; color: string };
   /** The cell's receipt count — renders the status instantly, pre-fetch. */
   count: number;
@@ -108,14 +115,14 @@ export function LootSweepReceiptCard({
   useEffect(() => {
     let alive = true;
     setFailed(false);
-    load(fetchReceipts, eventId, set.task_id, item.item_name).then(
+    load(fetchReceipts, eventId, set.task_id, item.item_name, groupIdx).then(
       (d) => alive && setData(d),
       () => alive && setFailed(true),
     );
     return () => {
       alive = false;
     };
-  }, [fetchReceipts, eventId, set.task_id, item.item_name]);
+  }, [fetchReceipts, eventId, set.task_id, item.item_name, groupIdx]);
 
   const max = maxAwardsOf(item);
   const apt = item.awards_per_tier ?? 1;

@@ -687,8 +687,10 @@ export const eventsApi = {
     eventId: number,
     taskId: number,
     item: string,
+    group?: number,
   ): Promise<LootSweepReceipts> {
     const q = new URLSearchParams({ task_id: String(taskId), item });
+    if (group !== undefined) q.set("group", String(group));
     return withFallback(
       async () =>
         LootSweepReceiptsSchema.parse(

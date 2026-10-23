@@ -723,6 +723,47 @@ export function taskConfigItems(
   });
 }
 
+/** A Loot Sweep task's groups for the manual-award picker: label, bosses and
+ * items in config order (indices line up with the server's groups/items). */
+export function sweepAwardGroups(
+  task: Pick<EventTask, "config">,
+): { label: string | null; npcs: string[]; items: { item_name: string; points?: number }[] }[] {
+  const cfg = taskConfig(task);
+  const groups = Array.isArray(cfg.groups) ? cfg.groups : [];
+  return groups.flatMap((g: unknown) => {
+    if (!g || typeof g !== "object") return [];
+    const raw = g as { label?: unknown; npcs?: unknown; items?: unknown };
+    const npcs = Array.isArray(raw.npcs)
+      ? raw.npcs.filter((n): n is string => typeof n === "string")
+      : [];
+    const items = (Array.isArray(raw.items) ? raw.items : []).flatMap((it: unknown) => {
+      const name =
+        typeof it === "string" ? it : (it as { item_name?: unknown } | null)?.item_name;
+      if (typeof name !== "string" || !name) return [];
+      const points =
+        it && typeof it === "object" ? (it as { points?: unknown }).points : undefined;
+      return [{ item_name: name, ...(typeof points === "number" ? { points } : {}) }];
+    });
+    const label = typeof raw.label === "string" && raw.label ? raw.label : (npcs[0] ?? null);
+    return [{ label, npcs, items }];
+  });
+}
+
+/** Resolve a `sweep:<group>:<item>` award choice to the item name and the
+ * boss to store with it (the group's first NPC). The boss only matters when
+ * the item sits in several groups; the server ignores it otherwise. */
+export function sweepAwardPart(
+  task: Pick<EventTask, "config">,
+  part: string,
+): { item_name: string; npc?: string } | null {
+  const m = /^sweep:(\d+):(\d+)$/.exec(part);
+  if (!m) return null;
+  const g = sweepAwardGroups(task)[Number(m[1])];
+  const it = g?.items[Number(m[2])];
+  if (!g || !it) return null;
+  return { item_name: it.item_name, ...(g.npcs[0] ? { npc: g.npcs[0] } : {}) };
+}
+
 /** Short human summary of one either-or path, e.g. "all 3 items",
  * "5,000 KC at Kree'arra", or its authored label. */
 export function pathSummary(p: TaskConfigPath): string {

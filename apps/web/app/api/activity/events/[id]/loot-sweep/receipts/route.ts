@@ -1,7 +1,7 @@
 /**
  * BFF: Loot Sweep per-item receipt ledger for the Discord Activity (bearer
  * twin of `api.eventLootSweepReceipts`) — powers the board's hover cards.
- * `task_id` + `item` query pass through; screenshot proof URLs are rewritten
+ * `task_id` + `item` (+ optional `group`) query pass through; screenshot proof URLs are rewritten
  * to same-origin `/img` so thumbnails render inside the discordsays CSP.
  */
 import { NextResponse, type NextRequest } from "next/server";
@@ -19,6 +19,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const taskId = url.searchParams.get("task_id") ?? "";
   const item = url.searchParams.get("item") ?? "";
   const q = new URLSearchParams({ task_id: taskId, item });
+  const group = url.searchParams.get("group");
+  if (group) q.set("group", group);
   const bearer = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   try {
     const res = await fetch(

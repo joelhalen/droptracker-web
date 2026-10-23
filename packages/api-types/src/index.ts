@@ -4306,11 +4306,14 @@ export const LootSweepReceiptSchema = z.object({
 });
 export type LootSweepReceipt = z.infer<typeof LootSweepReceiptSchema>;
 
-/** GET /events/{id}/loot-sweep/receipts?task_id&item — per-team receipt
- * ledger for one loot_sweep item, teams in credit order. */
+/** GET /events/{id}/loot-sweep/receipts?task_id&item[&group] — per-team
+ * receipt ledger for one loot_sweep item, teams in credit order. `group` (the
+ * group's index in the set) picks the entry when the item repeats across
+ * groups, e.g. Dragon 2h under two wilderness bosses. */
 export const LootSweepReceiptsSchema = z.object({
   event_id: z.number().int(),
   task_id: z.number().int(),
+  group: z.number().int().nullable().optional(),
   item_name: z.string(),
   item_id: z.number().int().nullable().optional(),
   virtual: z.boolean().optional(),
@@ -6007,6 +6010,10 @@ export const EventAwardInputSchema = z.object({
    * name (validated server-side against the task config; point_collection
    * weights apply). Omitted ⇒ generic wildcard progress. */
   matched_target: z.string().min(1).max(120).optional(),
+  /** Loot Sweep: the boss `matched_target` came from. Required when the item
+   * is listed under more than one group of the set (Dragon 2h under Chaos
+   * Elemental AND Venenatis): it picks which group's entry the award credits. */
+  matched_npc: z.string().min(1).max(64).optional(),
   /** Index of a KC/GP metric path on an `any_path` task (item/points paths
    * are credited via `matched_target` instead). Mutually exclusive with it. */
   path: z.number().int().nonnegative().optional(),

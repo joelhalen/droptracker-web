@@ -520,8 +520,10 @@ export async function lootSweepReceipts(
   taskId: number,
   item: string,
   sessionToken: string | null,
+  group?: number,
 ): Promise<LootSweepReceipts> {
   const q = new URLSearchParams({ task_id: String(taskId), item });
+  if (group !== undefined) q.set("group", String(group));
   return LootSweepReceiptsSchema.parse(
     await get(`/api/activity/events/${eventId}/loot-sweep/receipts?${q}`, sessionToken),
   );

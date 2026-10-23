@@ -143,8 +143,8 @@ export function EventView({
     [sessionToken],
   );
   const lootSweepFetchReceipts = useCallback(
-    (id: number, taskId: number, item: string) =>
-      lootSweepReceipts(id, taskId, item, sessionToken),
+    (id: number, taskId: number, item: string, group?: number) =>
+      lootSweepReceipts(id, taskId, item, sessionToken, group),
     [sessionToken],
   );
 

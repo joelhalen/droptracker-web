@@ -919,6 +919,7 @@ export function LootSweepMatrix({
                               eventId={eventId}
                               set={row.set}
                               item={row.item}
+                              groupIdx={row.groupIdx}
                               team={{ id: col.id, name: col.name, color: col.color }}
                               count={prog?.count ?? 0}
                               banked={prog?.points ?? 0}

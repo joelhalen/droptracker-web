@@ -7,6 +7,8 @@ import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import {
   completionMatchesFilter,
   restoreOptimisticRow,
+  sweepAwardGroups,
+  sweepAwardPart,
   taskConfig,
   taskConfigItems,
   taskConfigPaths,
@@ -329,6 +331,21 @@ export function EventReview({
       }
       return opts;
     }
+    if (task.type === "loot_sweep") {
+      // Per group, so an item listed under two bosses (Dragon 2h under Chaos
+      // Elemental AND Venenatis) is two choices: the award credits the boss
+      // it names. `sweep:<group>:<item>` resolves to the name + boss on submit.
+      const groups = sweepAwardGroups(task);
+      const multi = groups.length > 1;
+      groups.forEach((g, gi) =>
+        g.items.forEach((it, ii) => {
+          const where = multi && g.label ? `${g.label}: ` : "";
+          const pts = it.points != null ? ` (${it.points} pts)` : "";
+          opts.push({ value: `sweep:${gi}:${ii}`, label: `${where}${it.item_name}${pts}` });
+        }),
+      );
+      return opts;
+    }
     for (const [idx, p] of taskConfigPaths(task).entries()) {
       if (!p.metric) continue; // item/points paths are credited by item name
       const unit = p.metric === "kc" ? "KC" : "GP";
@@ -352,6 +369,7 @@ export function EventReview({
     if (isRace && !awardPlayer) return;
     const partMode = isRace ? award.credit === "gained" : award.mode === "progress";
     const part = partMode ? award.part : "";
+    const sweepPart = part.startsWith("sweep:") && awardTask ? sweepAwardPart(awardTask, part) : null;
     setError(null);
     setAwarding(true);
     startTransition(async () => {
@@ -363,7 +381,12 @@ export function EventReview({
           credit: isRace ? award.credit : undefined,
           complete: (!isRace && award.mode === "complete") || undefined,
           quantity: isRace || award.mode === "progress" ? award.quantity || 1 : undefined,
-          matched_target: part.startsWith("item:") ? part.slice(5) : undefined,
+          matched_target: sweepPart
+            ? sweepPart.item_name
+            : part.startsWith("item:")
+              ? part.slice(5)
+              : undefined,
+          matched_npc: sweepPart?.npc,
           path: part.startsWith("path:") ? Number(part.slice(5)) : undefined,
           note: award.note.trim() || undefined,
         });
