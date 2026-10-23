@@ -31,6 +31,9 @@ export type PickerEntry = {
   /** This entry is a PET: it credits from a pet submission (config.pet_items),
    * not from drops/clogs, and has no drop-source restriction. */
   isPet?: boolean;
+  /** Count each drop once, whatever the stack size (config.per_drop_items):
+   * 3 Hueycoatl hides in one drop count as 1. */
+  perDrop?: boolean;
 };
 
 /** Backing calls for the "import a boss's drops" helper: NPC autocomplete +
@@ -368,6 +371,7 @@ export function ItemNpcPicker({
   renderEntryExtra,
   bossImport,
   searchPets,
+  perDropToggle = false,
 }: {
   kind: "item" | "npc";
   /** "single" keeps at most one entry (picking another replaces it). */
@@ -393,6 +397,9 @@ export function ItemNpcPicker({
   /** Enables the Items/Pets search toggle (item lists only): pet results add
    * `isPet` entries, credited from pet submissions instead of drops. */
   searchPets?: (q: string) => Promise<EventMetaEntry[]>;
+  /** Show a per-row "1 per drop" toggle (item tasks): a flagged item counts
+   * each drop once instead of its stack size. Pets never show it. */
+  perDropToggle?: boolean;
 }) {
   const noun = kind === "item" ? "item" : "NPC";
   const [query, setQuery] = useState("");
@@ -502,6 +509,18 @@ export function ItemNpcPicker({
 
   const setPoints = (name: string, points: number) => {
     onChange(selected.map((s) => (s.name === name ? { ...s, points } : s)));
+  };
+
+  const setPerDrop = (name: string, perDrop: boolean) => {
+    onChange(
+      selected.map((s) => {
+        if (s.name !== name) return s;
+        const next = { ...s };
+        if (perDrop) next.perDrop = true;
+        else delete next.perDrop;
+        return next;
+      }),
+    );
   };
 
   const setEntryNpcs = (name: string, npcs: string[]) => {
@@ -725,6 +744,29 @@ export function ItemNpcPicker({
                     >
                       pet
                     </span>
+                  )}
+                  {perDropToggle && kind === "item" && !s.isPet && (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      aria-pressed={!!s.perDrop}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPerDrop(s.name, !s.perDrop);
+                      }}
+                      className={`shrink-0 rounded border px-1 text-[10px] ${
+                        s.perDrop
+                          ? "border-osrs-gold/60 bg-osrs-gold/15 text-osrs-gold-bright"
+                          : "border-osrs-bronze/30 text-osrs-parchment-dark/50 hover:text-osrs-parchment"
+                      }`}
+                      title={
+                        s.perDrop
+                          ? `Each drop of ${s.name} counts once, however many came in it. Click to count every one.`
+                          : `Count each drop of ${s.name} once, however many came in it (e.g. 3 hides in one drop = 1)`
+                      }
+                    >
+                      1 per drop
+                    </button>
                   )}
                   {withPoints && (
                     <label className="flex shrink-0 items-center gap-1">

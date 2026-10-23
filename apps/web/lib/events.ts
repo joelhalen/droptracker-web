@@ -525,6 +525,44 @@ export function taskConfigPetNames(task: Pick<EventTask, "config">): Set<string>
   );
 }
 
+/** Lower-cased names an item task counts once per drop, whatever the stack
+ * size (`config.per_drop_items`): 3 Hueycoatl hides in one drop count as 1. */
+export function taskConfigPerDropNames(task: Pick<EventTask, "config">): Set<string> {
+  const raw = taskConfig(task).per_drop_items;
+  return new Set(
+    Array.isArray(raw)
+      ? raw
+          .filter((n): n is string => typeof n === "string" && n.trim().length > 0)
+          .map((n) => n.toLowerCase())
+      : [],
+  );
+}
+
+/** Mark the entries whose names are in `names` (lower-cased) as per-drop. */
+export function withPerDrop<T extends { name: string }>(
+  entries: T[],
+  names: Set<string>,
+): (T & { perDrop?: boolean })[] {
+  if (!names.size) return entries;
+  return entries.map((e) => (names.has(e.name.toLowerCase()) ? { ...e, perDrop: true } : e));
+}
+
+/** The `per_drop_items` list to save: flagged, non-pet names, each once. */
+export function perDropItemsFromEntries(
+  entries: { name: string; perDrop?: boolean; isPet?: boolean }[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const e of entries) {
+    const key = e.name.toLowerCase();
+    if (e.perDrop && !e.isPet && !seen.has(key)) {
+      seen.add(key);
+      out.push(e.name);
+    }
+  }
+  return out;
+}
+
 /** Task-level source restriction for a single-item task (`config.source_npcs`). */
 export function taskSourceNpcs(task: Pick<EventTask, "config">): string[] {
   const raw = taskConfig(task).source_npcs;

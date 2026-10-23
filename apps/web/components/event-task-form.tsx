@@ -55,6 +55,9 @@ import {
   taskConfig,
   taskConfigItems,
   taskConfigPetNames,
+  taskConfigPerDropNames,
+  withPerDrop,
+  perDropItemsFromEntries,
   taskListsItem,
   taskSourceNpcs,
   vestigeRingsCount,
@@ -434,6 +437,7 @@ function GroupListEditor({
           <ItemNpcPicker
             kind="item"
             mode="list"
+            perDropToggle
             selected={g.items}
             onChange={(items) => patch(gi, { items })}
             search={search}
@@ -611,13 +615,18 @@ export function EventTaskForm({
   const draftMode = onDraftSubmit != null;
   const editing = !draftMode && initial != null;
   const initialPetNames = initial ? taskConfigPetNames(initial) : new Set<string>();
+  // Items counted once per drop, whatever the stack (config.per_drop_items).
+  const initialPerDrop = initial ? taskConfigPerDropNames(initial) : new Set<string>();
   const initialItems: PickerEntry[] = initial
-    ? taskConfigItems(initial).map((it) => ({
-        name: it.item_name,
-        points: it.points,
-        ...(it.npcs ? { npcs: it.npcs } : {}),
-        ...(initialPetNames.has(it.item_name.toLowerCase()) ? { isPet: true } : {}),
-      }))
+    ? withPerDrop(
+        taskConfigItems(initial).map((it) => ({
+          name: it.item_name,
+          points: it.points,
+          ...(it.npcs ? { npcs: it.npcs } : {}),
+          ...(initialPetNames.has(it.item_name.toLowerCase()) ? { isPet: true } : {}),
+        })),
+        initialPerDrop,
+      )
     : [];
   const initialConfig = initial ? taskConfig(initial) : {};
 
@@ -667,8 +676,15 @@ export function EventTaskForm({
   );
 
   // item_collection
-  const initialGroups = groupsFromConfig(initialConfig, initialPetNames);
-  const initialPaths = pathsFromConfig(initialConfig, initialPetNames);
+  const initialGroups = groupsFromConfig(initialConfig, initialPetNames).map((g) => ({
+    ...g,
+    items: withPerDrop(g.items, initialPerDrop),
+  }));
+  const initialPaths = pathsFromConfig(initialConfig, initialPetNames).map((p) => ({
+    ...p,
+    items: withPerDrop(p.items, initialPerDrop),
+    groups: p.groups.map((g) => ({ ...g, items: withPerDrop(g.items, initialPerDrop) })),
+  }));
   const [itemMode, setItemMode] = useState<ItemMode>(
     initialPaths.length
       ? "any_path"
@@ -680,12 +696,15 @@ export function EventTaskForm({
   );
   const [singleItem, setSingleItem] = useState<PickerEntry[]>(
     initial?.type === "item_collection" && initial.target
-      ? [
-          {
-            name: initial.target,
-            ...(taskSourceNpcs(initial).length ? { npcs: taskSourceNpcs(initial) } : {}),
-          },
-        ]
+      ? withPerDrop(
+          [
+            {
+              name: initial.target,
+              ...(taskSourceNpcs(initial).length ? { npcs: taskSourceNpcs(initial) } : {}),
+            },
+          ],
+          initialPerDrop,
+        )
       : [],
   );
   const [quantity, setQuantity] = useState(
@@ -1253,17 +1272,25 @@ export function EventTaskForm({
         if (itemMode === "single") {
           // Single-item source restriction rides in config.source_npcs.
           const src = singleItem[0]?.npcs ?? [];
+          const perDrop = perDropItemsFromEntries(singleItem);
           return {
             ...base,
             target: itemName,
             target_value: quantity,
-            config: src.length ? JSON.stringify({ source_npcs: src }) : undefined,
+            config:
+              src.length || perDrop.length
+                ? JSON.stringify({
+                    ...(src.length ? { source_npcs: src } : {}),
+                    ...(perDrop.length ? { per_drop_items: perDrop } : {}),
+                  })
+                : undefined,
           };
         }
         if (itemMode === "groups") {
           const groupItems = groups.flatMap((g) => g.items);
           const itemNpcs = itemNpcsFromEntries(groupItems);
           const petItems = petItemsFromEntries(groupItems);
+          const perDrop = perDropItemsFromEntries(groupItems);
           return {
             ...base,
             // Display value; the API recomputes the threshold from the groups.
@@ -1273,6 +1300,7 @@ export function EventTaskForm({
               groups: serializeGroups(groups),
               ...(Object.keys(itemNpcs).length ? { item_npcs: itemNpcs } : {}),
               ...(petItems.length ? { pet_items: petItems } : {}),
+              ...(perDrop.length ? { per_drop_items: perDrop } : {}),
             }),
           };
         }
@@ -1286,6 +1314,7 @@ export function EventTaskForm({
           );
           const itemNpcs = itemNpcsFromEntries(pathItems);
           const petItems = petItemsFromEntries(pathItems);
+          const perDrop = perDropItemsFromEntries(pathItems);
           return {
             ...base,
             // Either-or progress is a percentage of the closest path; the
@@ -1315,12 +1344,14 @@ export function EventTaskForm({
               }),
               ...(Object.keys(itemNpcs).length ? { item_npcs: itemNpcs } : {}),
               ...(petItems.length ? { pet_items: petItems } : {}),
+              ...(perDrop.length ? { per_drop_items: perDrop } : {}),
             }),
           };
         }
         {
           const itemNpcs = itemNpcsFromEntries(listItems);
           const petItems = petItemsFromEntries(listItems);
+          const perDrop = perDropItemsFromEntries(listItems);
           return {
             ...base,
             target_value:
@@ -1337,6 +1368,7 @@ export function EventTaskForm({
                   : listItems.map((i) => i.name),
               ...(Object.keys(itemNpcs).length ? { item_npcs: itemNpcs } : {}),
               ...(petItems.length ? { pet_items: petItems } : {}),
+              ...(perDrop.length ? { per_drop_items: perDrop } : {}),
             }),
           };
         }
@@ -1867,6 +1899,7 @@ export function EventTaskForm({
                           kind="item"
                           mode="list"
                           withPoints
+                          perDropToggle
                           selected={p.items}
                           onChange={(items) => patchPath(pi, { items })}
                           search={searchItems}
@@ -1933,6 +1966,8 @@ export function EventTaskForm({
               kind="item"
               mode={itemMode === "single" ? "single" : "list"}
               withPoints={itemMode === "point_collection"}
+              // Distinct-item modes count each item once already.
+              perDropToggle={!["all_of", "assembly", "any_of_distinct"].includes(itemMode)}
               selected={itemMode === "single" ? singleItem : listItems}
               onChange={itemMode === "single" ? setSingleItem : setListItems}
               search={searchItems}

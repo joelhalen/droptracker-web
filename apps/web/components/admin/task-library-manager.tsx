@@ -25,9 +25,12 @@ import {
   TASK_TYPE_LABELS,
   formatSeconds,
   parseTimeToSeconds,
+  perDropItemsFromEntries,
   taskConfig,
   taskConfigItems,
+  taskConfigPerDropNames,
   taskGoal,
+  withPerDrop,
 } from "@/lib/events";
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Button, EmptyState } from "@/components/ui";
@@ -452,11 +455,18 @@ function PresetForm({
   onCancel: () => void;
 }) {
   const editing = initial != null;
+  // Items counted once per drop, whatever the stack (config.per_drop_items).
+  const initialPerDrop = initial
+    ? taskConfigPerDropNames({ config: initial.config ?? null })
+    : new Set<string>();
   const initialItems: PickerEntry[] = initial
-    ? taskConfigItems({ config: initial.config ?? null }).map((it) => ({
-        name: it.item_name,
-        points: it.points,
-      }))
+    ? withPerDrop(
+        taskConfigItems({ config: initial.config ?? null }).map((it) => ({
+          name: it.item_name,
+          points: it.points,
+        })),
+        initialPerDrop,
+      )
     : [];
   const initialConfig = initial ? taskConfig({ config: initial.config ?? null }) : {};
   // Combined-requirement / either-or presets are authored in the event task
@@ -489,7 +499,9 @@ function PresetForm({
     initialItems.length ? ((initialConfig.kind as ItemMode) ?? "any_of") : "single",
   );
   const [singleItem, setSingleItem] = useState<PickerEntry[]>(
-    initial?.type === "item_collection" && initial.target ? [{ name: initial.target }] : [],
+    initial?.type === "item_collection" && initial.target
+      ? withPerDrop([{ name: initial.target }], initialPerDrop)
+      : [],
   );
   const [quantity, setQuantity] = useState(
     initial?.type === "item_collection" && !initialItems.length ? (initial.target_value ?? 1) : 1,
@@ -628,7 +640,15 @@ function PresetForm({
             target_value: initial?.target_value ?? null,
             config: initial?.config ?? null,
           };
-        if (itemMode === "single") return { ...base, target: itemName, target_value: quantity };
+        if (itemMode === "single") {
+          const perDrop = perDropItemsFromEntries(singleItem);
+          return {
+            ...base,
+            target: itemName,
+            target_value: quantity,
+            config: perDrop.length ? JSON.stringify({ per_drop_items: perDrop }) : null,
+          };
+        }
         return {
           ...base,
           target_value:
@@ -643,6 +663,9 @@ function PresetForm({
               itemMode === "point_collection"
                 ? listItems.map((i) => ({ item_name: i.name, points: i.points ?? 1 }))
                 : listItems.map((i) => i.name),
+            ...(perDropItemsFromEntries(listItems).length
+              ? { per_drop_items: perDropItemsFromEntries(listItems) }
+              : {}),
           }),
         };
       case "kc_target":
@@ -857,6 +880,7 @@ function PresetForm({
             mode={itemMode === "single" ? "single" : "list"}
             withPoints={itemMode === "point_collection"}
             selected={itemMode === "single" ? singleItem : listItems}
+            perDropToggle={!["all_of", "assembly", "any_of_distinct"].includes(itemMode)}
             onChange={itemMode === "single" ? setSingleItem : setListItems}
             search={searchLibraryItems}
             resolve={resolveItems}

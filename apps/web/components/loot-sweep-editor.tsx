@@ -39,6 +39,9 @@ export type LootSweepItemDraft = {
   /** The name is a custom label ("Any ancestral piece"), not a real item —
    * matchNames carries the real pieces. */
   virtual: boolean;
+  /** Count each drop once, whatever the stack: 3 Hueycoatl hides in one drop
+   * are one receipt, not three. */
+  perDrop?: boolean;
 };
 
 export type LootSweepGroupDraft = {
@@ -112,6 +115,7 @@ export function lootSweepFromConfig(config: Record<string, unknown> | null | und
       matchNames: Array.isArray(it.match_names) ? (it.match_names as unknown[]).map(String) : [],
       required: typeof it.required === "number" && it.required > 1 ? it.required : 1,
       virtual: it.virtual === true,
+      perDrop: it.per_drop === true,
     })),
   });
   return {
@@ -148,6 +152,7 @@ export function lootSweepToConfig(d: LootSweepDraft): string {
         ...(i.matchNames.length ? { match_names: i.matchNames } : {}),
         ...(i.required > 1 ? { required: i.required } : {}),
         ...(i.virtual ? { virtual: true } : {}),
+        ...(i.perDrop && i.source !== "pet" ? { per_drop: true } : {}),
       })),
     })),
   });
@@ -614,6 +619,21 @@ function GroupCard({
                   />
                   <span className="text-osrs-parchment-dark/70">In group</span>
                 </label>
+                {it.source !== "pet" && (
+                  <label
+                    className="flex items-center gap-1.5 text-xs"
+                    title="Count each drop once, however many came in it (e.g. 3 Hueycoatl hides in one drop = 1 receipt)."
+                  >
+                    <input
+                      type="checkbox"
+                      checked={!!it.perDrop}
+                      onChange={(e) => patchItem(idx, { perDrop: e.target.checked })}
+                      disabled={disabled}
+                      className="accent-osrs-gold"
+                    />
+                    <span className="text-osrs-parchment-dark/70">1 per drop</span>
+                  </label>
+                )}
                 <span
                   className="text-osrs-parchment-dark/60 w-full font-mono text-[11px] sm:ml-auto sm:w-auto"
                   title="Points per successive receipt"

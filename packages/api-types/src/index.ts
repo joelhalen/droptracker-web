@@ -4182,6 +4182,9 @@ export const LootSweepConfigItemSchema = z.object({
   /** The item_name is a custom label ("Any ancestral piece"), not a real
    * droppable item — the pieces live in match_names. */
   virtual: z.boolean().optional(),
+  /** Count each drop once, whatever the stack (3 hides in one drop = one
+   * receipt). Omitted = every unit of a drop counts. */
+  per_drop: z.boolean().optional(),
   /** Board only: resolved game ids for every piece this entry displays
    * (primary first for a real item, then each match name). */
   icon_ids: z.array(z.number().int()).optional(),

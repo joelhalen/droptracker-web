@@ -138,6 +138,12 @@ export function ItemInfoCard({
         </p>
       )}
 
+      {item.per_drop && (
+        <p className="text-osrs-parchment-dark/70 mt-2 text-xs">
+          Each drop counts once, however many came in it.
+        </p>
+      )}
+
       <div className="mt-2.5">
         <p className="text-osrs-parchment-dark/50 mb-1.5 text-[10px] font-medium uppercase tracking-wider">
           Points per receipt
