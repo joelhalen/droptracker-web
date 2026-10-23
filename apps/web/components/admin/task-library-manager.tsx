@@ -35,6 +35,13 @@ import { ItemNpcPicker, type PickerEntry } from "@/components/item-npc-picker";
 import { GpInput } from "@/components/gp-input";
 import { QuantityInput } from "@/components/quantity-input";
 import {
+  LootSweepEditor,
+  type LootSweepDraft,
+  emptyLootSweepDraft,
+  lootSweepFromConfig,
+  lootSweepToConfig,
+} from "@/components/loot-sweep-editor";
+import {
   createTaskPreset,
   deleteTaskPreset,
   resolveLibraryMeta,
@@ -43,6 +50,21 @@ import {
   searchTaskLibrary,
   updateTaskPreset,
 } from "@/app/(site)/(admin)/admin/task-library/actions";
+
+/** Task types this form has goal fields for; any other type keeps its saved
+ * goal on edit (see `keptGoal`). */
+const AUTHORED_TYPES = new Set<string>([
+  "item_collection",
+  "kc_target",
+  "pb_target",
+  "xp_target",
+  "skill_target",
+  "loot_value",
+  "ehp_target",
+  "ehb_target",
+  "custom",
+  "loot_sweep",
+]);
 
 const field =
   "bg-osrs-brown-dark/60 border-osrs-bronze/30 text-osrs-parchment placeholder:text-osrs-parchment-dark/40 rounded border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-osrs-gold/60";
@@ -448,6 +470,13 @@ function PresetForm({
   const [type, setType] = useState<EventTaskLibraryItem["type"]>(
     initial?.type ?? "item_collection",
   );
+  // Loot Sweep sets: the same groups/items editor as the event task form.
+  const [lootSweep, setLootSweep] = useState<LootSweepDraft>(
+    initial?.type === "loot_sweep" ? lootSweepFromConfig(initialConfig) : emptyLootSweepDraft(),
+  );
+  // Types this form has no goal fields for (pets, combat achievements, slayer,
+  // races…): an edit keeps the saved goal as it is instead of saving it empty.
+  const keptGoal = editing && initial?.type === type && !AUTHORED_TYPES.has(type);
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [defaultPoints, setDefaultPoints] = useState(initial?.default_points ?? 0);
@@ -558,6 +587,13 @@ function PresetForm({
       case "ehb_target":
         if (numericGoal < 1) return "Set a target amount.";
         break;
+      case "loot_sweep":
+        if (lootSweep.groups.length < 1) return "Add at least one group.";
+        for (const g of lootSweep.groups) {
+          if (g.items.length < 1) return "Every group needs at least one item.";
+          if (g.items.some((i) => i.points < 1)) return "Every item needs at least 1 point.";
+        }
+        break;
       case "custom":
         break;
     }
@@ -576,6 +612,13 @@ function PresetForm({
       target_value: null,
       config: null,
     };
+    if (keptGoal)
+      return {
+        ...base,
+        target: initial?.target ?? null,
+        target_value: initial?.target_value ?? null,
+        config: initial?.config ?? null,
+      };
     switch (type) {
       case "item_collection":
         if (structuredKind)
@@ -620,6 +663,8 @@ function PresetForm({
       case "ehp_target":
       case "ehb_target":
         return { ...base, target_value: numericGoal };
+      case "loot_sweep":
+        return { ...base, config: lootSweepToConfig(lootSweep) };
       default:
         return { ...base, target: customTarget.trim() || null };
     }
@@ -726,6 +771,21 @@ function PresetForm({
       </div>
       <p className="text-osrs-parchment-dark/60 text-xs">{TASK_TYPE_HELP[type]}</p>
 
+      {keptGoal && (
+        <p className="text-osrs-parchment-dark/60 border-osrs-bronze/25 rounded border border-dashed p-3 text-xs">
+          This preset&apos;s goal is kept as it is here. To change it, edit the task in an
+          event&apos;s task form and save it to the library again.
+        </p>
+      )}
+      {type === "loot_sweep" && (
+        <LootSweepEditor
+          value={lootSweep}
+          onChange={setLootSweep}
+          searchItems={searchLibraryItems}
+          searchNpcs={searchLibraryNpcs}
+          disabled={pending}
+        />
+      )}
       {type === "item_collection" && structuredKind && (
         <p className="text-osrs-parchment-dark/60 border-osrs-bronze/25 rounded border border-dashed p-3 text-xs">
           This preset uses{" "}
