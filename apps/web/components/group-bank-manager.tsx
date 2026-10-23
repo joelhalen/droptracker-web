@@ -3,7 +3,7 @@
 /**
  * Clan bank admin tab (web131a). Staff record GP coming in and going out,
  * review members' pending donations, move GP into an event prize pot, and
- * browse the full ledger.
+ * browse the full ledger, editing any entry in place.
  *
  * The bank only records GP; the clan trades it in game. Every write goes
  * through a server action that re-checks admin rights, and the backend checks
@@ -209,6 +209,7 @@ export function GroupBankManager({
                   if (window.confirm(what)) run(() => deleteBankEntry(groupId, e.id), "Removed.");
                 }}
                 onProof={(key) => run(() => updateBankEntry(groupId, e.id, { proof_key: key }))}
+                onEdit={(patch) => run(() => updateBankEntry(groupId, e.id, patch), "Saved.")}
               />
             ))}
           </ul>
@@ -255,21 +256,26 @@ function entryWho(e: GroupBankEntry): string {
   return e.rsn ?? "";
 }
 
+type EntryPatch = { amount?: number; rsn?: string | null; note?: string | null };
+
 function LedgerRow({
   entry: e,
   busy,
   onReopen,
   onRemove,
   onProof,
+  onEdit,
 }: {
   entry: GroupBankEntry;
   busy: boolean;
   onReopen: () => void;
   onRemove: () => void;
   onProof: (key: string | null) => void;
+  onEdit: (patch: EntryPatch) => void;
 }) {
   const status = STATUS_BADGE[e.status];
   const editable = e.status !== "void";
+  const [editing, setEditing] = useState(false);
   return (
     <li className={`flex flex-wrap items-center gap-3 px-4 py-3 text-sm ${e.status === "void" ? "opacity-60" : ""}`}>
       <div className="min-w-0 flex-1">
@@ -303,10 +309,21 @@ function LedgerRow({
       <div className="w-28 text-right font-semibold">
         <SignedGp money={e.amount} />
       </div>
-      <div className="flex w-24 justify-end gap-1">
+      <div className="flex w-36 justify-end gap-1">
         {e.status === "rejected" && (
           <Button variant="link" size="xs" disabled={busy} onClick={onReopen}>
             Reopen
+          </Button>
+        )}
+        {editable && (
+          <Button
+            variant="link"
+            size="xs"
+            disabled={busy}
+            aria-expanded={editing}
+            onClick={() => setEditing(!editing)}
+          >
+            {editing ? "Close" : "Edit"}
           </Button>
         )}
         {editable && (
@@ -315,7 +332,106 @@ function LedgerRow({
           </Button>
         )}
       </div>
+      {editing && editable && (
+        <EntryEditor
+          entry={e}
+          busy={busy}
+          onCancel={() => setEditing(false)}
+          onSave={(patch) => {
+            onEdit(patch);
+            setEditing(false);
+          }}
+        />
+      )}
     </li>
+  );
+}
+
+/** Edit an entry in place: who it was from or to, the amount, the note. The
+ * amount is shown the way it was entered (positive GP; an adjustment keeps
+ * its sign) and only changed fields are sent. A transfer's amount belongs to
+ * the prize-pot row it wrote, so only its note can change here. */
+function EntryEditor({
+  entry: e,
+  busy,
+  onSave,
+  onCancel,
+}: {
+  entry: GroupBankEntry;
+  busy: boolean;
+  onSave: (patch: EntryPatch) => void;
+  onCancel: () => void;
+}) {
+  const isTransfer = e.kind === "event_transfer";
+  const signed = e.kind === "adjustment";
+  const startAmount = signed ? e.amount.value : Math.abs(e.amount.value);
+  const [rsn, setRsn] = useState(e.rsn ?? "");
+  const [amount, setAmount] = useState(startAmount);
+  const [note, setNote] = useState(e.note ?? "");
+
+  const needsName = e.kind === "donation" || e.kind === "payout";
+  const patch: EntryPatch = {};
+  if (!isTransfer) {
+    if (rsn.trim() !== (e.rsn ?? "")) patch.rsn = rsn.trim() || null;
+    if (amount !== startAmount) patch.amount = amount;
+  }
+  if (note.trim() !== (e.note ?? "")) patch.note = note.trim() || null;
+  const changed = Object.keys(patch).length > 0;
+  const valid = isTransfer || ((signed ? amount !== 0 : amount > 0) && (!needsName || rsn.trim().length > 0));
+
+  return (
+    <div className="border-osrs-bronze/20 bg-osrs-bronze/5 basis-full space-y-3 rounded border p-3">
+      {isTransfer ? (
+        <p className="text-osrs-parchment-dark/60 text-xs">
+          A transfer&apos;s amount is fixed. Remove it and make a new one to change it.
+        </p>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+              {e.kind === "payout" ? "Paid to" : e.kind === "donation" ? "Donor" : "Name"}
+              {needsName ? "" : " (optional)"}
+            </span>
+            <input
+              type="text"
+              value={rsn}
+              maxLength={24}
+              onChange={(ev) => setRsn(ev.target.value)}
+              placeholder="RSN"
+              className={`${fieldInputClass} w-full`}
+            />
+          </label>
+          <label className="block">
+            <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Amount</span>
+            <GpInput
+              value={amount}
+              min={signed ? null : 0}
+              emptyAs={0}
+              onChange={setAmount}
+              className="w-full"
+            />
+          </label>
+        </div>
+      )}
+      <label className="block">
+        <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Note (optional, staff only)</span>
+        <input
+          type="text"
+          value={note}
+          maxLength={255}
+          onChange={(ev) => setNote(ev.target.value)}
+          className={`${fieldInputClass} w-full`}
+        />
+      </label>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" disabled={!changed || !valid || busy} onClick={() => onSave(patch)}>
+          Save changes
+        </Button>
+      </div>
+    </div>
   );
 }
 

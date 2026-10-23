@@ -64,6 +64,8 @@ export async function updateBankEntry(
     note?: string | null;
     review_note?: string | null;
     proof_key?: string | null;
+    player_id?: number | null;
+    rsn?: string | null;
   },
 ) {
   return attempt(groupId, () => api.updateGroupBankEntry(groupId, entryId, patch));
