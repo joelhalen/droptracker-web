@@ -71,7 +71,11 @@ export const groupBankApi = {
   },
 
 
-  /** Edit or review an entry. `proof_key: null` detaches the screenshot. */
+  /** Edit or review an entry. `proof_key: null` detaches the screenshot.
+   * `amount` is entered like a new entry's (positive GP; an adjustment
+   * carries its own sign). A typed `rsn` that names a tracked account is
+   * linked to it, as when recording. A transfer only takes `note` and
+   * `proof_key`. */
   async updateGroupBankEntry(
     groupId: number,
     entryId: number,
@@ -81,6 +85,8 @@ export const groupBankApi = {
       note?: string | null;
       review_note?: string | null;
       proof_key?: string | null;
+      player_id?: number | null;
+      rsn?: string | null;
     },
   ): Promise<{ ok: true }> {
     await apiSend("PATCH", `/groups/${groupId}/bank/entries/${entryId}`, patch);
