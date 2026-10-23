@@ -9,7 +9,12 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
-import { consumeOAuthState, safeReturnPath, setSession } from "@/lib/session";
+import {
+  PLUGIN_REGISTRATION_PATH,
+  consumeOAuthState,
+  safeReturnPath,
+  setSession,
+} from "@/lib/session";
 
 const DISCORD_TOKEN = "https://discord.com/api/oauth2/token";
 const DISCORD_ME = "https://discord.com/api/users/@me";
@@ -40,7 +45,7 @@ export async function GET(req: NextRequest) {
       }),
     });
     if (!tokenRes.ok) throw new Error(`Discord token exchange failed: ${tokenRes.status}`);
-    const token = (await tokenRes.json()) as { access_token: string };
+    const token = (await tokenRes.json()) as { access_token: string; guild?: { id?: string } };
 
     // 2b. Fetch the Discord profile.
     const profileRes = await fetch(DISCORD_ME, {
@@ -66,7 +71,14 @@ export async function GET(req: NextRequest) {
     // depth — the state is HMAC-signed, but the login route pre-dating the
     // clamp may have signed an absolute URL).
     await setSession(session_token);
-    return NextResponse.redirect(new URL(safeReturnPath(verified.redirectTo), env.siteUrl));
+    const next = new URL(safeReturnPath(verified.redirectTo), env.siteUrl);
+    // A plugin registration: pass on the server Discord added the bot to. The
+    // Web API checks the user manages it before using it.
+    const guild = token.guild?.id;
+    if (next.pathname.startsWith(PLUGIN_REGISTRATION_PATH) && guild && /^\d{5,25}$/.test(guild)) {
+      next.searchParams.set("guild", guild);
+    }
+    return NextResponse.redirect(next);
   } catch (err) {
     console.error("[auth/callback]", err);
     return NextResponse.redirect(new URL("/?auth=exchange_failed", env.siteUrl));

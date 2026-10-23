@@ -8555,3 +8555,4 @@ export * from "./group-bank";
 
 // PvP tracking (web136a)
 export * from "./pvp";
+export * from "./plugin-registration";

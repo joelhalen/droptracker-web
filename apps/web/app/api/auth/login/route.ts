@@ -4,10 +4,11 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
-import { issueOAuthState, safeReturnPath, setSession } from "@/lib/session";
+import { PLUGIN_REGISTRATION_PATH, issueOAuthState, safeReturnPath, setSession } from "@/lib/session";
 
 const DISCORD_AUTHORIZE = "https://discord.com/api/oauth2/authorize";
 const SCOPES = ["identify", "guilds"];
+const BOT_SCOPES = ["bot", "applications.commands"];
 
 export async function GET(req: NextRequest) {
   const redirectTo = safeReturnPath(req.nextUrl.searchParams.get("redirect"));
@@ -35,7 +36,13 @@ export async function GET(req: NextRequest) {
   url.searchParams.set("client_id", env.discord.clientId);
   url.searchParams.set("redirect_uri", env.discord.redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", SCOPES.join(" "));
+  // A group registered from the RuneLite plugin adds the bot on the same
+  // consent screen. Adding a bot needs Manage Server, and Discord sends back
+  // which server it was added to (see the callback).
+  const addBot =
+    req.nextUrl.searchParams.get("bot") === "1" && redirectTo.startsWith(PLUGIN_REGISTRATION_PATH);
+  url.searchParams.set("scope", (addBot ? [...SCOPES, ...BOT_SCOPES] : SCOPES).join(" "));
+  if (addBot) url.searchParams.set("permissions", env.discord.botPermissions);
   url.searchParams.set("state", state);
   // Note: no `prompt=none`. With `prompt=none` Discord refuses to show the
   // consent screen and instead returns an error (e.g. `consent_required`)

@@ -21,6 +21,10 @@ const STATE_TTL_MS = 10 * 60 * 1000;
  * backslash as a slash) would WIN over the base and turn sign-in/out into an
  * open redirect. Anything that isn't a plain in-site path falls back to "/".
  */
+/** Where a group registered from the RuneLite plugin is finished. Sign-in
+ *  adds the bot for these return paths and passes on the chosen server. */
+export const PLUGIN_REGISTRATION_PATH = "/register-group/";
+
 export function safeReturnPath(value: string | null | undefined): string {
   if (!value || !value.startsWith("/")) return "/";
   if (value.startsWith("//") || value.startsWith("/\\")) return "/";

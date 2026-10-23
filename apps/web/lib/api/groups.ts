@@ -2,6 +2,10 @@ import { z } from "zod";
 import { apiGet, apiSend, apiSendForm, withFallback } from "./_client";
 import { type DiscordChannelList, type PbBossList } from "./types";
 import {
+  PluginRegistrationSchema,
+  PluginRegistrationResultSchema,
+  type PluginRegistration,
+  type PluginRegistrationResult,
   GroupDiagnosticsSchema,
   SetupStatusSchema,
   type SetupStatus,
@@ -177,6 +181,22 @@ export const groupsApi = {
 
 
   // --- Group admin -------------------------------------------------------
+  /** A group being registered from the RuneLite plugin (no mock: it only
+   *  means anything against a real backend). */
+  async pluginRegistration(id: string): Promise<PluginRegistration> {
+    return PluginRegistrationSchema.parse(
+      await apiGet(`/plugin-registrations/${encodeURIComponent(id)}`, { authed: true }),
+    );
+  },
+
+  async completePluginRegistration(id: string, guildId: string): Promise<PluginRegistrationResult> {
+    return PluginRegistrationResultSchema.parse(
+      await apiSend("POST", `/plugin-registrations/${encodeURIComponent(id)}/complete`, {
+        guild_id: guildId,
+      }),
+    );
+  },
+
   async groupMembers(groupId: number, page = 1, q?: string): Promise<GroupMembersPage> {
     const params = new URLSearchParams({ page: String(page) });
     if (q) params.set("q", q);
