@@ -63,6 +63,8 @@ export function tidyTitle(text: string): string {
  */
 export const TOKEN_SAMPLE_ICONS: Readonly<Record<string, string>> = {
   "{item_emoji}": "https://www.droptracker.io/img/itemdb/20997.png",
+  // Pet zilyana, matching the {pet_name} sample.
+  "{pet_emoji}": "https://www.droptracker.io/img/itemdb/12651.png",
   // Slayer, matching the {skill_name} sample.
   "{skill_emoji}": "https://oldschool.runescape.wiki/images/Slayer_icon.png",
 };

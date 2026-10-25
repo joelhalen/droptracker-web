@@ -75,6 +75,8 @@ const PET_PLACEHOLDERS: PlaceholderDoc[] = [
   { token: "{player_name}", help: "Player who received the pet (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
   { token: "{player_name_plain}", help: "Player who received the pet, with no profile link", sample: "RuneLite Ron" },
   { token: "{pet_name}", help: "Pet name", sample: "Pet zilyana" },
+  // Empty sample for the reason {item_emoji}'s is; see TOKEN_SAMPLE_ICONS.
+  { token: "{pet_emoji}", help: "The pet's own icon", sample: "" },
   { token: "{source}", help: "Where the pet came from", sample: "Commander Zilyana" },
   { token: "{npc_name}", help: "NPC name", sample: "Commander Zilyana" },
   { token: "{killcount}", help: "Kill count at the pet", sample: "1,432" },
@@ -387,7 +389,7 @@ function substitute(text: string, docs: PlaceholderDoc[], useSamples: boolean): 
 /**
  * A placeholder token drawn as the icon Discord will draw, not as its name.
  *
- * `{item_emoji}` and `{skill_emoji}`. Sized in `em` so it tracks whatever
+ * `{item_emoji}`, `{pet_emoji}` and `{skill_emoji}`. Sized in `em` so it tracks whatever
  * text it sits in — the title is 15px and a field value is 14px — and nudged
  * onto the text baseline the way Discord sets an inline emoji.
  */
