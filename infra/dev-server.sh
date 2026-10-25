@@ -42,7 +42,7 @@ export USE_MOCK_API="${USE_MOCK_API:-true}"
 export WEB_API_INTERNAL_URL="${WEB_API_INTERNAL_URL:-http://localhost:31325}"
 
 # --- ensure pnpm/node are on PATH (nvm + corepack) --------------------------
-NVM_BIN="$HOME/.nvm/versions/node/v20.20.1/bin"
+NVM_BIN="$HOME/.nvm/versions/node/v22.23.4/bin"
 if [ -d "$NVM_BIN" ]; then
   export PATH="$NVM_BIN:$PATH"
 fi
