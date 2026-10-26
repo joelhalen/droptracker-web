@@ -51,11 +51,11 @@ export const BLOCK_DEFS: BlockDef[] = [
   { type: "divider", label: "Divider", description: "Space between sections.", icon: "—", category: "basics", scope: "both", surface: "plain", props: { size: "md", rule: true } },
   // clan
   { type: "group_links", label: "Clan links", description: "Lootboard, Clan Log, PBs, Discord and more.", icon: "☷", category: "clan", scope: "group", surface: "plain", props: { items: ["lootboard", "clan_log", "personal_bests", "pvp", "points", "recaps", "discord"], style: "outline", align: "left" }, single: true },
-  { type: "stats_row", label: "Stats", description: "Pick up to 8: members, loot, Clan Log, PvP, bank and more.", icon: "▦", category: "clan", scope: "group", surface: "plain", props: { stats: ["members", "rank", "monthly_loot", "top_player"], columns: "auto" } },
+  { type: "stats_row", label: "Stats", description: "Pick up to 8: members, loot, Clan Log, PvP, bank and more.", icon: "▦", category: "clan", scope: "group", surface: "plain", props: { stats: ["members", "rank", "monthly_loot", "top_player"], columns: "auto", tile_style: "auto" } },
   { type: "events_list", label: "Events", description: "What's running now, and recent results.", icon: "🚩", category: "community", scope: "group", surface: "card", props: { show: "active_and_past", limit: 4 } },
-  { type: "clan_log", label: "Clan Log", description: "Collection log progress across the clan.", icon: "📖", category: "records", scope: "group", surface: "card", props: { view: "summary", show_categories: true, recent: 6 } },
-  { type: "points_leaderboard", label: "Clan points", description: "Top members by clan points.", icon: "✦", category: "clan", scope: "group", surface: "card", props: { limit: 10 } },
-  { type: "pvp_summary", label: "PvP", description: "Kills, PvP loot and top killers.", icon: "☠", category: "loot", scope: "group", surface: "card", props: { period: "month", limit: 5, show_recent: true } },
+  { type: "clan_log", label: "Clan Log", description: "Collection log progress across the clan.", icon: "📖", category: "records", scope: "group", surface: "card", props: { view: "summary", show_categories: true, recent: 6, show_link: true } },
+  { type: "points_leaderboard", label: "Clan points", description: "Top members by clan points, for any time frame.", icon: "✦", category: "clan", scope: "group", surface: "card", props: { limit: 10, period: "month", switchable: false, periods: ["month", "all"], show_link: true } },
+  { type: "pvp_summary", label: "PvP", description: "Kills, PvP loot and top killers.", icon: "☠", category: "loot", scope: "group", surface: "card", props: { period: "month", limit: 5, show_recent: true, show_link: true } },
   { type: "highlights", label: "Highlights", description: "Recent pets, log slots, PBs: you pick which.", icon: "✨", category: "loot", scope: "group", surface: "card", props: { types: ["pet", "clog", "pb"], limit: 8 } },
   { type: "support_card", label: "Support card", description: "Lets members chip in toward your plan.", icon: "♥", category: "clan", scope: "group", surface: "plain", props: {}, single: true },
   { type: "bank", label: "Clan bank", description: "Your bank balance and recent entries.", icon: "⛁", category: "clan", scope: "group", surface: "plain", props: {}, single: true },
@@ -64,13 +64,13 @@ export const BLOCK_DEFS: BlockDef[] = [
   { type: "recent_drops", label: "Recent drops", description: "The latest tracked loot.", icon: "◈", category: "loot", scope: "group", surface: "plain", props: { limit: 10 } },
   { type: "top_players", label: "Top players", description: "This month's biggest earners.", icon: "♛", category: "loot", scope: "group", surface: "card", props: { limit: 10 } },
   { type: "boss_activity", label: "Most active bosses", description: "What the clan farms most.", icon: "⚔", category: "loot", scope: "group", surface: "card", props: { limit: 10 } },
-  { type: "leaderboard", label: "Loot leaderboard", description: "GP ranking for a day, week, month or all time.", icon: "☰", category: "loot", scope: "group", surface: "card", props: { limit: 10, period: "month" } },
-  { type: "npc_board", label: "Boss leaderboard", description: "Loot ranking for one boss.", icon: "🐉", category: "loot", scope: "group", surface: "card", props: { npc_id: null, period: "month", limit: 10 } },
+  { type: "leaderboard", label: "Loot leaderboard", description: "GP ranking for a day, week, month or all time.", icon: "☰", category: "loot", scope: "group", surface: "card", props: { limit: 10, period: "month", switchable: false, periods: ["month", "all"] } },
+  { type: "npc_board", label: "Boss leaderboard", description: "Loot ranking for one boss.", icon: "🐉", category: "loot", scope: "group", surface: "card", props: { npc_id: null, period: "month", limit: 10, switchable: false, periods: ["month", "all"] } },
   { type: "lootboard", label: "Lootboard", description: "The lootboard image.", icon: "▤", category: "loot", scope: "group", surface: "card", props: { period: "month" } },
   { type: "live_ticker", label: "Live drop feed", description: "Drops as they happen.", icon: "⚡", category: "loot", scope: "group", surface: "plain", props: {} },
   // records
   { type: "records", label: "Clan records", description: "Fastest kills held by members.", icon: "⏱", category: "records", scope: "group", surface: "plain", props: { limit: 8 } },
-  { type: "pb_board", label: "PB board", description: "Ranked times for chosen bosses.", icon: "⏲", category: "records", scope: "group", surface: "card", props: { bosses: [], rows: 5 } },
+  { type: "pb_board", label: "PB board", description: "Ranked times for chosen bosses.", icon: "⏲", category: "records", scope: "group", surface: "card", props: { bosses: [], rows: 5, max_sizes: 3 } },
   // community
   { type: "announcements", label: "Announcements", description: "Your latest news posts.", icon: "📣", category: "community", scope: "group", surface: "card", props: { limit: 3 } },
   { type: "event_standings", label: "Event standings", description: "Team scores for a running event.", icon: "🚩", category: "community", scope: "group", surface: "card", props: { event_id: null } },
@@ -79,7 +79,7 @@ export const BLOCK_DEFS: BlockDef[] = [
   // player
   { type: "player_links", label: "Profile links", description: "Collection log, achievements, recap.", icon: "☷", category: "profile", scope: "player", surface: "plain", props: { items: ["collection_log", "achievements", "recap"], style: "outline", align: "left" }, single: true },
   { type: "player_showcase", label: "Character and account", description: "Your character, loot and account tabs.", icon: "🧍", category: "profile", scope: "player", surface: "plain", props: {}, single: true },
-  { type: "player_stats", label: "Stats", description: "Pick up to 8: loot, log slots, CAs, quests and more.", icon: "▦", category: "profile", scope: "player", surface: "plain", props: { stats: ["monthly_loot", "rank", "clan_points", "top_npc"], columns: "auto" } },
+  { type: "player_stats", label: "Stats", description: "Pick up to 8: loot, log slots, CAs, quests and more.", icon: "▦", category: "profile", scope: "player", surface: "plain", props: { stats: ["monthly_loot", "rank", "clan_points", "top_npc"], columns: "auto", tile_style: "auto" } },
   { type: "player_clog", label: "Collection log", description: "Log progress, or the full browsable log.", icon: "📖", category: "records", scope: "player", surface: "card", props: { view: "summary" }, single: true },
   { type: "player_ca", label: "Combat achievements", description: "Progress by tier, or every task.", icon: "🗡", category: "records", scope: "player", surface: "card", props: { view: "summary" }, single: true },
   { type: "player_quests", label: "Quests and diaries", description: "Quest points and diary tiers.", icon: "📜", category: "records", scope: "player", surface: "card", props: {}, single: true },
@@ -95,6 +95,13 @@ export const BLOCK_DEFS: BlockDef[] = [
 export const BLOCK_DEF: Record<string, BlockDef> = Object.fromEntries(
   BLOCK_DEFS.map((d) => [d.type, d]),
 );
+
+/** The periods a board shows: just its own, or (switchable) its own plus the
+ * offered ones, in the order the editor set. */
+export function boardPeriods<T extends string>(period: T, switchable: boolean, offered: readonly T[]): T[] {
+  if (!switchable) return [period];
+  return offered.includes(period) ? [...offered] : [period, ...offered];
+}
 
 /** member_default layouts are player profiles. */
 export function layoutKind(scope: LayoutScope): "group" | "player" {

@@ -76,6 +76,15 @@ export const PLAYER_STATS_DEFAULT: PlayerStatKey[] = ["monthly_loot", "rank", "c
 /** At most this many stats in one row (the validator caps it too). */
 export const MAX_STATS = 8;
 export const STAT_COLUMNS = ["auto", "2", "3", "4"] as const;
+/** "auto" fills tiles on dark surfaces and outlines them on parchment/scroll. */
+export const STAT_TILE_STYLES = ["auto", "filled", "outline"] as const;
+export type StatTileStyle = (typeof STAT_TILE_STYLES)[number];
+/** Time frames a loot board can show (and offer as buttons when switchable). */
+export const LOOT_PERIODS = ["month", "week", "day", "all"] as const;
+export type LootPeriod = (typeof LOOT_PERIODS)[number];
+/** Clan points time frames. "season" = the current points season. */
+export const POINTS_PERIODS = ["all", "season", "month", "week", "day"] as const;
+export type PointsPeriod = (typeof POINTS_PERIODS)[number];
 export const HIGHLIGHT_TYPES = ["drop", "pet", "clog", "pb"] as const;
 export type HighlightType = (typeof HIGHLIGHT_TYPES)[number];
 
@@ -95,7 +104,17 @@ const base = {
 };
 
 const limit = (d: number) => z.number().int().catch(d);
-const period4 = z.enum(["month", "week", "day", "all"]).catch("month");
+const period4 = z.enum(LOOT_PERIODS).catch("month");
+/** Ordered subset of `all`; unknown entries are dropped, not fatal. */
+const keyList = <T extends readonly [string, ...string[]]>(all: T, d: T[number][]) =>
+  z
+    .array(z.unknown())
+    .transform((xs) => [...new Set(xs.filter((x): x is T[number] => (all as readonly unknown[]).includes(x)))])
+    .catch(d);
+const switcher = {
+  switchable: z.boolean().catch(false),
+  periods: keyList(LOOT_PERIODS, ["month", "all"]),
+};
 
 export const PageBlockSchema = z.discriminatedUnion("type", [
   // shared
@@ -132,6 +151,7 @@ export const PageBlockSchema = z.discriminatedUnion("type", [
     type: z.literal("stats_row"),
     stats: z.array(z.enum(GROUP_STATS)).catch([...GROUP_STATS_DEFAULT]),
     columns: z.enum(STAT_COLUMNS).catch("auto"),
+    tile_style: z.enum(STAT_TILE_STYLES).catch("auto"),
   }),
   z.object({ ...base, type: z.literal("bank") }),
   z.object({ ...base, type: z.literal("records"), limit: limit(8) }),
@@ -144,22 +164,33 @@ export const PageBlockSchema = z.discriminatedUnion("type", [
     type: z.literal("pb_board"),
     bosses: z.array(z.object({ npc_id: z.number().int(), team_sizes: z.array(z.string()).catch([]) })).catch([]),
     rows: limit(5),
+    max_sizes: limit(3),
   }),
-  z.object({ ...base, type: z.literal("leaderboard"), limit: limit(10), period: period4 }),
+  z.object({ ...base, type: z.literal("leaderboard"), limit: limit(10), period: period4, ...switcher }),
   z.object({
     ...base,
     type: z.literal("clan_log"),
     view: z.enum(["summary", "board"]).catch("summary"),
     show_categories: z.boolean().catch(true),
     recent: limit(6),
+    show_link: z.boolean().catch(true),
   }),
-  z.object({ ...base, type: z.literal("points_leaderboard"), limit: limit(10) }),
+  z.object({
+    ...base,
+    type: z.literal("points_leaderboard"),
+    limit: limit(10),
+    period: z.enum(POINTS_PERIODS).catch("month"),
+    switchable: z.boolean().catch(false),
+    periods: keyList(POINTS_PERIODS, ["month", "all"]),
+    show_link: z.boolean().catch(true),
+  }),
   z.object({
     ...base,
     type: z.literal("pvp_summary"),
     period: z.enum(["month", "all"]).catch("month"),
     limit: limit(5),
     show_recent: z.boolean().catch(true),
+    show_link: z.boolean().catch(true),
   }),
   z.object({
     ...base,
@@ -180,6 +211,7 @@ export const PageBlockSchema = z.discriminatedUnion("type", [
     npc_name: z.string().catch(""),
     period: period4,
     limit: limit(10),
+    ...switcher,
   }),
   z.object({ ...base, type: z.literal("recap"), period: z.enum(["month", "year"]).catch("month") }),
   z.object({ ...base, type: z.literal("announcements"), limit: limit(3) }),
@@ -209,6 +241,7 @@ export const PageBlockSchema = z.discriminatedUnion("type", [
     type: z.literal("player_stats"),
     stats: z.array(z.enum(PLAYER_STATS)).catch([...PLAYER_STATS_DEFAULT]),
     columns: z.enum(STAT_COLUMNS).catch("auto"),
+    tile_style: z.enum(STAT_TILE_STYLES).catch("auto"),
   }),
   z.object({ ...base, type: z.literal("player_clog"), view: z.enum(["summary", "browser"]).catch("summary") }),
   z.object({ ...base, type: z.literal("player_ca"), view: z.enum(["summary", "browser"]).catch("summary") }),

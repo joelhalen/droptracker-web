@@ -22,7 +22,7 @@ import {
   type PageTheme,
 } from "@droptracker/api-types";
 import type { api } from "@/lib/api";
-import { BLOCK_DEF } from "@/lib/page-layout/catalog";
+import { BLOCK_DEF, boardPeriods } from "@/lib/page-layout/catalog";
 import { GroupBankPanel } from "@/components/group-bank-panel";
 import { GroupSupportCard } from "@/components/group-support-card";
 import { LiveDropTicker } from "@/components/live-drop-ticker";
@@ -40,7 +40,14 @@ import {
   RecapBlock,
   WomAchievementsBlock,
 } from "@/components/site-blocks/renderer";
-import { ClanLogBlock, EventsListBlock, GroupStats, HighlightsBlock, PointsBlock, PvpSummaryBlock } from "./group-data-blocks";
+import {
+  ClanLogBlock,
+  EventsListBlock,
+  GroupStats,
+  HighlightsBlock,
+  PointsBlock,
+  PvpSummaryBlock,
+} from "./group-data-blocks";
 import { BannerFrame, BlockSlot, LayoutFrame, LayoutGrid, LIGHT_SURFACES, PreviewPlaceholder } from "./frame";
 import { LinkRow, renderSharedBlock, type LinkItem } from "./shared-blocks";
 
@@ -169,7 +176,7 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
         <GroupSupportCard groupId={group.id} summary={ctx.subSummary} signedIn={ctx.signedIn} />
       ) : null;
     case "stats_row":
-      return <GroupStats ctx={ctx} stats={block.stats} columns={block.columns} />;
+      return <GroupStats ctx={ctx} stats={block.stats} columns={block.columns} tileStyle={block.tile_style} />;
     case "bank":
       return ctx.bank?.visible && ctx.bank.has_activity ? (
         <GroupBankPanel bank={ctx.bank} manageHref={ctx.bank.can_manage ? `/groups/${group.id}/bank` : null} />
@@ -198,14 +205,27 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
           groupId={group.id}
           selections={block.bosses.map((b) => ({ npc_id: b.npc_id, team_sizes: b.team_sizes }))}
           rows={block.rows}
-          maxSizes={3}
+          maxSizes={block.max_sizes}
         />
       );
     case "leaderboard":
-      return <LeaderboardBlock groupId={group.id} limit={block.limit} period={block.period} />;
+      return (
+        <LeaderboardBlock
+          groupId={group.id}
+          limit={block.limit}
+          period={block.period}
+          periods={boardPeriods(block.period, block.switchable, block.periods)}
+        />
+      );
     case "npc_board":
       return block.npc_id ? (
-        <NpcBoardBlock groupId={group.id} npcId={block.npc_id} period={block.period} limit={block.limit} />
+        <NpcBoardBlock
+          groupId={group.id}
+          npcId={block.npc_id}
+          period={block.period}
+          periods={boardPeriods(block.period, block.switchable, block.periods)}
+          limit={block.limit}
+        />
       ) : null;
     case "recap":
       return ctx.latestRecap ? <RecapBlock groupId={group.id} period={block.period} /> : null;
@@ -236,10 +256,21 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
           view={block.view}
           showCategories={block.show_categories}
           recent={block.recent}
+          showLink={block.show_link}
         />
       );
     case "points_leaderboard":
-      return <PointsBlock group={group} base={ctx.base} limit={block.limit} />;
+      return (
+        <PointsBlock
+          group={group}
+          base={ctx.base}
+          limit={block.limit}
+          period={block.period}
+          switchable={block.switchable}
+          periods={block.periods}
+          showLink={block.show_link}
+        />
+      );
     case "pvp_summary":
       return (
         <PvpSummaryBlock
@@ -248,6 +279,7 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
           period={block.period}
           limit={block.limit}
           showRecent={block.show_recent}
+          showLink={block.show_link}
         />
       );
     case "events_list":

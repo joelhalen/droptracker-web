@@ -9,8 +9,16 @@
  */
 import type { Route } from "next";
 import Link from "next/link";
-import type { GroupProfile, GroupStatKey, HighlightType } from "@droptracker/api-types";
+import type {
+  GroupProfile,
+  GroupStatKey,
+  HighlightType,
+  PointsLeaderboard,
+  PointsPeriod,
+  StatTileStyle,
+} from "@droptracker/api-types";
 import { api } from "@/lib/api";
+import { boardPeriods } from "@/lib/page-layout/catalog";
 import { entityPath } from "@/lib/slug";
 import { ClanLogBoard } from "@/components/clan-log-board";
 import { CountUp } from "@/components/count-up";
@@ -19,6 +27,7 @@ import { PvpKillList } from "@/components/pvp-kill-list";
 import { SubmissionList } from "@/components/submission-list";
 import { Badge, EntityChip, StatTile } from "@/components/ui";
 import { BlockEmpty } from "./frame";
+import { PeriodEmpty, PeriodTabs } from "./period-tabs";
 import type { GroupPageContext } from "./group-page-view";
 
 /* --- stats row ---------------------------------------------------------------- */
@@ -44,10 +53,12 @@ export async function GroupStats({
   ctx,
   stats,
   columns,
+  tileStyle,
 }: {
   ctx: GroupPageContext;
   stats: readonly GroupStatKey[];
   columns: string;
+  tileStyle: StatTileStyle;
 }) {
   const { group } = ctx;
   const want = new Set(stats);
@@ -151,7 +162,11 @@ export async function GroupStats({
 
   const tiles = stats.map(tile).filter(Boolean);
   if (tiles.length === 0) return <BlockEmpty hint="Pick at least one stat." />;
-  return <div className={`stagger-children grid gap-3 ${COLS[columns] ?? autoCols(tiles.length)}`}>{tiles}</div>;
+  return (
+    <div data-pl-stats={tileStyle} className={`stagger-children grid gap-3 ${COLS[columns] ?? autoCols(tiles.length)}`}>
+      {tiles}
+    </div>
+  );
 }
 
 /* --- Clan Log ------------------------------------------------------------------ */
@@ -184,12 +199,14 @@ export async function ClanLogBlock({
   view,
   showCategories,
   recent,
+  showLink,
 }: {
   groupId: number;
   base: string;
   view: "summary" | "board";
   showCategories: boolean;
   recent: number;
+  showLink: boolean;
 }) {
   const log = await api.clanLog(groupId).catch(() => null);
   if (!log || log.summary.total === 0) return <BlockEmpty hint="Shows once members fill the collection log." />;
@@ -241,36 +258,111 @@ export async function ClanLogBlock({
           </ul>
         </div>
       )}
-      <Link href={`${base}/log` as Route} className="text-osrs-gold-bright text-sm hover:underline">
-        Full Clan Log →
-      </Link>
+      {showLink && (
+        <Link href={`${base}/log` as Route} className="text-osrs-gold-bright text-sm hover:underline">
+          Full Clan Log →
+        </Link>
+      )}
     </div>
   );
 }
 
 /* --- clan points ---------------------------------------------------------------- */
 
-export async function PointsBlock({ group, base, limit }: { group: GroupProfile; base: string; limit: number }) {
+const POINTS_PERIOD_LABELS: Record<PointsPeriod, string> = {
+  all: "All time",
+  season: "This season",
+  month: "This month",
+  week: "This week",
+  day: "Today",
+};
+
+function PointsRows({ rows }: { rows: PointsLeaderboard["entries"] }) {
+  return (
+    <ol className="divide-osrs-bronze/20 divide-y">
+      {rows.map((e) => (
+        <li key={e.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+          <span className="flex min-w-0 items-center gap-2.5">
+            <span className="text-osrs-parchment-dark/60 w-6 text-right">{e.rank}.</span>
+            <span className="truncate font-medium">{e.name}</span>
+          </span>
+          <span className="text-osrs-gold-bright font-semibold tabular-nums">{e.points.toLocaleString()}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export async function PointsBlock({
+  group,
+  base,
+  limit,
+  period,
+  switchable,
+  periods,
+  showLink,
+}: {
+  group: GroupProfile;
+  base: string;
+  limit: number;
+  period: PointsPeriod;
+  switchable: boolean;
+  periods: readonly PointsPeriod[];
+  showLink: boolean;
+}) {
   if (group.points_enabled === false) return <BlockEmpty hint="Clan points are switched off for this group." />;
-  const board = await api.groupPointsLeaderboard(group.id, { limit }).catch(() => null);
-  const rows = board?.entries.slice(0, limit) ?? [];
-  if (rows.length === 0) return <BlockEmpty hint="Shows once members have clan points." />;
+  const wanted = boardPeriods(period, switchable, periods);
+  const load = (p: string, n = limit) => api.groupPointsLeaderboard(group.id, { period: p, limit: n }).catch(() => null);
+
+  const boards = new Map<PointsPeriod, PointsLeaderboard | null>();
+  await Promise.all(
+    wanted.filter((p) => p !== "season").map(async (p) => boards.set(p, await load(p))),
+  );
+  // "This season" needs the season's id, which every board payload carries.
+  let seasonName: string | null = null;
+  if (wanted.includes("season")) {
+    const seasons = [...boards.values()].find((b) => b)?.seasons ?? (await load("month", 1))?.seasons ?? [];
+    const season = seasons.find((x) => x.active) ?? seasons[0];
+    if (season) {
+      seasonName = season.name;
+      boards.set("season", await load(`season:${season.id}`));
+    }
+  }
+
+  const panels = wanted
+    .filter((p) => boards.has(p))
+    .map((p) => ({ key: p, rows: boards.get(p)?.entries.slice(0, limit) ?? [] }));
+  if (panels.every((p) => p.rows.length === 0)) return <BlockEmpty hint="Shows once members have clan points." />;
+
+  const link = showLink && (
+    <Link href={`${base}/points/leaderboard` as Route} className="text-osrs-gold-bright mt-3 inline-block text-sm hover:underline">
+      Full points board →
+    </Link>
+  );
+  if (panels.length === 1) {
+    return (
+      <div>
+        <PointsRows rows={panels[0]!.rows} />
+        {link}
+      </div>
+    );
+  }
   return (
     <div>
-      <ol className="divide-osrs-bronze/20 divide-y">
-        {rows.map((e) => (
-          <li key={e.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-            <span className="flex min-w-0 items-center gap-2.5">
-              <span className="text-osrs-parchment-dark/60 w-6 text-right">{e.rank}.</span>
-              <span className="truncate font-medium">{e.name}</span>
-            </span>
-            <span className="text-osrs-gold-bright font-semibold tabular-nums">{e.points.toLocaleString()}</span>
-          </li>
-        ))}
-      </ol>
-      <Link href={`${base}/points/leaderboard` as Route} className="text-osrs-gold-bright mt-3 inline-block text-sm hover:underline">
-        Full points board →
-      </Link>
+      <PeriodTabs
+        initial={period}
+        panels={panels.map((p) => ({
+          key: p.key,
+          label: p.key === "season" && seasonName ? seasonName : POINTS_PERIOD_LABELS[p.key],
+          content:
+            p.rows.length > 0 ? (
+              <PointsRows rows={p.rows} />
+            ) : (
+              <PeriodEmpty>No clan points {p.key === "all" ? "yet" : "in this period yet"}.</PeriodEmpty>
+            ),
+        }))}
+      />
+      {link}
     </div>
   );
 }
@@ -283,12 +375,14 @@ export async function PvpSummaryBlock({
   period,
   limit,
   showRecent,
+  showLink,
 }: {
   groupId: number;
   base: string;
   period: "month" | "all";
   limit: number;
   showRecent: boolean;
+  showLink: boolean;
 }) {
   const pvp = await api.groupPvp(groupId, period).catch(() => null);
   if (!pvp || (pvp.totals.kills === 0 && pvp.recent.length === 0)) {
@@ -296,7 +390,7 @@ export async function PvpSummaryBlock({
   }
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div data-pl-stats="auto" className="grid grid-cols-3 gap-3">
         <StatTile label="Kills" value={pvp.totals.kills.toLocaleString()} />
         <StatTile label="PvP loot" value={pvp.totals.loot.value_formatted} />
         <StatTile label="Killers" value={pvp.totals.players.toLocaleString()} />
@@ -317,9 +411,11 @@ export async function PvpSummaryBlock({
         </ol>
       )}
       {showRecent && pvp.recent.length > 0 && <PvpKillList kills={pvp.recent.slice(0, limit)} />}
-      <Link href={`${base}/pvp` as Route} className="text-osrs-gold-bright text-sm hover:underline">
-        PvP standings →
-      </Link>
+      {showLink && (
+        <Link href={`${base}/pvp` as Route} className="text-osrs-gold-bright text-sm hover:underline">
+          PvP standings →
+        </Link>
+      )}
     </div>
   );
 }

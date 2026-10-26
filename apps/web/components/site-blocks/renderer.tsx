@@ -29,6 +29,7 @@ import { RecapCard } from "@/components/recap-card";
 import { SubmissionList } from "@/components/submission-list";
 import { Card, EmptyState, StatTile } from "@/components/ui";
 import { BlockEmpty } from "@/components/page-layout/frame";
+import { PeriodEmpty, PeriodTabs } from "@/components/page-layout/period-tabs";
 
 function StatsRow({ group, stats }: { group: GroupProfile; stats: string[] }) {
   const tiles = stats.map((key) => {
@@ -192,19 +193,67 @@ export async function PbBoardBlock({
   );
 }
 
+const LOOT_PERIOD_LABELS: Record<string, string> = {
+  month: "This month",
+  week: "This week",
+  day: "Today",
+  all: "All time",
+};
+
+/** A player loot board for one period, or (two or more `periods`) one per
+ * period behind time-frame buttons. */
+async function LootBoard({
+  scope,
+  period,
+  periods,
+  limit,
+  emptyHint,
+}: {
+  scope: string;
+  period: string;
+  periods?: readonly string[];
+  limit: number;
+  emptyHint: string;
+}) {
+  const want = periods && periods.length > 1 ? periods : [period];
+  const pages = await Promise.all(
+    want.map((p) => api.playerLeaderboard({ scope, period: p, limit }).catch(() => null)),
+  );
+  const entries = pages.map((page) => page?.entries.slice(0, limit) ?? []);
+  if (entries.every((e) => e.length === 0)) return <BlockEmpty hint={emptyHint} />;
+  if (want.length === 1) return <LeaderboardTable entries={entries[0]!} scope={scope} kind="players" />;
+  return (
+    <PeriodTabs
+      initial={period}
+      panels={want.map((p, i) => ({
+        key: p,
+        label: LOOT_PERIOD_LABELS[p] ?? p,
+        content:
+          entries[i]!.length > 0 ? (
+            <LeaderboardTable entries={entries[i]!} scope={scope} kind="players" />
+          ) : (
+            <PeriodEmpty>No loot ranked {p === "all" ? "yet" : "in this period yet"}.</PeriodEmpty>
+          ),
+      }))}
+    />
+  );
+}
+
 export async function LeaderboardBlock({
   groupId,
   limit,
   period = "month",
+  periods,
 }: {
   groupId: number;
   limit: number;
   period?: string;
+  /** Time frames visitors can switch between (page builder). */
+  periods?: readonly string[];
 }) {
-  const scope = `group:${groupId}`;
-  const page = await api.playerLeaderboard({ scope, period, limit }).catch(() => null);
-  if (!page || page.entries.length === 0) return <BlockEmpty hint="No ranked players yet" />;
-  return <LeaderboardTable entries={page.entries.slice(0, limit)} scope={scope} kind="players" />;
+  return (
+    <LootBoard scope={`group:${groupId}`} period={period} periods={periods} limit={limit} emptyHint="No ranked players yet" />
+  );
 }
 
 export async function RecapBlock({ groupId, period }: { groupId: number; period: string }) {
@@ -322,19 +371,24 @@ export async function NpcBoardBlock({
   groupId,
   npcId,
   period,
+  periods,
   limit,
 }: {
   groupId: number;
   npcId: number;
   period: string;
+  periods?: readonly string[];
   limit: number;
 }) {
-  const scope = `group:${groupId}:npc:${npcId}`;
-  const page = await api.playerLeaderboard({ scope, period, limit }).catch(() => null);
-  if (!page || page.entries.length === 0) {
-    return <BlockEmpty hint="No tracked kills yet. Drops from this boss will rank here." />;
-  }
-  return <LeaderboardTable entries={page.entries.slice(0, limit)} scope={scope} kind="players" />;
+  return (
+    <LootBoard
+      scope={`group:${groupId}:npc:${npcId}`}
+      period={period}
+      periods={periods}
+      limit={limit}
+      emptyHint="No tracked kills yet. Drops from this boss will rank here."
+    />
+  );
 }
 
 export async function WomAchievementsBlock({ groupId, limit }: { groupId: number; limit: number }) {

@@ -123,11 +123,13 @@ function PlayerStatTiles({
   stats,
   stacked,
   columns = "auto",
+  tileStyle = "auto",
 }: {
   ctx: PlayerPageContext;
   stats: readonly string[];
   stacked?: boolean;
   columns?: string;
+  tileStyle?: string;
 }) {
   const { collectionLog: clog, achievements: ach, pvp } = ctx;
   const { player } = ctx;
@@ -222,7 +224,7 @@ function PlayerStatTiles({
         return null;
     }
   });
-  if (stacked) return <div className="space-y-2">{tiles}</div>;
+  if (stacked) return <div data-pl-stats={tileStyle} className="space-y-2">{tiles}</div>;
   const n = tiles.filter(Boolean).length;
   const cols =
     columns === "2" || (columns === "auto" && n <= 2)
@@ -230,7 +232,7 @@ function PlayerStatTiles({
       : columns === "3" || (columns === "auto" && n === 3)
         ? "grid-cols-2 sm:grid-cols-3"
         : "grid-cols-2 sm:grid-cols-4";
-  return <div className={`grid gap-3 ${cols}`}>{tiles}</div>;
+  return <div data-pl-stats={tileStyle} className={`grid gap-3 ${cols}`}>{tiles}</div>;
 }
 
 function ProgressList({
@@ -296,7 +298,7 @@ function renderPlayerBlock(block: PageBlock, ctx: PlayerPageContext, light: bool
         />
       );
     case "player_stats":
-      return block.stats.length > 0 ? <PlayerStatTiles ctx={ctx} stats={block.stats} columns={block.columns} /> : null;
+      return block.stats.length > 0 ? <PlayerStatTiles ctx={ctx} stats={block.stats} columns={block.columns} tileStyle={block.tile_style} /> : null;
     case "player_clog": {
       const clog = ctx.collectionLog;
       if (!clog?.has_synced || clog.tabs.length === 0) return null;

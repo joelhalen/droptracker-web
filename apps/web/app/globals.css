@@ -476,6 +476,20 @@ body {
   padding: 1.25rem 1.5rem;
 }
 
+/*
+ * Stat tiles in the stats blocks (data-pl-stats = the block's tile style).
+ * A filled tile is a pale wash on parchment and the scroll, which clashes
+ * with the art, so "auto" drops the fill for a thin rule there; "outline"
+ * does it on every surface. Unlayered, so it beats the tiles' Tailwind
+ * bg utility.
+ */
+[data-pl-stats="outline"] > *,
+.pl-ink-light [data-pl-stats="auto"] > * {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--dt-bronze) 70%, transparent);
+  box-shadow: none;
+}
+
 /* The docs scroll (.scroll-backdrop) is capped at its art width and centred. */
 .pl-surface-scroll {
   margin-top: 1.75rem;

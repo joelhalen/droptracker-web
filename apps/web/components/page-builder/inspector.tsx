@@ -11,14 +11,16 @@ import {
   GROUP_LINK_KEYS,
   GROUP_STATS,
   HIGHLIGHT_TYPES,
+  LOOT_PERIODS,
   MAX_STATS,
   PLAYER_LINK_KEYS,
   PLAYER_STATS,
+  POINTS_PERIODS,
   type BlockSurface,
   type PageTheme,
 } from "@droptracker/api-types";
 import { BLOCK_DEF, SURFACE_LABELS } from "@/lib/page-layout/catalog";
-import { Input, Textarea } from "@/components/ui";
+import { Input, Select, Textarea } from "@/components/ui";
 import { PbBossSelect, type PbSelection } from "@/components/site-builder/pb-boss-select";
 import { searchNpcs } from "@/lib/page-layout/builder-client";
 
@@ -346,6 +348,66 @@ const HIGHLIGHT_LABELS: Record<string, string> = {
   clog: "Collection log slots",
   pb: "Personal bests",
 };
+const TILE_STYLE_OPTS = [
+  { value: "auto", label: "Auto", title: "Filled, but outlined on parchment and the scroll" },
+  { value: "filled", label: "Filled" },
+  { value: "outline", label: "Outline" },
+] as const;
+const LOOT_PERIOD_LABELS: Record<string, string> = { month: "This month", week: "This week", day: "Today", all: "All time" };
+const POINTS_PERIOD_LABELS: Record<string, string> = { ...LOOT_PERIOD_LABELS, season: "Current season" };
+
+/** A board's time frame, plus the optional buttons visitors switch with. */
+function TimeFrames({
+  block,
+  set,
+  all,
+  labels,
+}: {
+  block: Block;
+  set: (patch: Record<string, unknown>) => void;
+  all: readonly string[];
+  labels: Record<string, string>;
+}) {
+  const period = typeof block.period === "string" ? block.period : "month";
+  const switchable = block.switchable === true;
+  const periods = Array.isArray(block.periods) ? (block.periods as string[]) : ["month", "all"];
+  return (
+    <>
+      <Row label={switchable ? "Opens on" : "Time frame"}>
+        <Select
+          value={period}
+          onChange={(e) => {
+            const next = e.target.value;
+            // The opening frame is always one of the buttons.
+            set(switchable && !periods.includes(next) ? { period: next, periods: [next, ...periods] } : { period: next });
+          }}
+        >
+          {all.map((p) => (
+            <option key={p} value={p}>
+              {labels[p] ?? p}
+            </option>
+          ))}
+        </Select>
+      </Row>
+      <Toggle
+        label="Let visitors switch time frames"
+        checked={switchable}
+        onChange={(on) => set(on && !periods.includes(period) ? { switchable: on, periods: [period, ...periods] } : { switchable: on })}
+      />
+      {switchable && (
+        <Row label="Buttons" hint="Tick the time frames to offer; the arrows set the order.">
+          <KeyList
+            all={all}
+            labels={labels}
+            value={periods}
+            onChange={(next) => set({ periods: next.length > 0 ? next : [period] })}
+          />
+        </Row>
+      )}
+    </>
+  );
+}
+
 const COLUMN_OPTS = [
   { value: "auto", label: "Auto" },
   { value: "2", label: "2" },
@@ -507,6 +569,9 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
           <Row label="Tiles per row" hint="Phones always show two.">
             <Segmented value={(str("columns") || "auto") as "auto"} options={[...COLUMN_OPTS]} onChange={(columns) => set({ columns })} />
           </Row>
+          <Row label="Tile style" hint="Auto drops the fill on parchment and the scroll.">
+            <Segmented value={(str("tile_style") || "auto") as "auto"} options={[...TILE_STYLE_OPTS]} onChange={(tile_style) => set({ tile_style })} />
+          </Row>
         </>
       );
     }
@@ -524,14 +589,18 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
     case "leaderboard":
       return (
         <>
-          <Row label="Period">
-            <Segmented value={(str("period") || "month") as "month"} options={[...PERIOD_OPTS]} onChange={(period) => set({ period })} />
-          </Row>
+          <TimeFrames block={block} set={set} all={LOOT_PERIODS} labels={LOOT_PERIOD_LABELS} />
           {how("limit", 10, 3, 50, "Players to show")}
         </>
       );
     case "points_leaderboard":
-      return how("limit", 10, 3, 50, "Members to show");
+      return (
+        <>
+          <TimeFrames block={block} set={set} all={POINTS_PERIODS} labels={POINTS_PERIOD_LABELS} />
+          {how("limit", 10, 3, 50, "Members to show")}
+          <Toggle label="Link to the full points board" checked={block.show_link !== false} onChange={(show_link) => set({ show_link })} />
+        </>
+      );
     case "clan_log":
       return (
         <>
@@ -549,6 +618,7 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
             <>
               <Toggle label="Progress per category" checked={block.show_categories !== false} onChange={(show_categories) => set({ show_categories })} />
               {how("recent", 6, 0, 20, "Latest unlocks to show")}
+              <Toggle label="Link to the full Clan Log" checked={block.show_link !== false} onChange={(show_link) => set({ show_link })} />
             </>
           )}
         </>
@@ -568,6 +638,7 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
           </Row>
           {how("limit", 5, 3, 25, "Killers and kills to show")}
           <Toggle label="Show recent kills" checked={block.show_recent !== false} onChange={(show_recent) => set({ show_recent })} />
+          <Toggle label="Link to PvP standings" checked={block.show_link !== false} onChange={(show_link) => set({ show_link })} />
         </>
       );
     case "events_list":
@@ -635,8 +706,11 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
     case "pb_board":
       return groupId ? (
         <>
-        {how("rows", 5, 3, 25, "Players per board")}
-        <Row label="Bosses" hint="Pick up to 8. Leave empty to show your most contested boss (top 3 team sizes).">
+        {how("rows", 5, 1, 50, "Players per board")}
+        <Row label="Team sizes per boss" hint="For bosses where you haven't picked sizes.">
+          <NumberField value={num("max_sizes", 3)} min={1} max={8} onChange={(max_sizes) => set({ max_sizes })} />
+        </Row>
+        <Row label="Bosses" hint="Pick up to 8. Leave empty to show your most contested boss.">
           <PbBossSelect
             groupId={groupId}
             value={(block.bosses as PbSelection[]) ?? []}
@@ -655,9 +729,7 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
               onChange={(npc_id, npc_name) => set({ npc_id, npc_name })}
             />
           </Row>
-          <Row label="Period">
-            <Segmented value={(str("period") || "month") as "month"} options={[...PERIOD_OPTS]} onChange={(period) => set({ period })} />
-          </Row>
+          <TimeFrames block={block} set={set} all={LOOT_PERIODS} labels={LOOT_PERIOD_LABELS} />
           {how("limit", 10, 3, 50, "Players to show")}
         </>
       );
