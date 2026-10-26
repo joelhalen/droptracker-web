@@ -270,6 +270,20 @@ export const ENDPOINTS: ApiEndpoint[] = [
     example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
   "${API_BASE}/groups/19/players?include=identity,drops,drop_ids&npc=barrows_chests&since=1788343200&limit=100"`,
   },
+  {
+    method: "GET",
+    path: "/v2/groups/{group_id}/events",
+    title: "A group's events",
+    summary:
+      "The group's upcoming, active and past events, for showing on another site. Each event has its name, kind, start and end (ISO 8601 UTC plus unix seconds), team and player counts, description, whether players can sign up right now and until when, and a link to its page on droptracker.io. Clan-vs-clan events appear for every clan that accepted them, with the host clan named. Only what the public events list shows is returned: private events never appear, and upcoming means a public event with a start date that has not begun yet. Flat cost of 5; cache it for a minute.",
+    auth: true,
+    params: [
+      { name: "status", default: "upcoming,active,past", description: "Comma-separated list of which lists to return." },
+      { name: "past_limit", default: "10", description: "Past events returned, most recently finished first. Maximum 50. `past_total` gives the full count." },
+    ],
+    example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
+  "${API_BASE}/groups/7/events?status=upcoming,active"`,
+  },
 ];
 
 export interface ApiError {
