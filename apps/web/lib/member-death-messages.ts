@@ -5,8 +5,9 @@
  * posts, and whether the editor holds unsaved changes.
  */
 import {
-  MEMBER_DEATH_TOKEN_ALIASES,
+  MEMBER_MESSAGE_TOKEN_ALIASES,
   normalizeMemberDeathMessages,
+  type MemberMessageType,
   type MemberDeathMessageGroup,
   type MemberMessageToken,
 } from "@droptracker/api-types";
@@ -23,10 +24,11 @@ export function previewDeathMessage(
   template: string,
   tokens: readonly MemberMessageToken[],
   playerName: string,
+  type: MemberMessageType = "death",
 ): string {
   const samples = new Map(tokens.map((t) => [t.token, t.sample]));
   samples.set("{player_name}", playerName);
-  for (const [alias, canonical] of Object.entries(MEMBER_DEATH_TOKEN_ALIASES)) {
+  for (const [alias, canonical] of Object.entries(MEMBER_MESSAGE_TOKEN_ALIASES[type])) {
     const sample = samples.get(canonical);
     if (sample !== undefined) samples.set(alias, sample);
   }

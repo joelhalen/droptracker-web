@@ -24,7 +24,21 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
   if (!Number.isFinite(groupId)) notFound();
   await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
 
-  const [config, subscription, tiers, user, group, seasonal, blacklist, alwaysList, memberDeathMessages] = await Promise.all([
+  const noMemberMessages = (): GroupMemberDeathMessages => ({ enabled: false, members: [] });
+  const [
+    config,
+    subscription,
+    tiers,
+    user,
+    group,
+    seasonal,
+    blacklist,
+    alwaysList,
+    memberDeathMessages,
+    memberDropMessages,
+    memberClogMessages,
+    memberPbMessages,
+  ] = await Promise.all([
     api.groupConfig(groupId),
     api.groupSubscription(groupId).catch(() => null),
     api.subscriptionTiers().catch(() => []),
@@ -40,9 +54,10 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
     api
       .groupNotificationAlwaysList(groupId)
       .catch((): NotificationBlacklist => ({ entries: [], limit: 250 })),
-    api
-      .groupMemberDeathMessages(groupId)
-      .catch((): GroupMemberDeathMessages => ({ enabled: false, members: [] })),
+    api.groupMemberDeathMessages(groupId, "death").catch(noMemberMessages),
+    api.groupMemberDeathMessages(groupId, "drop").catch(noMemberMessages),
+    api.groupMemberDeathMessages(groupId, "clog").catch(noMemberMessages),
+    api.groupMemberDeathMessages(groupId, "pb").catch(noMemberMessages),
   ]);
 
   // One page, one column of sections: the editor lays out every section —
@@ -75,6 +90,15 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
           clanLogRepost: <BoardRepostPanel groupId={groupId} board="clan_log" name="Clan Log" />,
           memberDeathMessages: (
             <MemberDeathMessagesReview groupId={groupId} initial={memberDeathMessages} />
+          ),
+          memberDropMessages: (
+            <MemberDeathMessagesReview groupId={groupId} initial={memberDropMessages} messageType="drop" />
+          ),
+          memberClogMessages: (
+            <MemberDeathMessagesReview groupId={groupId} initial={memberClogMessages} messageType="clog" />
+          ),
+          memberPbMessages: (
+            <MemberDeathMessagesReview groupId={groupId} initial={memberPbMessages} messageType="pb" />
           ),
         }}
       />

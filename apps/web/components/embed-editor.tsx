@@ -89,6 +89,7 @@ const PET_PLACEHOLDERS: PlaceholderDoc[] = [
 
 const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
   drop: [
+    { token: "{drop_message}", help: "The drop message: the member's own if your group allows those, else one of your drop messages, else a sentence naming the drop", sample: "**RuneLite Ron** received **Abyssal whip** (`2.5M`) from **Abyssal demon**" },
     { token: "{player_name}", help: "Player who received the drop (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who received the drop, with no profile link", sample: "RuneLite Ron" },
     { token: "{item_name}", help: "Item name. Links to the wiki only in the title; use {item_link} anywhere else", sample: "Abyssal whip" },
@@ -121,6 +122,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   clog: [
+    { token: "{clog_message}", help: "The collection log message: the member's own if your group allows those, else one of your collection log messages, else a sentence naming the item", sample: "**RuneLite Ron** added **Tanzanite fang** to their collection log" },
     { token: "{player_name}", help: "Player who filled the log slot (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who filled the log slot, with no profile link", sample: "RuneLite Ron" },
     { token: "{item_name}", help: "New collection log item. Links to the wiki only in the title; use {item_link} anywhere else", sample: "Dragon warhammer" },
@@ -143,6 +145,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     ...COMMON_MEDIA,
   ],
   pb: [
+    { token: "{pb_message}", help: "The personal best message: the member's own if your group allows those, else one of your personal best messages, else a sentence naming the time", sample: "**RuneLite Ron** set a new personal best at **Vorkath**: **1:02.40**" },
     { token: "{player_name}", help: "Player who set the personal best (links to their profile)", sample: "[RuneLite Ron](https://www.droptracker.io/players/1)" },
     { token: "{player_name_plain}", help: "Player who set the personal best, with no profile link", sample: "RuneLite Ron" },
     { token: "{npc_name}", help: "Boss / raid name", sample: "Theatre of Blood" },

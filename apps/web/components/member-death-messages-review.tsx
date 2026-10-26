@@ -2,7 +2,9 @@
 
 /**
  * "Members' death messages" — the bottom of the Deaths section of group
- * settings. Leaders see every member's own death messages exactly as written
+ * settings, and the same card for collection log, drop and personal best
+ * messages at the bottom of their sections (`messageType`). Leaders see every
+ * member's own messages exactly as written
  * and can block a member, which keeps that member's lines out of this group's
  * channels (the member's other clans are unaffected, and the group's own death
  * messages go out for them instead).
@@ -14,7 +16,12 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
-import type { GroupMemberDeathMessage, GroupMemberDeathMessages } from "@droptracker/api-types";
+import {
+  MEMBER_MESSAGE_NOUNS,
+  type GroupMemberDeathMessage,
+  type GroupMemberDeathMessages,
+  type MemberMessageType,
+} from "@droptracker/api-types";
 import { setMemberDeathMessageBlock } from "@/app/(site)/(admin)/groups/[id]/settings/actions";
 import { formatInline } from "@/components/components-v2-preview";
 import { SettingsSubheading } from "@/components/settings-section";
@@ -24,10 +31,13 @@ import { getErrorMessage } from "@/lib/errors";
 export function MemberDeathMessagesReview({
   groupId,
   initial,
+  messageType = "death",
 }: {
   groupId: number;
   initial: GroupMemberDeathMessages;
+  messageType?: MemberMessageType;
 }) {
+  const noun = MEMBER_MESSAGE_NOUNS[messageType];
   const [data, setData] = useState(initial);
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +46,7 @@ export function MemberDeathMessagesReview({
     setError(null);
     setPendingId(member.id);
     try {
-      setData(await setMemberDeathMessageBlock(groupId, member.id, blocked));
+      setData(await setMemberDeathMessageBlock(groupId, member.id, blocked, messageType));
     } catch (err) {
       setError(
         getErrorMessage(err, `Couldn't ${blocked ? "block" : "unblock"} ${member.name}. Please try again.`),
@@ -48,20 +58,22 @@ export function MemberDeathMessagesReview({
 
   return (
     <div>
-      <SettingsSubheading hint="What each member wrote, exactly as they wrote it. Blocking a member keeps their own messages out of this group's channels; your death messages are used for them instead.">
-        Members&apos; death messages
+      <SettingsSubheading
+        hint={`What each member wrote, exactly as they wrote it. Blocking a member keeps all of their own messages (deaths, collection logs, drops and personal bests) out of this group's channels; your ${noun} messages are used for them instead.`}
+      >
+        Members&apos; {noun} messages
       </SettingsSubheading>
 
       {!data.enabled && (
         <p className="text-osrs-parchment-dark/70 mb-3 text-xs">
-          Not posted right now: turn on <em>Let members write their own death message</em> above
+          Not posted right now: turn on <em>Let members write their own {noun} message</em> above
           and save to start using them. You can review and block members either way.
         </p>
       )}
 
       {data.members.length === 0 ? (
         <p className="text-osrs-parchment-dark/60 text-xs italic">
-          None of your members has written a death message yet.
+          None of your members has written a {noun} message yet.
         </p>
       ) : (
         <ul className="border-osrs-bronze/20 divide-osrs-bronze/15 max-h-[28rem] divide-y overflow-y-auto rounded border">

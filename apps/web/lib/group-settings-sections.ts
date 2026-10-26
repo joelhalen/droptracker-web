@@ -57,6 +57,11 @@ const CATEGORY_META: Record<ConfigCategory, { nav: SettingsNav; blurb: string }>
     blurb:
       "Where each kind of notification is posted. Anything left unset falls back to the drops channel. Features with a channel of their own — deaths, PvP, Hall of Fame, recaps, Clan Log, the lootboard — set it in their own section.",
   },
+  style: {
+    nav: "Notifications",
+    blurb:
+      "How every notification looks: with or without the embed, and whether members get pinged.",
+  },
   drops: {
     nav: "Notifications",
     blurb: "What has to be true for a drop to be announced, and how manual submissions count.",
@@ -130,6 +135,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   category("profile"),
   category("bank"),
   category("channels"),
+  category("style"),
   category("drops"),
   {
     id: "blacklist",
@@ -182,6 +188,9 @@ export type SettingsInsertId =
   | "groupIcon"
   | "timeframeBoard"
   | "memberDeathMessages"
+  | "memberDropMessages"
+  | "memberClogMessages"
+  | "memberPbMessages"
   | "lootboardRepost"
   | "pvpLootboardRepost"
   | "clanLogRepost";
@@ -239,6 +248,27 @@ export const SETTINGS_INSERTS: readonly SettingsInsert[] = [
     position: "bottom",
     label: "Members' death messages",
     keywords: ["member", "own message", "custom message", "block", "moderation", "review"],
+  },
+  {
+    id: "memberDropMessages",
+    section: "drops",
+    position: "bottom",
+    label: "Members' drop messages",
+    keywords: ["member", "own message", "custom message", "block", "moderation", "review"],
+  },
+  {
+    id: "memberClogMessages",
+    section: "achievements",
+    position: "bottom",
+    label: "Members' collection log messages",
+    keywords: ["member", "own message", "custom message", "block", "moderation", "review", "clog"],
+  },
+  {
+    id: "memberPbMessages",
+    section: "pbs",
+    position: "bottom",
+    label: "Members' personal best messages",
+    keywords: ["member", "own message", "custom message", "block", "moderation", "review", "pb"],
   },
 ];
 

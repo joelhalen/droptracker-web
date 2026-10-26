@@ -5,6 +5,7 @@ import {
   AccountSettingsPatchSchema,
   type AccountSettings,
   type AccountSettingsPatch,
+  type MemberMessageType,
   type MyDeathMessages,
   type MyNitroBoost,
   type NotificationPrefs,
@@ -55,9 +56,10 @@ export async function savePlayerNotificationPrefs(
 export async function saveMyDeathMessages(
   playerId: number,
   messages: string[],
+  type: MemberMessageType = "death",
 ): Promise<{ ok: true; data: MyDeathMessages } | { ok: false; error: string }> {
   try {
-    const data = await api.setMyDeathMessages(playerId, messages);
+    const data = await api.setMyDeathMessages(playerId, messages, type);
     revalidatePath("/settings");
     return { ok: true, data };
   } catch (err) {

@@ -43,6 +43,7 @@ import {
   type AlwaysListEntryType,
   type GroupMemberDeathMessages,
   GroupMemberDeathMessagesSchema,
+  type MemberMessageType,
   type RegionList,
   RegionListSchema,
   type WomGroupPreview,
@@ -495,13 +496,16 @@ export const groupsApi = {
 
   /** Members' own death messages as this group sees them: everyone who wrote
    * one, everyone the group blocked, and whether the group posts them at all. */
-  async groupMemberDeathMessages(groupId: number): Promise<GroupMemberDeathMessages> {
+  async groupMemberDeathMessages(
+    groupId: number,
+    type: MemberMessageType = "death",
+  ): Promise<GroupMemberDeathMessages> {
     return withFallback(
       async () =>
         GroupMemberDeathMessagesSchema.parse(
-          await apiGet(`/groups/${groupId}/member-death-messages`, { authed: true }),
+          await apiGet(`/groups/${groupId}/member-messages?type=${type}`, { authed: true }),
         ),
-      () => mockGroupMemberDeathMessages(),
+      () => mockGroupMemberDeathMessages(type),
     );
   },
 
@@ -512,18 +516,19 @@ export const groupsApi = {
     groupId: number,
     playerId: number,
     blocked: boolean,
+    type: MemberMessageType = "death",
   ): Promise<GroupMemberDeathMessages> {
     return withFallback(
       async () =>
         GroupMemberDeathMessagesSchema.parse(
           await apiSend(
             blocked ? "PUT" : "DELETE",
-            `/groups/${groupId}/member-death-messages/${playerId}/block`,
+            `/groups/${groupId}/member-messages/${playerId}/block?type=${type}`,
             {},
           ),
         ),
       () => {
-        const mock = mockGroupMemberDeathMessages();
+        const mock = mockGroupMemberDeathMessages(type);
         return {
           ...mock,
           members: mock.members.map((m) => (m.id === playerId ? { ...m, blocked } : m)),

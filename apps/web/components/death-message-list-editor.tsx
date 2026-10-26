@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * List editor for the `death_message_variants` config key (type "messagelist"):
- * add/remove message templates, one of which the bot picks at random per death.
+ * List editor for the `<kind>_message_variants` config keys (type
+ * "messagelist"): death, collection log, drop and personal best messages
+ * (`kind`, see lib/message-kinds.ts). Add/remove message templates, one of
+ * which the bot picks at random each time.
  * Stored as a JSON string array ("" = unset) — the same value the backend's
  * parse_death_variants reads (disc services/notification_service.py).
  *
@@ -18,11 +20,9 @@ import {
   MESSAGE_LIST_MAX_ENTRY_LENGTH,
   messageListIssue,
 } from "@droptracker/api-types";
-import {
-  DEATH_CONTENT_SAMPLE_OVERRIDES,
-  DEATH_PLACEHOLDERS,
-  SUGGESTED_DEATH_MESSAGES,
-} from "@/lib/death-placeholders";
+import type { MemberMessageType } from "@droptracker/api-types";
+import type { PlaceholderDoc } from "@/lib/death-placeholders";
+import { MESSAGE_KINDS, type MessageKindProfile } from "@/lib/message-kinds";
 import { formatInline } from "@/components/components-v2-preview";
 import { Button, Input } from "@/components/ui";
 
@@ -36,21 +36,24 @@ function parseMessages(value: string): string[] {
   }
 }
 
-const KNOWN_TOKENS = new Set(DEATH_PLACEHOLDERS.map((d) => d.token));
-
-function unknownTokens(messages: string[]): string[] {
+function unknownTokens(messages: string[], placeholders: PlaceholderDoc[]): string[] {
+  const known = new Set(placeholders.map((d) => d.token));
   const out = new Set<string>();
   for (const message of messages) {
     for (const match of message.matchAll(/\{[a-z0-9_]+\}/gi)) {
-      if (!KNOWN_TOKENS.has(match[0])) out.add(match[0]);
+      if (!known.has(match[0])) out.add(match[0]);
     }
   }
   return [...out];
 }
 
-function substituteSamples(text: string, overrides?: Record<string, string>): string {
+function substituteSamples(
+  text: string,
+  placeholders: PlaceholderDoc[],
+  overrides?: Record<string, string>,
+): string {
   let out = text;
-  for (const d of DEATH_PLACEHOLDERS) {
+  for (const d of placeholders) {
     out = out.split(d.token).join(overrides?.[d.token] ?? d.sample);
   }
   return out;
@@ -61,12 +64,15 @@ export function DeathMessageListEditor({
   onChange,
   asEmbedDescription = false,
   disabled = false,
+  kind = "death",
 }: {
   value: string;
   onChange: (v: string) => void;
   asEmbedDescription?: boolean;
   disabled?: boolean;
+  kind?: MemberMessageType;
 }) {
+  const profile = MESSAGE_KINDS[kind];
   const messages = useMemo(() => parseMessages(value), [value]);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
@@ -74,13 +80,13 @@ export function DeathMessageListEditor({
   const commit = (list: string[]) => onChange(list.length ? JSON.stringify(list) : "");
 
   const issue = messageListIssue(value);
-  const unknown = unknownTokens(messages);
+  const unknown = unknownTokens(messages, profile.placeholders);
 
   const previewMessage = messages[Math.min(previewIndex, Math.max(messages.length - 1, 0))];
 
   const addSuggested = () => {
     const existing = new Set(messages);
-    const fresh = SUGGESTED_DEATH_MESSAGES.filter((m) => !existing.has(m));
+    const fresh = profile.suggested.filter((m) => !existing.has(m));
     commit([...messages, ...fresh].slice(0, MESSAGE_LIST_MAX_ENTRIES));
   };
 
@@ -107,7 +113,7 @@ export function DeathMessageListEditor({
               onFocus={() => setPreviewIndex(i)}
               disabled={disabled}
               className="w-full disabled:cursor-not-allowed"
-              placeholder="{player_name} has died to {source}."
+              placeholder={profile.example}
             />
             <button
               type="button"
@@ -125,7 +131,7 @@ export function DeathMessageListEditor({
         ))}
         {messages.length === 0 && (
           <p className="text-osrs-parchment-dark/60 text-xs italic">
-            No custom messages — the bot uses its default death message.
+            No custom messages. The bot uses its default {profile.noun} message.
           </p>
         )}
       </div>
@@ -169,7 +175,7 @@ export function DeathMessageListEditor({
 
       {/* Token reference — click to copy (same pattern as the embed builder). */}
       <div className="flex flex-wrap gap-1.5">
-        {DEATH_PLACEHOLDERS.filter((d) => d.sample).map((d) => (
+        {profile.placeholders.filter((d) => d.sample).map((d) => (
           <button
             key={d.token}
             type="button"
@@ -186,6 +192,7 @@ export function DeathMessageListEditor({
       {previewMessage != null && previewMessage.trim() !== "" && (
         <DeathMessagePreview
           message={previewMessage}
+          profile={profile}
           asEmbedDescription={asEmbedDescription}
           onRoll={
             messages.length > 1
@@ -201,21 +208,23 @@ export function DeathMessageListEditor({
 /** Discord-styled example of the selected message in the active placement. */
 function DeathMessagePreview({
   message,
+  profile,
   asEmbedDescription,
   onRoll,
 }: {
   message: string;
+  profile: MessageKindProfile;
   asEmbedDescription: boolean;
   onRoll?: () => void;
 }) {
   // Content is plain text in Discord, so the link-form tokens preview with
   // their plain-value counterparts — exactly what the bot substitutes.
   const contentLine = asEmbedDescription
-    ? "RuneLite Ron has died!"
-    : substituteSamples(message, DEATH_CONTENT_SAMPLE_OVERRIDES);
+    ? profile.preview.content
+    : substituteSamples(message, profile.placeholders, profile.contentOverrides);
   const description = asEmbedDescription
-    ? substituteSamples(message)
-    : "[RuneLite Ron](https://www.droptracker.io/players/1) has died.";
+    ? substituteSamples(message, profile.placeholders)
+    : profile.preview.description;
 
   return (
     <div>
@@ -250,19 +259,17 @@ function DeathMessagePreview({
             <div className="mt-0.5 text-sm text-[#dbdee1]">{formatInline(contentLine, "dm-c")}</div>
             <div
               className="mt-1 max-w-[520px] rounded border-l-4 bg-[#2b2d31] py-3 pr-4 pl-3"
-              style={{ borderLeftColor: "#B23B3B" }}
+              style={{ borderLeftColor: profile.preview.color }}
             >
-              <div className="text-sm font-semibold text-white">Player Death</div>
+              <div className="text-sm font-semibold text-white">{profile.preview.title}</div>
               <div className="mt-1 text-sm text-[#dbdee1]">{formatInline(description, "dm-d")}</div>
               <div className="mt-2 flex gap-6">
-                <div>
-                  <div className="text-xs font-semibold text-[#b5bac1]">Killed By</div>
-                  <div className="text-sm text-[#dbdee1]">Abyssal demon</div>
-                </div>
-                <div>
-                  <div className="text-xs font-semibold text-[#b5bac1]">Location</div>
-                  <div className="text-sm text-[#dbdee1]">Catacombs of Kourend</div>
-                </div>
+                {profile.preview.fields.map(([name, value]) => (
+                  <div key={name}>
+                    <div className="text-xs font-semibold text-[#b5bac1]">{name}</div>
+                    <div className="text-sm text-[#dbdee1]">{value}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

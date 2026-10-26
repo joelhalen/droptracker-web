@@ -9,6 +9,7 @@ import {
   type EventMetaEntry,
   type GroupConfigPatch,
   type GroupMemberDeathMessages,
+  type MemberMessageType,
   type NotificationBlacklist,
   type RepostBoard,
 } from "@droptracker/api-types";
@@ -274,13 +275,14 @@ export async function setMemberDeathMessageBlock(
   groupId: number,
   playerId: number,
   blocked: boolean,
+  type: MemberMessageType = "death",
 ): Promise<GroupMemberDeathMessages> {
   const user = await getUser();
   if (!user || !canAdminGroup(user, groupId)) {
     throw new Error("Forbidden: you do not administer this group.");
   }
   try {
-    const result = await api.setGroupMemberDeathMessageBlock(groupId, playerId, blocked);
+    const result = await api.setGroupMemberDeathMessageBlock(groupId, playerId, blocked, type);
     revalidatePath(`/groups/${groupId}/settings`);
     return result;
   } catch (err) {

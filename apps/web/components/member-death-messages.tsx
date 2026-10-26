@@ -1,10 +1,12 @@
 "use client";
 
 /**
- * "Your death message" on /settings: what a member's clans see when they die.
+ * "Your messages" on /settings: what a member's clans see when they die, log a
+ * collection log slot, get a drop or set a personal best (one tab per type).
  *
- * One list of up to five messages per linked account; the bot picks one per
- * death, in every group that turned on members' own death messages. The same
+ * One list of up to five messages per linked account and type; the bot picks
+ * one each time, in every group that turned on members' own messages of that
+ * type. The same
  * messages are editable with /settings in Discord and in the RuneLite plugin.
  * Rows validate as they are typed against the same rules the backend enforces
  * (`memberDeathMessagesIssue`), and each account lists its groups with whether
@@ -13,23 +15,88 @@
  */
 import { useState, useTransition } from "react";
 import {
+  MEMBER_MESSAGE_NOUNS,
+  MEMBER_MESSAGE_TYPES,
   normalizeMemberDeathMessages,
   memberDeathMessagesIssue,
+  type MemberMessageType,
   type MyDeathMessages,
   type MyDeathMessagesPlayer,
 } from "@droptracker/api-types";
 import { saveMyDeathMessages } from "@/app/(site)/(dashboard)/settings/actions";
 import { formatInline } from "@/components/components-v2-preview";
 import { Alert, Badge, Button, Input, Select } from "@/components/ui";
-import { SUGGESTED_DEATH_MESSAGES } from "@/lib/death-placeholders";
 import { getErrorMessage } from "@/lib/errors";
+import { MESSAGE_KINDS } from "@/lib/message-kinds";
 import {
   deathMessagesChanged,
   groupPostingState,
   previewDeathMessage,
 } from "@/lib/member-death-messages";
 
-export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
+const TAB_LABELS: Record<MemberMessageType, string> = {
+  death: "Deaths",
+  clog: "Collection logs",
+  drop: "Drops",
+  pb: "Personal bests",
+};
+
+/** Every message type, as tabs. Each tab stays mounted so its unsaved rows
+ * survive switching to another. */
+export function MemberDeathMessages({
+  initialByType,
+}: {
+  initialByType: Partial<Record<MemberMessageType, MyDeathMessages>>;
+}) {
+  const types = MEMBER_MESSAGE_TYPES.filter((t) => initialByType[t]);
+  const [active, setActive] = useState<MemberMessageType>(types[0] ?? "death");
+  if (types.length === 0) return null;
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
+          Your messages
+        </h2>
+        <p className="text-osrs-parchment-dark/70 text-sm">
+          Write what your clan sees when you die, log a new collection log slot, get a drop or set
+          a personal best. One of your messages is picked at random each time, in every clan whose
+          leaders let members write their own. You can also edit these with <code>/settings</code>{" "}
+          in Discord, or in the RuneLite plugin.
+        </p>
+      </div>
+      <div role="tablist" className="flex flex-wrap gap-1.5">
+        {types.map((t) => (
+          <Button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={active === t}
+            size="xs"
+            variant={active === t ? "secondary" : "ghost"}
+            onClick={() => setActive(t)}
+          >
+            {TAB_LABELS[t]}
+          </Button>
+        ))}
+      </div>
+      {types.map((t) => (
+        <div key={t} hidden={active !== t}>
+          <MemberMessageEditor initial={initialByType[t]!} messageType={t} />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function MemberMessageEditor({
+  initial,
+  messageType,
+}: {
+  initial: MyDeathMessages;
+  messageType: MemberMessageType;
+}) {
+  const noun = MEMBER_MESSAGE_NOUNS[messageType];
+  const kind = MESSAGE_KINDS[messageType];
   const [data, setData] = useState(initial);
   const [selectedId, setSelectedId] = useState<number | null>(initial.players[0]?.id ?? null);
   const [drafts, setDrafts] = useState<Record<number, string[]>>({});
@@ -41,7 +108,7 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
   const player = data.players.find((p) => p.id === selectedId) ?? data.players[0];
   const rows = player ? (drafts[player.id] ?? player.messages) : [];
   // Cheap enough to run every render; the rows are at most five short lines.
-  const issue = memberDeathMessagesIssue(rows);
+  const issue = memberDeathMessagesIssue(rows, messageType);
 
   if (!player) return null;
 
@@ -69,8 +136,8 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
 
   const addSuggestions = () => {
     const existing = new Set(rows.map((r) => r.trim()));
-    const fresh = SUGGESTED_DEATH_MESSAGES.filter(
-      (m) => !existing.has(m) && memberDeathMessagesIssue([m]) === null,
+    const fresh = kind.suggested.filter(
+      (m) => !existing.has(m) && memberDeathMessagesIssue([m], messageType) === null,
     );
     setRows([...rows.filter((r) => r.trim()), ...fresh].slice(0, data.max_messages));
   };
@@ -83,7 +150,7 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
     const messages = normalizeMemberDeathMessages(rows);
     startTransition(async () => {
       try {
-        const result = await saveMyDeathMessages(player.id, messages);
+        const result = await saveMyDeathMessages(player.id, messages, messageType);
         if (!result.ok) {
           setError(result.error);
           return;
@@ -97,23 +164,13 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
         setFocusIndex(0);
         setSaved(true);
       } catch (err) {
-        setError(getErrorMessage(err, "Couldn't save your death messages. Please try again."));
+        setError(getErrorMessage(err, `Couldn't save your ${noun} messages. Please try again.`));
       }
     });
   };
 
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="heading-rule text-osrs-gold mb-3 pb-1 text-lg font-semibold">
-          Your death message
-        </h2>
-        <p className="text-osrs-parchment-dark/70 text-sm">
-          Write what your clan sees when you die. One of your messages is picked at random for each
-          death, in every clan whose leaders let members write their own. You can also edit these
-          with <code>/settings</code> in Discord, or in the RuneLite plugin.
-        </p>
-      </div>
+    <div className="space-y-4">
 
       {data.players.length > 1 && (
         <label className="block max-w-xs">
@@ -138,7 +195,7 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
         </label>
       )}
 
-      <GroupStatus player={player} />
+      <GroupStatus player={player} noun={noun} />
 
       <div className="space-y-2">
         {rows.map((row, i) => (
@@ -151,8 +208,8 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
               onFocus={() => setFocusIndex(i)}
               disabled={pending}
               className="w-full"
-              placeholder="{player_name} forgot to pray against {killer}"
-              aria-label={`Death message ${i + 1}`}
+              placeholder={data.example ?? kind.example}
+              aria-label={`${noun[0]!.toUpperCase()}${noun.slice(1)} message ${i + 1}`}
             />
             <button
               type="button"
@@ -170,7 +227,7 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
         ))}
         {rows.length === 0 && (
           <p className="text-osrs-parchment-dark/60 text-xs italic">
-            No messages yet — your clans post their own death message for you.
+            No messages yet. Your clans post their own {noun} message for you.
           </p>
         )}
       </div>
@@ -214,8 +271,17 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
         ))}
       </div>
       <p className="text-osrs-parchment-dark/60 text-xs">
-        A message that names something the bot doesn&apos;t know for a death — say {"{killer}"} when
-        nothing attacked you — is skipped for that death.
+        {messageType === "death" ? (
+          <>
+            A message that names something the bot doesn&apos;t know for a death, say{" "}
+            {"{killer}"} when nothing attacked you, is skipped for that death.
+          </>
+        ) : (
+          <>
+            A message that names something the bot doesn&apos;t know, say {"{kill_count}"} when
+            there is no kill count, is skipped that time.
+          </>
+        )}
       </p>
 
       {previewSource.trim() !== "" && !issue && (
@@ -224,7 +290,10 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
             Example, with sample values
           </span>
           <div className="rounded-lg bg-[#313338] px-4 py-3 font-sans text-sm text-[#dbdee1]">
-            {formatInline(previewDeathMessage(previewSource, data.tokens, player.name), "mdm")}
+            {formatInline(
+              previewDeathMessage(previewSource, data.tokens, player.name, messageType),
+              `mdm-${messageType}`,
+            )}
           </div>
         </div>
       )}
@@ -255,12 +324,12 @@ export function MemberDeathMessages({ initial }: { initial: MyDeathMessages }) {
         )}
         {saved && !dirty && <span className="text-osrs-green text-sm">Saved.</span>}
       </div>
-    </section>
+    </div>
   );
 }
 
 /** Where this account's message is posted, and why not everywhere. */
-function GroupStatus({ player }: { player: MyDeathMessagesPlayer }) {
+function GroupStatus({ player, noun }: { player: MyDeathMessagesPlayer; noun: string }) {
   if (player.groups.length === 0) {
     return (
       <p className="text-osrs-parchment-dark/60 text-xs">
@@ -275,7 +344,7 @@ function GroupStatus({ player }: { player: MyDeathMessagesPlayer }) {
         const state = groupPostingState(group);
         if (state === "posting") {
           return (
-            <Badge key={group.id} variant="green" title="This clan posts members' own death messages.">
+            <Badge key={group.id} variant="green" title={`This clan posts members' own ${noun} messages.`}>
               {group.name}
             </Badge>
           );
@@ -285,7 +354,7 @@ function GroupStatus({ player }: { player: MyDeathMessagesPlayer }) {
             <Badge
               key={group.id}
               variant="red"
-              title="This clan's leaders have blocked your own messages; it uses its own death message."
+              title={`This clan's leaders have blocked your own messages; it uses its own ${noun} message.`}
             >
               {group.name} · blocked
             </Badge>
@@ -295,7 +364,7 @@ function GroupStatus({ player }: { player: MyDeathMessagesPlayer }) {
           <Badge
             key={group.id}
             variant="neutral"
-            title="This clan hasn't turned on members' own death messages, so it uses its own."
+            title={`This clan hasn't turned on members' own ${noun} messages, so it uses its own.`}
           >
             {group.name} · off
           </Badge>

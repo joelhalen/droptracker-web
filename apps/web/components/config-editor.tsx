@@ -46,6 +46,7 @@ import { BossListPicker } from "@/components/boss-list-picker";
 import { MultiSelectOptions } from "@/components/multi-select-options";
 import { BoardStylePicker } from "@/components/board-style-picker";
 import { DeathMessageListEditor } from "@/components/death-message-list-editor";
+import { messageKindForKey } from "@/lib/message-kinds";
 import { PetListField } from "@/components/pet-list-field";
 import { SettingsBlock, SettingsSectionShell, SettingsSubheading } from "@/components/settings-section";
 import type { DiscordChannel, LootboardStyle } from "@/lib/api";
@@ -692,9 +693,11 @@ function FieldGrid({
               boardStyles={boardStyles}
               locked={isFieldLocked(f)}
               groupId={groupId}
-              // Unsaved checkbox state, so the death-message preview flips
+              // Unsaved checkbox state, so a message list's preview flips
               // placement instantly with its toggle.
-              deathAsEmbed={Boolean(values["death_message_as_embed_description"] ?? false)}
+              deathAsEmbed={Boolean(
+                values[`${messageKindForKey(f.key)}_message_as_embed_description`] ?? false,
+              )}
             />
           ))}
         </div>
@@ -909,6 +912,7 @@ function InputField({
           value={String(value ?? "")}
           onChange={(v) => onChange(v)}
           asEmbedDescription={deathAsEmbed}
+          kind={messageKindForKey(field.key)}
           disabled={disabled}
         />
       ) : field.type === "boardstyle" ? (

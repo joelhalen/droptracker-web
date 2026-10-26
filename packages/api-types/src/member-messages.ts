@@ -1,9 +1,10 @@
 /**
- * Members' own death messages (backend `db/member_messages.py`).
+ * Members' own messages (backend `db/member_messages.py`): death, collection
+ * log, drop and personal best lines.
  *
- * A member writes up to five lines per account; one is picked for each death in
- * every group that turned on `allow_member_death_messages`, and a leader can
- * block individual members. The backend is the authority on what may be saved —
+ * A member writes up to five lines per account and type; one is picked each
+ * time in every group that turned that type on (`allow_member_<type>_messages`),
+ * and a leader can block individual members (a block covers every type). The backend is the authority on what may be saved —
  * these limits and the validator below mirror it so the editor can explain a
  * problem before the save instead of after it. Keep the two in step: the same
  * cases are pinned by `apps/web/test/member-messages.test.ts` here and
@@ -31,10 +32,40 @@ export const MEMBER_DEATH_TOKEN_ALIASES: Record<string, string> = {
   "{region_name}": "{location}",
 };
 
-const ALLOWED_TOKENS = new Set<string>([
-  ...MEMBER_DEATH_TOKENS,
-  ...Object.keys(MEMBER_DEATH_TOKEN_ALIASES),
-]);
+/** Message types, in the order editors list them. Mirrors `MESSAGE_TYPES`. */
+export const MEMBER_MESSAGE_TYPES = ["death", "clog", "drop", "pb"] as const;
+export type MemberMessageType = (typeof MEMBER_MESSAGE_TYPES)[number];
+
+/** What each type is called in a sentence ("your drop message"). */
+export const MEMBER_MESSAGE_NOUNS: Record<MemberMessageType, string> = {
+  death: "death",
+  clog: "collection log",
+  drop: "drop",
+  pb: "personal best",
+};
+
+/** Placeholders per type, in display order (backend `MessageKind.tokens`). */
+export const MEMBER_MESSAGE_TOKENS: Record<MemberMessageType, readonly string[]> = {
+  death: MEMBER_DEATH_TOKENS,
+  clog: ["{player_name}", "{item_name}", "{source}", "{kill_count}", "{slots_unlocked}", "{slots_total}"],
+  drop: ["{player_name}", "{item_name}", "{source}", "{value}", "{quantity}", "{kill_count}"],
+  pb: ["{player_name}", "{boss}", "{time}", "{team_size}", "{kill_count}"],
+};
+
+/** Also accepted per type (backend `MessageKind.aliases`). */
+export const MEMBER_MESSAGE_TOKEN_ALIASES: Record<MemberMessageType, Record<string, string>> = {
+  death: MEMBER_DEATH_TOKEN_ALIASES,
+  clog: { "{npc_name}": "{source}", "{kc_received}": "{kill_count}" },
+  drop: { "{npc_name}": "{source}" },
+  pb: { "{npc_name}": "{boss}", "{personal_best}": "{time}" },
+};
+
+function allowedTokens(type: MemberMessageType): Set<string> {
+  return new Set<string>([
+    ...MEMBER_MESSAGE_TOKENS[type],
+    ...Object.keys(MEMBER_MESSAGE_TOKEN_ALIASES[type]),
+  ]);
+}
 
 const TOKEN_RE = /\{[a-z0-9_]+\}/gi;
 const DISCORD_ENTITY_RE =
@@ -52,7 +83,10 @@ function codePointLength(text: string): number {
 }
 
 /** Why one trimmed message cannot be saved, or null. Same wording as the API. */
-export function memberDeathMessageIssue(text: string): string | null {
+export function memberDeathMessageIssue(
+  text: string,
+  type: MemberMessageType = "death",
+): string | null {
   if (codePointLength(text) > MEMBER_MESSAGE_MAX_LENGTH) {
     return `Each message can be at most ${MEMBER_MESSAGE_MAX_LENGTH} characters.`;
   }
@@ -62,12 +96,13 @@ export function memberDeathMessageIssue(text: string): string | null {
   }
   if (LINK_RE.test(text)) return "Messages can't contain links.";
   if (BLOCK_MARKDOWN_RE.test(text)) return "Messages can't start with a heading or a quote.";
+  const allowed = allowedTokens(type);
   const unknown = [
-    ...new Set((text.match(TOKEN_RE) ?? []).filter((t) => !ALLOWED_TOKENS.has(t.toLowerCase()))),
+    ...new Set((text.match(TOKEN_RE) ?? []).filter((t) => !allowed.has(t.toLowerCase()))),
   ].sort();
   if (unknown.length > 0) {
     const plural = unknown.length > 1 ? "s" : "";
-    return `Unknown placeholder${plural} ${unknown.join(", ")}. You can use ${MEMBER_DEATH_TOKENS.join(", ")}.`;
+    return `Unknown placeholder${plural} ${unknown.join(", ")}. You can use ${MEMBER_MESSAGE_TOKENS[type].join(", ")}.`;
   }
   return null;
 }
@@ -84,10 +119,13 @@ export function normalizeMemberDeathMessages(messages: readonly string[]): strin
 }
 
 /** The first problem with a whole list, or null when it can be saved. */
-export function memberDeathMessagesIssue(messages: readonly string[]): string | null {
+export function memberDeathMessagesIssue(
+  messages: readonly string[],
+  type: MemberMessageType = "death",
+): string | null {
   const cleaned = normalizeMemberDeathMessages(messages);
   for (const message of cleaned) {
-    const issue = memberDeathMessageIssue(message);
+    const issue = memberDeathMessageIssue(message, type);
     if (issue) return issue;
   }
   if (cleaned.length > MEMBER_MESSAGE_MAX_MESSAGES) {
@@ -123,8 +161,11 @@ export const MyDeathMessagesPlayerSchema = z.object({
 });
 export type MyDeathMessagesPlayer = z.infer<typeof MyDeathMessagesPlayerSchema>;
 
-/** GET /me/death-messages — and the echo of every save. */
+/** GET /me/member-messages?type= — and the echo of every save. */
 export const MyDeathMessagesSchema = z.object({
+  /** Absent from backends before message types (= death). */
+  type: z.enum(MEMBER_MESSAGE_TYPES).optional(),
+  example: z.string().optional(),
   max_messages: z.number().int(),
   max_length: z.number().int(),
   tokens: z.array(MemberMessageTokenSchema),
@@ -143,9 +184,10 @@ export const GroupMemberDeathMessageSchema = z.object({
 });
 export type GroupMemberDeathMessage = z.infer<typeof GroupMemberDeathMessageSchema>;
 
-/** GET /groups/{id}/member-death-messages — and the echo of block/unblock. */
+/** GET /groups/{id}/member-messages?type= — and the echo of block/unblock. */
 export const GroupMemberDeathMessagesSchema = z.object({
-  /** `allow_member_death_messages` as currently saved. */
+  type: z.enum(MEMBER_MESSAGE_TYPES).optional(),
+  /** `allow_member_<type>_messages` as currently saved. */
   enabled: z.boolean(),
   members: z.array(GroupMemberDeathMessageSchema),
 });

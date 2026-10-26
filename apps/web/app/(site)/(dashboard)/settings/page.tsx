@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { MEMBER_MESSAGE_TYPES, type MemberMessageType, type MyDeathMessages } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 import { SettingsForm } from "@/components/settings-form";
@@ -13,14 +14,21 @@ export const metadata: Metadata = { title: "Settings" };
 export default async function SettingsPage() {
   // requireUser guarantees a non-null session even though the layout also gates.
   const user = await requireUser("/settings");
-  const [settings, nitro, notificationPrefs, deathMessages, removals] = await Promise.all([
+  const [settings, nitro, notificationPrefs, memberMessages, removals] = await Promise.all([
     api.settings(),
     api.myNitroBoost(),
     api.notificationPrefs(),
-    // Best-effort: the rest of the page must still render if this read fails.
-    api.myDeathMessages().catch(() => null),
+    // Best-effort per type: the rest of the page must still render if a read fails.
+    Promise.all(
+      MEMBER_MESSAGE_TYPES.map((t) => api.myDeathMessages(t).catch(() => null)),
+    ),
     api.myDataRemovals().catch(() => ({ requests: [] })),
   ]);
+  const messagesByType: Partial<Record<MemberMessageType, MyDeathMessages>> = {};
+  MEMBER_MESSAGE_TYPES.forEach((t, i) => {
+    const data = memberMessages[i];
+    if (data && data.players.length > 0) messagesByType[t] = data;
+  });
 
   return (
     <div className="max-w-2xl space-y-10">
@@ -39,9 +47,9 @@ export default async function SettingsPage() {
         <SettingsForm initial={settings} />
       </section>
 
-      {deathMessages && deathMessages.players.length > 0 && (
+      {Object.keys(messagesByType).length > 0 && (
         <section className="max-w-xl">
-          <MemberDeathMessages initial={deathMessages} />
+          <MemberDeathMessages initialByType={messagesByType} />
         </section>
       )}
 

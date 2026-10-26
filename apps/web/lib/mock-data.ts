@@ -109,6 +109,7 @@ import type {
   TicketSummary,
   WomGroupPreview,
   WomSyncResult,
+  MemberMessageType,
   MyDeathMessages,
   GroupMemberDeathMessages,
   AdminTesterBuilds,
@@ -1240,8 +1241,60 @@ export function mockNotificationBlacklist(): NotificationBlacklist {
 /** Members' own death messages (GET /me/death-messages): one account with
  * messages that one group posts and another has not switched on, and one with
  * nothing written yet — so every editor state shows in mock mode. */
-export function mockMyDeathMessages(): MyDeathMessages {
+/** Sample member messages per non-death type, for the mock editor and review. */
+const MOCK_MEMBER_MESSAGES: Record<Exclude<MemberMessageType, "death">, {
+  tokens: { token: string; help: string; sample: string }[];
+  messages: string[];
+}> = {
+  clog: {
+    tokens: [
+      { token: "{player_name}", help: "Your name", sample: "Zezima" },
+      { token: "{item_name}", help: "The item you logged", sample: "Tanzanite fang" },
+      { token: "{source}", help: "Where it came from", sample: "Zulrah" },
+      { token: "{kill_count}", help: "Your kill count there", sample: "412" },
+      { token: "{slots_unlocked}", help: "Your collection log slots", sample: "1,024" },
+      { token: "{slots_total}", help: "Collection log slots in the game", sample: "1,692" },
+    ],
+    messages: ["{player_name} finally saw a {item_name} after {kill_count} kills"],
+  },
+  drop: {
+    tokens: [
+      { token: "{player_name}", help: "Your name", sample: "Zezima" },
+      { token: "{item_name}", help: "The item you got", sample: "Twisted bow" },
+      { token: "{source}", help: "What dropped it", sample: "Great Olm" },
+      { token: "{value}", help: "What it's worth", sample: "1.2B" },
+      { token: "{quantity}", help: "How many", sample: "1" },
+      { token: "{kill_count}", help: "Your kill count there", sample: "57" },
+    ],
+    messages: ["{player_name} just made {value} off {source}"],
+  },
+  pb: {
+    tokens: [
+      { token: "{player_name}", help: "Your name", sample: "Zezima" },
+      { token: "{boss}", help: "The boss or activity", sample: "Vorkath" },
+      { token: "{time}", help: "Your new best time", sample: "1:02.40" },
+      { token: "{team_size}", help: "Team size", sample: "Solo" },
+      { token: "{kill_count}", help: "Your kill count there", sample: "1,204" },
+    ],
+    messages: ["{player_name} shaved {boss} down to {time}"],
+  },
+};
+
+export function mockMyDeathMessages(type: MemberMessageType = "death"): MyDeathMessages {
+  const death = mockMyDeathMessagesForDeaths();
+  if (type === "death") return death;
+  const sample = MOCK_MEMBER_MESSAGES[type];
   return {
+    ...death,
+    type,
+    tokens: sample.tokens,
+    players: death.players.map((p, i) => ({ ...p, messages: i === 0 ? sample.messages : [] })),
+  };
+}
+
+function mockMyDeathMessagesForDeaths(): MyDeathMessages {
+  return {
+    type: "death",
     max_messages: 5,
     max_length: 150,
     tokens: [
@@ -1276,8 +1329,20 @@ export function mockMyDeathMessages(): MyDeathMessages {
 
 /** A group's review of members' own death messages: one member writing, one
  * blocked. */
-export function mockGroupMemberDeathMessages(): GroupMemberDeathMessages {
+export function mockGroupMemberDeathMessages(
+  type: MemberMessageType = "death",
+): GroupMemberDeathMessages {
+  if (type !== "death") {
+    const death = mockGroupMemberDeathMessages("death");
+    return {
+      ...death,
+      type,
+      enabled: false,
+      members: death.members.map((m) => ({ ...m, messages: MOCK_MEMBER_MESSAGES[type].messages })),
+    };
+  }
   return {
+    type: "death",
     enabled: true,
     members: [
       {

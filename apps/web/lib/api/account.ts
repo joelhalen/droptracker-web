@@ -8,6 +8,7 @@ import {
   ClaimResultSchema,
   MeSchema,
   MyDeathMessagesSchema,
+  type MemberMessageType,
   type MyDeathMessages,
   type ClaimPreview,
   type ClaimResult,
@@ -132,24 +133,34 @@ export const accountApi = {
 
   /** Your own death messages for every linked account, with the limits, the
    * placeholders, and per group whether each account's message is posted. */
-  async myDeathMessages(): Promise<MyDeathMessages> {
+  async myDeathMessages(type: MemberMessageType = "death"): Promise<MyDeathMessages> {
     return withFallback(
-      async () => MyDeathMessagesSchema.parse(await apiGet(`/me/death-messages`, { authed: true })),
-      () => mockMyDeathMessages(),
+      async () =>
+        MyDeathMessagesSchema.parse(
+          await apiGet(`/me/member-messages?type=${type}`, { authed: true }),
+        ),
+      () => mockMyDeathMessages(type),
     );
   },
 
 
   /** Replace one linked account's death messages ([] clears them). A message
    * the backend refuses is an ApiError(422) whose message says why. */
-  async setMyDeathMessages(playerId: number, messages: string[]): Promise<MyDeathMessages> {
+  async setMyDeathMessages(
+    playerId: number,
+    messages: string[],
+    type: MemberMessageType = "death",
+  ): Promise<MyDeathMessages> {
     return withFallback(
       async () =>
         MyDeathMessagesSchema.parse(
-          await apiSend("PUT", `/me/players/${playerId}/death-messages`, { messages }),
+          await apiSend("PUT", `/me/players/${playerId}/member-messages?type=${type}`, {
+            messages,
+            type,
+          }),
         ),
       () => {
-        const mock = mockMyDeathMessages();
+        const mock = mockMyDeathMessages(type);
         return {
           ...mock,
           players: mock.players.map((p) => (p.id === playerId ? { ...p, messages } : p)),

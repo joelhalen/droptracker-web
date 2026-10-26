@@ -14,6 +14,7 @@ import { z } from "zod";
 export type ConfigCategory =
   | "profile"
   | "channels"
+  | "style"
   | "drops"
   | "achievements"
   | "deaths"
@@ -144,6 +145,7 @@ export function comingSoonNote(field: ConfigField): string | null {
 export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "profile", label: "Group profile" },
   { id: "channels", label: "Discord channels" },
+  { id: "style", label: "Notification style" },
   { id: "drops", label: "Drop notifications" },
   { id: "achievements", label: "Achievement notifications" },
   { id: "deaths", label: "Deaths" },
@@ -177,6 +179,26 @@ export const SLAYER_MASTER_OPTIONS: { value: string; label: string }[] = [
   { value: "8", label: "Konar" },
   { value: "9", label: "Spria" },
   { value: "10", label: "Mortimer" },
+];
+
+/**
+ * Notification types a group can send as plain text (no embed). Mirrors the
+ * backend's `services/notification_text.PLAIN_TEXT_OPTIONS`; the backend test
+ * tests/unit/test_notification_style.py holds the registries together.
+ */
+export const PLAIN_TEXT_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "drop", label: "Drops" },
+  { value: "clog", label: "Collection logs" },
+  { value: "pb", label: "Personal bests" },
+  { value: "ca", label: "Combat achievements" },
+  { value: "pet", label: "Pets" },
+  { value: "level_up", label: "Levels and XP milestones" },
+  { value: "milestone", label: "Kill count and rank milestones" },
+  { value: "quest", label: "Quests" },
+  { value: "diary", label: "Achievement diaries" },
+  { value: "death", label: "Deaths" },
+  { value: "slayer", label: "Slayer tasks" },
+  { value: "pvp", label: "PvP" },
 ];
 
 export const GROUP_CONFIG_FIELDS: ConfigField[] = [
@@ -213,6 +235,20 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "submit_on_launch_card", label: "Submit button on the launcher card", category: "channels", group: "Submit button", type: "boolean", help: "Add a Submit button to the Open DropTracker card, so members can send a drop, PB or other entry without a slash command.", default: false },
   { key: "submit_panel_channel", label: "Submit card channel", category: "channels", group: "Submit button", type: "channel", help: "Post a card with a Submit button in this channel. The bot keeps one card here and moves or removes it when you change this.", default: null },
   { key: "submit_panel_message", label: "Submit card message", category: "channels", group: "Submit button", type: "string", help: "Optional. The text on the Submit card. Leave blank for the default.", default: "", maxLength: 250 },
+
+  // --- Notification style -------------------------------------------------
+  // Read at send time (backend services/notification_text.py). Free for every group.
+  { key: "notification_pings", label: "Ping members", category: "style", type: "boolean", help: "Off: member names still show as mentions, but nobody gets a ping. This overrides each member's own ping setting. Roles you mention in your message text still get pinged.", default: true },
+  { key: "notifications_plain_text", label: "Send every notification as plain text", category: "style", type: "boolean", help: "Post a message line and the screenshot, without the embed. Covers drops, collection logs, personal bests and every other member notification. Your message text is used when you set one.", default: false },
+  {
+    key: "plain_text_notification_types",
+    label: "Plain text for these types",
+    category: "style",
+    type: "multiselect",
+    help: "Send only these types as plain text and keep the embed for the rest. Not used while the switch above is on.",
+    default: "",
+    options: PLAIN_TEXT_TYPE_OPTIONS,
+  },
 
   // --- Drop notifications -------------------------------------------------
   // Defaults must match the backend processors' runtime fallbacks
@@ -269,10 +305,18 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
     default: null,
   },
 
+  // Members' own and the group's drop messages (backend db/member_messages.py).
+  { key: "drop_message_variants", label: "Drop messages", category: "drops", group: "Drop messages", type: "messagelist", help: "Your own drop messages, one picked at random each time. Placeholders like {player_name}, {item_name}, {source}, {value}, {quantity} and {kill_count} are filled in. A message is skipped when one of its placeholders is blank, so you can write lines that only fit some drops. Leave empty for the default message. In a custom embed or a Components layout, place the picked message with {drop_message}.", default: "" },
+  { key: "drop_message_as_embed_description", label: "Show message inside the embed", category: "drops", group: "Drop messages", type: "boolean", help: "On: the picked message replaces the embed description (including a custom embed's). Off: it's sent as the plain message text above the embed.", default: false },
+  { key: "allow_member_drop_messages", label: "Let members write their own drop message", category: "drops", group: "Drop messages", type: "boolean", help: "Members set their own message on the website, with /settings in Discord, or in the RuneLite plugin. A member's message is posted instead of yours, and members without one get yours. Review what members wrote, and block anyone, below.", default: false },
+
   // --- Achievement notifications ------------------------------------------
   // Everything a member unlocks rather than loots. Same runtime-fallback rule
   // as the drop toggles above.
   { key: "notify_clogs", label: "Notify collection logs", category: "achievements", group: "Collection log & pets", type: "boolean", help: "Post a notification on new collection-log slots.", default: true, seasonalMirror: true },
+  { key: "clog_message_variants", label: "Collection log messages", category: "achievements", group: "Collection log messages", type: "messagelist", help: "Your own collection log messages, one picked at random each time. Placeholders like {player_name}, {item_name}, {source}, {kill_count}, {slots_unlocked} and {slots_total} are filled in. A message is skipped when one of its placeholders is blank, so you can write lines that only fit some collection log slots. Leave empty for the default message. In a custom embed or a Components layout, place the picked message with {clog_message}.", default: "" },
+  { key: "clog_message_as_embed_description", label: "Show message inside the embed", category: "achievements", group: "Collection log messages", type: "boolean", help: "On: the picked message replaces the embed description (including a custom embed's). Off: it's sent as the plain message text above the embed.", default: false },
+  { key: "allow_member_clog_messages", label: "Let members write their own collection log message", category: "achievements", group: "Collection log messages", type: "boolean", help: "Members set their own message on the website, with /settings in Discord, or in the RuneLite plugin. A member's message is posted instead of yours, and members without one get yours. Review what members wrote, and block anyone, below.", default: false },
   { key: "notify_pets", label: "Notify pets", category: "achievements", group: "Collection log & pets", type: "boolean", help: "Post a notification on pet drops.", default: true, seasonalMirror: true },
   // Which duplicate pets are announced (backend utils/pet_notifications.py).
   // No stored row = "all", what every group did before this existed.
@@ -387,6 +431,9 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // Fame fields below are premium (entitlement: "hall_of_fame");
   // create_pb_embeds is the master switch the HOF bot keys off of.
   { key: "notify_pbs", label: "Notify personal bests", category: "pbs", type: "boolean", help: "Post personal-best notifications in Discord. Available to all groups.", default: true, seasonalMirror: true },
+  { key: "pb_message_variants", label: "Personal best messages", category: "pbs", group: "Personal best messages", type: "messagelist", help: "Your own personal best messages, one picked at random each time. Placeholders like {player_name}, {boss}, {time}, {team_size} and {kill_count} are filled in. A message is skipped when one of its placeholders is blank, so you can write lines that only fit some personal bests. Leave empty for the default message. In a custom embed or a Components layout, place the picked message with {pb_message}.", default: "" },
+  { key: "pb_message_as_embed_description", label: "Show message inside the embed", category: "pbs", group: "Personal best messages", type: "boolean", help: "On: the picked message replaces the embed description (including a custom embed's). Off: it's sent as the plain message text above the embed.", default: false },
+  { key: "allow_member_pb_messages", label: "Let members write their own personal best message", category: "pbs", group: "Personal best messages", type: "boolean", help: "Members set their own message on the website, with /settings in Discord, or in the RuneLite plugin. A member's message is posted instead of yours, and members without one get yours. Review what members wrote, and block anyone, below.", default: false },
   { key: "create_pb_embeds", label: "Enable Hall of Fame", category: "pbs", group: "Hall of Fame", type: "boolean", help: "Post and keep updated the Hall of Fame personal-best leaderboards in Discord. Turn this on, then choose the bosses and channel below.", default: false, entitlement: "hall_of_fame" },
   { key: "hof_individual_boss_messages", label: "Individual Hall of Fame messages", category: "pbs", group: "Hall of Fame", type: "boolean", help: "Post one Hall of Fame message per boss. When off, only the directory message is posted and members use its drop-down to view each boss's leaderboard.", default: false, entitlement: "hall_of_fame" },
   { key: "personal_best_embed_boss_list", label: "Hall of Fame bosses", category: "pbs", group: "Hall of Fame", type: "bosslist", help: "Bosses featured in the Hall of Fame. Empty = no bosses shown.", default: "", entitlement: "hall_of_fame" },
