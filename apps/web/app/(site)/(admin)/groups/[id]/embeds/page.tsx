@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { plainTextChoice } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser, requireGroupAdminPage } from "@/lib/auth";
 import { FeatureGate } from "@/components/feature-gate";
@@ -42,7 +43,7 @@ export default async function GroupEmbedsPage({
   ]);
   // The components layouts are fetched on every tab: the response reports the
   // entitlement gate, which is what decides whether the tab is offered at all.
-  const [embeds, eventLayouts, layoutMeta, notificationLayouts, notificationMeta, footers] =
+  const [embeds, eventLayouts, layoutMeta, notificationLayouts, notificationMeta, footers, config] =
     await Promise.all([
       embedsTab ? api.groupEmbeds(groupId).catch(() => null) : null,
       eventsTab ? api.groupEventLayouts(groupId).catch(() => null) : null,
@@ -50,7 +51,10 @@ export default async function GroupEmbedsPage({
       api.groupNotificationLayouts(groupId).catch(() => null),
       componentsTab ? api.notificationLayoutMeta().catch(() => null) : null,
       embedsTab || footerTab ? api.notificationFooters(groupId).catch(() => null) : null,
+      // Plain-text choices (Notification style): which types send no embed.
+      embedsTab ? api.groupConfig(groupId).catch(() => null) : null,
     ]);
+  const plainText = plainTextChoice(config);
 
   const componentsEnabled = Boolean(notificationLayouts?.enabled);
 
@@ -108,12 +112,21 @@ export default async function GroupEmbedsPage({
             each message is sent.
           </>
         ) : (
+          plainText.all ? (
+          <>
+            Your notifications are sent as plain text, so there are no embeds to design. Write the
+            message each notification is sent with here; placeholders like{" "}
+            <code className="text-osrs-gold-bright">{"{player_name}"}</code> are filled in when
+            each one is sent.
+          </>
+          ) : (
           <>
             Customize the Discord embeds the bot posts for your group&apos;s notifications, like
             drops, collection log slots and personal bests, and the message text sent above them. Placeholders like{" "}
             <code className="text-osrs-gold-bright">{"{player_name}"}</code> are filled in when
             each notification is sent.
           </>
+          )
         )}
       </p>
       {footerTab ? (
@@ -172,7 +185,12 @@ export default async function GroupEmbedsPage({
             </p>
           )
         ) : embeds ? (
-          <EmbedEditor scope={{ kind: "group", groupId }} initial={embeds} footers={footers} />
+          <EmbedEditor
+            scope={{ kind: "group", groupId }}
+            initial={embeds}
+            footers={footers}
+            plainText={plainText}
+          />
         ) : (
           <p className="text-osrs-parchment-dark/70 text-sm">
             Embed templates are unavailable right now — try again shortly.

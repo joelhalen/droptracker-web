@@ -33,6 +33,8 @@ export function embedEditorEntries(resp: EmbedDefaultsResponse): GroupEmbedsResp
       default: e.builtin,
       // Staff edit group 1's own text; null on it means the sender's line.
       default_content: e.builtin_content,
+      // Staff design embeds; plain text is a per-group choice.
+      plain_default_content: null,
     })),
   };
 }

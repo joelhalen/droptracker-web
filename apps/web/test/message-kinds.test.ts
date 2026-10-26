@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  EMBED_PLAIN_TEXT_OPTION,
+  EMBED_TYPES,
   GROUP_CONFIG_FIELDS,
   GroupMemberDeathMessagesSchema,
   MEMBER_MESSAGE_TOKENS,
@@ -10,6 +12,8 @@ import {
   PLAIN_TEXT_TYPE_OPTIONS,
   memberDeathMessageIssue,
   memberDeathMessagesIssue,
+  isPlainTextEmbedType,
+  plainTextChoice,
 } from "@droptracker/api-types";
 import { previewDeathMessage } from "../lib/member-death-messages";
 import { MESSAGE_KINDS, messageKindForKey } from "../lib/message-kinds";
@@ -86,4 +90,33 @@ test("plain-text options name every type once", () => {
   const values = PLAIN_TEXT_TYPE_OPTIONS.map((o) => o.value);
   assert.equal(new Set(values).size, values.length);
   for (const t of ["drop", "clog", "pb", "death"]) assert.ok(values.includes(t));
+});
+
+test("plain-text choice reads the two config keys", () => {
+  assert.deepEqual(
+    plainTextChoice({ notifications_plain_text: true, plain_text_notification_types: "" }),
+    { all: true, options: [] },
+  );
+  assert.deepEqual(plainTextChoice({ plain_text_notification_types: "drop, pb" }), {
+    all: false,
+    options: ["drop", "pb"],
+  });
+  assert.deepEqual(plainTextChoice(null), { all: false, options: [] });
+});
+
+test("embed types map onto the plain-text options", () => {
+  const choice = { all: false, options: ["pet", "pvp"] };
+  assert.ok(isPlainTextEmbedType("pet_dupe", choice));
+  assert.ok(isPlainTextEmbedType("pvp_death", choice));
+  assert.ok(!isPlainTextEmbedType("drop", choice));
+  // The lootboard is an image board: never plain text, even with the switch on.
+  assert.ok(!isPlainTextEmbedType("lb", { all: true, options: [] }));
+  for (const t of EMBED_TYPES) {
+    const option = EMBED_PLAIN_TEXT_OPTION[t];
+    if (option !== null)
+      assert.ok(
+        PLAIN_TEXT_TYPE_OPTIONS.some((o) => o.value === option),
+        t,
+      );
+  }
 });

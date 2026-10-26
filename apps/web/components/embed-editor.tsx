@@ -21,7 +21,9 @@ import {
   EMBED_TYPES,
   EMBED_TYPE_LABELS,
   MASS_MENTION_RE,
+  isPlainTextEmbedType,
   type EmbedType,
+  type PlainTextChoice,
   type GroupEmbed,
   type GroupEmbedInput,
   type GroupEmbedsResponse,
@@ -519,12 +521,15 @@ function DiscordPreview({
   useSamples,
   showContent,
   footer,
+  plainText = false,
 }: {
   draft: Draft;
   docs: PlaceholderDoc[];
   useSamples: boolean;
   showContent: boolean;
   footer: string | null;
+  /** Sent without the embed: the text, then the screenshot as an attachment. */
+  plainText?: boolean;
 }) {
   const sub = (t: string) => substitute(t, [...docs, PLAYER_MENTION], useSamples);
   const footerText = footer ? sub(footer) : "";
@@ -555,6 +560,9 @@ function DiscordPreview({
               <PreviewText text={sub(draft.content)} useSamples={useSamples} />
             </div>
           )}
+          {plainText ? (
+            <ScreenshotPlaceholder />
+          ) : (
           <div
             className="mt-1 grid max-w-[520px] grid-cols-1 rounded border-l-4 bg-[#2b2d31] py-3 pr-4 pl-3"
             style={{ borderLeftColor: stripColor }}
@@ -611,8 +619,18 @@ function DiscordPreview({
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Where the player's screenshot lands in a plain-text message: attached below the text. */
+function ScreenshotPlaceholder() {
+  return (
+    <div className="mt-1.5 flex h-28 max-w-[320px] items-center justify-center rounded border border-dashed border-[#4e5058] bg-[#2b2d31] text-xs text-[#949ba4]">
+      Screenshot, when the player sent one
     </div>
   );
 }
@@ -624,13 +642,17 @@ export function EmbedEditor({
   scope,
   initial,
   footers,
+  plainText = null,
 }: {
   scope: EmbedEditorScope;
   initial: GroupEmbedsResponse;
   /** The group's footer choices, so the preview shows the footer it is sent. */
   footers?: NotificationFooters | null;
+  /** The group's plain-text choices (Notification style settings). */
+  plainText?: PlainTextChoice | null;
 }) {
   const staff = scope.kind === "defaults";
+  const isPlain = (t: EmbedType) => !staff && isPlainTextEmbedType(t, plainText);
   const byType = useMemo(() => {
     const map = new Map(initial.embeds.map((e) => [e.embed_type, e]));
     return map;
@@ -640,9 +662,15 @@ export function EmbedEditor({
   const [customByType, setCustomByType] = useState<Partial<Record<EmbedType, GroupEmbed | null>>>(
     () => Object.fromEntries(initial.embeds.map((e) => [e.embed_type, e.custom])),
   );
+  // A plain-text type with no text of its own is sent the plain line, not the
+  // line written to sit above an embed.
+  const defaultContentFor = (t: EmbedType) => {
+    const e = byType.get(t);
+    return isPlain(t) ? (e?.plain_default_content ?? e?.default_content) : e?.default_content;
+  };
   const [draft, setDraft] = useState<Draft>(() => {
     const e = byType.get("drop");
-    return draftFrom(e?.custom, e?.default, e?.default_content);
+    return draftFrom(e?.custom, e?.default, defaultContentFor("drop"));
   });
   const [dirty, setDirty] = useState(false);
   const [useSamples, setUseSamples] = useState(true);
@@ -656,7 +684,8 @@ export function EmbedEditor({
   const canReset = hasCustom && (!staff || Boolean(entry?.default));
   const docs = PLACEHOLDERS[selected];
   const hasContent = EMBED_CONTENT_TYPES.includes(selected);
-  const defaultContent = entry?.default_content ?? "";
+  const defaultContent = defaultContentFor(selected) ?? "";
+  const plainSelected = isPlain(selected);
   const previewFooter = staff
     ? (footers?.default_footer ?? resolveFooter(null, selected))
     : resolveFooter(footers, selected);
@@ -686,7 +715,7 @@ export function EmbedEditor({
     // customByType holds every type (null once reset), so it alone says
     // whether a template is still stored — `e.custom` is the page-load copy.
     const stored = t in customByType ? customByType[t] : e?.custom;
-    setDraft(draftFrom(stored, e?.default, e?.default_content));
+    setDraft(draftFrom(stored, e?.default, defaultContentFor(t)));
     setDirty(false);
     setMessage(null);
   };
@@ -744,7 +773,7 @@ export function EmbedEditor({
           return;
         }
         setCustomByType((m) => ({ ...m, [selected]: res.data }));
-        setDraft(draftFrom(res.data, entry?.default, entry?.default_content));
+        setDraft(draftFrom(res.data, entry?.default, defaultContentFor(selected)));
         setDirty(false);
         setMessage({
           tone: "success",
@@ -774,7 +803,7 @@ export function EmbedEditor({
           return;
         }
         setCustomByType((m) => ({ ...m, [selected]: null }));
-        setDraft(draftFrom(null, entry?.default, entry?.default_content));
+        setDraft(draftFrom(null, entry?.default, defaultContentFor(selected)));
         setDirty(false);
         setMessage({
           tone: "success",
@@ -791,6 +820,17 @@ export function EmbedEditor({
   const copyToken = (token: string) => {
     void navigator.clipboard?.writeText(token);
   };
+
+  if (scope.kind === "group" && plainText?.all) {
+    return (
+      <PlainTextMessages
+        groupId={scope.groupId}
+        byType={byType}
+        customByType={customByType}
+        onSaved={(t, saved) => setCustomByType((m) => ({ ...m, [t]: saved }))}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -809,6 +849,9 @@ export function EmbedEditor({
           >
             {EMBED_TYPE_LABELS[t]}
             {customByType[t] ? <span className="text-osrs-gold-bright ml-1">•</span> : null}
+            {isPlain(t) ? (
+              <span className="text-osrs-parchment-dark/60 ml-1 text-[10px] uppercase">text only</span>
+            ) : null}
           </button>
         ))}
       </div>
@@ -824,6 +867,17 @@ export function EmbedEditor({
       )}
 
       {message && <Alert variant={message.tone}>{message.text}</Alert>}
+
+      {plainSelected && scope.kind === "group" && (
+        <Alert variant="info">
+          {EMBED_TYPE_LABELS[selected]} are sent as plain text: just the message text and the
+          screenshot. The embed below isn&apos;t used until you turn embeds back on for this type in{" "}
+          <a href={`/groups/${scope.groupId}/settings`} className="text-osrs-gold hover:underline">
+            Notification style
+          </a>
+          .
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Form */}
@@ -844,11 +898,15 @@ export function EmbedEditor({
                 rows={2}
                 onChange={(e) => update({ content: e.target.value, contentDefault: false })}
                 className="w-full"
-                placeholder="Leave empty to send the embed with no text above it"
+                placeholder={
+                  plainSelected
+                    ? "Leave empty to send just the screenshot"
+                    : "Leave empty to send the embed with no text above it"
+                }
               />
               <div className="mt-1 flex flex-wrap items-start justify-between gap-2">
                 <p className="text-osrs-parchment-dark/50 text-xs">
-                  The line sent above the embed. Use{" "}
+                  {plainSelected ? "The whole message, sent with the screenshot." : "The line sent above the embed."} Use{" "}
                   <code className="text-osrs-gold-bright">{"{player_mention}"}</code> to ping the
                   player (only if their own settings allow it); a name inside the embed never
                   pings. Any placeholder below works here, and you can mention a role like{" "}
@@ -880,6 +938,11 @@ export function EmbedEditor({
             </div>
           )}
 
+          <fieldset
+            disabled={plainSelected}
+            className={`space-y-4 ${plainSelected ? "pointer-events-none opacity-40" : ""}`}
+            aria-label="Embed design"
+          >
           <div>
             <label className="text-osrs-parchment mb-1 block text-sm font-medium">
               Title
@@ -1071,10 +1134,11 @@ export function EmbedEditor({
               )}
             </div>
           </div>
+          </fieldset>
 
           <div className="border-osrs-bronze/25 flex items-center gap-3 border-t pt-4">
             <Button variant="secondary" type="button" onClick={save} disabled={pending || !dirty}>
-              {pending ? "Saving…" : staff ? "Save default" : "Save embed"}
+              {pending ? "Saving…" : staff ? "Save default" : plainSelected ? "Save message text" : "Save embed"}
             </Button>
             {canReset && (
               <Button variant="ghost" type="button" onClick={reset} disabled={pending}>
@@ -1106,8 +1170,9 @@ export function EmbedEditor({
               useSamples={useSamples}
               showContent={hasContent}
               footer={previewFooter}
+              plainText={plainSelected}
             />
-            {scope.kind === "group" && (
+            {scope.kind === "group" && !plainSelected && (
               <p className="text-osrs-parchment-dark/50 mt-2 text-xs">
                 The footer is set on the{" "}
                 <a
@@ -1146,6 +1211,169 @@ export function EmbedEditor({
           </Card>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Every type plain text                                                */
+/* ------------------------------------------------------------------ */
+
+type PlainRow = { content: string; contentDefault: boolean; dirty: boolean };
+
+/**
+ * When a group sends every notification as plain text, the embeds are never
+ * used, so the editor is one page: each type's message text with what it looks
+ * like in Discord. Saving keeps the type's stored embed design as it is (or
+ * the default one, which stays unused until embeds are turned back on).
+ */
+function PlainTextMessages({
+  groupId,
+  byType,
+  customByType,
+  onSaved,
+}: {
+  groupId: number;
+  byType: Map<EmbedType, GroupEmbedsResponse["embeds"][number]>;
+  customByType: Partial<Record<EmbedType, GroupEmbed | null>>;
+  onSaved: (t: EmbedType, saved: GroupEmbed) => void;
+}) {
+  const stored = (t: EmbedType) => (t in customByType ? customByType[t] : byType.get(t)?.custom);
+  const plainDefault = (t: EmbedType) => {
+    const e = byType.get(t);
+    return e?.plain_default_content ?? e?.default_content ?? "";
+  };
+  const rowFor = (t: EmbedType): PlainRow => {
+    const own = stored(t)?.content ?? null;
+    return { content: own ?? plainDefault(t), contentDefault: own === null, dirty: false };
+  };
+  const [rows, setRows] = useState<Partial<Record<EmbedType, PlainRow>>>(() =>
+    Object.fromEntries(EMBED_CONTENT_TYPES.map((t) => [t, rowFor(t)])),
+  );
+  const [messages, setMessages] = useState<
+    Partial<Record<EmbedType, { tone: "success" | "error"; text: string }>>
+  >({});
+  const [savingType, setSavingType] = useState<EmbedType | null>(null);
+  const [, startTransition] = useTransition();
+
+  const setRow = (t: EmbedType, patch: Partial<PlainRow>) => {
+    setRows((r) => ({ ...r, [t]: { ...(r[t] ?? rowFor(t)), ...patch, dirty: true } }));
+    setMessages((m) => ({ ...m, [t]: undefined }));
+  };
+
+  const save = (t: EmbedType) => {
+    const row = rows[t];
+    if (!row) return;
+    if (!row.contentDefault && MASS_MENTION_RE.test(row.content)) {
+      setMessages((m) => ({
+        ...m,
+        [t]: { tone: "error", text: "Message text can't ping @everyone or @here. Mention a role instead." },
+      }));
+      return;
+    }
+    const e = byType.get(t);
+    const draft = {
+      ...draftFrom(stored(t), e?.default, plainDefault(t)),
+      content: row.content,
+      contentDefault: row.contentDefault,
+    };
+    setSavingType(t);
+    startTransition(async () => {
+      try {
+        const res = await saveGroupEmbedAction(groupId, t, toInput(draft, t));
+        if (!res.ok) {
+          setMessages((m) => ({ ...m, [t]: { tone: "error", text: res.error } }));
+          return;
+        }
+        onSaved(t, res.data);
+        setRows((r) => ({ ...r, [t]: { ...row, dirty: false } }));
+        setMessages((m) => ({ ...m, [t]: { tone: "success", text: "Saved." } }));
+      } catch (err) {
+        setMessages((m) => ({ ...m, [t]: { tone: "error", text: getErrorMessage(err) } }));
+      } finally {
+        setSavingType(null);
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <Alert variant="info">
+        Every notification is sent as plain text: the message text below and the player&apos;s
+        screenshot, with no embed. Your embed designs are kept and come back if you turn embeds on
+        again in{" "}
+        <a href={`/groups/${groupId}/settings`} className="text-osrs-gold hover:underline">
+          Notification style
+        </a>
+        . Use <code className="text-osrs-gold-bright">{"{player_mention}"}</code> for the player
+        (it pings them only if their settings and yours allow it).
+      </Alert>
+      {EMBED_CONTENT_TYPES.map((t) => {
+        const row = rows[t] ?? rowFor(t);
+        const docs = [...PLACEHOLDERS[t], PLAYER_MENTION];
+        const message = messages[t];
+        return (
+          <Card key={t} padding="p-4" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
+              <label className="text-osrs-parchment mb-1 block text-sm font-medium">
+                {EMBED_TYPE_LABELS[t]}
+                <span className="text-osrs-parchment-dark/50 ml-2 text-xs font-normal">
+                  {row.contentDefault ? "default" : `${row.content.length}/${EMBED_CONTENT_MAX}`}
+                </span>
+              </label>
+              <Textarea
+                value={row.content}
+                maxLength={EMBED_CONTENT_MAX}
+                rows={2}
+                onChange={(ev) => setRow(t, { content: ev.target.value, contentDefault: false })}
+                className="w-full"
+                placeholder="Leave empty to send just the screenshot"
+                aria-label={`${EMBED_TYPE_LABELS[t]} message text`}
+              />
+              <p className="text-osrs-parchment-dark/50 mt-1 truncate text-xs" title={docs.map((d) => d.token).join(" ")}>
+                Placeholders: {docs.slice(0, 6).map((d) => d.token).join(" ")}
+                {docs.length > 6 ? " …" : ""}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="xs"
+                  type="button"
+                  onClick={() => save(t)}
+                  disabled={!row.dirty || savingType !== null}
+                >
+                  {savingType === t ? "Saving…" : "Save"}
+                </Button>
+                {!row.contentDefault && (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    type="button"
+                    onClick={() => setRow(t, { content: plainDefault(t), contentDefault: true })}
+                  >
+                    Use the default text
+                  </Button>
+                )}
+                {message && (
+                  <span
+                    className={`text-xs ${message.tone === "error" ? "text-osrs-red" : "text-osrs-green"}`}
+                  >
+                    {message.text}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="rounded-lg bg-[#313338] p-3 font-sans">
+              {row.content.trim() ? (
+                <div className="text-sm leading-snug break-words whitespace-pre-line text-[#dbdee1]">
+                  <PreviewText text={substitute(row.content, docs, true)} useSamples />
+                </div>
+              ) : null}
+              <ScreenshotPlaceholder />
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 }

@@ -1970,6 +1970,51 @@ export const EMBED_TYPE_LABELS: Record<EmbedType, string> = {
  */
 export const EMBED_CONTENT_TYPES: readonly EmbedType[] = EMBED_TYPES.filter((t) => t !== "lb");
 export const EMBED_CONTENT_MAX = 2000;
+
+/**
+ * The "Notification style" plain-text option that covers each embed type
+ * (group config `plain_text_notification_types`, see PLAIN_TEXT_TYPE_OPTIONS).
+ * The lootboard is an image board and never plain text.
+ */
+export const EMBED_PLAIN_TEXT_OPTION: Record<EmbedType, string | null> = {
+  drop: "drop",
+  clog: "clog",
+  pb: "pb",
+  ca: "ca",
+  pet: "pet",
+  pet_dupe: "pet",
+  level_up: "level_up",
+  quest: "quest",
+  death: "death",
+  diary: "diary",
+  slayer: "slayer",
+  pvp_kill: "pvp",
+  pvp_death: "pvp",
+  lb: null,
+};
+
+/** A group's plain-text choices, as the embed editor needs them. */
+export interface PlainTextChoice {
+  /** `notifications_plain_text`: every type is plain text. */
+  all: boolean;
+  /** `plain_text_notification_types`: option values. */
+  options: string[];
+}
+
+export function plainTextChoice(config: Record<string, unknown> | null | undefined): PlainTextChoice {
+  const raw = config?.["plain_text_notification_types"];
+  return {
+    all: config?.["notifications_plain_text"] === true,
+    options: typeof raw === "string" ? raw.split(",").map((v) => v.trim()).filter(Boolean) : [],
+  };
+}
+
+/** Whether an embed type is sent without its embed under these choices. */
+export function isPlainTextEmbedType(type: EmbedType, choice: PlainTextChoice | null | undefined): boolean {
+  const option = EMBED_PLAIN_TEXT_OPTION[type];
+  if (!choice || option === null) return false;
+  return choice.all || choice.options.includes(option);
+}
 /** @everyone / @here are refused in message text; roles and users are fine. */
 export const MASS_MENTION_RE = /@(everyone|here)\b/i;
 
@@ -2015,6 +2060,8 @@ export const GroupEmbedsResponseSchema = z.object({
       default: GroupEmbedSchema.nullable(),
       /** The text a design with null `content` is sent with; null = none (lb). */
       default_content: z.string().nullable().default(null),
+      /** The built-in line when this type goes out as plain text (no embed). */
+      plain_default_content: z.string().nullable().default(null),
     }),
   ),
 });

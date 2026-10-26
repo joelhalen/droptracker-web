@@ -1643,6 +1643,8 @@ export function mockGroupEmbeds(): GroupEmbedsResponse {
         content: null,
       },
       default_content: embed_type === "lb" ? null : "{player_mention} received a drop:",
+      plain_default_content:
+        embed_type === "lb" ? null : "{player_mention} received **{item_name}** ({item_value})",
     })),
   };
 }
