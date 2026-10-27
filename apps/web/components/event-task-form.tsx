@@ -52,6 +52,7 @@ import {
   repeatEligible,
   slayerRequirement,
   slayerRequirementSummary,
+  groupSummary,
   taskConfig,
   taskConfigItems,
   taskConfigPetNames,
@@ -161,7 +162,7 @@ const PET_MODE_HELP: Record<PetMode, string> = {
 };
 
 /** One sub-requirement of a "Combined requirements" task. */
-type GroupDraft = { mode: "all_of" | "any_of"; need: number; items: PickerEntry[] };
+type GroupDraft = { mode: "all_of" | "any_of" | "any_of_distinct"; need: number; items: PickerEntry[] };
 
 /** How a pb task completes: once (legacy), a kill count of qualifying beats,
  * N unique players, or every rostered member of the team. */
@@ -239,7 +240,7 @@ function parseGroupDrafts(
 ): GroupDraft[] {
   if (!Array.isArray(raw)) return [];
   return (raw as { mode?: string; need?: number; items?: unknown[] }[]).map((g) => ({
-    mode: g.mode === "any_of" ? "any_of" : "all_of",
+    mode: g.mode === "any_of" || g.mode === "any_of_distinct" ? g.mode : "all_of",
     need: typeof g.need === "number" && g.need >= 1 ? g.need : 1,
     items: (Array.isArray(g.items) ? g.items : []).flatMap((it): PickerEntry[] => {
       const name = typeof it === "string" ? it : (it as { item_name?: string } | null)?.item_name;
@@ -324,9 +325,9 @@ function pathsFromConfig(config: Record<string, unknown>, petNames: Set<string>)
 
 function serializeGroups(groups: GroupDraft[]) {
   return groups.map((g) =>
-    g.mode === "any_of"
-      ? { mode: "any_of", need: g.need, items: g.items.map((i) => i.name) }
-      : { mode: "all_of", items: g.items.map((i) => i.name) },
+    g.mode === "all_of"
+      ? { mode: "all_of", items: g.items.map((i) => i.name) }
+      : { mode: g.mode, need: g.need, items: g.items.map((i) => i.name) },
   );
 }
 
@@ -363,8 +364,10 @@ function petItemsFromEntries(items: PickerEntry[]): string[] {
 function validateGroupDrafts(groups: GroupDraft[], where = ""): string | null {
   for (const [i, g] of groups.entries()) {
     if (!g.items.length) return `${where}Requirement ${i + 1}: add at least one item.`;
-    if (g.mode === "any_of" && g.need < 1)
+    if (g.mode !== "all_of" && g.need < 1)
       return `${where}Requirement ${i + 1}: "how many" must be at least 1.`;
+    if (g.mode === "any_of_distinct" && g.need > g.items.length)
+      return `${where}Requirement ${i + 1}: needs ${g.need} different items but only lists ${g.items.length}. Each item counts once.`;
   }
   const names = groups.flatMap((g) => g.items.map((it) => it.name.toLowerCase()));
   if (new Set(names).size !== names.length)
@@ -372,8 +375,9 @@ function validateGroupDrafts(groups: GroupDraft[], where = ""): string | null {
   return null;
 }
 
-/** Editable list of all-of / any-of requirement groups (shared between the
- * "Combined requirements" mode and each path of an "Either-or" task). */
+/** Editable list of all-of / any-of / different-items requirement groups
+ * (shared between the "Combined requirements" mode and each path of an
+ * "Either-or" task). */
 function GroupListEditor({
   groups,
   onChange,
@@ -410,12 +414,15 @@ function GroupListEditor({
                 className={field}
               >
                 <option value="all_of">All of these</option>
-                <option value="any_of">Any of these</option>
+                <option value="any_of">Any of these (repeats count)</option>
+                <option value="any_of_distinct">Different items (each counts once)</option>
               </select>
             </label>
-            {g.mode === "any_of" && (
+            {g.mode !== "all_of" && (
               <label className="grid gap-1 text-sm">
-                <span className="text-osrs-parchment-dark/70 text-xs">How many</span>
+                <span className="text-osrs-parchment-dark/70 text-xs">
+                  {g.mode === "any_of_distinct" ? "How many different" : "How many"}
+                </span>
                 <QuantityInput
                   min={1}
                   value={g.need}
@@ -1195,9 +1202,7 @@ export function EventTaskForm({
         if (itemMode === "all_of") return `Collect all ${listItems.length} items`;
         if (itemMode === "groups")
           return `Collect ${groups
-            .map((g) =>
-              g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
-            )
+            .map(groupSummary)
             .join(" + ")}`;
         if (itemMode === "any_path")
           return paths
@@ -1210,11 +1215,7 @@ export function EventTaskForm({
               if (p.kind === "points") return `${p.need.toLocaleString()} pts`;
               return (
                 p.groups
-                  .map((g) =>
-                    g.mode === "all_of"
-                      ? `all ${g.items.length}`
-                      : `any ${g.need} of ${g.items.length}`,
-                  )
+                  .map(groupSummary)
                   .join(" + ") || `path ${pi + 1}`
               );
             })

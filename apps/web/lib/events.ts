@@ -400,8 +400,24 @@ export function repeatBadge(repeat: { max: number | null }): string {
   return repeat.max != null ? `Repeatable, up to ${repeat.max}×` : "Repeatable";
 }
 
-/** One sub-requirement of a `kind: "groups"` config. */
-export type TaskConfigGroup = { mode: "all_of" | "any_of"; need: number; items: string[] };
+/** One sub-requirement of a `kind: "groups"` config (or of an either-or
+ * path). `any_of_distinct` needs `need` DIFFERENT items, each counting once. */
+export type TaskConfigGroup = {
+  mode: "all_of" | "any_of" | "any_of_distinct";
+  need: number;
+  items: string[];
+};
+
+/** Short "all 3" / "any 2 of 5" / "any 10 different of 24" part of a summary. */
+export function groupSummary(g: {
+  mode: TaskConfigGroup["mode"];
+  need: number;
+  items: readonly unknown[];
+}): string {
+  if (g.mode === "all_of") return `all ${g.items.length}`;
+  if (g.mode === "any_of_distinct") return `any ${g.need} different of ${g.items.length}`;
+  return `any ${g.need} of ${g.items.length}`;
+}
 
 function parseConfigGroups(raw: unknown): TaskConfigGroup[] {
   if (!Array.isArray(raw)) return [];
@@ -411,10 +427,11 @@ function parseConfigGroups(raw: unknown): TaskConfigGroup[] {
       const name = (it as { item_name?: string } | null)?.item_name;
       return name ? [name] : [];
     });
-    const mode = g.mode === "any_of" ? ("any_of" as const) : ("all_of" as const);
+    const mode =
+      g.mode === "any_of" || g.mode === "any_of_distinct" ? g.mode : ("all_of" as const);
     return {
       mode,
-      need: mode === "any_of" && typeof g.need === "number" && g.need >= 1 ? g.need : items.length,
+      need: mode !== "all_of" && typeof g.need === "number" && g.need >= 1 ? g.need : items.length,
       items,
     };
   });
@@ -811,9 +828,7 @@ export function pathSummary(p: TaskConfigPath): string {
     const at = p.npcs && p.npcs.length ? ` at ${p.npcs.join(" / ")}` : "";
     return p.metric === "kc" ? `${amount} KC${at}` : `${amount} GP${at}`;
   }
-  const parts = p.groups.map((g) =>
-    g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
-  );
+  const parts = p.groups.map(groupSummary);
   return `${parts.join(" + ")} items`;
 }
 
@@ -1013,9 +1028,7 @@ export function taskGoal(
       const groups = taskConfigGroups(task);
       if (groups.length) {
         // e.g. "all 3 + any 1 of 4 items" (godsword: shards + any hilt).
-        const parts = groups.map((g) =>
-          g.mode === "all_of" ? `all ${g.items.length}` : `any ${g.need} of ${g.items.length}`,
-        );
+        const parts = groups.map(groupSummary);
         return `${parts.join(" + ")} items${lockSuffix}`;
       }
       const items = taskConfigItems(task);
