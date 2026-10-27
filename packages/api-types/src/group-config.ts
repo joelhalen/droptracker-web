@@ -209,6 +209,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "group_name", label: "Group name", category: "profile", type: "string", help: "Display name of the group. Renaming updates it everywhere — group page, leaderboards, search and Discord messages.", default: "", maxLength: 30 },
   { key: "group_description", label: "Description", category: "profile", type: "text", help: "Short description shown on the public group page.", default: "" },
   { key: "discord_url", label: "Discord invite URL", category: "profile", type: "string", help: "Public Discord invite shown on the group page.", default: "" },
+  { key: "auto_set_member_nicknames", label: "Set member nicknames to their RSN", category: "profile", type: "boolean", help: "When a member of your Discord server claims an account with /claim-rsn, the DropTracker bot changes their server nickname to that RuneScape name. The bot needs the Manage Nicknames permission, and its role must sit above the member's highest role. It can't rename the server owner.", default: false },
 
   // --- Discord channels ---------------------------------------------------
   // Notification routing reads the channel_id_to_post_* keys (backend

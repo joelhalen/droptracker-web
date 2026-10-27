@@ -44,7 +44,7 @@ export const env = {
       process.env.DISCORD_REDIRECT_URI ?? "http://localhost:3000/api/auth/callback",
     /** What the bot asks for when added from a plugin registration. Same
      *  default as the Web API's /meta/bot-invite (services/guild_permissions.py). */
-    botPermissions: process.env.DISCORD_BOT_INVITE_PERMISSIONS || "268553232",
+    botPermissions: process.env.DISCORD_BOT_INVITE_PERMISSIONS || "402770960",
   },
 
   siteUrl: process.env.NEXTAUTH_URL ?? "http://localhost:3000",
