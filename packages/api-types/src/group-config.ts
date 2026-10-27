@@ -28,6 +28,7 @@ export type ConfigCategory =
   | "bank"
   | "clan_chat"
   | "voice"
+  | "hardcore"
   | "integration";
 
 export type ConfigFieldType =
@@ -91,6 +92,9 @@ export interface ConfigField {
   maxLength?: number;
   /** Whether a `seasonal_`-prefixed mirror of this key exists (§11.1). */
   seasonalMirror?: boolean;
+  /** Whether a `hardcore_`-prefixed mirror exists: every seasonal mirror plus
+   *  HARDCORE_MIRROR_KEYS. Derived below, never written on a field. */
+  hardcoreMirror?: boolean;
   /** Subscription entitlement required to edit this field (Task 15). */
   entitlement?: string;
   /**
@@ -159,6 +163,7 @@ export const CONFIG_CATEGORIES: { id: ConfigCategory; label: string }[] = [
   { id: "bank", label: "Clan bank" },
   { id: "clan_chat", label: "Clan chat" },
   { id: "voice", label: "Voice channel counters" },
+  { id: "hardcore", label: "Hardcore Worlds" },
   { id: "integration", label: "WiseOldMan & API" },
 ];
 
@@ -548,17 +553,49 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "event_wom_reconciliation", label: "Event WiseOldMan tracking", category: "integration", type: "boolean", help: "During events, top up XP and boss KC task progress from WiseOldMan hiscores so members without the plugin still count. Never double-counts progress the plugin already tracked.", default: true },
   { key: "wom_verification_code", label: "WiseOldMan verification code", category: "integration", type: "password", help: "Your WiseOldMan group's verification code. Optional — lets DropTracker queue a group-wide WOM update when events start and end, keeping hiscores-based event progress fresh. Treat as a secret.", default: null },
   { key: "export_api_key", label: "Export API key", category: "integration", type: "string", help: "Per-group key used for on-demand WOM sync. Treat as a secret.", default: null },
+
+  // --- Hardcore Worlds (web151a) -------------------------------------------
+  { key: "track_hardcore_worlds", label: "Track Hardcore Worlds", category: "hardcore", type: "boolean", help: "Announce and track your members' Hardcore Worlds characters. A member links a hardcore character to their Discord with /claim-rsn, and it joins every group their main accounts are in.", default: false },
+  { key: "share_hardcore_settings", label: "Use main settings for Hardcore Worlds", category: "hardcore", type: "boolean", help: "Hardcore Worlds submissions use your main notification settings, channels and boards. Turn this off to set them up separately on the Hardcore Worlds tab.", default: false },
 ];
 
-export const SEASONAL_PREFIX = "seasonal_";
+/**
+ * Fields with a `hardcore_` mirror besides every seasonal one: the drop
+ * threshold, level minimum and the notification channels, so a group can send
+ * Hardcore Worlds to channels of its own. Mirrors the backend's
+ * HARDCORE_MIRROR_KEYS (web_api/config_registry.py).
+ */
+export const HARDCORE_MIRROR_KEYS: readonly string[] = [
+  "minimum_value_to_notify",
+  "level_minimum_for_notifications",
+  "channel_id_to_post_loot",
+  "channel_id_to_post_levels",
+  "channel_id_to_post_pb",
+  "channel_id_to_post_ca",
+  "channel_id_to_post_pets",
+  "channel_id_to_post_quests",
+  "channel_id_to_post_clog",
+  "channel_id_to_post_diaries",
+  "channel_id_to_post_deaths",
+  "channel_id_to_post_slayer",
+];
+for (const field of GROUP_CONFIG_FIELDS) {
+  if (field.seasonalMirror || HARDCORE_MIRROR_KEYS.includes(field.key)) field.hardcoreMirror = true;
+}
 
-/** All effective keys, including seasonal mirrors. */
+export const SEASONAL_PREFIX = "seasonal_";
+export const HARDCORE_PREFIX = "hardcore_";
+
+/** All effective keys, including seasonal and hardcore mirrors. */
 export function allConfigKeys(): string[] {
   const keys = GROUP_CONFIG_FIELDS.map((f) => f.key);
   const seasonal = GROUP_CONFIG_FIELDS.filter((f) => f.seasonalMirror).map(
     (f) => `${SEASONAL_PREFIX}${f.key}`,
   );
-  return [...keys, ...seasonal];
+  const hardcore = GROUP_CONFIG_FIELDS.filter((f) => f.hardcoreMirror).map(
+    (f) => `${HARDCORE_PREFIX}${f.key}`,
+  );
+  return [...keys, ...seasonal, ...hardcore];
 }
 
 export function getConfigField(key: string): ConfigField | undefined {
@@ -569,6 +606,10 @@ export function getConfigField(key: string): ConfigField | undefined {
   if (key.startsWith(SEASONAL_PREFIX)) {
     const base = key.slice(SEASONAL_PREFIX.length);
     return GROUP_CONFIG_FIELDS.find((f) => f.key === base);
+  }
+  if (key.startsWith(HARDCORE_PREFIX)) {
+    const base = key.slice(HARDCORE_PREFIX.length);
+    return GROUP_CONFIG_FIELDS.find((f) => f.key === base && f.hardcoreMirror);
   }
   return undefined;
 }

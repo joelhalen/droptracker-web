@@ -54,7 +54,7 @@ test("sidebar groups are contiguous runs — a heading never appears twice", () 
   assert.equal(new Set(navs).size, navs.length, `nav headings repeat: ${navs.join(", ")}`);
   // Page order: the group's own profile first, seasonal mirrors last.
   assert.equal(navs[0], "Group");
-  assert.equal(navs[navs.length - 1], "Seasonal worlds");
+  assert.equal(navs[navs.length - 1], "Other worlds");
   assert.equal(SETTINGS_SECTIONS[0]?.id, "profile");
 });
 

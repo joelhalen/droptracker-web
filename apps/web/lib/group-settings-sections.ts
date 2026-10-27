@@ -28,7 +28,7 @@ export type SettingsNav =
   | "Notifications"
   | "Boards & reports"
   | "Integrations"
-  | "Seasonal worlds";
+  | "Other worlds";
 
 export type SettingsPanelId = "blacklist" | "always";
 export type SettingsSectionId = ConfigCategory | SettingsPanelId | "seasonal";
@@ -122,6 +122,11 @@ const CATEGORY_META: Record<ConfigCategory, { nav: SettingsNav; blurb: string }>
     nav: "Integrations",
     blurb: "WiseOldMan syncing and the keys other tools use to read your group's data.",
   },
+  hardcore: {
+    nav: "Other worlds",
+    blurb:
+      "Hardcore Worlds characters your members have linked with /claim-rsn. Off until you turn it on; then they use your main settings, or settings of their own.",
+  },
 };
 
 function category(id: ConfigCategory): SettingsSection {
@@ -167,11 +172,12 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   category("clan_chat"),
   category("voice"),
   category("integration"),
+  category("hardcore"),
   {
     id: "seasonal",
     kind: "seasonal",
     label: "Seasonal (Leagues)",
-    nav: "Seasonal worlds",
+    nav: "Other worlds",
     blurb:
       "Separate settings applied only to submissions from seasonal worlds (Leagues, Deadman). Your main-world settings are unaffected.",
     keywords: ["leagues", "deadman", "dmm", "seasonal"],
