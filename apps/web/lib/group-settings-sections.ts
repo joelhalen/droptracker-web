@@ -30,7 +30,7 @@ export type SettingsNav =
   | "Integrations"
   | "Seasonal worlds";
 
-export type SettingsPanelId = "blacklist" | "always" | "rankRoles";
+export type SettingsPanelId = "blacklist" | "always";
 export type SettingsSectionId = ConfigCategory | SettingsPanelId | "seasonal";
 
 export interface SettingsSection {
@@ -165,15 +165,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   category("recaps"),
   category("clan_log"),
   category("clan_chat"),
-  {
-    id: "rankRoles",
-    kind: "panel",
-    label: "Clan rank roles",
-    nav: "Integrations",
-    blurb:
-      "Give members the Discord role for their in-game clan rank, from your WiseOldMan group, and keep it matched as ranks change.",
-    keywords: ["rank", "ranks", "role", "roles", "discord role", "clan rank", "sync", "promote", "demote"],
-  },
   category("voice"),
   category("integration"),
   {

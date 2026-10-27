@@ -32,11 +32,11 @@ import {
   loadRankRoles,
   saveRankRoles,
   syncRankRoles,
-} from "@/app/(site)/(admin)/groups/[id]/settings/actions";
+} from "@/app/(site)/(admin)/groups/[id]/authorized/actions";
 
 const MODE_OPTIONS: { value: RankRoleMode; label: string }[] = [
-  { value: "single", label: "One role: the role for their rank" },
-  { value: "cumulative", label: "Ladder: their rank's role and every rank role below it" },
+  { value: "single", label: "One role (their rank's)" },
+  { value: "cumulative", label: "Ladder (their rank and below)" },
 ];
 
 export function RankRolesPanel({
@@ -213,7 +213,7 @@ export function RankRolesPanel({
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
         <SwitchRow
           label="Sync rank roles"
           help="Give members the Discord role for their clan rank, and keep it matched as ranks change."
@@ -226,12 +226,13 @@ export function RankRolesPanel({
           value={createRoles}
           onChange={(v) => edit(() => setCreateRoles(v))}
         />
-        <label className="block">
+        <label className="block min-w-0">
           <span className="block text-sm font-medium">Roles per member</span>
           <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">
             A ladder lets you lock channels to a rank and everyone above it.
           </span>
           <Select
+            className="w-full min-w-0"
             value={mode}
             onChange={(e) => edit(() => setMode(e.target.value as RankRoleMode))}
           >
@@ -242,12 +243,13 @@ export function RankRolesPanel({
             ))}
           </Select>
         </label>
-        <label className="block">
+        <label className="block min-w-0">
           <span className="block text-sm font-medium">Exempt role</span>
           <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">
             Members with this role are left alone, so staff can hand out rank roles themselves.
           </span>
           <Select
+            className="w-full min-w-0"
             value={exemptRoleId}
             onChange={(e) => edit(() => setExemptRoleId(e.target.value))}
           >
@@ -268,7 +270,8 @@ export function RankRolesPanel({
           {data.roster.linked} of {data.roster.members}
         </span>{" "}
         accounts have. A member with several accounts gets the role for their highest rank. Roles
-        you don&apos;t map here are never touched.
+        that can manage your server (admin, roles, channels, kicks or bans) can&apos;t be synced.
+        Roles you don&apos;t map here are never touched.
       </p>
 
       {!data.has_rank_data && data.wom_linked && (
@@ -361,7 +364,7 @@ function SwitchRow({
       role="switch"
       aria-checked={value}
       onClick={() => onChange(!value)}
-      className="border-osrs-bronze/15 hover:border-osrs-gold/40 bg-osrs-surface-2/50 flex w-full items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors"
+      className="border-osrs-bronze/15 hover:border-osrs-gold/40 bg-osrs-surface-2/50 flex w-full min-w-0 items-start justify-between gap-3 rounded-lg border p-3 text-left transition-colors"
     >
       <span className="min-w-0">
         <span className="block text-sm font-medium">{label}</span>
@@ -412,7 +415,7 @@ function RankRowEditor({
   const creating = choice === CREATE_CHOICE;
   const canDelete = row.created || creating;
   return (
-    <li className="border-osrs-bronze/15 bg-osrs-surface-2/40 rounded-lg border p-3">
+    <li className="border-osrs-bronze/15 bg-osrs-surface-2/40 min-w-0 rounded-lg border p-3">
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex shrink-0 flex-col">
           <button
@@ -450,8 +453,9 @@ function RankRowEditor({
             </span>
           </span>
         </div>
-        <div className="w-full sm:w-64">
+        <div className="w-full min-w-0 sm:w-64">
           <Select
+            className="w-full min-w-0"
             aria-label={`Role for ${row.label}`}
             value={choice}
             onChange={(e) => onChange((r) => applyRoleChoice(r, e.target.value))}
@@ -461,7 +465,7 @@ function RankRowEditor({
             {roles.map((r) => (
               <option key={r.id} value={r.id} disabled={Boolean(r.blocked)}>
                 {r.name}
-                {r.blocked ? ` (can't sync: ${r.blocked})` : ""}
+                {r.blocked ? " (can't sync)" : ""}
               </option>
             ))}
             {row.role_id && !roles.some((r) => r.id === row.role_id) && (
@@ -471,11 +475,12 @@ function RankRowEditor({
         </div>
       </div>
       {(creating || canDelete) && (
-        <div className="mt-2 flex flex-wrap items-center gap-3 pl-7">
+        <div className="mt-2 flex flex-wrap items-center gap-3 sm:pl-7">
           {creating && (
-            <label className="flex min-w-0 flex-1 items-center gap-2 text-xs">
+            <label className="flex w-full min-w-0 flex-1 items-center gap-2 text-xs sm:w-auto">
               <span className="text-osrs-parchment-dark/60 shrink-0">Role name</span>
               <Input
+                className="w-full min-w-0"
                 value={row.name}
                 maxLength={maxName}
                 onChange={(e) => {
@@ -486,8 +491,9 @@ function RankRowEditor({
             </label>
           )}
           {canDelete && (
-            <label className="flex items-center gap-2 text-xs">
+            <label className="flex min-w-0 items-start gap-2 text-xs">
               <Checkbox
+                className="mt-0.5 shrink-0"
                 checked={row.delete_when_empty}
                 onChange={(e) => {
                   const checked = e.target.checked;

@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { api } from "@/lib/api";
+import { RankRoleConfigSchema, type RankRoleConfig } from "@droptracker/api-types";
+import { api, ApiError } from "@/lib/api";
 import { getUser, canAdminGroup, isGroupOwner } from "@/lib/auth";
 
 /**
@@ -89,4 +90,38 @@ export async function resetVerificationCode(groupId: number) {
   const result = await api.resetGroupVerificationCode(groupId);
   revalidate(groupId);
   return result;
+}
+
+/** Server Action: save the clan rank roles map, or preview it (`dryRun`). */
+export async function saveRankRoles(groupId: number, config: RankRoleConfig, dryRun = false) {
+  await assertAdmin(groupId);
+  const parsed = RankRoleConfigSchema.parse(config);
+  try {
+    return await api.saveGroupRankRoles(groupId, parsed, dryRun);
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
+}
+
+/** Server Action: re-read the rank roles panel (role list, last sync). */
+export async function loadRankRoles(groupId: number) {
+  await assertAdmin(groupId);
+  try {
+    return await api.groupRankRoles(groupId);
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
+}
+
+/** Server Action: "Sync now", which also applies removals the bot held back. */
+export async function syncRankRoles(groupId: number) {
+  await assertAdmin(groupId);
+  try {
+    return await api.syncGroupRankRoles(groupId);
+  } catch (err) {
+    if (err instanceof ApiError) throw new Error(err.message);
+    throw err;
+  }
 }

@@ -33,11 +33,10 @@ test("every registry category is exactly one page section, and the page has noth
   for (const f of GROUP_CONFIG_FIELDS) {
     assert.ok(categoryIds.includes(f.category), `${f.key} category ${f.category} has no section`);
   }
-  // The two list editors, rank roles and the Seasonal section are the only
-  // non-registry sections.
+  // The two list editors and the Seasonal section are the only non-registry sections.
   assert.deepEqual(
     SETTINGS_SECTIONS.filter((s) => s.kind !== "category").map((s) => s.id),
-    ["blacklist", "always", "rankRoles", "seasonal"],
+    ["blacklist", "always", "seasonal"],
   );
 });
 

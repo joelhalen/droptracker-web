@@ -12,8 +12,6 @@ import {
   type MemberMessageType,
   type NotificationBlacklist,
   type RepostBoard,
-  RankRoleConfigSchema,
-  type RankRoleConfig,
 } from "@droptracker/api-types";
 import { api, ApiError, type DiscordChannelList, type LootboardStyleList, type PbBossList } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
@@ -300,47 +298,4 @@ export async function fetchGroupPetCatalog(groupId: number) {
     throw new Error("Forbidden: you do not administer this group.");
   }
   return api.eventPetCategories();
-}
-
-/** Server Action: save the clan rank roles map, or preview it (`dryRun`). */
-export async function saveRankRoles(groupId: number, config: RankRoleConfig, dryRun = false) {
-  const user = await getUser();
-  if (!user || !canAdminGroup(user, groupId)) {
-    throw new Error("Forbidden: you do not administer this group.");
-  }
-  const parsed = RankRoleConfigSchema.parse(config);
-  try {
-    return await api.saveGroupRankRoles(groupId, parsed, dryRun);
-  } catch (err) {
-    if (err instanceof ApiError) throw new Error(err.message);
-    throw err;
-  }
-}
-
-/** Server Action: re-read the rank roles panel (role list, last sync). */
-export async function loadRankRoles(groupId: number) {
-  const user = await getUser();
-  if (!user || !canAdminGroup(user, groupId)) {
-    throw new Error("Forbidden: you do not administer this group.");
-  }
-  try {
-    return await api.groupRankRoles(groupId);
-  } catch (err) {
-    if (err instanceof ApiError) throw new Error(err.message);
-    throw err;
-  }
-}
-
-/** Server Action: "Sync now", which also applies removals the bot held back. */
-export async function syncRankRoles(groupId: number) {
-  const user = await getUser();
-  if (!user || !canAdminGroup(user, groupId)) {
-    throw new Error("Forbidden: you do not administer this group.");
-  }
-  try {
-    return await api.syncGroupRankRoles(groupId);
-  } catch (err) {
-    if (err instanceof ApiError) throw new Error(err.message);
-    throw err;
-  }
 }
