@@ -49,6 +49,7 @@ import { eventConquestApi } from "./event-conquest";
 import { testerBuildsApi } from "./tester-builds";
 import { dataRemovalApi } from "./data-removal";
 import { botProfileApi } from "./bot-profile";
+import { rankRolesApi } from "./rank-roles";
 
 export const api = {
   ...leaderboardsApi,
@@ -94,6 +95,7 @@ export const api = {
   ...eventConquestApi,
   ...testerBuildsApi,
   ...botProfileApi,
+  ...rankRolesApi,
 };
 
 export * from "./types";

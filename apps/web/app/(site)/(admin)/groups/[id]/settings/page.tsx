@@ -12,6 +12,7 @@ import {
 } from "@/components/notification-blacklist-card";
 import { TimeframeBoardPanel } from "@/components/timeframe-board-card";
 import { BoardRepostPanel } from "@/components/board-repost-card";
+import { RankRolesPanel } from "@/components/rank-roles-card";
 
 export const metadata: Metadata = { title: "Group settings" };
 
@@ -38,6 +39,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
     memberDropMessages,
     memberClogMessages,
     memberPbMessages,
+    rankRoles,
   ] = await Promise.all([
     api.groupConfig(groupId),
     api.groupSubscription(groupId).catch(() => null),
@@ -58,6 +60,8 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
     api.groupMemberDeathMessages(groupId, "drop").catch(noMemberMessages),
     api.groupMemberDeathMessages(groupId, "clog").catch(noMemberMessages),
     api.groupMemberDeathMessages(groupId, "pb").catch(noMemberMessages),
+    // Best-effort like the lists above; the panel says it couldn't load.
+    api.groupRankRoles(groupId).catch(() => null),
   ]);
 
   // One page, one column of sections: the editor lays out every section —
@@ -82,6 +86,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
           groupIcon: <GroupIconPanel groupId={groupId} initialIconUrl={group?.icon_url} />,
           blacklist: <NotificationBlacklistPanel groupId={groupId} initial={blacklist} />,
           always: <NotificationAlwaysListPanel groupId={groupId} initial={alwaysList} />,
+          rankRoles: <RankRolesPanel groupId={groupId} initial={rankRoles} />,
           timeframeBoard: <TimeframeBoardPanel groupId={groupId} />,
           lootboardRepost: <BoardRepostPanel groupId={groupId} board="lootboard" name="lootboard" />,
           pvpLootboardRepost: (

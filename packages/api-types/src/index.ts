@@ -8603,6 +8603,9 @@ export * from "./group-setup";
 // Custom bot profile (web139a)
 export * from "./bot-profile";
 
+// Clan rank → Discord role sync
+export * from "./rank-roles";
+
 // Targeted site pop-ups (web118a)
 export * from "./popup-notices";
 export * from "./tester-builds";
