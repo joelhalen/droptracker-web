@@ -579,7 +579,8 @@ export function NameSearch({
 export function EventTaskForm({
   groupId,
   eventId,
-  initial,
+  initial: editTask,
+  prefill,
   onSaved,
   onCancel,
   onDraftSubmit,
@@ -595,6 +596,9 @@ export function EventTaskForm({
   /** Present ⇒ edit mode (the task type is fixed; everything else edits).
    * In draft mode it only pre-fills the form — the type stays editable. */
   initial?: EventTask;
+  /** Pre-fills a NEW task (e.g. an AI-generated draft) without entering edit
+   * mode: it is not a saved task, so there is no id to update. */
+  prefill?: EventTask;
   onSaved?: (task: EventTask) => void;
   onCancel?: () => void;
   /** Draft mode: submit hands the built input to the caller instead of
@@ -620,7 +624,8 @@ export function EventTaskForm({
   repeatAllowed?: boolean;
 }) {
   const draftMode = onDraftSubmit != null;
-  const editing = !draftMode && initial != null;
+  const editing = !draftMode && editTask != null;
+  const initial = editTask ?? prefill;
   const initialPetNames = initial ? taskConfigPetNames(initial) : new Set<string>();
   // Items counted once per drop, whatever the stack (config.per_drop_items).
   const initialPerDrop = initial ? taskConfigPerDropNames(initial) : new Set<string>();

@@ -9,7 +9,7 @@
  * nothing is saved until the admin submits the form themselves, so a wrong
  * guess costs a click, not a bad task.
  *
- * The form hydrates `initial` only as useState initialisers (mount-only), so
+ * The form hydrates `initial`/`prefill` only as useState initialisers (mount-only), so
  * a generation swaps it in by bumping `formKey` to force a remount. That is
  * also why the panel lives here rather than inside EventTaskForm: a component
  * cannot remount itself.
@@ -28,8 +28,8 @@ import {
 
 type Props = React.ComponentProps<typeof EventTaskForm>;
 
-/** Draft input dressed up as an EventTask so the form hydrates from it (the
- * id is never used — the form is in create/draft mode either way). */
+/** Draft input dressed up as an EventTask so the form hydrates from it. It
+ * goes in as `prefill`, so the placeholder id is never sent anywhere. */
 function taskFromDraft(input: EventTaskInput): EventTask {
   return {
     id: -1,
@@ -157,7 +157,10 @@ export function EventTaskFormWithAi(props: Props) {
         </div>
       ) : null}
 
-      <EventTaskForm {...props} key={formKey} initial={generated ?? initial} />
+      {/* A generated draft is a NEW task: pass it as `prefill`, never as
+          `initial`, which would put the form in edit mode and PATCH task -1
+          (a 404, "Resource not found"). */}
+      <EventTaskForm {...props} key={formKey} prefill={generated ?? undefined} />
     </div>
   );
 }
