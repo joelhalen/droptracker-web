@@ -37,7 +37,7 @@ const OPTIONS: { key: EventsView; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
-export function EventsViewSwitch({ current }: { current: EventsView }) {
+export function EventsViewSwitch({ current, group }: { current: EventsView; group?: string | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
@@ -51,7 +51,10 @@ export function EventsViewSwitch({ current }: { current: EventsView }) {
     } catch {
       // Cookies blocked: the ?view= param below still switches this visit.
     }
-    startTransition(() => router.replace(`${pathname}?view=${view}` as Route, { scroll: false }));
+    // Keep a one-group filter (/events?group=...) across the switch.
+    const q = new URLSearchParams({ view });
+    if (group) q.set("group", group);
+    startTransition(() => router.replace(`${pathname}?${q}` as Route, { scroll: false }));
   }
 
   return (

@@ -22,6 +22,7 @@ import {
   type PageTheme,
 } from "@droptracker/api-types";
 import type { api } from "@/lib/api";
+import { groupEventsHref, hasGroupEvents, type GroupEvents } from "@/lib/group-events";
 import { BLOCK_DEF, boardPeriods } from "@/lib/page-layout/catalog";
 import { GroupBankPanel } from "@/components/group-bank-panel";
 import { GroupSupportCard } from "@/components/group-support-card";
@@ -62,7 +63,8 @@ export type GroupPageContext = {
   latestRecap: string | null;
   signedIn: boolean;
   manage: { href: string; label: string } | null;
-  hasActiveEvents?: boolean;
+  /** The group's public live and past events (suggestion #210). */
+  events: GroupEvents;
 };
 
 function GroupHeader({ ctx, theme }: { ctx: GroupPageContext; theme: PageTheme }) {
@@ -155,7 +157,8 @@ function groupLinks(ctx: GroupPageContext, keys: readonly string[]): LinkItem[] 
     recaps: ctx.latestRecap
       ? { key: "recaps", label: "Recaps", href: `/groups/${group.id}/recap/${ctx.latestRecap}` }
       : null,
-    events: { key: "events", label: "Events", href: `/events?group=${group.id}` },
+    // Only once there is something to list, so it is never a dead end.
+    events: hasGroupEvents(ctx.events) ? { key: "events", label: "Events", href: groupEventsHref(group) } : null,
     discord: group.discord_url
       ? { key: "discord", label: "Join Discord", href: group.discord_url, external: true, accent: true }
       : null,
@@ -283,7 +286,14 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
         />
       );
     case "events_list":
-      return <EventsListBlock groupId={group.id} show={block.show} limit={block.limit} />;
+      return hasGroupEvents(ctx.events) ? (
+        <EventsListBlock
+          events={ctx.events}
+          show={block.show}
+          limit={block.limit}
+          allHref={groupEventsHref(group)}
+        />
+      ) : null;
     case "highlights":
       return <HighlightsBlock scope="group" id={group.id} types={block.types} limit={block.limit} />;
     default:

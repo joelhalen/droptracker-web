@@ -1,15 +1,23 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import type { EventSummary } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser } from "@/lib/auth";
+import { resolveIdOrRedirect } from "@/lib/entity-ref";
+import { orNotFound } from "@/lib/fetch";
+import { groupFilterParam } from "@/lib/group-events";
 import { pickYourEvents, sortEventsChronologically } from "@/lib/events";
 import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
 import { DraftStartNote, EventWindow } from "@/components/local-time";
 import { EventsTimeline } from "@/components/events-timeline";
 import { EventsViewSwitch } from "@/components/events-view-switch";
-import { buildTimelineBands, EVENTS_VIEW_COOKIE, resolveEventsView } from "@/lib/event-timeline";
+import {
+  buildTimelineBands,
+  EVENTS_VIEW_COOKIE,
+  resolveEventsView,
+  type EventsView,
+} from "@/lib/event-timeline";
 
 export const revalidate = 30;
 
@@ -18,10 +26,14 @@ export const metadata: Metadata = {
   description: "Active and past DropTracker clan events, bingos, and competitions.",
 };
 
-type SearchParams = Promise<{ view?: string | string[] }>;
+type SearchParams = Promise<{ view?: string | string[]; group?: string | string[] }>;
 
 export default async function EventsPage({ searchParams }: { searchParams: SearchParams }) {
-  const [{ view: viewParam }, jar] = await Promise.all([searchParams, cookies()]);
+  const [{ view: viewParam, group: groupParam }, jar] = await Promise.all([searchParams, cookies()]);
+  const groupRef = groupFilterParam(groupParam);
+  if (groupRef) {
+    return <GroupEventsPage groupRef={groupRef} view={resolveEventsView(viewParam, jar.get(EVENTS_VIEW_COOKIE)?.value)} />;
+  }
   // Timeline is the default; the List view (the sectioned grid below) stays
   // one click away and the choice sticks via a cookie.
   const view = resolveEventsView(viewParam, jar.get(EVENTS_VIEW_COOKIE)?.value);
@@ -79,6 +91,61 @@ export default async function EventsPage({ searchParams }: { searchParams: Searc
           upcoming={otherUpcoming}
           active={otherActive}
           past={pastSorted}
+        />
+      )}
+    </div>
+  );
+}
+
+/** One group's events (/events?group=<slug or id>, suggestion #210): the
+ * "Events" link and "All events" on a group page land here, so it doubles as
+ * the clan's event history. Same views as the full list, minus the
+ * viewer-wide "Your events" and recruiting sections. */
+async function GroupEventsPage({ groupRef, view }: { groupRef: string; view: EventsView }) {
+  const groupId = await resolveIdOrRedirect("group", "groups", groupRef);
+  const [group, user] = await Promise.all([
+    orNotFound(api.group(groupId)),
+    getUser().catch(() => null),
+  ]);
+  const [active, past, upcoming] = await Promise.all([
+    api.events({ groupId, status: "active" }),
+    api.events({ groupId, status: "past" }),
+    // Drafts this viewer may see (members and admins of the group).
+    user ? api.eventsForAdmin({ groupId, status: "draft" }).catch(() => []) : Promise.resolve([]),
+  ]);
+  const groupHref = group.canonical_slug ? `/groups/${group.canonical_slug}` : `/groups/${group.id}`;
+  const nowSec = Math.floor(Date.now() / 1000);
+
+  return (
+    <div className="space-y-10">
+      <header>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-osrs-gold text-2xl font-bold">Events by {group.name}</h1>
+          <EventsViewSwitch current={view} group={groupRef} />
+        </div>
+        <p className="text-osrs-parchment-dark/70 mt-2 text-sm">
+          <Link href={groupHref as Route} className="text-osrs-gold-bright hover:underline">
+            ← {group.name}
+          </Link>
+          <span className="mx-2 opacity-50">·</span>
+          <Link href="/events" className="text-osrs-gold-bright hover:underline">
+            Events from every group
+          </Link>
+        </p>
+      </header>
+      {view === "timeline" ? (
+        <EventsTimeline
+          bands={buildTimelineBands([], upcoming, active, past)}
+          yourIds={new Set()}
+          nowSec={nowSec}
+          signedIn={user != null}
+        />
+      ) : (
+        <ListView
+          yourEvents={[]}
+          upcoming={sortEventsChronologically(upcoming)}
+          active={sortEventsChronologically(active)}
+          past={sortEventsChronologically(past)}
         />
       )}
     </div>

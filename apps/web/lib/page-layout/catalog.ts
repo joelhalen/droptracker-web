@@ -50,7 +50,7 @@ export const BLOCK_DEFS: BlockDef[] = [
   { type: "buttons", label: "Buttons", description: "Links to Discord, Wise Old Man or anywhere.", icon: "⬢", category: "basics", scope: "both", surface: "plain", props: { items: [{ label: "Join our Discord", href: "https://discord.gg/" }], style: "solid", align: "left" } },
   { type: "divider", label: "Divider", description: "Space between sections.", icon: "—", category: "basics", scope: "both", surface: "plain", props: { size: "md", rule: true } },
   // clan
-  { type: "group_links", label: "Clan links", description: "Lootboard, Clan Log, PBs, Discord and more.", icon: "☷", category: "clan", scope: "group", surface: "plain", props: { items: ["lootboard", "clan_log", "personal_bests", "pvp", "points", "recaps", "discord"], style: "outline", align: "left" }, single: true },
+  { type: "group_links", label: "Clan links", description: "Lootboard, Clan Log, PBs, Discord and more.", icon: "☷", category: "clan", scope: "group", surface: "plain", props: { items: ["lootboard", "clan_log", "personal_bests", "pvp", "points", "recaps", "events", "discord"], style: "outline", align: "left" }, single: true },
   { type: "stats_row", label: "Stats", description: "Pick up to 8: members, loot, Clan Log, PvP, bank and more.", icon: "▦", category: "clan", scope: "group", surface: "plain", props: { stats: ["members", "rank", "monthly_loot", "top_player"], columns: "auto", tile_style: "auto" } },
   { type: "events_list", label: "Events", description: "What's running now, and recent results.", icon: "🚩", category: "community", scope: "group", surface: "card", props: { show: "active_and_past", limit: 4 } },
   { type: "clan_log", label: "Clan Log", description: "Collection log progress across the clan.", icon: "📖", category: "records", scope: "group", surface: "card", props: { view: "summary", show_categories: true, recent: 6, show_link: true } },
@@ -156,6 +156,8 @@ export function defaultGroupLayout(): PageLayout {
       std("std-links", "group_links"),
       std("std-support", "support_card"),
       std("std-stats", "stats_row"),
+      // Live and recent events (suggestion #210); left out until the group has one.
+      std("std-events", "events_list", { title: "Events" }),
       std("std-bank", "bank"),
       std("std-records", "records", { title: "Clan records" }),
       std("std-top", "top_players", { title: "Top players this month", width: "half" }),

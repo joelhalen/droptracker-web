@@ -5,13 +5,14 @@
 import type { GroupProfile } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { getUser, groupManageLink } from "@/lib/auth";
+import { publicGroupEvents } from "@/lib/group-events";
 import type { GroupPageContext } from "@/components/page-layout/group-page-view";
 import type { PlayerPageContext } from "@/components/page-layout/player-page-view";
 
 export async function loadGroupPageContext(group: GroupProfile): Promise<GroupPageContext> {
   const groupId = group.id;
   // Every extra is best-effort: the page renders without any of them.
-  const [subSummary, viewer, recaps, bank] = await Promise.all([
+  const [subSummary, viewer, recaps, bank, activeEvents, pastEvents] = await Promise.all([
     api.groupSubscriptionSummary(groupId).catch(() => null),
     getUser().catch(() => null),
     // The recap archive had no way in from the clan's own page (t272).
@@ -19,6 +20,10 @@ export async function loadGroupPageContext(group: GroupProfile): Promise<GroupPa
     // Clan bank (web131a): shown once something has been recorded, unless the
     // group keeps it private.
     api.groupBank(groupId).catch(() => null),
+    // The group's public events (suggestion #210): the Events block and the
+    // Events link both read this, so they agree on whether there are any.
+    api.events({ groupId, status: "active" }).catch(() => []),
+    api.events({ groupId, status: "past" }).catch(() => []),
   ]);
   return {
     group,
@@ -28,6 +33,7 @@ export async function loadGroupPageContext(group: GroupProfile): Promise<GroupPa
     subSummary,
     bank,
     latestRecap: recaps?.periods[0]?.period ?? null,
+    events: publicGroupEvents(activeEvents, pastEvents),
     signedIn: viewer != null,
     // Admins (and event managers) get a shortcut into the admin shell.
     manage: groupManageLink(viewer, groupId),

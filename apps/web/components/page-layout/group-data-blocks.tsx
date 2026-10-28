@@ -20,9 +20,12 @@ import type {
 import { api } from "@/lib/api";
 import { boardPeriods } from "@/lib/page-layout/catalog";
 import { entityPath } from "@/lib/slug";
+import type { GroupEvents } from "@/lib/group-events";
+import { eventTypeLabel } from "@/lib/event-timeline";
 import { ClanLogBoard } from "@/components/clan-log-board";
 import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
+import { EventWindow } from "@/components/local-time";
 import { PvpKillList } from "@/components/pvp-kill-list";
 import { SubmissionList } from "@/components/submission-list";
 import { Badge, EntityChip, StatTile } from "@/components/ui";
@@ -422,53 +425,61 @@ export async function PvpSummaryBlock({
 
 /* --- events ------------------------------------------------------------------------- */
 
-function when(ts: number | null | undefined): string {
-  return ts ? new Date(ts * 1000).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
-}
-
-export async function EventsListBlock({
-  groupId,
+export function EventsListBlock({
+  events,
   show,
   limit,
+  allHref,
 }: {
-  groupId: number;
+  events: GroupEvents;
   show: "active" | "active_and_past";
   limit: number;
+  /** The group's full event list (/events?group=...). */
+  allHref: string;
 }) {
-  const [active, past] = await Promise.all([
-    api.events({ groupId, status: "active" }).catch(() => []),
-    show === "active_and_past" ? api.events({ groupId, status: "past" }).catch(() => []) : Promise.resolve([]),
-  ]);
-  const rows = [
-    ...active.filter((e) => e.visibility !== "private"),
-    ...past.filter((e) => e.visibility !== "private").sort((a, b) => (b.ends_at ?? 0) - (a.ends_at ?? 0)),
-  ].slice(0, limit);
-  if (rows.length === 0) return <BlockEmpty hint="Shows when the group runs a public event." />;
+  const rows = [...events.live, ...(show === "active_and_past" ? events.past : [])].slice(0, limit);
+  if (rows.length === 0) return null;
   return (
-    <ul className="divide-osrs-bronze/20 divide-y">
-      {rows.map((e) => (
-        <li key={e.id}>
-          <Link
-            href={`/events/${e.id}` as Route}
-            className="hover:bg-osrs-bronze/10 -mx-2 flex items-center justify-between gap-3 rounded px-2 py-2.5"
-          >
-            <span className="min-w-0">
-              <span className="block truncate font-medium">{e.name}</span>
-              <span className="text-osrs-parchment-dark/60 text-xs">
-                {e.status === "active"
-                  ? e.ends_at
-                    ? `Ends ${when(e.ends_at)}`
-                    : "Running"
-                  : `Ended ${when(e.ends_at)}`}
-              </span>
-            </span>
-            <Badge variant={e.status === "active" ? "gold" : "neutral"} size="sm">
-              {e.status === "active" ? "Live" : "Finished"}
-            </Badge>
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-3">
+      <ul className="space-y-2">
+        {rows.map((e) => {
+          const live = e.status === "active";
+          const counts = [
+            e.team_count ? `${e.team_count} ${e.team_count === 1 ? "team" : "teams"}` : null,
+            e.player_count ? `${e.player_count} ${e.player_count === 1 ? "player" : "players"}` : null,
+          ].filter(Boolean);
+          return (
+            <li key={e.id}>
+              <Link
+                href={`/events/${e.id}` as Route}
+                className={`block rounded border px-3 py-2.5 transition-colors ${
+                  live
+                    ? "border-osrs-gold/60 hover:border-osrs-gold event-glow-live"
+                    : "border-osrs-bronze/20 hover:border-osrs-gold/50"
+                }`}
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 truncate font-medium">{e.name}</span>
+                  <Badge variant={live ? "gold" : "neutral"} size="sm">
+                    {live ? "⚡ Live" : "Finished"}
+                  </Badge>
+                </span>
+                <span className="text-osrs-parchment-dark/60 mt-0.5 block text-xs">
+                  {eventTypeLabel(e)}
+                  {counts.length > 0 && ` · ${counts.join(", ")}`}
+                </span>
+                <span className="text-osrs-parchment-dark/50 block text-xs">
+                  <EventWindow startsAt={e.starts_at} endsAt={e.ends_at} status={e.status} />
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <Link href={allHref as Route} className="text-osrs-gold-bright inline-block text-sm hover:underline">
+        All events →
+      </Link>
+    </div>
   );
 }
 
