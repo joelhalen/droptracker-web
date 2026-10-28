@@ -32,8 +32,8 @@ export function PlayerNextSteps({
       external: true,
     },
     {
-      title: "Turn on Use API",
-      hint: "In the plugin's settings, under Advanced. Events, live boards and lookups need it.",
+      title: "Optional: turn on Use API",
+      hint: "In the plugin's settings, under Advanced. Adds live boards, lookups and in-game event updates.",
       done: false,
       href: "/docs/runelite-plugin#api-connections-recommended",
       cta: "How",

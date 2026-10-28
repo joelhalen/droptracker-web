@@ -916,7 +916,7 @@ export function GroupSetupWizard({
           <div className="border-osrs-bronze/30 space-y-2 rounded border p-3">
             <div className="text-sm font-medium">Tell your members how to join in</div>
             <p className="text-osrs-parchment-dark/70 text-xs">
-              We&apos;ll post a short guide in Discord: install the plugin, turn on Use API, link their account.
+              We&apos;ll post a short guide in Discord: install the plugin, link their account, join the Wise Old Man group.
             </p>
             {guideState === "posted" ? (
               <p className="text-osrs-green text-sm" role="status">
@@ -955,7 +955,8 @@ export function GroupSetupWizard({
               . That&apos;s where the loot comes from.
             </li>
             <li>
-              ✅ Members turn on <strong>Use API</strong> in the plugin&apos;s settings. Events need it.
+              ✅ Optional: members turn on <strong>Use API</strong> in the plugin&apos;s settings for live
+              boards and in-game event updates.
             </li>
             <li>
               ✅ Members claim their RSNs (on the website dashboard or with{" "}
