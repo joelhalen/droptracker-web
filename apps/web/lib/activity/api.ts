@@ -17,6 +17,10 @@ import {
   ClaimPreviewSchema,
   ClaimResultSchema,
   CreateGroupResultSchema,
+  EnableFeatureResultSchema,
+  GroupFeaturesSchema,
+  type EnableFeatureResult,
+  type GroupFeatures,
   GuildStatusSchema,
   MyGuildsSchema,
   WomGroupPreviewSchema,
@@ -927,4 +931,28 @@ export async function setupSaveConfig(
   sessionToken: string,
 ): Promise<void> {
   await sendMethod("PATCH", `/api/activity/group-setup/config?groupId=${groupId}`, sessionToken, patch);
+}
+
+/** "Turn things on" step: the shared feature catalog for the group. */
+export async function setupFeatures(groupId: number, sessionToken: string): Promise<GroupFeatures> {
+  return GroupFeaturesSchema.parse(await get(`/api/activity/group-setup/features?groupId=${groupId}`, sessionToken));
+}
+
+/** Switch one feature on (channel features need a channel id). */
+export async function setupEnableFeature(
+  groupId: number,
+  key: string,
+  channelId: string | null | undefined,
+  sessionToken: string,
+): Promise<EnableFeatureResult> {
+  return EnableFeatureResultSchema.parse(
+    await send(`/api/activity/group-setup/features?groupId=${groupId}&key=${encodeURIComponent(key)}`, sessionToken, {
+      channel_id: channelId ?? null,
+    }),
+  );
+}
+
+/** Finish step: post the members' guide to a channel. */
+export async function setupMemberGuide(groupId: number, channelId: string, sessionToken: string): Promise<void> {
+  await send(`/api/activity/group-setup/member-guide?groupId=${groupId}`, sessionToken, { channel_id: channelId });
 }

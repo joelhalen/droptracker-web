@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { entityPath } from "@/lib/slug";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { EventRecruitingBanner } from "@/components/event-recruiting-banner";
+import { PlayerNextSteps } from "@/components/player-next-steps";
 import { SiteClaimRsn } from "@/components/setup/claim-rsn-site";
 import { EmptyState, EntityChip, RoleBadge } from "@/components/ui";
 
@@ -20,6 +21,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-10">
       {recruiting.length > 0 && <EventRecruitingBanner items={recruiting} />}
+      <PlayerNextSteps players={user.players} groups={user.groups} />
       <section>
         <h1 className="text-osrs-gold mb-4 text-2xl font-bold">My OSRS accounts</h1>
         {user.players.length ? (
@@ -51,10 +53,10 @@ export default async function DashboardPage() {
         ) : (
           <EmptyState
             title="No linked accounts yet"
-            hint="Claim your RuneScape name below — once you've received loot with the DropTracker RuneLite plugin, it takes ten seconds."
+            hint="Claim your RuneScape name below. Once the DropTracker RuneLite plugin has tracked something for you, it takes ten seconds."
           />
         )}
-        <div className="border-osrs-bronze/30 mt-4 rounded border p-4">
+        <div id="claim" className="border-osrs-bronze/30 mt-4 scroll-mt-24 rounded border p-4">
           <h3 className="text-osrs-gold mb-2 text-sm font-semibold">
             {user.players.length ? "Claim another account" : "Claim your account"}
           </h3>
@@ -102,7 +104,7 @@ export default async function DashboardPage() {
         ) : (
           <EmptyState
             title="You're not in any groups yet"
-            hint="Create a group to link your Wise Old Man clan and Discord server."
+            hint="Clans add you from their Wise Old Man group. Running one? Create a group to link it to your Discord server."
             action={
               <Link
                 href="/groups/new"

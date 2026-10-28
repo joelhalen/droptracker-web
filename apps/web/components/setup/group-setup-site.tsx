@@ -12,10 +12,13 @@ import { useRouter } from "next/navigation";
 import {
   checkGuild,
   createGroup,
+  enableWizardFeature,
   fetchBotInvite,
   fetchManageableGuilds,
   fetchWizardChannels,
+  fetchWizardFeatures,
   lookupWom,
+  postWizardMemberGuide,
   saveWizardConfig,
 } from "@/app/(site)/(admin)/groups/new/actions";
 import { GroupSetupWizard } from "./group-setup-wizard";
@@ -43,6 +46,11 @@ export function SiteGroupSetup({
       listChannels: (groupId) => fetchWizardChannels(groupId),
       saveConfig: async (groupId, patch) => {
         await saveWizardConfig(groupId, patch);
+      },
+      listFeatures: async (groupId) => (await fetchWizardFeatures(groupId))!,
+      enableFeature: async (groupId, key, channelId) => (await enableWizardFeature(groupId, key, channelId))!,
+      postMemberGuide: async (groupId, channelId) => {
+        await postWizardMemberGuide(groupId, channelId);
       },
     }),
     [],

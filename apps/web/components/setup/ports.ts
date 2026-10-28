@@ -20,6 +20,8 @@ import type {
   ClaimResult,
   CreateGroupInput,
   CreateGroupResult,
+  EnableFeatureResult,
+  GroupFeatures,
   GuildStatus,
   ManageableGuild,
   MyGuilds,
@@ -35,6 +37,8 @@ export type {
   ClaimResult,
   CreateGroupInput,
   CreateGroupResult,
+  EnableFeatureResult,
+  GroupFeatures,
   GuildStatus,
   ManageableGuild,
   MyGuilds,
@@ -67,6 +71,11 @@ export interface GroupSetupClient {
   createGroup(input: CreateGroupInput): Promise<CreateGroupResult>;
   listChannels(groupId: number): Promise<{ channels: DiscordChannel[]; cached: boolean }>;
   saveConfig(groupId: number, patch: Record<string, string | null>): Promise<void>;
+  /** "Turn things on" step: the shared feature catalog with this group's status. */
+  listFeatures(groupId: number): Promise<GroupFeatures>;
+  enableFeature(groupId: number, key: string, channelId?: string | null): Promise<EnableFeatureResult>;
+  /** Finish step: queue the members' getting-started guide for a channel. */
+  postMemberGuide(groupId: number, channelId: string): Promise<void>;
 }
 
 /** Transport for the RSN claim flow. */

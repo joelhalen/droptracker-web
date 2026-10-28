@@ -24,6 +24,7 @@ import {
 } from "@/components/discord-channel-picker";
 import type {
   DiscordChannel,
+  GroupFeatures,
   GroupSetupClient,
   GuildStatus,
   ManageableGuild,
@@ -37,10 +38,11 @@ const ghostBtn =
   "border-osrs-bronze/40 text-osrs-parchment-dark/80 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-4 py-2 text-sm disabled:opacity-50";
 
 const INVITE_FALLBACK_URL = "https://www.droptracker.io/invite";
-const PLUGIN_URL = "https://www.droptracker.io/runelite";
-const DOCS_URL = "https://www.droptracker.io/docs";
+const SITE_URL = "https://www.droptracker.io";
+const PLUGIN_URL = `${SITE_URL}/runelite`;
+const DOCS_URL = `${SITE_URL}/docs`;
 
-type StepKey = "server" | "wom" | "identity" | "channels" | "finish";
+type StepKey = "server" | "wom" | "identity" | "channels" | "features" | "finish";
 
 const STEPS: { key: StepKey; label: string; blurb: string }[] = [
   {
@@ -56,12 +58,17 @@ const STEPS: { key: StepKey; label: string; blurb: string }[] = [
   {
     key: "identity",
     label: "Identity",
-    blurb: "Name your group. This creates it — everything after is configuration.",
+    blurb: "Name your group. This creates it, and everything after is configuration.",
   },
   {
     key: "channels",
     label: "Channels",
-    blurb: "Choose where the lootboard and drop notifications should post. You can skip this.",
+    blurb: "Choose where drop notifications and the lootboard post. Nothing posts to Discord until you pick a drops channel.",
+  },
+  {
+    key: "features",
+    label: "Turn things on",
+    blurb: "Everything without a lock is free. Switch on what your clan wants; you can change it all later.",
   },
   { key: "finish", label: "Finish", blurb: "What's left, and what to tell your members." },
 ];
@@ -150,6 +157,15 @@ export function GroupSetupWizard({
   const [dropsSaved, setDropsSaved] = useState(false);
   const [skippedDrops, setSkippedDrops] = useState(false);
   const [savingChannels, setSavingChannels] = useState(false);
+
+  // --- Features step state ---
+  const [features, setFeatures] = useState<GroupFeatures["features"] | null>(null);
+  const [featureChannel, setFeatureChannel] = useState<Record<string, string>>({});
+  const [enabling, setEnabling] = useState<string | null>(null);
+
+  // --- Finish step state ---
+  const [guideChannel, setGuideChannel] = useState("");
+  const [guideState, setGuideState] = useState<"idle" | "posting" | "posted">("idle");
 
   const [error, setError] = useState<string | null>(null);
 
@@ -324,7 +340,7 @@ export function GroupSetupWizard({
   // the pickers switch from raw-id entry to the list on their own once it
   // lands. The first read is immediate; re-reads are spaced out.
   useEffect(() => {
-    if (step.key !== "channels" || createdGroupId == null) return;
+    if (!(step.key === "channels" || step.key === "features" || step.key === "finish") || createdGroupId == null) return;
     if (channelsLoaded && !channelsPolling) return;
     let alive = true;
     const timer = setTimeout(
@@ -388,13 +404,60 @@ export function GroupSetupWizard({
     }
   }, [client, createdGroupId, dropsChannel, gotoStep, lootboardChannel]);
 
+  // Load the feature catalog when entering the features step.
+  useEffect(() => {
+    if (step.key !== "features" || createdGroupId == null || features) return;
+    let alive = true;
+    client
+      .listFeatures(createdGroupId)
+      .then((res) => alive && setFeatures(res.features))
+      .catch((err) => alive && setError(getErrorMessage(err, "Couldn't load the feature list.")));
+    return () => {
+      alive = false;
+    };
+  }, [step.key, createdGroupId, client, features]);
+
+  const onEnableFeature = useCallback(
+    async (key: string) => {
+      if (createdGroupId == null) return;
+      setEnabling(key);
+      setError(null);
+      try {
+        const res = await client.enableFeature(createdGroupId, key, featureChannel[key] || null);
+        setFeatures((prev) =>
+          prev ? prev.map((f) => (f.key === key ? (res.feature ?? { ...f, status: "on" }) : f)) : prev,
+        );
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't switch that on. Please try again."));
+      } finally {
+        setEnabling(null);
+      }
+    },
+    [client, createdGroupId, featureChannel],
+  );
+
+  const onPostGuide = useCallback(async () => {
+    if (createdGroupId == null || !guideChannel) return;
+    setGuideState("posting");
+    setError(null);
+    try {
+      await client.postMemberGuide(createdGroupId, guideChannel);
+      setGuideState("posted");
+    } catch (err) {
+      setGuideState("idle");
+      setError(getErrorMessage(err, "Couldn't post the guide. Please try again."));
+    }
+  }, [client, createdGroupId, guideChannel]);
+
+  const featuresOn = features?.filter((f) => f.status === "on").length ?? 0;
+
   const serverReady = Boolean(status?.bot_present && !status?.owns_group);
   const womReady = Boolean(wom && !wom.already_registered);
   const identityReady = name.trim().length >= 1 && name.trim().length <= 30;
 
   const stepDone = useMemo(
-    () => [serverReady, womReady, created, dropsSaved, false],
-    [serverReady, womReady, created, dropsSaved],
+    () => [serverReady, womReady, created, dropsSaved, featuresOn > 0, false],
+    [serverReady, womReady, created, dropsSaved, featuresOn],
   );
 
   const guildDisplayName =
@@ -486,7 +549,7 @@ export function GroupSetupWizard({
                 <Alert variant="info">
                   {guildsCached
                     ? "We couldn't find any Discord servers you manage."
-                    : "Your server list isn't available for this session — sign out and back in, or paste your server id below."}
+                    : "Your server list isn't available for this session. Sign out and back in, or paste your server id below."}
                 </Alert>
               )}
               <details className="text-sm" open={guilds !== null && guilds.length === 0}>
@@ -540,7 +603,7 @@ export function GroupSetupWizard({
               {status && !status.owns_group && !status.bot_present && (
                 <div className="space-y-2">
                   <Alert variant="info">
-                    The DropTracker bot isn&apos;t in this server yet — invite it, then come back
+                    The DropTracker bot isn&apos;t in this server yet. Invite it, then come back
                     here. We&apos;ll detect it automatically.
                   </Alert>
                   <div className="flex items-center gap-3">
@@ -561,7 +624,7 @@ export function GroupSetupWizard({
                           setPolling(true);
                         }}
                       >
-                        Still not seeing it — retry
+                        Still not seeing it? Retry
                       </button>
                     )}
                   </div>
@@ -603,7 +666,7 @@ export function GroupSetupWizard({
             >
               Create one on wiseoldman.net
             </button>{" "}
-            first — it drives your member list.
+            first. It drives your member list.
           </p>
           <Button
             variant="secondary"
@@ -760,7 +823,76 @@ export function GroupSetupWizard({
         </div>
       )}
 
-      {/* ── Step 5: Finish ─────────────────────────────────────────────── */}
+      {/* ── Step 5: Turn things on ─────────────────────────────────────── */}
+      {step.key === "features" && createdGroupId != null && (
+        <div className="space-y-4">
+          {!features && <p className="text-osrs-parchment-dark/60 text-sm">Loading features…</p>}
+          {features && (
+            <ul className="space-y-2">
+              {features.map((f) => (
+                <li key={f.key} className="border-osrs-bronze/30 rounded border p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">
+                        {f.title}
+                        {f.status === "on" && <span className="text-osrs-green ml-2 text-xs">On ✓</span>}
+                        {f.status === "locked" && (
+                          <span className="text-osrs-gold ml-2 text-xs">{f.tier ?? "Paid plans"}</span>
+                        )}
+                      </div>
+                      <p className="text-osrs-parchment-dark/70 text-xs">{f.blurb}</p>
+                    </div>
+                    {f.status === "locked" && (
+                      <button type="button" className={ghostBtn} onClick={() => env.openLink(`${SITE_URL}/premium`)}>
+                        See plans
+                      </button>
+                    )}
+                    {f.status === "off" && f.kind === "toggle" && (
+                      <Button variant="secondary" disabled={enabling != null} onClick={() => onEnableFeature(f.key)}>
+                        {enabling === f.key ? "Turning on…" : "Turn on"}
+                      </Button>
+                    )}
+                    {f.status === "off" && f.kind === "link" && (
+                      <button type="button" className={ghostBtn} onClick={() => env.openLink(`${SITE_URL}${f.path}`)}>
+                        Set up ↗
+                      </button>
+                    )}
+                  </div>
+                  {f.status === "off" && f.kind === "channel" && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <DiscordChannelPicker
+                          channels={channels}
+                          value={featureChannel[f.key] ?? ""}
+                          onChange={(v) => setFeatureChannel((prev) => ({ ...prev, [f.key]: v }))}
+                          placeholder="Pick a channel"
+                        />
+                      </div>
+                      <Button
+                        variant="secondary"
+                        disabled={enabling != null || !featureChannel[f.key]}
+                        onClick={() => onEnableFeature(f.key)}
+                      >
+                        {enabling === f.key ? "Turning on…" : "Turn on"}
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex justify-between">
+            <button type="button" className={ghostBtn} onClick={() => gotoStep(3)}>
+              ← Back
+            </button>
+            <Button variant="secondary" onClick={() => gotoStep(5)}>
+              Continue
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 6: Finish ─────────────────────────────────────────────── */}
       {step.key === "finish" && createdGroupId != null && (
         <div className="space-y-4">
           {skippedDrops ? (
@@ -781,6 +913,35 @@ export function GroupSetupWizard({
               </span>
             </Alert>
           )}
+          <div className="border-osrs-bronze/30 space-y-2 rounded border p-3">
+            <div className="text-sm font-medium">Tell your members how to join in</div>
+            <p className="text-osrs-parchment-dark/70 text-xs">
+              We&apos;ll post a short guide in Discord: install the plugin, turn on Use API, link their account.
+            </p>
+            {guideState === "posted" ? (
+              <p className="text-osrs-green text-sm" role="status">
+                Guide sent. It shows up in Discord within a minute.
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <DiscordChannelPicker
+                    channels={channels}
+                    value={guideChannel}
+                    onChange={setGuideChannel}
+                    placeholder="Channel for the guide"
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  disabled={!guideChannel || guideState === "posting"}
+                  onClick={onPostGuide}
+                >
+                  {guideState === "posting" ? "Posting…" : "Post guide"}
+                </Button>
+              </div>
+            )}
+          </div>
           <ul className="space-y-2 text-sm">
             <li>
               ✅ Members install the{" "}
@@ -790,8 +951,11 @@ export function GroupSetupWizard({
                 onClick={() => env.openLink(PLUGIN_URL)}
               >
                 DropTracker RuneLite plugin
-              </button>{" "}
-              — that&apos;s where the loot comes from.
+              </button>
+              . That&apos;s where the loot comes from.
+            </li>
+            <li>
+              ✅ Members turn on <strong>Use API</strong> in the plugin&apos;s settings. Events need it.
             </li>
             <li>
               ✅ Members claim their RSNs (on the website dashboard or with{" "}
@@ -801,7 +965,7 @@ export function GroupSetupWizard({
               ✅ Members are in your Wise Old Man group: that&apos;s how their drops count for the clan.
             </li>
             <li>
-              ✅ Fine-tune notifications, minimum values, and more in{" "}
+              ✅ {featuresOn > 0 ? `${featuresOn} features are on. ` : ""}Fine-tune notifications, minimum values, and more in{" "}
               <button
                 type="button"
                 className="text-osrs-gold-bright underline"

@@ -15,7 +15,10 @@ import {
   setupBotInvite,
   setupChannels,
   setupCreateGroup,
+  setupEnableFeature,
+  setupFeatures,
   setupGuildStatus,
+  setupMemberGuide,
   setupSaveConfig,
   setupWomLookup,
 } from "@/lib/activity/api";
@@ -43,6 +46,9 @@ export function GroupSetupView({ guildName }: { guildName?: string | null }) {
             createGroup: (input) => setupCreateGroup(input, sessionToken),
             listChannels: (groupId) => setupChannels(groupId, sessionToken),
             saveConfig: (groupId, patch) => setupSaveConfig(groupId, patch, sessionToken),
+            listFeatures: (groupId) => setupFeatures(groupId, sessionToken),
+            enableFeature: (groupId, key, channelId) => setupEnableFeature(groupId, key, channelId, sessionToken),
+            postMemberGuide: (groupId, channelId) => setupMemberGuide(groupId, channelId, sessionToken),
           }
         : null,
     [sessionToken],

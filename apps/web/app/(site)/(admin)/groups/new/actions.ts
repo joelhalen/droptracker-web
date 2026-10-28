@@ -101,3 +101,46 @@ export async function saveWizardConfig(groupId: number, patch: Record<string, st
     unwrap(err);
   }
 }
+
+async function assertGroupAdmin(groupId: number) {
+  const user = await assertSignedIn();
+  if (!canAdminGroup(user, groupId)) {
+    // Same fresh-/me recheck as fetchWizardChannels: the session snapshot can
+    // predate the group's creation a moment ago.
+    const fresh = await getUser();
+    if (!fresh || !canAdminGroup(fresh, groupId)) {
+      throw new Error("Forbidden: you do not administer this group.");
+    }
+  }
+}
+
+/** Features step: what the group can switch on, with its status. */
+export async function fetchWizardFeatures(groupId: number) {
+  await assertGroupAdmin(groupId);
+  try {
+    return await api.groupFeatures(groupId);
+  } catch (err) {
+    unwrap(err);
+  }
+}
+
+/** Features step (and admin Overview): switch one feature on. */
+export async function enableWizardFeature(groupId: number, key: string, channelId?: string | null) {
+  await assertGroupAdmin(groupId);
+  try {
+    return await api.enableGroupFeature(groupId, key, channelId);
+  } catch (err) {
+    unwrap(err);
+  }
+}
+
+/** Finish step: post the members' guide to a Discord channel. */
+export async function postWizardMemberGuide(groupId: number, channelId: string) {
+  await assertGroupAdmin(groupId);
+  try {
+    await api.postMemberGuide(groupId, channelId);
+    return { ok: true as const };
+  } catch (err) {
+    unwrap(err);
+  }
+}

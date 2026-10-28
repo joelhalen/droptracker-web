@@ -9,6 +9,10 @@ import {
   GroupDiagnosticsSchema,
   SetupStatusSchema,
   type SetupStatus,
+  EnableFeatureResultSchema,
+  GroupFeaturesSchema,
+  type EnableFeatureResult,
+  type GroupFeatures,
   GroupMembersPageSchema,
   GroupProfileSchema,
   BotInviteSchema,
@@ -61,6 +65,7 @@ import {
   mockGroupMemberDeathMessages,
   mockBotInvite,
   mockManageableGuilds,
+  mockGroupFeatures,
   mockWomLookup,
   mockWomSync,
 } from "../mock-data";
@@ -603,6 +608,35 @@ export const groupsApi = {
     return SetupStatusSchema.parse(await apiGet(`/groups/${groupId}/setup-status`, { authed: true }));
   },
 
+
+  /** What the group can switch on, and whether it has (db/group_features.py). */
+  async groupFeatures(groupId: number): Promise<GroupFeatures> {
+    return withFallback(
+      async () => GroupFeaturesSchema.parse(await apiGet(`/groups/${groupId}/features`, { authed: true })),
+      () => mockGroupFeatures(groupId),
+    );
+  },
+
+  /** Switch one feature on; channel features need a channel id. */
+  async enableGroupFeature(groupId: number, key: string, channelId?: string | null): Promise<EnableFeatureResult> {
+    return withFallback(
+      async () =>
+        EnableFeatureResultSchema.parse(
+          await apiSend("POST", `/groups/${groupId}/features/${encodeURIComponent(key)}`, {
+            channel_id: channelId ?? null,
+          }),
+        ),
+      () => ({ ok: true, feature: { ...mockGroupFeatures(groupId).features.find((f) => f.key === key)!, status: "on" as const } }),
+    );
+  },
+
+  /** Queue the members' getting-started guide for a Discord channel. */
+  async postMemberGuide(groupId: number, channelId: string): Promise<void> {
+    await withFallback(
+      async () => apiSend("POST", `/groups/${groupId}/member-guide`, { channel_id: channelId }),
+      () => ({ ok: true }),
+    );
+  },
 
   /** Discord servers the caller can manage (wizard server picker). */
   async manageableGuilds(): Promise<MyGuilds> {

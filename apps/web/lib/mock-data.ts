@@ -4,6 +4,7 @@
  * falls back to these only when the real API is unreachable.
  */
 import type {
+  GroupFeatures,
   PersonalBestLoadout,
   AccountSettings,
   EventParticipant,
@@ -772,6 +773,27 @@ export function mockManageableGuilds(): ManageableGuild[] {
       group_id: 1,
     },
   ];
+}
+
+/** Mirrors disc/db/group_features.py FEATURES (statuses vary by group id). */
+export function mockGroupFeatures(groupId: number): GroupFeatures {
+  const p = (path: string) => `/groups/${groupId}${path}`;
+  const features: GroupFeatures["features"] = [
+    { key: "clan_points", title: "Clan points", blurb: "Members earn points for drops, PBs, pets and logs, with monthly and seasonal leaderboards.", kind: "toggle", status: "off", path: p("/points") },
+    { key: "lootboard", title: "Lootboard", blurb: "A live image of the clan's top loot this month, kept up to date in one message.", kind: "channel", status: "on", channel_key: "lootboard_channel_id", path: p("/settings#cfg-board") },
+    { key: "clan_log", title: "Clan Log", blurb: "A shared collection log for the whole clan, posted as a live board.", kind: "channel", status: "off", channel_key: "clan_log_channel_id", path: p("/settings#cfg-clan_log") },
+    { key: "recaps", title: "Monthly recaps", blurb: "A summary of the clan's month: top loot, PBs, pets and who played most.", kind: "channel", status: "off", channel_key: "channel_id_to_post_recaps", path: p("/settings#cfg-recaps") },
+    { key: "deaths", title: "Death announcements", blurb: "Post members' deaths, with your own messages (or theirs) for a laugh.", kind: "channel", status: "off", channel_key: "channel_id_to_post_deaths", path: p("/settings#cfg-deaths") },
+    { key: "submit_card", title: "Submit button", blurb: "A card with a button members press to submit a drop the plugin missed.", kind: "channel", status: "off", channel_key: "submit_panel_channel", path: p("/settings#cfg-channels") },
+    { key: "activity_launcher", title: "DropTracker Activity", blurb: "Open the clan's boards, events and profiles inside Discord.", kind: "channel", status: "off", channel_key: "activity_launch_channel", path: p("/settings#cfg-channels") },
+    { key: "events", title: "Events", blurb: "Bingo, board games, Skill and Boss of the Week: scored automatically from the plugin.", kind: "link", status: "off", path: p("/events/new") },
+    { key: "custom_embeds", title: "Custom notification designs", blurb: "Change how every message the bot posts looks.", kind: "link", status: "off", path: p("/embeds") },
+    { key: "clan_chat_bridge", title: "Clan chat bridge", blurb: "Relay in-game clan chat to a Discord channel, and back.", kind: "link", status: "off", path: p("/settings#cfg-clan_chat") },
+    { key: "voice_counters", title: "Voice channel counters", blurb: "Show the clan's monthly loot or member count as a channel name.", kind: "link", status: "off", path: p("/settings#cfg-voice") },
+    { key: "hall_of_fame", title: "Hall of Fame", blurb: "Personal-best boards for the bosses you choose.", kind: "link", status: "locked", tier: "Supporter", path: p("/hall-of-fame") },
+    { key: "group_site", title: "Clan website", blurb: "Your clan's own site on osrs.site, built from blocks with live data.", kind: "link", status: "locked", tier: "Supporter", path: p("/website") },
+  ];
+  return { group_id: groupId, features, summary: { on: features.filter((f) => f.status === "on").length, total: features.length } };
 }
 
 export function mockBotInvite(): BotInvite {

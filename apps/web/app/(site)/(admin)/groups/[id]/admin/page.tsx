@@ -3,6 +3,7 @@ import { requireGroupAdminPage } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
+import { GroupFeaturesPanel } from "@/components/group-features-panel";
 import { GroupSetupChecklist, serverInviteUrl, showSetupChecklist } from "@/components/group-setup-checklist";
 
 export const metadata: Metadata = { title: "Group admin" };
@@ -14,7 +15,11 @@ const CARDS = [
   { slug: "page-builder", title: "Page design", desc: "Design your public group page and members' profiles." },
   { slug: "announcements", title: "Announcements", desc: "Post news and syndicate to Discord." },
   { slug: "members", title: "Members", desc: "WOM sync, hide/unhide players." },
-  { slug: "events", title: "Events", desc: "Create events, tasks, teams, and bingo." },
+  { slug: "events", title: "Events", desc: "Bingo, board games, Skill and Boss of the Week." },
+  { slug: "points", title: "Clan points", desc: "Award rules, boosts, seasons and leaderboards." },
+  { slug: "embeds", title: "Embeds", desc: "Change how the bot's Discord messages look." },
+  { slug: "hall-of-fame", title: "Hall of Fame", desc: "Personal-best boards for your chosen bosses." },
+  { slug: "submissions", title: "Submissions", desc: "Review drops members submitted by hand." },
   { slug: "subscription", title: "Subscription", desc: "Manage the group's recurring plan." },
   {
     slug: "diagnostics",
@@ -29,16 +34,21 @@ export default async function GroupAdminOverview({ params }: { params: Params })
   await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
-  const [group, setup, invite] = await Promise.all([
+  const [group, setup, invite, features] = await Promise.all([
     api.group(groupId),
     // Setup checklist (web138a); best-effort so the Overview always renders.
     api.groupSetupStatus(groupId).catch(() => null),
     api.botInvite().catch(() => null),
+    api.groupFeatures(groupId).catch(() => null),
   ]);
+
+  const onboarding = setup?.onboarding ?? false;
 
   return (
     <div className="space-y-6">
       {setup && showSetupChecklist(setup) && <GroupSetupChecklist status={setup} inviteUrl={serverInviteUrl(invite?.invite_url, setup.guild_id)} />}
+      {/* New groups see what they can switch on first; settled groups below the cards. */}
+      {features && onboarding && <GroupFeaturesPanel groupId={groupId} data={features} />}
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Members" value={String(group.member_count)} />
         <Stat label="Global rank" value={`#${group.global_rank ?? "—"}`} />
@@ -57,6 +67,7 @@ export default async function GroupAdminOverview({ params }: { params: Params })
           </Link>
         ))}
       </div>
+      {features && !onboarding && <GroupFeaturesPanel groupId={groupId} data={features} />}
     </div>
   );
 }
