@@ -1286,7 +1286,12 @@ export async function instantiateEventTemplate(
   const parsed = EventTemplateInstantiateInputSchema.parse({ ...input, group_id: groupId });
   const result = await api.instantiateEventTemplate(templateId, parsed);
   revalidatePath(eventsIndexPath(groupId));
-  return { ok: true as const, id: result.id, skipped_tasks: result.skipped_tasks };
+  return {
+    ok: true as const,
+    id: result.id,
+    skipped_tasks: result.skipped_tasks,
+    discord: result.discord ?? null,
+  };
 }
 
 /** Rename / re-describe / re-scope a template the group owns. */

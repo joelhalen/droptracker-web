@@ -6721,6 +6721,16 @@ export const EventTemplateDetailSchema = EventTemplateSummarySchema.extend({
       }),
     ),
     teams: z.array(z.string()),
+    /** Saved Discord settings (suggestion #197), as counts only: templates
+     * can be public, so no server/channel/role ids. Null when not saved. */
+    discord: z
+      .object({
+        channels: z.number().int().default(0),
+        pings: z.number().int().default(0),
+        team_channels: z.boolean().default(false),
+      })
+      .nullable()
+      .optional(),
   }),
 });
 export type EventTemplateDetail = z.infer<typeof EventTemplateDetailSchema>;
@@ -6733,6 +6743,8 @@ export const EventTemplateSaveInputSchema = z.object({
   visibility: z.enum(EVENT_TASK_VISIBILITIES).default("private"),
   /** Carry team names (never members) into the template. */
   include_teams: z.boolean().default(true),
+  /** Carry the server, channels, pings and team channel settings (#197). */
+  include_discord: z.boolean().optional(),
 });
 export type EventTemplateSaveInput = z.infer<typeof EventTemplateSaveInputSchema>;
 
@@ -6744,6 +6756,8 @@ export const EventTemplateInstantiateInputSchema = z.object({
   starts_at: z.number().int().nullable().optional(),
   ends_at: z.number().int().nullable().optional(),
   include_teams: z.boolean().optional(),
+  /** Apply the template's saved Discord settings (default true server-side). */
+  include_discord: z.boolean().optional(),
 });
 export type EventTemplateInstantiateInput = z.infer<typeof EventTemplateInstantiateInputSchema>;
 
@@ -6759,6 +6773,17 @@ export const EventTemplateInstantiateResultSchema = z.object({
       reason: z.string(),
     }),
   ),
+  /** What happened to the saved Discord settings; null when there were none
+   * (or include_discord was false). `dropped` counts channels/roles the bot
+   * no longer sees on the server. */
+  discord: z
+    .object({
+      applied: z.boolean(),
+      reason: z.string().nullable().optional(),
+      dropped: z.number().int().default(0),
+    })
+    .nullable()
+    .optional(),
 });
 export type EventTemplateInstantiateResult = z.infer<typeof EventTemplateInstantiateResultSchema>;
 

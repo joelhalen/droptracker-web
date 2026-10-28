@@ -58,6 +58,7 @@ export function EventTemplatePicker({ groupId }: { groupId: number | null }) {
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [includeTeams, setIncludeTeams] = useState(true);
+  const [includeDiscord, setIncludeDiscord] = useState(true);
   const [pending, startTransition] = useTransition();
   // Set when instantiation skipped tasks — show the report before navigating.
   const [created, setCreated] = useState<EventTemplateInstantiateResult | null>(null);
@@ -86,6 +87,7 @@ export function EventTemplatePicker({ groupId }: { groupId: number | null }) {
     setDetail(null);
     setName(tmpl.name);
     setIncludeTeams(true);
+    setIncludeDiscord(true);
     setCreated(null);
     setError(null);
     getEventTemplate(groupId, tmpl.id)
@@ -104,8 +106,11 @@ export function EventTemplatePicker({ groupId }: { groupId: number | null }) {
           starts_at: toUnix(startsAt),
           ends_at: toUnix(endsAt),
           include_teams: includeTeams,
+          // Only meaningful when the template saved Discord settings.
+          include_discord: detail?.preview.discord ? includeDiscord : false,
         });
-        if (res.skipped_tasks.length) {
+        const discordNote = res.discord && (!res.discord.applied || res.discord.dropped > 0);
+        if (res.skipped_tasks.length || discordNote) {
           setCreated(res); // surface the report; navigate on click
         } else {
           router.push(eventPath(groupId, res.id));
@@ -117,22 +122,41 @@ export function EventTemplatePicker({ groupId }: { groupId: number | null }) {
   };
 
   if (created) {
+    const discord = created.discord;
     return (
       <div className="space-y-3">
-        <Alert variant="info">
-          The event was created, but {created.skipped_tasks.length} task
-          {created.skipped_tasks.length === 1 ? "" : "s"} from the template no longer validate and
-          {created.skipped_tasks.length === 1 ? " was" : " were"} skipped. Their bingo cells (if
-          any) are unbound — rebind or replace them in the event manager.
-        </Alert>
-        <ul className="border-osrs-bronze/20 divide-osrs-bronze/10 divide-y rounded border text-sm">
-          {created.skipped_tasks.map((t) => (
-            <li key={t.index} className="px-3 py-2">
-              <span className="font-medium">{t.label}</span>
-              <span className="text-osrs-parchment-dark/60 block text-xs">{t.reason}</span>
-            </li>
-          ))}
-        </ul>
+        {created.skipped_tasks.length > 0 && (
+          <>
+            <Alert variant="info">
+              The event was created, but {created.skipped_tasks.length} task
+              {created.skipped_tasks.length === 1 ? "" : "s"} from the template no longer validate
+              and
+              {created.skipped_tasks.length === 1 ? " was" : " were"} skipped. Their bingo cells
+              (if any) are unbound — rebind or replace them in the event manager.
+            </Alert>
+            <ul className="border-osrs-bronze/20 divide-osrs-bronze/10 divide-y rounded border text-sm">
+              {created.skipped_tasks.map((t) => (
+                <li key={t.index} className="px-3 py-2">
+                  <span className="font-medium">{t.label}</span>
+                  <span className="text-osrs-parchment-dark/60 block text-xs">{t.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {discord && !discord.applied && (
+          <Alert variant="info">
+            The saved Discord settings weren&apos;t used.{" "}
+            {discord.reason ?? "Set them up on the event's Discord tab."}
+          </Alert>
+        )}
+        {discord?.applied && discord.dropped > 0 && (
+          <Alert variant="info">
+            The saved Discord settings were used, but {discord.dropped} channel
+            {discord.dropped === 1 ? " or role is" : "s or roles are"} no longer on the server and
+            {discord.dropped === 1 ? " was" : " were"} left out. Check the event&apos;s Discord tab.
+          </Alert>
+        )}
         <Link
           href={eventPath(groupId, created.id)}
           className={buttonVariants({ variant: "primary" })}
@@ -283,6 +307,28 @@ export function EventTemplatePicker({ groupId }: { groupId: number | null }) {
                 Create the template&apos;s teams ({selected.team_count})
                 <span className="text-osrs-parchment-dark/50 block text-xs">
                   Empty teams with the saved names — members always start fresh.
+                </span>
+              </span>
+            </label>
+          )}
+          {detail?.preview.discord && (
+            <label className="flex cursor-pointer items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={includeDiscord}
+                onChange={(e) => setIncludeDiscord(e.target.checked)}
+                className="mt-0.5 size-4"
+              />
+              <span>
+                Use the saved Discord settings
+                <span className="text-osrs-parchment-dark/50 block text-xs">
+                  {detail.preview.discord.channels} channel
+                  {detail.preview.discord.channels === 1 ? "" : "s"}
+                  {detail.preview.discord.pings > 0
+                    ? `, ${detail.preview.discord.pings} ping role${detail.preview.discord.pings === 1 ? "" : "s"}`
+                    : ""}
+                  {detail.preview.discord.team_channels ? ", team channels" : ""}. Only used if you
+                  can post to the server they were saved for.
                 </span>
               </span>
             </label>

@@ -30,6 +30,7 @@ export function EventTemplateSaver({
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [includeTeams, setIncludeTeams] = useState(true);
+  const [includeDiscord, setIncludeDiscord] = useState(false);
   const [savedAs, setSavedAs] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -45,6 +46,7 @@ export function EventTemplateSaver({
           description: description.trim() || undefined,
           visibility,
           include_teams: includeTeams,
+          include_discord: includeDiscord,
         });
         if (!res.ok) {
           setError(res.error);
@@ -97,8 +99,8 @@ export function EventTemplateSaver({
         </button>
       </div>
       <p className="text-osrs-parchment-dark/60 text-xs">
-        Saves the event&apos;s structure — settings, tasks, bingo board and team names — so it can
-        be rerun later or shared. Dates, rosters, scores and Discord settings are never saved.
+        Saves the event&apos;s settings, tasks, bingo board and team names so it can be rerun later
+        or shared. Dates, rosters and scores are never saved.
       </p>
       {error && <p className="text-osrs-red text-xs">{error}</p>}
       <input
@@ -159,6 +161,21 @@ export function EventTemplateSaver({
           Include team names
           <span className="text-osrs-parchment-dark/50 block text-xs">
             Team names only — members are never saved.
+          </span>
+        </span>
+      </label>
+      <label className="flex cursor-pointer items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={includeDiscord}
+          onChange={(e) => setIncludeDiscord(e.target.checked)}
+          className="mt-0.5 size-4"
+        />
+        <span>
+          Include Discord settings
+          <span className="text-osrs-parchment-dark/50 block text-xs">
+            The server, channels, ping roles and team channel settings. They only carry over
+            when the new event posts to the same server.
           </span>
         </span>
       </label>
