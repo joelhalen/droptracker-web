@@ -65,4 +65,12 @@ export const SUGGESTED_DEATH_MESSAGES: string[] = [
   "{player_name} forgot to pray against {source}.",
   "{player_name} died as they lived: somewhere near {location}.",
   "Press F — {player_name} was slain by {source}.",
+  // Adapted from the community list in suggestion #183.
+  "{player_name} has died. Skill issue?",
+  "Oof. {player_name} died to {source}.",
+  "Task failed successfully: {player_name} died to {source}.",
+  "{player_name} was OBLITERATED by {source}.",
+  "Mission failed, {player_name}. We'll get 'em next time.",
+  "{player_name} died. It wasn't lag. Or was it?",
+  "{player_name} has died. Misclick?",
 ];

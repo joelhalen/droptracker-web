@@ -617,9 +617,10 @@ export function getConfigField(key: string): ConfigField | undefined {
 
 // Limits for `messagelist` fields, shared by the editor widget and the Zod
 // schema below; the backend registry's coerce_to_storage enforces the same.
-export const MESSAGE_LIST_MAX_ENTRIES = 30;
+export const MESSAGE_LIST_MAX_ENTRIES = 100;
 export const MESSAGE_LIST_MAX_ENTRY_LENGTH = 200;
-export const MESSAGE_LIST_MAX_RAW_LENGTH = 8000;
+// Room for a full list of max-length entries plus JSON quoting.
+export const MESSAGE_LIST_MAX_RAW_LENGTH = 24000;
 // Message content pings for real (embed text doesn't), so mention syntax is
 // rejected outright rather than relying on the placement checkbox's state.
 export const MESSAGE_LIST_MENTION_RE = /@everyone|@here|<@[&!]?\d+>/;

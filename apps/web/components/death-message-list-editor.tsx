@@ -26,6 +26,9 @@ import { MESSAGE_KINDS, type MessageKindProfile } from "@/lib/message-kinds";
 import { formatInline } from "@/components/components-v2-preview";
 import { Button, Input } from "@/components/ui";
 
+/** Above this many rows the list gets a filter box and a "Remove all" button. */
+const LONG_LIST_THRESHOLD = 10;
+
 function parseMessages(value: string): string[] {
   if (!value) return [];
   try {
@@ -76,6 +79,7 @@ export function DeathMessageListEditor({
   const messages = useMemo(() => parseMessages(value), [value]);
   const [previewIndex, setPreviewIndex] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
 
   const commit = (list: string[]) => onChange(list.length ? JSON.stringify(list) : "");
 
@@ -83,6 +87,13 @@ export function DeathMessageListEditor({
   const unknown = unknownTokens(messages, profile.placeholders);
 
   const previewMessage = messages[Math.min(previewIndex, Math.max(messages.length - 1, 0))];
+
+  const longList = messages.length > LONG_LIST_THRESHOLD;
+  const needle = longList ? filter.trim().toLowerCase() : "";
+  // Keep each row's real index: edits and removals address the full list.
+  const visible = messages
+    .map((message, i) => ({ message, i }))
+    .filter(({ message }) => !needle || message.toLowerCase().includes(needle));
 
   const addSuggested = () => {
     const existing = new Set(messages);
@@ -102,8 +113,36 @@ export function DeathMessageListEditor({
 
   return (
     <div className="space-y-3">
+      {longList && (
+        <div className="flex items-center gap-2">
+          <Input
+            type="search"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            disabled={disabled}
+            className="w-full disabled:cursor-not-allowed"
+            placeholder={`Filter ${messages.length} messages`}
+            aria-label="Filter messages"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="shrink-0"
+            onClick={() => {
+              if (!window.confirm(`Remove all ${messages.length} messages?`)) return;
+              commit([]);
+              setFilter("");
+              setPreviewIndex(0);
+            }}
+            disabled={disabled}
+          >
+            Remove all
+          </Button>
+        </div>
+      )}
       <div className="space-y-2">
-        {messages.map((message, i) => (
+        {visible.map(({ message, i }) => (
           <div key={i} className="flex items-center gap-2">
             <Input
               type="text"
@@ -134,6 +173,9 @@ export function DeathMessageListEditor({
             No custom messages. The bot uses its default {profile.noun} message.
           </p>
         )}
+        {messages.length > 0 && visible.length === 0 && (
+          <p className="text-osrs-parchment-dark/60 text-xs italic">No messages match that filter.</p>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -143,6 +185,7 @@ export function DeathMessageListEditor({
           size="xs"
           onClick={() => {
             commit([...messages, ""]);
+            setFilter("");
             setPreviewIndex(messages.length);
           }}
           disabled={disabled || messages.length >= MESSAGE_LIST_MAX_ENTRIES}
