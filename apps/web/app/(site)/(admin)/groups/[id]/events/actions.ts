@@ -1116,6 +1116,19 @@ export async function getEventDiscord(
   return api.eventDiscord(eventId, scopeGroupId ?? null);
 }
 
+/** The group's other events, newest first, for the Discord tab's "Copy from
+ * another event" picker (suggestion #197). The copy itself re-reads the
+ * source through getEventDiscord, so the backend's event-admin check still
+ * gates whose settings can be read. */
+export async function listDiscordCopySources(groupId: number, excludeEventId: number) {
+  await assertCanManageEvent(groupId);
+  const events = await api.eventsForAdmin({ groupId });
+  return events
+    .filter((e) => e.id !== excludeEventId && e.group_id === groupId)
+    .sort((a, b) => (b.starts_at ?? 0) - (a.starts_at ?? 0) || b.id - a.id)
+    .map((e) => ({ id: e.id, name: e.name, status: e.status, starts_at: e.starts_at }));
+}
+
 /** Every guild the bot is in, for the guild picker (bot Redis cache). */
 export async function listEventDiscordGuilds(groupId: EventGroupId) {
   await assertCanManageEvent(groupId);

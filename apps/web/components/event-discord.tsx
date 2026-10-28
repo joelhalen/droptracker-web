@@ -66,6 +66,7 @@ import {
   listEventDiscordGuilds,
   listEventDiscordRoles,
   saveEventDiscord,
+  listDiscordCopySources,
   saveEventTeamDiscord,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 
@@ -74,6 +75,8 @@ const field =
 
 const LEAVE_MESSAGE =
   "This event's Discord settings have unsaved changes. Leave without saving them?";
+const COPY_MESSAGE =
+  "You have unsaved changes to this event's Discord settings. Copying from another event replaces them. Copy anyway?";
 const SCOPE_SWITCH_MESSAGE =
   "You have unsaved changes to this scope's Discord settings. Switching clans discards them. Switch anyway?";
 
@@ -292,6 +295,15 @@ export function EventDiscordSettings({
     groups: { group_id: number; name?: string | null; configured: boolean }[];
   } | null>(null);
 
+  // ── copy from another event (suggestion #197) ──────────────────────────
+  // The group's other events. The copy fills the form as unsaved edits, so
+  // the normal save (and its server-side checks) still decides what sticks.
+  const [copySources, setCopySources] = useState<
+    { id: number; name: string; status: string }[] | null
+  >(null);
+  const [copyFrom, setCopyFrom] = useState("");
+  const [copyNote, setCopyNote] = useState<string | null>(null);
+
   const loadChannels = useCallback(
     async (gid: string) => {
       if (!gid) {
@@ -394,6 +406,21 @@ export function EventDiscordSettings({
       cancelled = true;
     };
   }, [groupId, eventId, loadChannels, applyConfig, lockedScope]);
+
+  useEffect(() => {
+    if (groupId == null || lockedScope != null) return;
+    let cancelled = false;
+    listDiscordCopySources(groupId, eventId)
+      .then((rows) => {
+        if (!cancelled) setCopySources(rows);
+      })
+      .catch(() => {
+        // Optional helper: a failed list just hides the picker.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [groupId, eventId, lockedScope]);
 
   // Team channels & roles load is scope-aware exactly like the main config:
   // keyed on `scope` so switching pills refetches that clan's own copy.
@@ -505,6 +532,7 @@ export function EventDiscordSettings({
     if (!serverConfig) return;
     if (!window.confirm("Discard your unsaved changes to this event's Discord settings?")) return;
     applyConfig(serverConfig);
+    setCopyNote(null);
     if (scope === null) setPerGroup(serverConfig.per_group_discord ?? false);
     setTeamDiscord(teamDiscordBase);
     setTeamDiscordError(null);
@@ -527,6 +555,56 @@ export function EventDiscordSettings({
         if (next === null) setPerGroup(config.per_group_discord ?? false);
       } catch (err) {
         setError(getErrorMessage(err, "Couldn't load that clan's Discord config."));
+      }
+    });
+  };
+
+  /** Load another event's shared Discord settings into the form. Nothing is
+   * stored until the admin saves, so they can review or discard the copy. */
+  const onCopyFrom = () => {
+    const source = copySources?.find((e) => String(e.id) === copyFrom);
+    if (!source || groupId == null) return;
+    if (!confirmDiscard(dirty, COPY_MESSAGE)) return;
+    setError(null);
+    setSaved(false);
+    setCopyNote(null);
+    startTransition(async () => {
+      try {
+        const [config, team] = await Promise.all([
+          getEventDiscord(groupId, source.id, null),
+          getEventTeamDiscord(groupId, source.id, null).catch(() => null),
+        ]);
+        const gid = config.guild_id ?? "";
+        setGuildId(gid);
+        setGuildName(config.guild_name ?? null);
+        setChannels(config.channels ?? {});
+        setPolicy(config.discord_event_policy ?? "on_activate");
+        setPings(config.pings ?? {});
+        setMessages(config.messages);
+        void loadChannels(gid);
+        // Event-wide team channel & role settings. Per-team switches stay as
+        // they are: the teams differ from event to event.
+        if (team) {
+          setTeamDiscord((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  channels_enabled: team.channels_enabled,
+                  roles_enabled: team.roles_enabled,
+                  voice_enabled: team.voice_enabled,
+                  forum_channel_id: team.forum_channel_id,
+                  category_channel_id: team.category_channel_id,
+                  retention: team.retention,
+                  captain_config: team.captain_config,
+                }
+              : prev,
+          );
+        }
+        setCopyNote(
+          `Copied the settings from "${source.name}". Check them below, then save.`,
+        );
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't load that event's Discord settings."));
       }
     });
   };
@@ -608,6 +686,7 @@ export function EventDiscordSettings({
   const onSave = () => {
     setError(null);
     setSaved(false);
+    setCopyNote(null);
     startTransition(async () => {
       try {
         const cleaned = Object.fromEntries(
@@ -767,6 +846,43 @@ export function EventDiscordSettings({
               and ping settings stay on the shared (host) scope.
             </p>
           )}
+        </div>
+      )}
+
+      {scope === null && copySources && copySources.length > 0 && (
+        <div className="border-osrs-bronze/20 space-y-2 rounded border p-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block min-w-0 flex-1 text-sm sm:max-w-md">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+                Copy from another event
+              </span>
+              <select
+                value={copyFrom}
+                onChange={(e) => setCopyFrom(e.target.value)}
+                className={`${field} w-full`}
+              >
+                <option value="">Pick an event</option>
+                {copySources.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name} ({e.status})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={onCopyFrom}
+              disabled={!copyFrom || pending}
+              className="border-osrs-bronze/40 hover:border-osrs-gold hover:text-osrs-gold-bright rounded border px-3 py-2 text-sm disabled:opacity-50"
+            >
+              Copy settings
+            </button>
+          </div>
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            Fills in the server, channels, pings, message settings and team channel settings from
+            that event. Nothing changes until you save.
+          </p>
+          {copyNote && <p className="text-osrs-gold text-xs">{copyNote}</p>}
         </div>
       )}
 
