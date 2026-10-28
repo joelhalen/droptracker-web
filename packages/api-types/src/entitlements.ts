@@ -199,6 +199,7 @@ export const HALL_OF_FAME_CONFIG_KEYS = [
   "number_of_pbs_to_display",
   "channel_id_to_send_pb_embeds",
   "hof_individual_boss_messages",
+  "hof_group_awakened_bosses",
 ] as const;
 
 export function getEntitlementField(key: string): EntitlementField | undefined {
