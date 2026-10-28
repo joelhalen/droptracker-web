@@ -107,12 +107,12 @@ export const ENTITLEMENT_FIELDS: EntitlementField[] = [
   },
   {
     key: "ai_task_gen_daily",
-    label: "AI task generations / day",
+    label: "Task generations from text / day",
     category: "features",
-    help: "How many event tasks a group may generate per day by describing them in plain English (the 'try describing a task instead' panel in the task builder). 0 disables the feature for the tier.",
+    help: "How many event tasks a group may generate per day from a plain-text description (the 'try describing a task instead' panel in the task builder). 0 disables the feature for the tier.",
     kind: "int",
     unit: "per day",
-    default: 5,
+    default: 25,
   },
   {
     key: "custom_site",
