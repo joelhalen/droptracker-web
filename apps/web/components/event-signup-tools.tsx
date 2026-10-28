@@ -8,7 +8,7 @@ import type {
   EventSignupAllResult,
   EventTeam,
 } from "@droptracker/api-types";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import { Alert, Button, EmptyState, Input, Select } from "@/components/ui";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { formatGp, formatRelativeTime } from "@/lib/format";
@@ -21,6 +21,7 @@ import {
   removeEventSignup,
   signupAllEventMembers,
   unassignEventSignup,
+  updateGroupEvent,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 
 /** Compact inline <select> style for the per-row team assignment (kept small so
@@ -488,7 +489,61 @@ export function EventSignupTools({
   const canSignupAll =
     event.competition?.participation !== "whole_clan" &&
     (clanScopeId != null || event.group_id != null || clanVsClan);
-  const signupAllButton = canSignupAll ? (
+  // web152a: keep the roster equal to the clan. A clan's own events only;
+  // staff-hosted events pick each clan's roster by hand.
+  const [rosterSync, setRosterSync] = useState(event.roster_clan_sync ?? false);
+  useEffect(() => setRosterSync(event.roster_clan_sync ?? false), [event.roster_clan_sync]);
+  const canRosterSync = canSignupAll && clanScopeId == null && event.group_id != null;
+  const onRosterSync = (on: boolean) => {
+    if (
+      on &&
+      !window.confirm(
+        "Keep the roster synced to the clan? Every current clan member is entered now, anyone who joins the clan is added automatically, and anyone who leaves it is taken out. It checks about once a minute.",
+      )
+    )
+      return;
+    setError(null);
+    setNotice(null);
+    startTransition(async () => {
+      try {
+        unwrapActionResult(
+          await updateGroupEvent(groupId, eventId, { roster_clan_sync: on }),
+        );
+        setRosterSync(on);
+        setNotice(
+          on
+            ? "The roster now follows the clan. Members who join or leave are picked up within a minute or so."
+            : "The roster no longer follows the clan. Everyone already in stays in.",
+        );
+        refresh();
+      } catch (err) {
+        setError(getErrorMessage(err, "Couldn't change the roster sync."));
+      }
+    });
+  };
+  const rosterSyncToggle = canRosterSync ? (
+    <label
+      className="flex cursor-pointer items-start gap-2 text-sm"
+      title="Clan members are entered automatically and anyone who leaves the clan is taken out"
+    >
+      <input
+        type="checkbox"
+        checked={rosterSync}
+        disabled={pending || (!isPool && !isSolo && teams.length === 0)}
+        onChange={(e) => onRosterSync(e.target.checked)}
+        className="mt-0.5 size-4"
+      />
+      <span>
+        Always keep the roster synced to clan members
+        <span className="text-osrs-parchment-dark/60 block text-xs">
+          Members who join the clan are entered automatically and anyone who leaves is taken out.
+          Players removed by hand come back while they are still in the clan.
+        </span>
+      </span>
+    </label>
+  ) : null;
+
+  const signupAllButtonOnly = canSignupAll ? (
     <Button
       variant="secondary"
       size="sm"
@@ -507,6 +562,12 @@ export function EventSignupTools({
     >
       Sign up all clan members
     </Button>
+  ) : null;
+  const signupAllButton = signupAllButtonOnly ? (
+    <>
+      {signupAllButtonOnly}
+      {rosterSyncToggle}
+    </>
   ) : null;
 
   if (!selfSignup) {

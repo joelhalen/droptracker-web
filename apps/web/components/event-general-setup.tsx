@@ -60,6 +60,7 @@ const draftFromEvent = (event: EventDetail) => ({
   effortVisibility: event.effort_visibility,
   tasksVisibility: event.tasks_visibility,
   allowLateSignups: event.allow_late_signups,
+  teamChatTags: event.team_chat_tags,
   submissionPolicy: event.submission_policy,
   leadershipEnabled: event.leadership.enabled,
   coLeaders: event.leadership.co_leaders,
@@ -205,6 +206,7 @@ export function EventGeneralSetup({
           effort_visibility: draft.effortVisibility,
           tasks_visibility: draft.tasksVisibility,
           allow_late_signups: draft.allowLateSignups,
+          team_chat_tags: draft.teamChatTags,
           submission_policy: draft.submissionPolicy,
           leadership: {
             enabled: draft.leadershipEnabled,
@@ -341,6 +343,12 @@ export function EventGeneralSetup({
             help="Off by default: sign-ups close when the event begins and the Discord sign-up post drops its button. Turn this on to let latecomers join mid-event. You can still add players by hand either way."
           />
         )}
+        <Check
+          checked={draft.teamChatTags}
+          onChange={(v) => set("teamChatTags", v)}
+          label="Show team tags in clan chat"
+          help="Players using the RuneLite plugin see each teammate's team tag and colour next to their name in clan chat. Turn this off for free-for-all events, where every player is their own team."
+        />
 
         {/* Team leadership (web48a): leaders hold executive authority. On
             board-game events they trigger the rolls and run the shop. */}

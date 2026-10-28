@@ -10,6 +10,7 @@
  * theme-aware, animatable, and cheap to update live.
  */
 import type { EventTask, TaskTile, TaskTileIcon } from "@droptracker/api-types";
+import { metricIcon } from "@/lib/activity/img";
 
 // Relative so tile art stays same-origin wherever the board renders — www and
 // the Discord Activity host (activity.droptracker.io) both map /img/ in nginx;
@@ -40,7 +41,7 @@ function StopwatchOverlay() {
 export function tileIconUrl(icon: TaskTileIcon): string | null {
   if (icon.type === "skill") {
     // Metrics icons are keyed by lowercase WOM-style names (slayer, ehp, …).
-    return `${IMG_BASE}/metrics/${icon.name.toLowerCase().replace(/ /g, "_")}.png`;
+    return metricIcon(icon.name);
   }
   if (icon.id == null) return null;
   return `${IMG_BASE}/${icon.type === "item" ? "itemdb" : "npcdb"}/${icon.id}.png`;

@@ -5172,6 +5172,13 @@ export const EventSummarySchema = z.object({
    * moment the event begins — the Discord prompt drops its button and the
    * join panel stops offering to enter. ON keeps them open to the end. */
   allow_late_signups: z.boolean().default(false),
+  /** Clan roster sync (web152a): while on, the roster follows the clan —
+   * current members are entered automatically and anyone who leaves the clan
+   * is taken out (checked about once a minute). */
+  roster_clan_sync: z.boolean().default(false),
+  /** Clan-chat team tags (web152a): whether the RuneLite plugin badges
+   * teammates in clan chat. Off suits free-for-all events. */
+  team_chat_tags: z.boolean().default(true),
   /** Derived: is the sign-up window open right now? Prefer this over
    * re-deriving from status/allow_late_signups — the API is the authority
    * and it refuses joins on the same answer. */
@@ -5980,6 +5987,10 @@ export const EventInputSchema = z.object({
    * Off by default — sign-ups close at the start and the posted Discord
    * prompt retires its button then. */
   allow_late_signups: z.boolean().optional(),
+  /** web152a: keep the roster equal to the clan's members. */
+  roster_clan_sync: z.boolean().optional(),
+  /** web152a: badge teammates in clan chat (plugin). */
+  team_chat_tags: z.boolean().optional(),
   submission_policy: z.enum(EVENT_SUBMISSION_POLICIES).optional(),
   join_code: z.string().max(32).nullable().optional(),
   board_size: z.number().int().min(3).max(7).optional(),

@@ -2257,6 +2257,8 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
     // web70a: mock events keep sign-ups open so the join panel stays
     // exercisable in mock mode (a started event closes them otherwise).
     allow_late_signups: true,
+    roster_clan_sync: false,
+    team_chat_tags: true,
     signups_open: true,
     submission_policy: "all" as const,
     board_size: 5,

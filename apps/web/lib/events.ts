@@ -303,6 +303,7 @@ export const OSRS_SKILLS = [
   "Runecraft", "Hitpoints", "Crafting", "Mining", "Smithing", "Fishing",
   "Cooking", "Firemaking", "Woodcutting", "Agility", "Herblore",
   "Thieving", "Fletching", "Slayer", "Farming", "Construction", "Hunter",
+  "Sailing",
 ] as const;
 
 /** "2:30" ⇒ 150 seconds; also accepts "h:mm:ss" and plain seconds. */

@@ -315,14 +315,23 @@ export const eventTasksApi = {
    * names are simply absent from the response. */
   async resolveEventMeta(kind: "item" | "npc", names: string[]): Promise<EventMetaEntry[]> {
     if (!names.length) return [];
-    const q = new URLSearchParams({ kind, names: names.slice(0, 100).join("|") });
-    return withFallback(
-      async () =>
-        EventMetaEntrySchema.array().parse(
-          await apiGet(`/events/meta/resolve?${q}`, { authed: true }),
-        ),
-      () => [],
+    // A task holds up to 250 items; batch the lookup so the query string
+    // stays a sensible length.
+    const chunks: string[][] = [];
+    for (let i = 0; i < Math.min(names.length, 250); i += 100) chunks.push(names.slice(i, Math.min(i + 100, 250)));
+    const pages = await Promise.all(
+      chunks.map((chunk) => {
+        const q = new URLSearchParams({ kind, names: chunk.join("|") });
+        return withFallback(
+          async () =>
+            EventMetaEntrySchema.array().parse(
+              await apiGet(`/events/meta/resolve?${q}`, { authed: true }),
+            ),
+          () => [],
+        );
+      }),
     );
+    return pages.flat();
   },
 
 

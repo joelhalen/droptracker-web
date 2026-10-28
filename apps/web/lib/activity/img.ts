@@ -9,8 +9,13 @@
  */
 export const itemIcon = (id: number): string => `/img/itemdb/${id}.png`;
 export const npcIcon = (id: number): string => `/img/npcdb/${id}.png`;
-export const metricIcon = (name: string): string =>
-  `/img/metrics/${name.toLowerCase().replace(/ /g, "_")}.png`;
+// Metrics art is named after WOM's metric keys, which differ from the in-game
+// skill name in one place: RuneLite says "Runecraft", WOM says "runecrafting".
+const METRIC_ALIASES: Record<string, string> = { runecraft: "runecrafting" };
+export const metricIcon = (name: string): string => {
+  const key = name.toLowerCase().replace(/ /g, "_");
+  return `/img/metrics/${METRIC_ALIASES[key] ?? key}.png`;
+};
 
 /** Discord CDN avatar for a user; deterministic default when they have none. */
 export function discordAvatar(userId: string, hash: string | null | undefined, size = 64): string {

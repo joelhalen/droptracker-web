@@ -193,6 +193,8 @@ export async function updateGroupEvent(
       | "effort_visibility"
       | "tasks_visibility"
       | "allow_late_signups"
+      | "roster_clan_sync"
+      | "team_chat_tags"
       | "submission_policy"
       | "bonus_line_points"
       | "bonus_blackout_points"
