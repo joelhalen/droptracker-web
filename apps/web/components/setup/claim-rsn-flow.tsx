@@ -140,7 +140,7 @@ export function ClaimRsnFlow({
             >
               DropTracker RuneLite plugin
             </button>{" "}
-            and receive some loot in-game — then come back and claim it.
+            and receive some loot in-game, then come back and claim it.
           </span>
         </Alert>
       )}
@@ -170,7 +170,7 @@ export function ClaimRsnFlow({
           <span>
             <strong>{shownName}</strong> is already linked to your account, so claiming it
             again won&apos;t change anything. If your drops are tracked here but never post
-            in your clan&apos;s Discord, that isn&apos;t what claiming controls — clan
+            in your clan&apos;s Discord, that isn&apos;t what claiming controls. Clan
             channels post for the members of the clan&apos;s{" "}
             <button
               type="button"
@@ -179,7 +179,7 @@ export function ClaimRsnFlow({
             >
               Wise Old Man group
             </button>
-            . Ask a clan leader to add <strong>{shownName}</strong> there — we re-sync every
+            . Ask a clan leader to add <strong>{shownName}</strong> there. We re-sync every
             hour, so posting starts within an hour of them adding you.
           </span>
         </Alert>
@@ -187,7 +187,7 @@ export function ClaimRsnFlow({
 
       {!checking && status === "claimable" && preview && (
         <p className="text-osrs-green text-sm">
-          Found <strong>{preview.player?.name}</strong> — unclaimed and ready to link.
+          Found <strong>{preview.player?.name}</strong>. It&apos;s unclaimed and ready to link.
           {preview.group ? (
             <>
               {" "}
