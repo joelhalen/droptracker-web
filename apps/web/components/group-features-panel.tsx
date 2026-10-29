@@ -12,7 +12,7 @@ import { useState } from "react";
 import type { GroupFeatures } from "@droptracker/api-types";
 import { enableWizardFeature } from "@/app/(site)/(admin)/groups/new/actions";
 import { Card } from "@/components/ui";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 
 const linkBtn =
   "border-osrs-bronze/50 hover:bg-osrs-bronze/30 shrink-0 rounded border px-2.5 py-1 text-xs font-medium";
@@ -31,8 +31,8 @@ export function GroupFeaturesPanel({ groupId, data }: { groupId: number; data: G
     setBusy(key);
     setError(null);
     try {
-      const res = await enableWizardFeature(groupId, key);
-      setFeatures((prev) => prev.map((f) => (f.key === key ? (res?.feature ?? { ...f, status: "on" }) : f)));
+      const res = unwrapActionResult(await enableWizardFeature(groupId, key)).data;
+      setFeatures((prev) => prev.map((f) => (f.key === key ? (res.feature ?? { ...f, status: "on" }) : f)));
     } catch (err) {
       setError(getErrorMessage(err, "Couldn't switch that on."));
     } finally {

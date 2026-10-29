@@ -168,6 +168,9 @@ export function GroupSetupWizard({
   const [guideState, setGuideState] = useState<"idle" | "posting" | "posted">("idle");
 
   const [error, setError] = useState<string | null>(null);
+  // POST /groups refused the server as not managed by the caller (ticket 503):
+  // offer the sign-in refresh next to the error.
+  const [notManagedError, setNotManagedError] = useState(false);
 
   const persist = useCallback(
     (idx: number) => env.persistStep?.({ groupId: createdGroupIdRef.current, step: idx }),
@@ -178,6 +181,7 @@ export function GroupSetupWizard({
     (idx: number) => {
       const next = clampStep(idx);
       setError(null);
+      setNotManagedError(false);
       setStepIdx(next);
       persist(next);
     },
@@ -324,9 +328,13 @@ export function GroupSetupWizard({
       setStepIdx(3);
       env.persistStep?.({ groupId: res.id, step: 3 });
     } catch (err) {
+      const message = getErrorMessage(err, "Couldn't create the group. Please try again.");
+      const notManaged = /do not manage/i.test(message);
+      setNotManagedError(notManaged);
       setError(
-        getErrorMessage(err, "Couldn't create the group. Please try again.") +
-          " If this mentions an existing group, use Back to adjust the server or WOM steps.",
+        /already/i.test(message)
+          ? `${message} Use Back to pick a different server or Wise Old Man group.`
+          : message,
       );
     } finally {
       setCreating(false);
@@ -460,6 +468,13 @@ export function GroupSetupWizard({
     [serverReady, womReady, created, dropsSaved, featuresOn],
   );
 
+  // A pasted server id that isn't in the caller's server list. POST /groups
+  // will refuse it (unless they're staff): the list is captured at Discord
+  // sign-in, so a server created or joined since is missing until they sign in
+  // again (ticket 503).
+  const guildNotInList =
+    !launchGuild && guilds !== null && Boolean(guildId) && !guilds.some((g) => g.id === guildId);
+
   const guildDisplayName =
     launchGuild?.name ??
     guilds?.find((g) => g.id === guildId)?.name ??
@@ -496,7 +511,16 @@ export function GroupSetupWizard({
 
       <p className="text-osrs-parchment-dark/70 text-sm">{step.blurb}</p>
 
-      {error && <Alert variant="error">{error}</Alert>}
+      {error && (
+        <Alert variant="error">
+          <span className="block">{error}</span>
+          {notManagedError && env.refreshGuilds && (
+            <button type="button" className="text-osrs-gold-bright mt-2 underline" onClick={env.refreshGuilds}>
+              Refresh my server list
+            </button>
+          )}
+        </Alert>
+      )}
 
       {/* ── Step 1: Discord server ─────────────────────────────────────── */}
       {step.key === "server" && (
@@ -579,6 +603,19 @@ export function GroupSetupWizard({
 
           {guildId && (
             <div className="space-y-2">
+              {guildNotInList && (
+                <Alert variant="info">
+                  <span className="block">
+                    This server isn&apos;t in your server list, so we can&apos;t confirm you can manage
+                    it. If you created it or got Manage Server after signing in, refresh your list.
+                  </span>
+                  {env.refreshGuilds && (
+                    <button type="button" className="text-osrs-gold-bright mt-2 underline" onClick={env.refreshGuilds}>
+                      Refresh my server list
+                    </button>
+                  )}
+                </Alert>
+              )}
               {checkingGuild && !polling && (
                 <p className="text-osrs-parchment-dark/60 text-sm">Checking {guildDisplayName}…</p>
               )}

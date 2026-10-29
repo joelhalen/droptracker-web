@@ -60,6 +60,9 @@ export type SetupEnv = {
    * history.replaceState (the events-wizard trick). Activity: undefined — the
    * iframe URL belongs to Discord's proxy. */
   persistStep?: (pos: { groupId: number | null; step: number }) => void;
+  /** Re-fetch the caller's Discord server list. Site: sign in again (the list
+   * is captured at sign-in). Activity: undefined (its launch guild is known). */
+  refreshGuilds?: () => void;
 };
 
 /** Transport for the group-setup wizard. */

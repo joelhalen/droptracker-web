@@ -21,6 +21,7 @@ import {
   postWizardMemberGuide,
   saveWizardConfig,
 } from "@/app/(site)/(admin)/groups/new/actions";
+import { unwrapActionResult } from "@/lib/errors";
 import { GroupSetupWizard } from "./group-setup-wizard";
 import type { GroupSetupClient, SetupEnv } from "./ports";
 
@@ -33,28 +34,28 @@ export function SiteGroupSetup({
 }) {
   const router = useRouter();
 
-  const client = useMemo<GroupSetupClient>(
-    () => ({
-      manageableGuilds: () => fetchManageableGuilds(),
-      guildStatus: (guildId, opts) => checkGuild(guildId, opts),
-      botInvite: () => fetchBotInvite(),
-      lookupWom: (womId) => lookupWom(womId),
-      createGroup: async (input) => {
-        const res = await createGroup(input);
-        return { id: res.id, verification_code: res.verification_code };
-      },
-      listChannels: (groupId) => fetchWizardChannels(groupId),
+  // Actions return { ok, message } instead of throwing (production redacts
+  // thrown Server Action errors); unwrap rethrows here, where it survives.
+  const client = useMemo<GroupSetupClient>(() => {
+    const data = async <T,>(p: Promise<{ ok: true; data: T } | { ok: false; message: string }>) =>
+      unwrapActionResult(await p).data;
+    return {
+      manageableGuilds: () => data(fetchManageableGuilds()),
+      guildStatus: (guildId, opts) => data(checkGuild(guildId, opts)),
+      botInvite: () => data(fetchBotInvite()),
+      lookupWom: (womId) => data(lookupWom(womId)),
+      createGroup: (input) => data(createGroup(input)),
+      listChannels: (groupId) => data(fetchWizardChannels(groupId)),
       saveConfig: async (groupId, patch) => {
-        await saveWizardConfig(groupId, patch);
+        await data(saveWizardConfig(groupId, patch));
       },
-      listFeatures: async (groupId) => (await fetchWizardFeatures(groupId))!,
-      enableFeature: async (groupId, key, channelId) => (await enableWizardFeature(groupId, key, channelId))!,
+      listFeatures: (groupId) => data(fetchWizardFeatures(groupId)),
+      enableFeature: (groupId, key, channelId) => data(enableWizardFeature(groupId, key, channelId)),
       postMemberGuide: async (groupId, channelId) => {
-        await postWizardMemberGuide(groupId, channelId);
+        await data(postWizardMemberGuide(groupId, channelId));
       },
-    }),
-    [],
-  );
+    };
+  }, []);
 
   const env = useMemo<SetupEnv>(
     () => ({
@@ -62,6 +63,11 @@ export function SiteGroupSetup({
       openLink: (url) => window.open(url, "_blank", "noopener"),
       goToGroup: (groupId, opts) =>
         router.push(opts?.admin ? `/groups/${groupId}/admin` : `/groups/${groupId}`),
+      // The server list comes from the Discord sign-in, so signing in again is
+      // what refreshes it (servers created or joined since then are missing).
+      refreshGuilds: () => {
+        window.location.href = `/api/auth/login?redirect=${encodeURIComponent("/groups/new")}`;
+      },
       persistStep: ({ groupId, step }) => {
         const params = new URLSearchParams();
         if (groupId != null) params.set("group", String(groupId));
