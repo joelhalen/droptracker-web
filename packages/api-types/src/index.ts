@@ -3376,6 +3376,84 @@ export const AdminApiKeyListSchema = z.object({
 });
 export type AdminApiKeyList = z.infer<typeof AdminApiKeyListSchema>;
 
+// ── Discord delivery relay (web153a) ───────────────────────────────────────
+// A group's own Discord bot posts DropTracker's messages in its server. Staff
+// only for now; see disc services/discord_relay_core.py.
+
+export const DiscordRelayFeatures = ["events", "notifications"] as const;
+export type DiscordRelayFeature = (typeof DiscordRelayFeatures)[number];
+export const DiscordRelayStatuses = ["active", "paused"] as const;
+export type DiscordRelayStatus = (typeof DiscordRelayStatuses)[number];
+
+/** Live counters from Redis. Counters are strings there; absent until used. */
+export const DiscordRelayStatsSchema = z
+  .object({
+    pending: z.number().int().default(0),
+    leased: z.number().int().default(0),
+    sent: z.coerce.number().int().optional(),
+    failed: z.coerce.number().int().optional(),
+    expired: z.coerce.number().int().optional(),
+    retried: z.coerce.number().int().optional(),
+    /** Unix seconds. */
+    last_poll: z.coerce.number().int().optional(),
+    last_ack: z.coerce.number().int().optional(),
+  })
+  .passthrough();
+export type DiscordRelayStats = z.infer<typeof DiscordRelayStatsSchema>;
+
+export const DiscordRelayIntegrationSchema = z.object({
+  id: z.number().int(),
+  group_id: z.number().int(),
+  group_name: z.string().nullable().optional(),
+  label: z.string(),
+  application_id: z.string().nullable(),
+  guild_ids: z.string().array(),
+  features: z.enum(DiscordRelayFeatures).array(),
+  status: z.enum(DiscordRelayStatuses),
+  hold_minutes: z.number().int(),
+  notes: z.string().nullable(),
+  created_at: z.string().nullable(),
+  updated_at: z.string().nullable(),
+  api_key: z
+    .object({
+      id: z.number().int(),
+      display: z.string(),
+      revoked: z.boolean(),
+      last_used_at: z.string().nullable(),
+    })
+    .nullable(),
+  stats: DiscordRelayStatsSchema.optional(),
+  /** Present on create / rotate-key ONLY, and never again. */
+  token: z.string().optional(),
+  warning: z.string().optional(),
+});
+export type DiscordRelayIntegration = z.infer<typeof DiscordRelayIntegrationSchema>;
+
+export const DiscordRelayListSchema = z.object({
+  integrations: DiscordRelayIntegrationSchema.array(),
+  features: z.string().array(),
+});
+export type DiscordRelayList = z.infer<typeof DiscordRelayListSchema>;
+
+export const DiscordRelayLogEntrySchema = z
+  .object({
+    id: z.number().int(),
+    op: z.string(),
+    status: z.string(),
+    channel_id: z.string(),
+    ref: z.string().nullable().optional(),
+    error: z.string().nullable().optional(),
+    at: z.number().int(),
+  })
+  .passthrough();
+export type DiscordRelayLogEntry = z.infer<typeof DiscordRelayLogEntrySchema>;
+
+export const DiscordRelayLogSchema = z.object({
+  entries: DiscordRelayLogEntrySchema.array(),
+  stats: DiscordRelayStatsSchema,
+});
+export type DiscordRelayLog = z.infer<typeof DiscordRelayLogSchema>;
+
 /** One key's spend over the usage window. */
 export const ApiKeyUsageSchema = z.object({
   key_id: z.number().int(),
