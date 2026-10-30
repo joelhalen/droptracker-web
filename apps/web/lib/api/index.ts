@@ -38,6 +38,7 @@ import { groupPointsApi } from "./group-points";
 import { subscriptionsApi } from "./subscriptions";
 import { layoutsApi } from "./layouts";
 import { adminApi } from "./admin";
+import { discordRelayApi } from "./discord-relay";
 import { badgesApi } from "./badges";
 import { adminDashboardApi } from "./admin-dashboard";
 import { supportApi } from "./support";
@@ -53,6 +54,7 @@ import { rankRolesApi } from "./rank-roles";
 
 export const api = {
   ...leaderboardsApi,
+  ...discordRelayApi,
   ...dataRemovalApi,
   ...playersApi,
   ...sitesApi,
