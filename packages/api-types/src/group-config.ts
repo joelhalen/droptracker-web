@@ -212,7 +212,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // (backend column `groups.group_name`, VARCHAR(30)). Saving it renames the
   // group everywhere: profile, leaderboards, search, Discord embeds, pretty URL.
   { key: "group_name", label: "Group name", category: "profile", type: "string", help: "Display name of the group. Renaming updates it everywhere — group page, leaderboards, search and Discord messages.", default: "", maxLength: 30 },
-  { key: "group_description", label: "Description", category: "profile", type: "text", help: "Short description shown on the public group page.", default: "" },
+  { key: "group_description", label: "Description", category: "profile", type: "text", help: "Short description shown on the public group page.", default: "", maxLength: 255 },
   { key: "discord_url", label: "Discord invite URL", category: "profile", type: "string", help: "Public Discord invite shown on the group page.", default: "" },
   { key: "auto_set_member_nicknames", label: "Set member nicknames to their RSN", category: "profile", type: "boolean", help: "Sets members' server nicknames to their claimed RuneScape name. Turning this on renames everyone in this group who has already claimed an account, and anyone who claims one later (with /claim-rsn or on the website) is renamed as they do. The bot needs the Manage Nicknames permission, and its role must sit above the member's highest role. It can't rename the server owner.", default: false },
 
