@@ -447,7 +447,10 @@ export const WOM_LINK_PROBLEM_COPY: Record<string, string> = {
     "That's a team competition — switch this race to Teams to mirror it, or pick an individual one.",
   classic_competition:
     "That's an individual competition — a team race mirrors a WiseOldMan team competition.",
-  multi_metric: "That competition tracks several metrics at once, which DropTracker can't mirror yet.",
+  multi_metric:
+    "That competition tracks several skills. A Skill of the Week races one skill, so pick a single-skill competition.",
+  weighted_metrics:
+    "That competition gives its bosses different weights. A DropTracker race counts every kill the same, so the standings wouldn't match.",
   unsupported_metric: "That competition's metric isn't a skill or boss KC race.",
   metric_kind_mismatch: "That competition tracks a different kind of metric — switch the event format or pick another competition.",
   finished: "That competition already ended — pick one that's upcoming or still running.",

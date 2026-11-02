@@ -1617,19 +1617,42 @@ export async function previewWomCompetition(
   }
 }
 
+/** A WOM link/create the backend paused because some of the race's bosses
+ * aren't on the WiseOldMan hiscores: the organiser picks between running on
+ * DropTracker alone and going ahead with the bosses WOM tracks. */
+export type WomPartialBosses = { supported: string[]; unsupported: string[] };
+
+function womActionError(err: ApiError) {
+  const problem = err.problem ?? {};
+  const strings = (v: unknown) =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+  return {
+    ok: false as const,
+    message: err.message,
+    partial:
+      apiErrorCode(err) === "wom_partial_bosses"
+        ? ({
+            supported: strings(problem.supported),
+            unsupported: strings(problem.unsupported),
+          } satisfies WomPartialBosses)
+        : null,
+  };
+}
+
 /** Attach an existing WOM competition to a draft event (source: linked). */
 export async function linkWomCompetition(
   groupId: EventGroupId,
   eventId: number,
   competitionId: number | string,
+  opts: { allowPartial?: boolean } = {},
 ) {
   await assertCanManageEvent(groupId);
   try {
-    const event = await api.linkWomCompetition(eventId, competitionId);
+    const event = await api.linkWomCompetition(eventId, competitionId, opts);
     revalidatePath(eventAdminPath(groupId, eventId));
     return { ok: true as const, event };
   } catch (err) {
-    if (err instanceof ApiError) return { ok: false as const, message: err.message };
+    if (err instanceof ApiError) return womActionError(err);
     throw err;
   }
 }
@@ -1649,14 +1672,18 @@ export async function unlinkWomCompetition(groupId: EventGroupId, eventId: numbe
 }
 
 /** Create the WOM competition for a draft event (source: created). */
-export async function createWomCompetitionForEvent(groupId: EventGroupId, eventId: number) {
+export async function createWomCompetitionForEvent(
+  groupId: EventGroupId,
+  eventId: number,
+  opts: { allowPartial?: boolean } = {},
+) {
   await assertCanManageEvent(groupId);
   try {
-    const event = await api.createWomCompetition(eventId);
+    const event = await api.createWomCompetition(eventId, opts);
     revalidatePath(eventAdminPath(groupId, eventId));
     return { ok: true as const, event };
   } catch (err) {
-    if (err instanceof ApiError) return { ok: false as const, message: err.message };
+    if (err instanceof ApiError) return womActionError(err);
     throw err;
   }
 }

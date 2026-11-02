@@ -48,6 +48,7 @@ import {
   searchEventNpcs,
   unlinkWomCompetition,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
+import type { WomPartialBosses } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 
 const field =
   "w-full rounded border border-osrs-bronze/40 bg-osrs-brown-dark/60 px-2.5 py-1.5 text-sm text-osrs-parchment placeholder:text-osrs-parchment-dark/40 focus:border-osrs-gold focus:outline-none";
@@ -172,6 +173,9 @@ export function CompetitionSetup({
   const wom = event?.competition?.wom ?? null;
   const sourceMode = event?.competition?.source_mode ?? "hosted";
   const linked = Boolean(wom);
+  // A linked race follows WOM's metric; a race DropTracker created on WOM can
+  // change it here (the save sends it out).
+  const metricLocked = linked && sourceMode !== "created";
   const isBoss = kind === "botw";
 
   const patch = (p: Partial<EventCompetitionInput>) => onChange({ ...value, ...p });
@@ -210,11 +214,14 @@ export function CompetitionSetup({
   }, [npcQuery, isBoss, groupId]);
 
   const npcs = value.npcs ?? [];
-  const addNpc = (name: string) => {
+  // A boss WOM doesn't track, added while the race mirrors a WOM competition.
+  const [pluginOnlyNotice, setPluginOnlyNotice] = useState<string | null>(null);
+  const addNpc = (name: string, womMetric?: string | null) => {
     if (npcs.includes(name) || npcs.length >= 10) return;
     patch({ npcs: [...npcs, name] });
     setNpcQuery("");
     setNpcResults([]);
+    setPluginOnlyNotice(womMetric == null && linked ? name : null);
   };
   const removeNpc = (name: string) => {
     patch({
@@ -258,25 +265,39 @@ export function CompetitionSetup({
         );
       } else if (res.preview.mappable) {
         // Pre-fill the metric from the competition so link-first flows don't
-        // bounce off the backend's metric-consistency check.
+        // bounce off the backend's metric-consistency check. Bosses already
+        // on the race stay: the backend names any that don't match.
         const m = res.preview.mappable;
         if (kind === "sotw" && m.skill) patch({ metric: { key: m.skill } });
-        if (kind === "botw" && m.npc && !npcs.includes(m.npc)) patch({ npcs: [m.npc] });
+        if (kind === "botw") {
+          const names = (m.npcs?.map((b) => b.name) ?? [m.npc]).filter(
+            (n): n is string => !!n,
+          );
+          const missing = names.filter((n) => !npcs.includes(n));
+          if (missing.length) patch({ npcs: [...npcs, ...missing].slice(0, 10) });
+        }
       }
     });
 
-  const onLink = () =>
+  // Some bosses aren't on WOM: the organiser decides how to go on.
+  const [partial, setPartial] = useState<
+    (WomPartialBosses & { action: "link" | "create" }) | null
+  >(null);
+
+  const onLink = (allowPartial = false) =>
     startTransition(async () => {
       if (!event || !preview) return;
       setError(null);
+      setPartial(null);
       const saved = await onSaveDraft(value);
       if (!saved.ok) {
         setError(saved.message);
         return;
       }
-      const res = await linkWomCompetition(groupId, event.id, preview.id);
+      const res = await linkWomCompetition(groupId, event.id, preview.id, { allowPartial });
       if (!res.ok) {
-        setError(res.message);
+        if (res.partial) setPartial({ ...res.partial, action: "link" });
+        else setError(res.message);
         return;
       }
       onEventUpdated(res.event);
@@ -296,18 +317,20 @@ export function CompetitionSetup({
       onEventUpdated(res.event);
     });
 
-  const onCreateOnWom = () =>
+  const onCreateOnWom = (allowPartial = false) =>
     startTransition(async () => {
       if (!event) return;
       setError(null);
+      setPartial(null);
       const saved = await onSaveDraft(value);
       if (!saved.ok) {
         setError(saved.message);
         return;
       }
-      const res = await createWomCompetitionForEvent(groupId, event.id);
+      const res = await createWomCompetitionForEvent(groupId, event.id, { allowPartial });
       if (!res.ok) {
-        setError(res.message);
+        if (res.partial) setPartial({ ...res.partial, action: "create" });
+        else setError(res.message);
         return;
       }
       onEventUpdated(res.event);
@@ -386,13 +409,20 @@ export function CompetitionSetup({
       )}
 
       {/* ---- Metric ------------------------------------------------------- */}
-      <fieldset className="space-y-2" disabled={disabled || linked}>
+      <fieldset className="space-y-2" disabled={disabled || metricLocked}>
         <legend className="text-osrs-gold text-sm font-semibold">
           {isBoss ? "Which boss?" : "Which skill?"}
         </legend>
-        {linked && (
+        {metricLocked && (
           <p className="text-osrs-parchment-dark/50 text-xs">
-            The metric follows the linked WiseOldMan competition — unlink to change it.
+            {isBoss ? "The bosses follow" : "The skill follows"} the linked WiseOldMan
+            competition. Unlink it to change {isBoss ? "them" : "it"}.
+          </p>
+        )}
+        {linked && !metricLocked && (
+          <p className="text-osrs-parchment-dark/50 text-xs">
+            Changes to the {isBoss ? "bosses" : "skill"} are sent to the WiseOldMan
+            competition when you save.
           </p>
         )}
         {!isBoss && (
@@ -433,7 +463,7 @@ export function CompetitionSetup({
                     className="border-osrs-gold/60 bg-osrs-brown-dark/60 text-osrs-parchment flex items-center gap-1.5 rounded border px-2 py-1 text-xs"
                   >
                     {n}
-                    {!disabled && !linked && (
+                    {!disabled && !metricLocked && (
                       <button
                         type="button"
                         onClick={() => removeNpc(n)}
@@ -459,7 +489,7 @@ export function CompetitionSetup({
                   <li key={`${r.id}-${r.name}`}>
                     <button
                       type="button"
-                      onClick={() => addNpc(r.name)}
+                      onClick={() => addNpc(r.name, r.wom_metric)}
                       className="hover:bg-osrs-brown-dark flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left"
                     >
                       <span className="text-osrs-parchment">{r.name}</span>
@@ -473,11 +503,18 @@ export function CompetitionSetup({
                 ))}
               </ul>
             )}
+            {pluginOnlyNotice && (
+              <p className="text-osrs-gold-bright/90 text-xs">
+                WiseOldMan doesn&apos;t track {pluginOnlyNotice}, so DropTracker counts it
+                from the RuneLite plugin and the WiseOldMan standings won&apos;t include
+                it.
+              </p>
+            )}
             <p className="text-osrs-parchment-dark/50 text-xs">
               List several bosses and a kill of any of them counts toward the one race.
               A boss that isn&apos;t on the WiseOldMan hiscores still tracks through the
-              RuneLite plugin — but only single, WOM-ranked bosses can link or create a
-              WOM competition.
+              RuneLite plugin. A WiseOldMan competition can cover every boss it tracks,
+              and DropTracker counts the rest.
             </p>
           </div>
         )}
@@ -486,6 +523,50 @@ export function CompetitionSetup({
       {/* ---- Source ------------------------------------------------------- */}
       <fieldset className="space-y-2" disabled={disabled}>
         <legend className="text-osrs-gold text-sm font-semibold">Where does it run?</legend>
+        {partial && (
+          <div
+            role="alert"
+            className="border-osrs-gold/60 bg-osrs-brown-dark/60 space-y-2 rounded border p-3 text-sm"
+          >
+            <p className="text-osrs-parchment">
+              WiseOldMan doesn&apos;t track {partial.unsupported.join(", ")}.
+            </p>
+            <p className="text-osrs-parchment-dark/70 text-xs">
+              You can run this race on DropTracker alone, or{" "}
+              {partial.action === "link" ? "link the competition" : "create the competition"}{" "}
+              for the {partial.supported.length} boss
+              {partial.supported.length === 1 ? "" : "es"} WiseOldMan tracks (
+              {partial.supported.join(", ")}). DropTracker then counts{" "}
+              {partial.unsupported.join(", ")} from the RuneLite plugin, and the
+              WiseOldMan standings won&apos;t include{" "}
+              {partial.unsupported.length === 1 ? "it" : "them"}.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  partial.action === "link" ? onLink(true) : onCreateOnWom(true)
+                }
+                disabled={pending}
+                className="border-osrs-gold text-osrs-gold-bright hover:bg-osrs-brown-dark rounded border px-3 py-1 text-sm"
+              >
+                {partial.action === "link" ? "Link" : "Create"} with{" "}
+                {partial.supported.length} boss{partial.supported.length === 1 ? "" : "es"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPartial(null);
+                  setPreview(null);
+                }}
+                disabled={pending}
+                className="border-osrs-bronze/50 text-osrs-parchment hover:border-osrs-gold rounded border px-3 py-1 text-sm"
+              >
+                Run on DropTracker only
+              </button>
+            </div>
+          </div>
+        )}
         {linked ? (
           <div className="border-osrs-bronze/30 bg-osrs-brown-dark/40 space-y-1.5 rounded border p-3 text-sm">
             <p className="text-osrs-parchment">
@@ -590,7 +671,7 @@ export function CompetitionSetup({
                   {preview.linkable && event && (
                     <button
                       type="button"
-                      onClick={onLink}
+                      onClick={() => onLink()}
                       disabled={pending}
                       className="border-osrs-gold text-osrs-gold-bright hover:bg-osrs-brown-dark mt-1 rounded border px-3 py-1 text-sm"
                     >
@@ -612,7 +693,7 @@ export function CompetitionSetup({
               {readiness?.can_create ? (
                 <button
                   type="button"
-                  onClick={onCreateOnWom}
+                  onClick={() => onCreateOnWom()}
                   disabled={pending || disabled || !event}
                   className="border-osrs-bronze/50 text-osrs-parchment hover:border-osrs-gold rounded border px-3 py-1.5 text-sm disabled:opacity-50"
                 >
@@ -628,16 +709,16 @@ export function CompetitionSetup({
               {readiness?.can_create && raceFormat !== "teams" && (
                 <p className="text-osrs-parchment-dark/50 text-xs">
                   One click makes the matching WOM competition, keeps it in sync, and
-                  deletes it if you discard the draft. Single WOM-ranked boss / one skill
-                  only.
+                  deletes it if you discard the draft. It covers every boss WiseOldMan
+                  tracks, or the one skill.
                 </p>
               )}
               {readiness?.can_create && raceFormat === "teams" && (
                 <p className="text-osrs-parchment-dark/50 text-xs">
                   Makes a WiseOldMan team competition from your teams — put at least one
                   player on a team first, and keep team names to 30 characters. Roster
-                  changes after that are sent to WiseOldMan automatically. Single
-                  WOM-ranked boss / one skill only.
+                  changes after that are sent to WiseOldMan automatically. It covers
+                  every boss WiseOldMan tracks, or the one skill.
                 </p>
               )}
             </div>

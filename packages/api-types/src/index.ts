@@ -3168,6 +3168,8 @@ export const WomCompetitionPreviewSchema = z.object({
   title: z.string().nullable(),
   url: z.string(),
   metric: z.string().nullable(),
+  /** Every WOM metric the competition measures (several on a multi-boss comp). */
+  metrics: z.array(z.string()).default([]),
   metric_kind: z.enum(["skill", "boss"]).nullable(),
   multi_metric: z.boolean(),
   type: z.string().nullable(),
@@ -3183,7 +3185,7 @@ export const WomCompetitionPreviewSchema = z.object({
     .default([]),
   linkable: z.boolean(),
   /** Machine reasons it can't back the event (team_competition,
-   * classic_competition, multi_metric, unsupported_metric,
+   * classic_competition, multi_metric, weighted_metrics, unsupported_metric,
    * metric_kind_mismatch, finished, already_linked). */
   problems: z.array(z.string()).default([]),
   linked_event_id: z.number().int().nullable(),
@@ -3194,6 +3196,17 @@ export const WomCompetitionPreviewSchema = z.object({
       skill: z.string().nullable().optional(),
       npc: z.string().nullable().optional(),
       npc_id: z.number().int().nullable().optional(),
+      /** Every boss of the competition (first one = `npc`). `name` is null
+       * when no DropTracker NPC matched the WOM metric. */
+      npcs: z
+        .array(
+          z.object({
+            slug: z.string(),
+            name: z.string().nullable(),
+            npc_id: z.number().int().nullable(),
+          }),
+        )
+        .optional(),
       display: z.string().nullable().optional(),
     })
     .nullable(),

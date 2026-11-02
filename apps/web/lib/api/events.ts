@@ -648,12 +648,17 @@ export const eventsApi = {
   },
 
   /** Attach an existing WOM competition to a draft event (source: linked). */
-  async linkWomCompetition(eventId: number, competitionId: number | string): Promise<EventDetail> {
+  async linkWomCompetition(
+    eventId: number,
+    competitionId: number | string,
+    opts: { allowPartial?: boolean } = {},
+  ): Promise<EventDetail> {
     return withFallback(
       async () =>
         EventDetailSchema.parse(
           await apiSend("POST", `/events/${eventId}/competition/wom-link`, {
             competition_id: competitionId,
+            ...(opts.allowPartial ? { allow_partial: true } : {}),
           }),
         ),
       () => mockEvent(eventId),
@@ -671,12 +676,21 @@ export const eventsApi = {
     );
   },
 
-  /** Create the WOM competition for a draft event (source: created). */
-  async createWomCompetition(eventId: number): Promise<EventDetail> {
+  /** Create the WOM competition for a draft event (source: created).
+   * `allowPartial`: the organiser agreed that bosses WOM doesn't track are
+   * counted by DropTracker alone. */
+  async createWomCompetition(
+    eventId: number,
+    opts: { allowPartial?: boolean } = {},
+  ): Promise<EventDetail> {
     return withFallback(
       async () =>
         EventDetailSchema.parse(
-          await apiSend("POST", `/events/${eventId}/competition/wom-create`, {}),
+          await apiSend(
+            "POST",
+            `/events/${eventId}/competition/wom-create`,
+            opts.allowPartial ? { allow_partial: true } : {},
+          ),
         ),
       () => mockEvent(eventId),
     );

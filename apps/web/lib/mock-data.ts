@@ -5074,6 +5074,7 @@ export function mockWomCompetitionPreview(query: string): WomCompetitionPreview 
     title: "Zulrah Blitz",
     url: `https://wiseoldman.net/competitions/${id ?? 90210}`,
     metric: "zulrah",
+    metrics: ["zulrah"],
     metric_kind: "boss",
     multi_metric: false,
     type: "classic",
