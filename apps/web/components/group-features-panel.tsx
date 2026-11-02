@@ -5,6 +5,9 @@
  * as the setup wizard's "Turn things on" step and the Discord /group-setup
  * panel (disc/db/group_features.py). Toggle features switch on in place;
  * everything else links to the page that sets it up.
+ *
+ * Collapsible, but the choice is deliberately not remembered: it opens again
+ * on every visit, so admins keep being reminded of what they haven't tried.
  */
 import type { Route } from "next";
 import Link from "next/link";
@@ -21,6 +24,7 @@ export function GroupFeaturesPanel({ groupId, data }: { groupId: number; data: G
   const [features, setFeatures] = useState(data.features);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(true);
 
   const off = features.filter((f) => f.status === "off");
   const locked = features.filter((f) => f.status === "locked");
@@ -32,7 +36,9 @@ export function GroupFeaturesPanel({ groupId, data }: { groupId: number; data: G
     setError(null);
     try {
       const res = unwrapActionResult(await enableWizardFeature(groupId, key)).data;
-      setFeatures((prev) => prev.map((f) => (f.key === key ? (res.feature ?? { ...f, status: "on" }) : f)));
+      setFeatures((prev) =>
+        prev.map((f) => (f.key === key ? (res.feature ?? { ...f, status: "on" }) : f)),
+      );
     } catch (err) {
       setError(getErrorMessage(err, "Couldn't switch that on."));
     } finally {
@@ -42,39 +48,60 @@ export function GroupFeaturesPanel({ groupId, data }: { groupId: number; data: G
 
   return (
     <Card>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-osrs-gold text-lg font-semibold">Features you haven&apos;t tried</h2>
-        <span className="text-osrs-parchment-dark/70 text-sm">
-          {on} of {features.length} in use
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-osrs-parchment-dark/70 text-sm">
+            {on} of {features.length} in use
+          </span>
+          <button
+            type="button"
+            className={linkBtn}
+            aria-expanded={open}
+            aria-controls={`group-features-${groupId}`}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {open ? "Hide" : off.length > 0 ? `Show ${off.length}` : "Show"}
+          </button>
+        </div>
       </div>
-      {error && <p className="text-osrs-red mb-2 text-sm">{error}</p>}
-      <ul className="divide-osrs-bronze/20 divide-y">
-        {off.map((f) => (
-          <li key={f.key} className="flex flex-wrap items-start gap-3 py-2.5">
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium">{f.title}</div>
-              <div className="text-osrs-parchment-dark/70 text-xs">{f.blurb}</div>
-            </div>
-            {f.kind === "toggle" ? (
-              <button type="button" className={linkBtn} disabled={busy != null} onClick={() => turnOn(f.key)}>
-                {busy === f.key ? "Turning on…" : "Turn on"}
-              </button>
-            ) : (
-              <Link href={f.path as Route} className={linkBtn}>
-                Set up
+      {open && (
+        <div id={`group-features-${groupId}`} className="mt-3">
+          {error && <p className="text-osrs-red mb-2 text-sm">{error}</p>}
+          <ul className="divide-osrs-bronze/20 divide-y">
+            {off.map((f) => (
+              <li key={f.key} className="flex flex-wrap items-start gap-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">{f.title}</div>
+                  <div className="text-osrs-parchment-dark/70 text-xs">{f.blurb}</div>
+                </div>
+                {f.kind === "toggle" ? (
+                  <button
+                    type="button"
+                    className={linkBtn}
+                    disabled={busy != null}
+                    onClick={() => turnOn(f.key)}
+                  >
+                    {busy === f.key ? "Turning on…" : "Turn on"}
+                  </button>
+                ) : (
+                  <Link href={f.path as Route} className={linkBtn}>
+                    Set up
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ul>
+          {locked.length > 0 && (
+            <p className="text-osrs-parchment-dark/60 mt-3 text-xs">
+              With a plan:{" "}
+              {locked.map((f) => `${f.title}${f.tier ? ` (${f.tier})` : ""}`).join(", ")}.{" "}
+              <Link href="/premium" className="text-osrs-gold-bright underline">
+                Compare plans
               </Link>
-            )}
-          </li>
-        ))}
-      </ul>
-      {locked.length > 0 && (
-        <p className="text-osrs-parchment-dark/60 mt-3 text-xs">
-          With a plan: {locked.map((f) => `${f.title}${f.tier ? ` (${f.tier})` : ""}`).join(", ")}.{" "}
-          <Link href="/premium" className="text-osrs-gold-bright underline">
-            Compare plans
-          </Link>
-        </p>
+            </p>
+          )}
+        </div>
       )}
     </Card>
   );

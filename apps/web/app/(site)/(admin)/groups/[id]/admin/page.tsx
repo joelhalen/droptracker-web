@@ -47,13 +47,14 @@ export default async function GroupAdminOverview({ params }: { params: Params })
   return (
     <div className="space-y-6">
       {setup && showSetupChecklist(setup) && <GroupSetupChecklist status={setup} inviteUrl={serverInviteUrl(invite?.invite_url, setup.guild_id)} />}
-      {/* New groups see what they can switch on first; settled groups below the cards. */}
+      {/* New groups see what they can switch on first; settled groups just above the cards. */}
       {features && onboarding && <GroupFeaturesPanel groupId={groupId} data={features} />}
       <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <Stat label="Members" value={String(group.member_count)} />
         <Stat label="Global rank" value={`#${group.global_rank ?? "—"}`} />
         <Stat label="Monthly loot" value={group.monthly_loot?.value_formatted ?? "—"} />
       </dl>
+      {features && !onboarding && <GroupFeaturesPanel groupId={groupId} data={features} />}
 
       <div className="grid gap-4 sm:grid-cols-2">
         {CARDS.map((c) => (
@@ -67,7 +68,6 @@ export default async function GroupAdminOverview({ params }: { params: Params })
           </Link>
         ))}
       </div>
-      {features && !onboarding && <GroupFeaturesPanel groupId={groupId} data={features} />}
     </div>
   );
 }
