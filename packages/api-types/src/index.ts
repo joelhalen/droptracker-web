@@ -8578,6 +8578,14 @@ export const RecapSchema = z.object({
   npc_data_available: z.boolean().optional(),
   /** Annual only: how many of the folded months had NPC coverage. */
   npc_months_covered: z.number().int().optional(),
+  /**
+   * Group cards: the clan's "Minimum item value" (GP) when it was set. Every
+   * loot figure on the card then counts only items worth at least this each.
+   * Absent when the card counts every item.
+   */
+  item_floor: z.number().optional(),
+  /** Annual only: the folded months were counted with different floors. */
+  item_floor_mixed: z.boolean().optional(),
 
   activity: z
     .object({

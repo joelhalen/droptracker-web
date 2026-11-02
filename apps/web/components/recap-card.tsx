@@ -280,6 +280,14 @@ export function RecapCard({
   const ehbDelta =
     ehb !== undefined && prevEhb > 0 ? Math.round(((ehb - prevEhb) / prevEhb) * 100) : null;
 
+  // The clan's item floor, stated wherever it applies so a total that leaves out
+  // runes and coins never reads as the clan's whole month.
+  const floorNote = recap.item_floor
+    ? `Items worth ${formatGp(recap.item_floor).replace(/\.?0+([KMB])$/, "$1")}+ each`
+    : recap.item_floor_mixed
+      ? "Item minimum changed during the year"
+      : null;
+
   const npcAvailable = recap.npc_data_available !== false && recap.top_npcs.length > 0;
   const items = recap.top_items.slice(0, 10);
 
@@ -563,6 +571,7 @@ export function RecapCard({
               <div className="dtrc-lbl">Total loot</div>
               <div className="dtrc-hero-num">{formatGp(loot)}</div>
               <div className="dtrc-hero-exact">{loot.toLocaleString()} gp</div>
+              {floorNote && <div className="dtrc-hero-exact">{floorNote}</div>}
               {delta !== null && (
                 <div className={`dtrc-chip ${delta >= 0 ? "dtrc-chip-up" : "dtrc-chip-down"}`}>
                   {delta >= 0 ? "▲" : "▼"} {Math.abs(delta)}% vs {prevLabel}
