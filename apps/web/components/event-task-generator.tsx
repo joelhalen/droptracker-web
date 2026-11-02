@@ -582,6 +582,14 @@ export function EventTaskGenerator({
                     </span>
                     <span className="min-w-0">
                       <span className="text-osrs-parchment/90">{r.task.label}</span>
+                      {r.source === "library" && (
+                        <span
+                          className="border-osrs-bronze/40 text-osrs-parchment-dark/70 ml-2 rounded border px-1 text-[10px] uppercase"
+                          title="A task from the shared task library"
+                        >
+                          Library
+                        </span>
+                      )}
                       <span
                         className="text-osrs-parchment-dark/50 ml-2 text-xs"
                         title={r.estimated ? `${r.detail} (rate is our estimate)` : r.detail}

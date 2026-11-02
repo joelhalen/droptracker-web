@@ -6597,6 +6597,8 @@ export const GeneratedTaskSchema = z.object({
   kind: z.string(),
   category: z.string(),
   encounter: z.string().nullable().optional(),
+  /** "library" when the task is a public (or the clan's own) library task. */
+  source: z.enum(["generated", "library"]).default("generated"),
   difficulty: z.enum(EVENT_TASK_DIFFICULTIES),
   /** Estimated team-hours (one player's efficient hours, split any way). */
   hours: z.number(),
