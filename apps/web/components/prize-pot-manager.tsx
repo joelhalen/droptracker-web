@@ -874,7 +874,13 @@ function DonationAdd({
       </label>
       <label className="block">
         <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Amount (GP)</span>
-        <GpInput value={amount} min={0} emptyAs={0} onChange={setAmount} className="w-32" />
+        <GpInput
+          value={amount}
+          min={0}
+          emptyAs={0}
+          onChange={setAmount}
+          className="border-osrs-bronze/30 bg-osrs-surface-2/50 focus:border-osrs-gold/60 w-32 rounded border px-2 py-1.5 text-sm outline-none"
+        />
       </label>
       <label className="block">
         <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Proof</span>

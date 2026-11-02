@@ -28,8 +28,10 @@ import { GpAmount } from "@/components/gp-amount";
 import { ProofAttach, type ProofUpload } from "@/components/proof-attach";
 import { formatDate } from "@/lib/format";
 import { describeGp } from "@/lib/gp";
+import { EARLIEST_BANK_DAY, bankLedgerCsv, dayToUnix, localDay, todayLocal } from "@/lib/group-bank";
 import {
   deleteBankEntry,
+  exportBankLedger,
   loadBankLedger,
   recordBankEntry,
   transferBankToEvent,
@@ -106,6 +108,10 @@ export function GroupBankManager({
   const [busy, startTransition] = useTransition();
 
   const balance = summary.balance?.value ?? 0;
+  // Synced coffer rows but no opening balance: the site starts from 0 while
+  // the in-game coffer may not have.
+  const showOpeningHint =
+    (summary.adjustment_total?.value ?? 0) === 0 && ledger.entries.some((e) => e.source === "coffer");
 
   /** Re-read the current ledger page and the pending queue, then let the
    * server re-render the headline numbers. */
@@ -140,6 +146,25 @@ export function GroupBankManager({
     });
   }
 
+  function exportCsv() {
+    setError(null);
+    startTransition(async () => {
+      const res = await exportBankLedger(groupId);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+      const blob = new Blob([bankLedgerCsv(res.entries)], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `clan-bank-${groupId}-${todayLocal()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      if (res.truncated) setNotice(`Exported the newest ${res.entries.length.toLocaleString()} entries.`);
+    });
+  }
+
   function loadMore() {
     if (ledger.next_before_id == null) return;
     startTransition(async () => {
@@ -161,14 +186,25 @@ export function GroupBankManager({
           value={summary.donated_total?.value_formatted ?? "0"}
           hint={`${summary.donation_count} donation${summary.donation_count === 1 ? "" : "s"}`}
         />
-        <StatTile label="Paid out" value={summary.paid_out_total?.value_formatted ?? "0"} />
+        <StatTile
+          label="Taken out"
+          value={summary.paid_out_total?.value_formatted ?? "0"}
+          hint={outflowHint(summary)}
+        />
         <StatTile label="Waiting for review" value={pendingRows.length} />
       </div>
-      {balance < 0 && (
+      {balance < 0 ? (
         <Alert variant="info">
           The balance is below zero. If the clan had GP before you started tracking it, record an
           opening balance as an adjustment.
         </Alert>
+      ) : (
+        showOpeningHint && (
+          <Alert variant="info">
+            Coffer sync only sees GP moved since it was turned on. If the coffer already held GP,
+            record that amount as an adjustment so the balance here matches the game.
+          </Alert>
+        )
       )}
 
       {error && <Alert>{error}</Alert>}
@@ -202,7 +238,7 @@ export function GroupBankManager({
         />
       </div>
 
-      <Card padding="p-0" header={<LedgerHeader filter={filter} onChange={changeFilter} />}>
+      <Card padding="p-0" header={<LedgerHeader filter={filter} onChange={changeFilter} busy={busy} onExport={exportCsv} />}>
         {ledger.entries.length === 0 ? (
           <div className="p-5">
             <EmptyState
@@ -243,10 +279,25 @@ export function GroupBankManager({
   );
 }
 
-function LedgerHeader({ filter, onChange }: { filter: Filter; onChange: (f: Filter) => void }) {
+function LedgerHeader({
+  filter,
+  onChange,
+  busy,
+  onExport,
+}: {
+  filter: Filter;
+  onChange: (f: Filter) => void;
+  busy: boolean;
+  onExport: () => void;
+}) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3 className="text-osrs-gold font-semibold">Ledger</h3>
+      <div className="flex items-center gap-3">
+        <h3 className="text-osrs-gold font-semibold">Ledger</h3>
+        <Button variant="link" size="xs" disabled={busy} onClick={onExport}>
+          Export CSV
+        </Button>
+      </div>
       <div className="flex flex-wrap gap-1">
         {FILTERS.map((f) => (
           <button
@@ -268,12 +319,23 @@ function LedgerHeader({ filter, onChange }: { filter: Filter; onChange: (f: Filt
   );
 }
 
+/** "5M withdrawn · 1M paid out", naming only the kinds that happened. */
+function outflowHint(summary: GroupBankSummary): string | undefined {
+  const parts = [
+    [summary.withdrawn_total, "withdrawn"],
+    [summary.payout_total, "paid out"],
+    [summary.transferred_total, "to events"],
+  ] as const;
+  const shown = parts.filter(([m]) => (m?.value ?? 0) !== 0).map(([m, label]) => `${m!.value_formatted} ${label}`);
+  return shown.length ? shown.join(" · ") : undefined;
+}
+
 function entryWho(e: GroupBankEntry): string {
   if (e.kind === "event_transfer") return e.event_name ? `To ${e.event_name}` : "To an event";
   return e.rsn ?? "";
 }
 
-type EntryPatch = { amount?: number; rsn?: string | null; note?: string | null };
+type EntryPatch = { amount?: number; rsn?: string | null; note?: string | null; created_at?: number };
 
 function LedgerRow({
   entry: e,
@@ -381,12 +443,18 @@ function EntryEditor({
   const [rsn, setRsn] = useState(e.rsn ?? "");
   const [amount, setAmount] = useState(startAmount);
   const [note, setNote] = useState(e.note ?? "");
+  const startDay = e.created_at ? localDay(e.created_at) : "";
+  const [day, setDay] = useState(startDay);
 
   const needsName = e.kind === "donation" || e.kind === "payout";
   const patch: EntryPatch = {};
   if (!isTransfer) {
     if (rsn.trim() !== (e.rsn ?? "")) patch.rsn = rsn.trim() || null;
     if (amount !== startAmount) patch.amount = amount;
+    if (day && day !== startDay) {
+      const ts = dayToUnix(day, e.created_at);
+      if (ts != null) patch.created_at = ts;
+    }
   }
   if (note.trim() !== (e.note ?? "")) patch.note = note.trim() || null;
   const changed = Object.keys(patch).length > 0;
@@ -396,10 +464,10 @@ function EntryEditor({
     <div className="border-osrs-bronze/20 bg-osrs-bronze/5 basis-full space-y-3 rounded border p-3">
       {isTransfer ? (
         <p className="text-osrs-parchment-dark/60 text-xs">
-          A transfer&apos;s amount is fixed. Remove it and make a new one to change it.
+          A transfer&apos;s amount and date are fixed. Remove it and make a new one to change them.
         </p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
               {e.kind === "payout" ? "Paid to" : e.kind === "donation" ? "Donor" : "Name"}
@@ -421,9 +489,10 @@ function EntryEditor({
               min={signed ? null : 0}
               emptyAs={0}
               onChange={setAmount}
-              className="w-full"
+              className={`${fieldInputClass} w-full`}
             />
           </label>
+          <DateField value={day} onChange={setDay} />
         </div>
       )}
       <label className="block">
@@ -542,6 +611,23 @@ function PendingQueue({
   );
 }
 
+/** When the GP moved. Defaults to today; an earlier day backdates the entry. */
+function DateField({ value, onChange }: { value: string; onChange: (day: string) => void }) {
+  return (
+    <label className="block">
+      <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Date</span>
+      <input
+        type="date"
+        value={value}
+        min={EARLIEST_BANK_DAY}
+        max={todayLocal()}
+        onChange={(ev) => onChange(ev.target.value)}
+        className={`${fieldInputClass} w-full`}
+      />
+    </label>
+  );
+}
+
 function RecordForm({
   balance,
   busy,
@@ -555,6 +641,7 @@ function RecordForm({
     rsn?: string | null;
     note?: string | null;
     proof_key?: string | null;
+    created_at?: number;
   }) => void;
 }) {
   const [kind, setKind] = useState<BankRecordableKind>("donation");
@@ -562,6 +649,7 @@ function RecordForm({
   const [amount, setAmount] = useState(0);
   const [note, setNote] = useState("");
   const [proof, setProof] = useState<ProofUpload | null>(null);
+  const [day, setDay] = useState(() => todayLocal());
 
   const needsName = kind === "donation" || kind === "payout";
   const isOutflow = BANK_OUTFLOW_KINDS.includes(kind);
@@ -593,7 +681,7 @@ function RecordForm({
         </div>
         <p className="text-osrs-parchment-dark/60 text-xs">{KIND_HINTS[kind]}</p>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
               {kind === "payout" ? "Paid to" : kind === "donation" ? "Donor" : "Name"}
@@ -615,9 +703,10 @@ function RecordForm({
               min={kind === "adjustment" ? null : 0}
               emptyAs={0}
               onChange={setAmount}
-              className="w-full"
+              className={`${fieldInputClass} w-full`}
             />
           </label>
+          <DateField value={day} onChange={setDay} />
         </div>
         <label className="block">
           <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Note (optional, staff only)</span>
@@ -641,17 +730,21 @@ function RecordForm({
           <Button
             disabled={!valid || busy}
             onClick={() => {
+              // Today means "now"; another day is that day, for entering history.
+              const backdated = day && day !== todayLocal() ? dayToUnix(day) : null;
               onRecord({
                 kind,
                 amount,
                 rsn: rsn.trim() || null,
                 note: note.trim() || null,
                 proof_key: proof?.key ?? null,
+                ...(backdated != null ? { created_at: backdated } : {}),
               });
               setRsn("");
               setAmount(0);
               setNote("");
               setProof(null);
+              setDay(todayLocal());
             }}
           >
             Save {BANK_KIND_LABELS[kind].toLowerCase()}
@@ -717,7 +810,13 @@ function TransferForm({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Amount</span>
-              <GpInput value={amount} min={0} emptyAs={0} onChange={setAmount} className="w-full" />
+              <GpInput
+                value={amount}
+                min={0}
+                emptyAs={0}
+                onChange={setAmount}
+                className={`${fieldInputClass} w-full`}
+              />
             </label>
             <label className="block">
               <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Note (optional)</span>

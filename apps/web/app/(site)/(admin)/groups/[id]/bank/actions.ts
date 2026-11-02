@@ -1,7 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { BankEntryStatus, BankRecordableKind, GroupBankLedger } from "@droptracker/api-types";
+import type {
+  BankEntryStatus,
+  BankRecordableKind,
+  GroupBankEntry,
+  GroupBankLedger,
+} from "@droptracker/api-types";
 import { api, ApiError } from "@/lib/api";
 import { getUser, canAdminGroup } from "@/lib/auth";
 
@@ -41,6 +46,32 @@ export async function loadBankLedger(
   return api.groupBankLedger(groupId, opts);
 }
 
+// The CSV export walks the ledger 200 rows a page; this caps it at 10,000.
+const EXPORT_PAGE = 200;
+const EXPORT_MAX_PAGES = 50;
+
+/** Every ledger row, newest first, for the CSV download. */
+export async function exportBankLedger(
+  groupId: number,
+): Promise<{ ok: true; entries: GroupBankEntry[]; truncated: boolean } | { ok: false; message: string }> {
+  await assertAdmin(groupId);
+  const entries: GroupBankEntry[] = [];
+  let beforeId: number | null = null;
+  for (let page = 0; page < EXPORT_MAX_PAGES; page++) {
+    let res: GroupBankLedger;
+    try {
+      res = await api.groupBankLedger(groupId, { status: "all", beforeId, limit: EXPORT_PAGE });
+    } catch (err) {
+      if (err instanceof ApiError && err.status < 500) return { ok: false, message: err.message };
+      throw err;
+    }
+    entries.push(...res.entries);
+    beforeId = res.next_before_id;
+    if (beforeId == null) return { ok: true, entries, truncated: false };
+  }
+  return { ok: true, entries, truncated: true };
+}
+
 export async function recordBankEntry(
   groupId: number,
   input: {
@@ -50,6 +81,7 @@ export async function recordBankEntry(
     rsn?: string | null;
     note?: string | null;
     proof_key?: string | null;
+    created_at?: number;
   },
 ) {
   return attempt(groupId, () => api.recordGroupBankEntry(groupId, input));
@@ -66,6 +98,7 @@ export async function updateBankEntry(
     proof_key?: string | null;
     player_id?: number | null;
     rsn?: string | null;
+    created_at?: number;
   },
 ) {
   return attempt(groupId, () => api.updateGroupBankEntry(groupId, entryId, patch));

@@ -65,6 +65,7 @@ export const GroupBankEntrySchema = z.object({
   event_name: z.string().nullable().default(null),
   /** Username of the member who submitted it (staff reads only). */
   submitted_by: z.string().nullable().default(null),
+  /** When the GP moved. Staff can backdate it; the ledger is ordered by it. */
   created_at: z.number().int().nullable().default(null),
   confirmed_at: z.number().int().nullable().default(null),
 });
@@ -87,7 +88,11 @@ export const GroupBankSummarySchema = z.object({
   show_donors: z.boolean().default(true),
   balance: BankMoneySchema.optional(),
   donated_total: BankMoneySchema.optional(),
+  /** Every outflow together; the three below split it by kind. */
   paid_out_total: BankMoneySchema.optional(),
+  withdrawn_total: BankMoneySchema.optional(),
+  payout_total: BankMoneySchema.optional(),
+  transferred_total: BankMoneySchema.optional(),
   adjustment_total: BankMoneySchema.optional(),
   donation_count: z.number().int().default(0),
   donor_count: z.number().int().default(0),
