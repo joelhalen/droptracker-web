@@ -15,6 +15,7 @@ import {
   UserEntitlementsSchema,
 } from "./entitlements";
 import { GroupFlairSchema, TierFlairSchema } from "./tier-flair";
+import { StandoutsSchema } from "./group-stats";
 
 /** Time partitions supported by the leaderboard API (FRONTEND_PLAN.md §6.5). */
 export const PeriodSchema = z
@@ -8565,6 +8566,13 @@ export const RecapSchema = z.object({
     ehb: z.number().optional(),
     /** Last month's EHB over the same roster, for the movement chip. */
     previous_ehb: z.number().optional(),
+    /** Group cards from web154a, when the clan's Wise Old Man gains were
+     *  harvested: XP, levels and boss kills gained, EHP and clues. */
+    xp: z.number().optional(),
+    levels: z.number().optional(),
+    kills: z.number().optional(),
+    ehp: z.number().optional(),
+    clues: z.number().optional(),
   }),
 
   rank: z
@@ -8626,6 +8634,24 @@ export const RecapSchema = z.object({
     )
     .optional(),
   superlatives: z.record(z.string(), RecapSuperlativeSchema.nullable()).optional(),
+  /**
+   * Group cards built from web154a on (suggestion #224): the top three in every
+   * standout category, plus the clan's XP leaders by skill and kill leaders by
+   * boss. Absent on older cards, which fall back to `superlatives`.
+   */
+  standouts: StandoutsSchema.optional(),
+  /** Group cards from web154a: the month's pets, newest first. */
+  new_pets: z
+    .array(
+      z.object({
+        player_id: z.number().int(),
+        name: z.string().nullable().optional(),
+        item_id: z.number().int().nullable().optional(),
+        pet: z.string().nullable().optional(),
+        date: z.string().nullable().optional(),
+      }),
+    )
+    .optional(),
 
   /** Annual only. */
   by_month: z.array(z.object({ period: z.string(), loot: z.number() })).optional(),
@@ -8750,4 +8776,6 @@ export * from "./group-bank";
 
 // PvP tracking (web136a)
 export * from "./pvp";
+export * from "./group-stats";
+export * from "./recap-design";
 export * from "./plugin-registration";

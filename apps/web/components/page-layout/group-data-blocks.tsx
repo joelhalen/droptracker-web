@@ -501,3 +501,119 @@ export async function HighlightsBlock({
   if (items.length === 0) return <BlockEmpty hint="Shows once the chosen kinds of loot come in." />;
   return <SubmissionList submissions={items} showPlayer={scope === "group"} />;
 }
+
+/* --- Standouts (suggestion #224) ----------------------------------------------- */
+
+function standoutPeriodToken(period: string, now = new Date()): string {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth() + 1;
+  if (period === "all") return "all";
+  if (period === "year") return String(y);
+  if (period === "last_month") return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+const STANDOUT_PERIOD_LABELS: Record<string, string> = {
+  month: "This month",
+  last_month: "Last month",
+  year: "This year",
+  all: "All time",
+};
+
+function standoutValue(value: number, unit: string): string {
+  if (unit === "gp" || unit === "xp") {
+    const abs = Math.abs(value);
+    if (abs >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
+    if (abs >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
+    if (abs >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
+  }
+  if (unit === "hours") return value.toLocaleString(undefined, { maximumFractionDigits: 1 });
+  return value.toLocaleString();
+}
+
+/** The leaders in each chosen category, from the clan stats payload. */
+export async function StandoutsBlock({
+  groupId,
+  base,
+  period,
+  categories,
+  depth,
+  view,
+  showLink,
+}: {
+  groupId: number;
+  base: string;
+  period: string;
+  categories: readonly string[];
+  depth: number;
+  view: "cards" | "list";
+  showLink: boolean;
+}) {
+  const token = standoutPeriodToken(period);
+  const stats = await api.groupStats(groupId, token).catch(() => null);
+  if (!stats) return null;
+  const byKey = new Map(stats.standouts.categories.map((c) => [c.key, c]));
+  const picked = categories.map((k) => byKey.get(k)).filter((c): c is NonNullable<typeof c> => Boolean(c));
+  if (picked.length === 0) return null;
+  const n = Math.max(1, Math.min(3, depth || 3));
+  const name = (pid: number) => stats.names[String(pid)] ?? `Player ${pid}`;
+  const link = (pid: number) => entityPath("players", pid, stats.names[String(pid)] ?? undefined) as Route;
+  return (
+    <div className="space-y-3">
+      <div className="text-osrs-parchment-dark/60 text-xs tracking-wide uppercase">
+        {STANDOUT_PERIOD_LABELS[period] ?? "This month"}
+      </div>
+      {view === "list" ? (
+        <ul className="divide-osrs-bronze/15 divide-y">
+          {picked.map((c) => (
+            <li key={c.key} className="flex items-center gap-3 py-2 text-sm">
+              <span className="text-osrs-parchment-dark/70 w-44 shrink-0 truncate">{c.label}</span>
+              <span className="min-w-0 flex-1 truncate">
+                {c.entries.slice(0, n).map((e, i) => (
+                  <span key={`${e.player_id}-${i}`}>
+                    {i > 0 && <span className="text-osrs-parchment-dark/40">, </span>}
+                    <Link href={link(e.player_id)} className={i === 0 ? "text-osrs-parchment font-semibold hover:text-osrs-gold-bright" : "text-osrs-parchment-dark/80 hover:text-osrs-gold-bright"}>
+                      {name(e.player_id)}
+                    </Link>
+                  </span>
+                ))}
+              </span>
+              <span className="text-osrs-gold shrink-0 font-semibold tabular-nums">
+                {c.entries[0] ? standoutValue(c.entries[0].value, c.unit) : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {picked.map((c) => (
+            <div key={c.key} className="bg-osrs-surface-2/70 rounded-lg px-4 py-3">
+              <div className="text-osrs-parchment-dark/60 mb-1.5 text-xs tracking-wide uppercase">{c.label}</div>
+              <ol className="space-y-1">
+                {c.entries.slice(0, n).map((e, i) => (
+                  <li key={`${e.player_id}-${i}`} className="flex items-center gap-2 text-sm">
+                    <span className="text-osrs-parchment-dark/50 w-4 text-right tabular-nums">{i + 1}</span>
+                    <Link href={link(e.player_id)} className={`min-w-0 flex-1 truncate hover:text-osrs-gold-bright ${i === 0 ? "text-osrs-parchment font-semibold" : "text-osrs-parchment-dark/85"}`}>
+                      {name(e.player_id)}
+                    </Link>
+                    <span className={`shrink-0 tabular-nums ${i === 0 ? "text-osrs-gold font-semibold" : "text-osrs-parchment-dark/80"}`}>
+                      {standoutValue(e.value, c.unit)}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              {c.key === "biggest_drop" && c.entries[0]?.detail && (
+                <div className="text-osrs-parchment-dark/55 mt-1 truncate text-xs">{c.entries[0].detail}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {showLink && (
+        <Link href={`${base}/stats?period=${token}` as Route} className="text-osrs-gold hover:text-osrs-gold-bright text-sm">
+          See every member&apos;s stats →
+        </Link>
+      )}
+    </div>
+  );
+}

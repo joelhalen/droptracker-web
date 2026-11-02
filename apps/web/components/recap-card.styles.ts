@@ -44,6 +44,9 @@ export const RECAP_CARD_CSS = `
   --dim: #a1997f;
   --good: #7fc47f;
   --bad: #e07a63;
+  /* The accent as an RGB triple, for the translucent row fills (designs can
+     swap the accent; see RECAP_ACCENTS). */
+  --fill-rgb: 255, 209, 102;
 
   position: relative;
   padding: calc(var(--u) * 1.35);
@@ -399,7 +402,7 @@ export const RECAP_CARD_CSS = `
   top: calc(var(--u) * 0.1);
   bottom: calc(var(--u) * 0.1);
   border-radius: calc(var(--u) * 0.12);
-  background: linear-gradient(90deg, rgba(255, 209, 102, 0.16) 0%, rgba(255, 209, 102, 0.03) 100%);
+  background: linear-gradient(90deg, rgba(var(--fill-rgb), 0.16) 0%, rgba(var(--fill-rgb), 0.03) 100%);
   pointer-events: none;
 }
 .dtrc-row-name {
@@ -410,6 +413,60 @@ export const RECAP_CARD_CSS = `
   white-space: nowrap;
 }
 .dtrc-row-sub { font-size: calc(var(--u) * 0.75); color: var(--dim); }
+/* Designed cards (web154a): runners-up under a standout, icons, the clan's
+   own message and the new-pets grid. */
+.dtrc-row-stack { display: flex; flex-direction: column; }
+.dtrc-runners {
+  margin-top: calc(var(--u) * 0.1);
+  font-size: calc(var(--u) * 0.6875);
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dtrc-icon {
+  position: relative;
+  height: calc(var(--u) * 1.1);
+  width: calc(var(--u) * 1.1);
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.dtrc-headline {
+  margin-top: calc(var(--u) * 0.3);
+  font-size: calc(var(--u) * 0.9375);
+  color: var(--parch);
+  opacity: 0.9;
+}
+.dtrc-note-body {
+  white-space: pre-line;
+  font-size: calc(var(--u) * 0.875);
+  line-height: 1.45;
+  color: var(--parch);
+}
+/* A design can make one column much taller than the other. Rather than spread a
+   panel's rows apart to fill the gap (which reads as broken), rows stay packed
+   and only the last panel in each column absorbs the slack. */
+.dtrc-body-designed .dtrc-rows { justify-content: flex-start; }
+.dtrc-body-designed .dtrc-panel-grow { flex: 0 0 auto; }
+.dtrc-body-designed .dtrc-col > :last-child { flex: 1 1 auto; }
+.dtrc-pets { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--u) * 0.45); }
+.dtrc-pet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 0.1);
+  min-width: 0;
+  text-align: center;
+}
+.dtrc-pet img { height: calc(var(--u) * 2.2); width: auto; }
+.dtrc-pet-name, .dtrc-pet-who {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dtrc-pet-name { font-size: calc(var(--u) * 0.6875); color: var(--parch); }
+.dtrc-pet-who { font-size: calc(var(--u) * 0.625); color: var(--dim); }
 .dtrc-row-val {
   flex-shrink: 0;
   font-weight: 700;

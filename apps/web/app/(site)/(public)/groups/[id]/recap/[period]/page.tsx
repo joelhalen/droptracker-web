@@ -42,9 +42,12 @@ export default async function GroupRecapPage({ params }: { params: Params }) {
   const ref = await resolveRef("group", id).catch(() => null);
   if (!ref || ref.ambiguous) notFound();
 
-  const [recap, index] = await Promise.all([
+  const [recap, index, design] = await Promise.all([
     api.recap("group", ref.id, period),
     api.recapIndex("group", ref.id),
+    // Monthly cards only: a design is per month (or the clan default), and the
+    // annual fold keeps its own fixed shape.
+    period.length === 7 ? api.recapDesign(ref.id, period) : null,
   ]);
   if (!recap) notFound();
 
@@ -57,7 +60,7 @@ export default async function GroupRecapPage({ params }: { params: Params }) {
           site chrome is what made this read as a web page rather than the image
           a Discord post links to. `fluid` scales the identical composition down
           to the container, so the page and the PNG are the same artifact. */}
-      <RecapCard recap={recap} fluid />
+      <RecapCard recap={recap} fluid design={design && design.source !== "builtin" ? design.design : null} />
 
       {others.length > 0 && (
         <Card className="mt-4">

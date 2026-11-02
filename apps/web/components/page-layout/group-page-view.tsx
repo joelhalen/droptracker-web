@@ -48,6 +48,7 @@ import {
   HighlightsBlock,
   PointsBlock,
   PvpSummaryBlock,
+  StandoutsBlock,
 } from "./group-data-blocks";
 import { BannerFrame, BlockSlot, LayoutFrame, LayoutGrid, LIGHT_SURFACES, PreviewPlaceholder } from "./frame";
 import { LinkRow, renderSharedBlock, type LinkItem } from "./shared-blocks";
@@ -147,6 +148,7 @@ function groupLinks(ctx: GroupPageContext, keys: readonly string[]): LinkItem[] 
   const { group, base } = ctx;
   const all: Record<string, LinkItem | null> = {
     lootboard: { key: "lootboard", label: "Lootboard", href: `${base}/lootboard` },
+    stats: { key: "stats", label: "Clan stats", href: `${base}/stats` },
     clan_log: { key: "clan_log", label: "Clan Log", href: `${base}/log` },
     personal_bests: { key: "personal_bests", label: "Personal bests", href: `${base}/personal-bests` },
     pvp: { key: "pvp", label: "PvP", href: `${base}/pvp` },
@@ -274,6 +276,18 @@ function renderGroupBlock(block: PageBlock, ctx: GroupPageContext, light: boolea
           showLink={block.show_link}
         />
       );
+    case "standouts":
+      return (
+        <StandoutsBlock
+          groupId={group.id}
+          base={ctx.base}
+          period={block.period}
+          categories={block.categories}
+          depth={block.depth}
+          view={block.view}
+          showLink={block.show_link}
+        />
+      );
     case "pvp_summary":
       return (
         <PvpSummaryBlock
@@ -318,6 +332,7 @@ const EMPTY_HINT: Partial<Record<string, string>> = {
   clan_log: "Shows once members fill the collection log.",
   points_leaderboard: "Shows when clan points are on and members have some.",
   pvp_summary: "Shows after a member's first PvP kill.",
+  standouts: "Shows once members score in the chosen categories.",
   events_list: "Shows when the group runs a public event.",
   highlights: "Shows once members get the chosen kinds of loot.",
 };

@@ -64,6 +64,9 @@ export default async function GroupAdminLayout({
     ? [
         { href: `/groups/${groupId}/admin`, label: "Overview" },
         { href: `/groups/${groupId}/settings`, label: "Settings" },
+        // The recap designer (web154a): what the monthly card shows, and
+        // whether it waits for an admin before posting.
+        { href: `/groups/${groupId}/recaps`, label: "Recaps" },
         {
           href: `/groups/${groupId}/embeds`,
           label: "Embeds",

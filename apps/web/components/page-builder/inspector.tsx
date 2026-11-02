@@ -16,6 +16,8 @@ import {
   PLAYER_LINK_KEYS,
   PLAYER_STATS,
   POINTS_PERIODS,
+  RECAP_STANDOUTS,
+  STANDOUT_BLOCK_KEYS,
   type BlockSurface,
   type PageTheme,
 } from "@droptracker/api-types";
@@ -303,6 +305,7 @@ const GROUP_LINK_LABELS: Record<string, string> = {
   lootboard: "Lootboard",
   clan_log: "Clan Log",
   personal_bests: "Personal bests",
+  stats: "Clan stats",
   pvp: "PvP",
   points: "Points (when enabled)",
   recaps: "Recaps (once there is one)",
@@ -342,6 +345,7 @@ const PLAYER_STAT_LABELS: Record<string, string> = {
   badges_count: "Badges",
   pvp_kills: "PvP kills this month",
 };
+const STANDOUT_LABELS: Record<string, string> = Object.fromEntries(RECAP_STANDOUTS.map((s) => [s.key, s.label]));
 const HIGHLIGHT_LABELS: Record<string, string> = {
   drop: "Big drops",
   pet: "Pets",
@@ -621,6 +625,39 @@ function ContentFields({ block, set, groupId }: { block: Block; set: (patch: Rec
               <Toggle label="Link to the full Clan Log" checked={block.show_link !== false} onChange={(show_link) => set({ show_link })} />
             </>
           )}
+        </>
+      );
+    case "standouts":
+      return (
+        <>
+          <Row label="Period">
+            <Segmented
+              value={(str("period") || "month") as "month"}
+              options={[
+                { value: "month", label: "This month" },
+                { value: "last_month", label: "Last month" },
+                { value: "year", label: "This year" },
+                { value: "all", label: "All time" },
+              ]}
+              onChange={(period) => set({ period })}
+            />
+          </Row>
+          <Row label="Show">
+            <Segmented
+              value={(str("view") || "cards") as "cards"}
+              options={[
+                { value: "cards", label: "Cards" },
+                { value: "list", label: "List" },
+              ]}
+              onChange={(view) => set({ view })}
+            />
+          </Row>
+          {how("depth", 3, 1, 3, "Members per category")}
+          <Row label="Categories">
+            <KeyList all={STANDOUT_BLOCK_KEYS} labels={STANDOUT_LABELS} value={(block.categories as string[]) ?? []} onChange={(categories) => set({ categories })} max={12} />
+          </Row>
+          <p className="text-osrs-parchment-dark/55 text-xs">XP, levels, kills, EHB and EHP need your clan's Wise Old Man group. Categories nobody scored in are left out.</p>
+          <Toggle label="Link to the full clan stats" checked={block.show_link !== false} onChange={(show_link) => set({ show_link })} />
         </>
       );
     case "pvp_summary":

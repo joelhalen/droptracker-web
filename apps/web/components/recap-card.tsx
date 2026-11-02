@@ -1,8 +1,15 @@
-import type { Recap } from "@droptracker/api-types";
+import {
+  RECAP_ACCENTS,
+  RECAP_STANDOUTS,
+  type Recap,
+  type RecapAccent,
+  type RecapDesign,
+} from "@droptracker/api-types";
 import { formatGp } from "@/lib/format";
 import { ACTIVITY_WEIGHT, primeDayOf, primeHourOf } from "@/lib/recap-prime-time";
 import { RECAP_CARD_CSS } from "./recap-card.styles";
 import { EmbedImg } from "@/components/entity-link";
+import { metricIconUrl, metricLabel } from "@/lib/osrs-metrics";
 
 /**
  * The recap poster — one component rendered in two places:
@@ -95,6 +102,8 @@ const ACHIEVEMENT_LABELS: Record<string, string> = {
   quests: "Quests",
   diaries: "Diaries",
   deaths: "Deaths",
+  slayer_tasks: "Slayer tasks",
+  pvp_kills: "PvP kills",
 };
 
 const SUPERLATIVE_LABELS: Record<string, string> = {
@@ -178,8 +187,17 @@ function ItemSprite({ id, className }: { id: number | null | undefined; classNam
  * reading this card know who got what, and a name they can disprove costs more
  * than a blank line. Same reasoning as the omit-never-zero rule above.
  */
-function ReceiverLine({ entry }: { entry: Recap["top_items"][number] }) {
+function ReceiverLine({
+  entry,
+  hidden,
+}: {
+  entry: Recap["top_items"][number];
+  hidden?: ReadonlySet<number>;
+}) {
   if (!entry.receiver) return null;
+  // A member the clan hid from its card (alts, staff) keeps their item but
+  // loses the name, the same "say nothing" outcome as an unattributable item.
+  if (hidden?.has(entry.receiver.player_id)) return null;
   const shared = (entry.receivers ?? 1) > 1;
   return (
     <span className="dtrc-slot-who">
@@ -242,6 +260,84 @@ function MiniStat({
   );
 }
 
+/** Pre-web154a cards only carry `superlatives` (one leader, five categories). */
+const LEGACY_STANDOUT_KEYS: Record<string, string> = {
+  most_pbs: "pbs",
+  most_clog_slots: "clog_slots",
+  most_cas: "cas",
+  most_pets: "pets",
+  most_deaths: "deaths",
+};
+
+const STANDOUT_META: Record<string, { label: string; unit: string }> = Object.fromEntries(
+  RECAP_STANDOUTS.map((s) => [s.key, { label: s.label, unit: s.unit }]),
+);
+
+function formatUnit(value: number, unit: string): string {
+  if (unit === "gp") return formatGp(value);
+  if (unit === "xp") return `${formatGp(value)} xp`;
+  if (unit === "hours") return `${value.toLocaleString(undefined, { maximumFractionDigits: 1 })} h`;
+  return value.toLocaleString();
+}
+
+type DesignedStandout = {
+  key: string;
+  label: string;
+  unit: string;
+  entries: { player_id: number; name: string | null; value: number; detail?: string | null }[];
+};
+
+/**
+ * The standout rows a design asks for, in its order, from whatever the card
+ * carries: the ranked `standouts` on cards from web154a on, else the five
+ * single-leader `superlatives` older cards have. Hidden members drop out and
+ * the next member moves up.
+ */
+function designedStandouts(
+  recap: Recap,
+  design: RecapDesign,
+  hidden: ReadonlySet<number>,
+): DesignedStandout[] {
+  const available = new Map<string, DesignedStandout>();
+  for (const category of recap.standouts?.categories ?? []) {
+    available.set(category.key, {
+      key: category.key,
+      label: category.label,
+      unit: category.unit,
+      entries: category.entries.map((e) => ({
+        player_id: e.player_id,
+        name: e.name ?? null,
+        value: e.value,
+        detail: e.detail,
+      })),
+    });
+  }
+  if (!recap.standouts) {
+    for (const [legacy, value] of Object.entries(recap.superlatives ?? {})) {
+      const key = LEGACY_STANDOUT_KEYS[legacy];
+      if (!key || !value || value.count <= 0) continue;
+      const meta = STANDOUT_META[key];
+      available.set(key, {
+        key,
+        label: meta?.label ?? key,
+        unit: meta?.unit ?? "count",
+        entries: [{ player_id: value.player_id, name: value.name, value: value.count }],
+      });
+    }
+  }
+  const depth = Math.max(1, Math.min(3, design.standouts_depth || 1));
+  return design.standouts
+    .map((key) => available.get(key))
+    .filter((c): c is DesignedStandout => Boolean(c))
+    .map((c) => ({ ...c, entries: c.entries.filter((e) => !hidden.has(e.player_id)).slice(0, depth) }))
+    .filter((c) => c.entries.length > 0 && c.entries[0]!.value > 0);
+}
+
+function countOf(design: RecapDesign | null, key: string, fallback: number): number {
+  const n = design?.counts?.[key];
+  return typeof n === "number" && n > 0 ? n : fallback;
+}
+
 /* ── the poster ──────────────────────────────────────────────────────────── */
 
 export function RecapCard({
@@ -249,6 +345,7 @@ export function RecapCard({
   width,
   fluid = false,
   layout = "auto",
+  design = null,
 }: {
   recap: Recap;
   /** Explicit CSS width. Omit on the capture route, which sizes its wrapper. */
@@ -261,8 +358,16 @@ export function RecapCard({
    * — `?layout=` on the capture route. Production leaves this `auto`.
    */
   layout?: "auto" | "stacked" | "columns";
+  /**
+   * The clan's recap design (web154a): which panels show, in what order and
+   * column, list sizes, standouts, accent and an optional message. Omitted or
+   * null draws the card exactly as it was before designs existed, which is
+   * also what every player card and annual fold gets.
+   */
+  design?: RecapDesign | null;
 }) {
   const { totals, rank, subject } = recap;
+  const hidden: ReadonlySet<number> = new Set(design?.hidden_players ?? []);
   const isGroup = recap.scope === "group";
   const isAnnual = recap.period.length === 4;
   const loot = totals.loot ?? totals.loot_rollup ?? 0;
@@ -289,14 +394,18 @@ export function RecapCard({
       : null;
 
   const npcAvailable = recap.npc_data_available !== false && recap.top_npcs.length > 0;
-  const items = recap.top_items.slice(0, 10);
+  const items = recap.top_items.slice(0, countOf(design, "gallery", 10));
 
   // Zero counts are dropped here rather than in the sources — see the header.
   const achievements = Object.entries(recap.achievements ?? {}).filter(([, n]) => n > 0);
   const superlatives = Object.entries(recap.superlatives ?? {}).filter(
     ([, v]) => v && v.count > 0,
   );
-  const members = isGroup ? (recap.top_members ?? []).slice(0, 5) : [];
+  const members = isGroup
+    ? (recap.top_members ?? [])
+        .filter((m) => !hidden.has(m.player_id))
+        .slice(0, countOf(design, "members", 5))
+    : [];
   const byMonth = recap.by_month ?? [];
   const clans = isGroup ? [] : (subject?.groups ?? []);
 
@@ -311,6 +420,81 @@ export function RecapCard({
   /* Stat plaques beside the hero figure. Built as a list so an unavailable one
      simply isn't there and the grid closes up. */
   const minis: React.ReactNode[] = [];
+  const pickedHero = design?.hero_stats ?? [];
+  if (pickedHero.length > 0) {
+    // The clan chose its plaques. Each still only appears when there's a real
+    // number behind it (omit, never zero).
+    const ach = recap.achievements ?? {};
+    const heroPlaque = (key: string): React.ReactNode => {
+      switch (key) {
+        case "drops":
+          return totals.drops ? <MiniStat key={key} label="Drops" value={totals.drops.toLocaleString()} /> : null;
+        case "unique_items":
+          return totals.unique_items ? (
+            <MiniStat key={key} label="Unique items" value={totals.unique_items.toLocaleString()} />
+          ) : null;
+        case "rank":
+          return rank?.position ? (
+            <MiniStat key={key} label={isGroup ? "Clan rank" : "Global rank"} value={ordinal(rank.position)} hint={rankHint(rank, isGroup)} />
+          ) : null;
+        case "members":
+          return totals.members_active ? (
+            <MiniStat
+              key={key}
+              label="Members looting"
+              value={totals.members_active.toLocaleString()}
+              hint={totals.members_total ? `of ${totals.members_total.toLocaleString()}` : undefined}
+            />
+          ) : null;
+        case "ehb":
+          return ehb !== undefined && ehb > 0 ? (
+            <MiniStat
+              key={key}
+              label="EHB gained"
+              value={ehb.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+              delta={ehbDelta}
+              deltaVs={prevLabel}
+              hint="efficient hours bossed"
+            />
+          ) : null;
+        case "ehp":
+          return totals.ehp ? (
+            <MiniStat key={key} label="EHP gained" value={totals.ehp.toLocaleString(undefined, { maximumFractionDigits: 1 })} hint="efficient hours played" />
+          ) : null;
+        case "xp":
+          return totals.xp ? <MiniStat key={key} label="XP gained" value={formatGp(totals.xp)} /> : null;
+        case "levels":
+          return totals.levels ? <MiniStat key={key} label="Levels gained" value={totals.levels.toLocaleString()} /> : null;
+        case "kills":
+          return totals.kills ? <MiniStat key={key} label="Boss kills" value={totals.kills.toLocaleString()} /> : null;
+        case "prime_time":
+          return primeHour !== null ? (
+            <MiniStat
+              key={key}
+              label="Prime time"
+              value={`${String(primeHour).padStart(2, "0")}:00 UTC`}
+              hint={primeDay !== null ? `most active · ${WEEKDAYS[primeDay]}` : "most active hour"}
+            />
+          ) : null;
+        case "sources":
+          return totals.unique_npcs ? <MiniStat key={key} label="Sources" value={totals.unique_npcs.toLocaleString()} /> : null;
+        case "clog_slots":
+        case "pets":
+        case "pbs":
+        case "cas": {
+          const value = ach[key] ?? 0;
+          return value > 0 ? <MiniStat key={key} label={ACHIEVEMENT_LABELS[key] ?? key} value={value.toLocaleString()} /> : null;
+        }
+        default:
+          return null;
+      }
+    };
+    for (const key of pickedHero) {
+      const node = heroPlaque(key);
+      if (node) minis.push(node);
+      if (minis.length >= 4) break;
+    }
+  } else {
   if (totals.drops) {
     minis.push(<MiniStat key="drops" label="Drops" value={totals.drops.toLocaleString()} />);
   }
@@ -379,6 +563,7 @@ export function RecapCard({
       <MiniStat key="npcs" label="Sources" value={totals.unique_npcs.toLocaleString()} />,
     );
   }
+  }
 
   /* ── panels ────────────────────────────────────────────────────────────── */
   const gallery =
@@ -395,7 +580,7 @@ export function RecapCard({
               </span>
               <span className="dtrc-slot-val">{formatGp(item.loot)}</span>
               <span className="dtrc-slot-name">{item.name}</span>
-              <ReceiverLine entry={item} />
+              <ReceiverLine entry={item} hidden={hidden} />
             </div>
           ))}
         </div>
@@ -409,7 +594,7 @@ export function RecapCard({
       </Panel>
     ) : null;
 
-  const topNpcs = recap.top_npcs.slice(0, 5);
+  const topNpcs = recap.top_npcs.slice(0, countOf(design, "sources", 5));
   const npcMax = Math.max(...topNpcs.map((n) => n.loot), 1);
   const sources = npcAvailable ? (
     <Panel key="sources" title="Top sources" grow>
@@ -448,8 +633,38 @@ export function RecapCard({
       </Panel>
     ) : null;
 
-  const standouts =
-    superlatives.length > 0 ? (
+  const designed = design ? designedStandouts(recap, design, hidden) : null;
+  const standouts = designed ? (
+    designed.length > 0 ? (
+      <Panel key="standouts" title="Standouts" grow>
+        <div className="dtrc-rows">
+          {designed.map((c) => {
+            const [top, ...rest] = c.entries;
+            return (
+              <div className="dtrc-row" key={c.key}>
+                <span className="dtrc-row-name dtrc-row-stack">
+                  <span>
+                    {top!.name ?? "Unknown"}
+                    <span className="dtrc-row-sub"> · {c.label}</span>
+                  </span>
+                  {rest.length > 0 && (
+                    <span className="dtrc-runners">
+                      {rest
+                        .map((e, i) => `${i + 2}. ${e.name ?? "Unknown"} ${formatUnit(e.value, c.unit)}`)
+                        .join("   ")}
+                    </span>
+                  )}
+                </span>
+                <span className="dtrc-row-val">
+                  {formatUnit(top!.value, c.unit)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </Panel>
+    ) : null
+  ) : superlatives.length > 0 ? (
       <Panel key="standouts" title="Standouts" grow>
         <div className="dtrc-rows">
           {superlatives.map(([key, value]) => (
@@ -479,6 +694,85 @@ export function RecapCard({
       </Panel>
     ) : null;
 
+  /* Panels only a design can switch on (web154a). Each is omitted when the
+     card has nothing for it, like every other panel. */
+  const leaderName = (entries: { player_id: number; name?: string | null }[] | undefined) => {
+    const top = (entries ?? []).find((e) => !hidden.has(e.player_id));
+    return top?.name ?? null;
+  };
+  const skillRows = (recap.standouts?.skills ?? []).slice(0, countOf(design, "skills", 6));
+  const skillMax = Math.max(...skillRows.map((r) => r.total), 1);
+  const skillsPanel =
+    design && skillRows.length > 0 ? (
+      <Panel key="skills" title="Skills" grow>
+        <div className="dtrc-rows">
+          {skillRows.map((row) => {
+            const icon = metricIconUrl(row.metric);
+            const who = leaderName(row.entries);
+            return (
+              <div className="dtrc-row" key={row.metric}>
+                <span className="dtrc-row-fill" style={{ width: `${(row.total / skillMax) * 100}%` }} />
+                {icon && <img className="dtrc-icon" src={icon} alt="" />}
+                <span className="dtrc-row-name">
+                  {metricLabel(row.metric)}
+                  {who && <span className="dtrc-row-sub"> · {who}</span>}
+                </span>
+                <span className="dtrc-row-val">{formatGp(row.total)} xp</span>
+              </div>
+            );
+          })}
+        </div>
+      </Panel>
+    ) : null;
+
+  const bossRows = (recap.standouts?.bosses ?? []).slice(0, countOf(design, "bosses", 6));
+  const bossMax = Math.max(...bossRows.map((r) => r.total), 1);
+  const bossesPanel =
+    design && bossRows.length > 0 ? (
+      <Panel key="bosses" title="Boss kills" grow>
+        <div className="dtrc-rows">
+          {bossRows.map((row) => {
+            const icon = metricIconUrl(row.metric);
+            const who = leaderName(row.entries);
+            return (
+              <div className="dtrc-row" key={row.metric}>
+                <span className="dtrc-row-fill" style={{ width: `${(row.total / bossMax) * 100}%` }} />
+                {icon && <img className="dtrc-icon" src={icon} alt="" />}
+                <span className="dtrc-row-name">
+                  {metricLabel(row.metric)}
+                  {who && <span className="dtrc-row-sub"> · {who}</span>}
+                </span>
+                <span className="dtrc-row-val">{row.total.toLocaleString()} kc</span>
+              </div>
+            );
+          })}
+        </div>
+      </Panel>
+    ) : null;
+
+  const pets = (recap.new_pets ?? []).filter((p) => !hidden.has(p.player_id)).slice(0, countOf(design, "pets", 8));
+  const petsPanel =
+    design && pets.length > 0 ? (
+      <Panel key="pets" title="New pets">
+        <div className="dtrc-pets">
+          {pets.map((pet, i) => (
+            <div className="dtrc-pet" key={`${pet.player_id}-${pet.item_id ?? i}-${pet.date ?? i}`}>
+              <ItemSprite id={pet.item_id} />
+              <span className="dtrc-pet-name">{pet.pet ?? "Pet"}</span>
+              <span className="dtrc-pet-who">{pet.name ?? ""}</span>
+            </div>
+          ))}
+        </div>
+      </Panel>
+    ) : null;
+
+  const noteBody = design?.note?.body?.trim();
+  const notePanel = noteBody ? (
+    <Panel key="note" title={design?.note?.title?.trim() || "From the clan"}>
+      <div className="dtrc-note-body">{noteBody}</div>
+    </Panel>
+  ) : null;
+
   /* Composition. Which panels exist varies enormously — a clan month has
      members and standouts, an annual fold has neither but has twelve months of
      history, a player card has neither and no month bars — so rather than
@@ -495,11 +789,33 @@ export function RecapCard({
                    them readable at Discord's ~550px embed width.  */
   const rail = [memberPanel, standouts].filter(Boolean);
   const sideCandidates = [...rail, milestones].filter(Boolean);
+  const designPanels: Record<string, React.ReactNode> = {
+    gallery,
+    sources,
+    skills: skillsPanel,
+    bosses: bossesPanel,
+    note: notePanel,
+    members: memberPanel,
+    standouts,
+    milestones,
+    pets: petsPanel,
+  };
+  const placed = design
+    ? design.sections
+        .filter((s) => s.enabled && s.key !== "drop" && designPanels[s.key])
+        .map((s) => ({ key: s.key, column: s.column ?? "main", node: designPanels[s.key] }))
+    : [];
   /* `layout` overrides the choice for previews. Forcing two columns still needs
      something to put in the rail, so it degrades to banded rather than drawing
      an empty column. */
-  const twoColumn =
-    layout === "stacked"
+  const designMode = design ? (layout !== "auto" ? layout : design.layout) : null;
+  const hasSide = placed.some((p) => p.column === "side");
+  const hasMain = placed.some((p) => p.column !== "side");
+  const twoColumn = design
+    ? // A design never draws an empty column: one populated column reads
+      // as a single-column card whatever the setting says.
+      designMode !== "stacked" && hasSide && hasMain
+    : layout === "stacked"
       ? false
       : layout === "columns"
         ? sideCandidates.length > 0
@@ -509,7 +825,14 @@ export function RecapCard({
   const side: React.ReactNode[] = [];
   const stack: React.ReactNode[] = [];
 
-  if (twoColumn) {
+  if (design) {
+    if (monthBars) (twoColumn ? wide : stack).push(monthBars);
+    for (const p of placed) {
+      if (!twoColumn) stack.push(p.node);
+      else if (p.column === "side") side.push(p.node);
+      else wide.push(p.node);
+    }
+  } else if (twoColumn) {
     if (gallery) wide.push(gallery);
     if (monthBars) wide.push(monthBars);
     if (sources) wide.push(sources);
@@ -522,7 +845,11 @@ export function RecapCard({
     if (milestones) stack.push(milestones);
   }
 
-  const drop = recap.biggest_drop;
+  const dropEnabled = design
+    ? design.sections.find((s) => s.key === "drop")?.enabled !== false
+    : true;
+  const drop = dropEnabled ? recap.biggest_drop : null;
+  const dropBy = drop && !hidden.has(drop.player_id) ? drop.player_name : null;
   const dropDay = drop?.date ? formatIsoDay(drop.date) : null;
 
   // Every figure on the card was frozen at this moment; saying so is what makes a
@@ -535,9 +862,10 @@ export function RecapCard({
       <div
         className="dtrc"
         style={
-          width
-            ? ({ width, "--u": `${width / CARD_UNITS}px` } as React.CSSProperties)
-            : undefined
+          {
+            ...(width ? { width, "--u": `${width / CARD_UNITS}px` } : {}),
+            ...accentVars(design),
+          } as React.CSSProperties
         }
       >
         <div className="dtrc-in">
@@ -553,9 +881,13 @@ export function RecapCard({
               {isGroup ? "Clan" : "Player"} {isAnnual ? "year in review" : "recap"}
             </div>
             <h1 className="dtrc-title">
-              {subject?.name ?? (isGroup ? `Group ${subject?.id}` : `Player ${subject?.id}`)}
+              {design?.title?.trim() ||
+                (subject?.name ?? (isGroup ? `Group ${subject?.id}` : `Player ${subject?.id}`))}
             </h1>
             <div className="dtrc-period">{formatPeriod(recap.period)}</div>
+            {design?.headline?.trim() && (
+              <div className="dtrc-headline">{design.headline.trim()}</div>
+            )}
             {/* Whose clan this player runs with — the one line of context a
                 personal card can add that the player didn't already know it
                 would say. Omitted for the clanless rather than left blank. */}
@@ -591,12 +923,12 @@ export function RecapCard({
           </div>
 
           {twoColumn ? (
-            <div className="dtrc-body dtrc-body-2">
+            <div className={`dtrc-body dtrc-body-2${design ? " dtrc-body-designed" : ""}`}>
               <div className="dtrc-col">{wide}</div>
               <div className="dtrc-col">{side}</div>
             </div>
           ) : (
-            <div className="dtrc-body">{stack}</div>
+            <div className={`dtrc-body${design ? " dtrc-body-designed" : ""}`}>{stack}</div>
           )}
 
           {drop && (
@@ -609,7 +941,7 @@ export function RecapCard({
                 <div className="dtrc-feat-name">{drop.item_name ?? "Unknown item"}</div>
                 <div className="dtrc-feat-meta">
                   {[
-                    isGroup && drop.player_name ? drop.player_name : null,
+                    isGroup && dropBy ? dropBy : null,
                     drop.npc_name ?? null,
                     // Only meaningful from web76a onward; older drops have no KC.
                     drop.kill_count !== null ? `${drop.kill_count.toLocaleString()} kc` : null,
@@ -651,6 +983,20 @@ export function RecapCard({
       </div>
     </div>
   );
+}
+
+/** CSS variables for a design's accent; nothing for the default gold. */
+function accentVars(design: RecapDesign | null | undefined): Record<string, string> {
+  const key = design?.accent as RecapAccent | undefined;
+  if (!key || key === "gold" || !(key in RECAP_ACCENTS)) return {};
+  const a = RECAP_ACCENTS[key];
+  return {
+    "--gold": a.gold,
+    "--gold-dim": a.goldDim,
+    "--bronze": a.bronze,
+    "--bronze-hi": a.bronzeHi,
+    "--fill-rgb": a.fillRgb,
+  };
 }
 
 function MonthBars({

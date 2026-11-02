@@ -54,6 +54,12 @@ export default async function RecapImagePage({
   // as it is now, not as it was cached up to an hour ago.
   const recap = await api.recap(scope, subjectId, period, true);
   if (!recap) notFound();
+  // The clan's design (web154a), read fresh like the snapshot: this render is
+  // what gets posted. None saved = the card as it always was.
+  const design =
+    scope === "group" && period.length === 7
+      ? await api.recapDesign(subjectId, period, true)
+      : null;
 
   return (
     <>
@@ -63,7 +69,12 @@ export default async function RecapImagePage({
           colour only matters for the single sub-pixel row rounding can leave. */}
       <style>{`body{min-height:0!important;margin:0;background:#0b100d}`}</style>
       <div style={{ width: cardWidth }}>
-        <RecapCard recap={recap} width={cardWidth} layout={shape} />
+        <RecapCard
+          recap={recap}
+          width={cardWidth}
+          layout={shape}
+          design={design && design.source !== "builtin" ? design.design : null}
+        />
       </div>
     </>
   );

@@ -264,7 +264,9 @@ export async function RecapBlock({ groupId, period }: { groupId: number; period:
     ? await api.recap("group", groupId, match.period).catch(() => null)
     : null;
   if (!recap) return <BlockEmpty hint="No recap yet. Recaps appear after the period ends." />;
-  return <RecapCard recap={recap} fluid />;
+  // The clan's own design (web154a), so the block shows the card they posted.
+  const design = recap.period.length === 7 ? await api.recapDesign(groupId, recap.period).catch(() => null) : null;
+  return <RecapCard recap={recap} fluid design={design && design.source !== "builtin" ? design.design : null} />;
 }
 
 export async function AnnouncementsBlock({ groupId, limit }: { groupId: number; limit: number }) {

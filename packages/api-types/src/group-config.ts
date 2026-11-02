@@ -471,6 +471,19 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "channel_id_to_post_recaps", label: "Recap channel", category: "recaps", type: "channel", help: "Where the monthly recap card is posted. Leave empty to use your lootboard channel.", default: null },
   { key: "recap_minimum_item_value", label: "Minimum item value", category: "recaps", type: "int", help: "Only count items worth at least this much GP each on your clan's recap card: its loot total, top items, top bosses, member ranking and drop of the month. 0 counts every item. To match a lootboard that hides items below your minimum value, use the same number here. Applies from the next card.", default: 0, min: 0, unit: "gp" },
   { key: "recap_post_hour", label: "Post at (hour)", category: "recaps", type: "int", help: "Hour of the 1st, in the timezone below, to post the card. Defaults to 12 (midday) — the month closes at 00:00 UTC, which is the middle of the night for most people. A card can't exist before that close, so clans far enough ahead of UTC receive theirs at the first moment after it.", default: 12, min: 0, max: 23 },
+  {
+    key: "recap_review_mode",
+    label: "Review before posting",
+    category: "recaps",
+    type: "select",
+    help: "Post the card automatically, message your admins on Discord first so they can change it before it goes out, or hold it until an admin approves it.",
+    default: "off",
+    options: [
+      { value: "off", label: "Post automatically" },
+      { value: "notify", label: "Message admins first, then post" },
+      { value: "approve", label: "Wait for an admin to approve" },
+    ],
+  },
   { key: "recap_timezone", label: "Timezone", category: "recaps", type: "string", help: "IANA timezone name, e.g. Europe/London. Set automatically from your browser the first time an admin opens this page; empty means UTC.", default: null },
 
   // --- Clan Log -----------------------------------------------------------

@@ -29,6 +29,7 @@ export type Align = (typeof ALIGNS)[number];
 
 export const GROUP_LINK_KEYS = [
   "lootboard",
+  "stats",
   "clan_log",
   "personal_bests",
   "pvp",
@@ -86,6 +87,16 @@ export type LootPeriod = (typeof LOOT_PERIODS)[number];
 export const POINTS_PERIODS = ["all", "season", "month", "week", "day"] as const;
 export type PointsPeriod = (typeof POINTS_PERIODS)[number];
 export const HIGHLIGHT_TYPES = ["drop", "pet", "clog", "pb"] as const;
+
+/** The Standouts block (suggestion #224): which window it reads. */
+export const STANDOUT_BLOCK_PERIODS = ["month", "last_month", "year", "all"] as const;
+export type StandoutBlockPeriod = (typeof STANDOUT_BLOCK_PERIODS)[number];
+export const STANDOUT_BLOCK_KEYS = [
+  "loot", "biggest_drop", "xp", "levels", "ehb", "ehp", "kills", "drops",
+  "clog_slots", "pets", "pbs", "cas", "clues", "slayer_tasks", "quests",
+  "diaries", "pvp_kills", "deaths",
+] as const;
+export const STANDOUT_BLOCK_DEFAULT = ["loot", "xp", "kills", "ehb", "clog_slots", "pets"] as const;
 export type HighlightType = (typeof HIGHLIGHT_TYPES)[number];
 
 export const THEME_PRESETS = ["default", "dusk", "parchment", "wilderness"] as const;
@@ -182,6 +193,15 @@ export const PageBlockSchema = z.discriminatedUnion("type", [
     period: z.enum(POINTS_PERIODS).catch("month"),
     switchable: z.boolean().catch(false),
     periods: keyList(POINTS_PERIODS, ["month", "all"]),
+    show_link: z.boolean().catch(true),
+  }),
+  z.object({
+    ...base,
+    type: z.literal("standouts"),
+    period: z.enum(STANDOUT_BLOCK_PERIODS).catch("month"),
+    categories: z.array(z.enum(STANDOUT_BLOCK_KEYS)).catch([...STANDOUT_BLOCK_DEFAULT]),
+    depth: z.number().int().min(1).max(3).catch(3),
+    view: z.enum(["cards", "list"]).catch("cards"),
     show_link: z.boolean().catch(true),
   }),
   z.object({
