@@ -36,6 +36,7 @@ import {
   type VisibleSection,
 } from "@/lib/group-settings-sections";
 import { collidingVoiceCounterChannel } from "@/lib/voice-counter";
+import { broadcastRosterPrompt, type BroadcastRosterPrompt } from "@/lib/clan-broadcast";
 import { viewerZone } from "@/components/local-time";
 import { Alert, Badge, Button, Card, controlClass, EmptyState, Input, Select, Textarea } from "@/components/ui";
 import { GpInput } from "@/components/gp-input";
@@ -377,9 +378,23 @@ export function ConfigEditor({
     });
   };
 
+  /* Broadcast tracking only records clanmates who already have a profile in
+     the group, and auto-add is what creates them for players without the
+     plugin (lib/clan-broadcast.ts). Prompt for it from the unsaved draft, so it
+     shows the moment tracking is switched on. */
+  const rosterPrompt = useMemo(() => broadcastRosterPrompt(values, baseline), [values, baseline]);
+
   /** Callouts that belong above one block of one section. */
   const calloutFor = (sectionId: SettingsSectionId, group: string | null): ReactNode => {
     if (sectionId === "pbs" && group === "Hall of Fame") return <HallOfFameBotCallout groupId={groupId} />;
+    if (sectionId === "clan_chat" && group === "Broadcast tracking" && rosterPrompt) {
+      return (
+        <BroadcastRosterCallout
+          state={rosterPrompt}
+          onEnable={() => set("auto_provision_members", true)}
+        />
+      );
+    }
     if (sectionId === "voice" && group === null && voiceCounterCollision) {
       return (
         <VoiceCounterCollisionCallout
@@ -1088,6 +1103,40 @@ function HallOfFameBotCallout({ groupId }: { groupId: number }) {
  * other) shouldn't be locked out of saving the rest of the page. It explains
  * the fix — a second voice channel — because "it stopped working" is how this
  * reaches support otherwise. */
+function BroadcastRosterCallout({
+  state,
+  onEnable,
+}: {
+  state: BroadcastRosterPrompt;
+  onEnable: () => void;
+}) {
+  if (state === "pending") {
+    return (
+      <div className="border-osrs-gold/30 bg-osrs-brown-dark/40 mb-4 rounded-lg border p-4">
+        <p className="text-osrs-gold-bright text-sm font-medium">Auto-add will turn on when you save</p>
+        <p className="text-osrs-parchment-dark/80 mt-1 text-xs leading-relaxed">
+          After saving, everyone in your WiseOldMan group gets a DropTracker profile within about an
+          hour, and their broadcasts start being tracked.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="border-osrs-gold/30 bg-osrs-brown-dark/40 mb-4 rounded-lg border p-4">
+      <p className="text-osrs-gold-bright text-sm font-medium">Turn on Auto-add WiseOldMan members too</p>
+      <p className="text-osrs-parchment-dark/80 mt-1 text-xs leading-relaxed">
+        Broadcasts can only be tracked for players who already have a DropTracker profile in your
+        group. Clanmates who don&apos;t use the plugin usually don&apos;t have one, so their drops are
+        skipped. <strong>Auto-add WiseOldMan members</strong> creates a profile for everyone in your
+        WiseOldMan group.
+      </p>
+      <Button type="button" size="sm" className="mt-3" onClick={onEnable}>
+        Turn on Auto-add
+      </Button>
+    </div>
+  );
+}
+
 function VoiceCounterCollisionCallout({
   channelId,
   channelName,
