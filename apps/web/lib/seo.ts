@@ -21,14 +21,20 @@ export function entityCanonical(
  * `/api/og/{kind}/{id}.png` (app/api/og, layout in lib/og/card.tsx), which
  * shows the entity's picture and headline stats. Keyed by numeric id so slug
  * and id URLs of the same entity share one cached image.
+ *
+ * The `?v=` hour bucket changes the image URL every hour (the card's own
+ * max-age). Discord caches unfurl images by URL, so a fixed URL kept showing
+ * a weeks-old card in new links (bug #226). The route ignores the query.
  */
+const SOCIAL_CARD_BUCKET_MS = 60 * 60 * 1000;
+
 export function entitySocialMetadata(
   kind: EntityKind,
   id: number,
   { title, description, alt }: { title: string; description: string; alt?: string },
 ): Metadata {
   const image = {
-    url: `/api/og/${kind}/${id}.png`,
+    url: `/api/og/${kind}/${id}.png?v=${Math.floor(Date.now() / SOCIAL_CARD_BUCKET_MS)}`,
     width: 1200,
     height: 630,
     alt: alt ?? `${title} on DropTracker`,
