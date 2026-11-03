@@ -556,7 +556,7 @@ export function ConfigEditor({
 
         {sections.map(renderSection)}
 
-        <div className="bg-osrs-surface-1/95 border-osrs-bronze/30 sticky bottom-0 -mx-1 space-y-2 rounded-lg border px-4 py-3 shadow-lg backdrop-blur">
+        <div className="save-bar glass border-osrs-bronze/30 sticky bottom-0 -mx-1 space-y-2 rounded-lg border px-4 py-3 shadow-lg">
           {restoredCount > 0 && (
             <Alert variant="info">
               Restored {restoredCount} unsaved change{restoredCount === 1 ? "" : "s"} from before the site updated —

@@ -1534,10 +1534,8 @@ export function EventDiscordSettings({
           Stays enabled when clean on purpose: a failed scheduled event or
           team provisioning is retried by saving again, unchanged. */}
       <div
-        className={`sticky bottom-0 z-30 -mx-1 space-y-2 rounded-lg border px-4 py-3 shadow-lg backdrop-blur ${
-          dirty
-            ? "border-osrs-gold/60 bg-osrs-surface-2/95"
-            : "border-osrs-bronze/30 bg-osrs-surface-1/95"
+        className={`save-bar glass sticky bottom-0 z-30 -mx-1 space-y-2 rounded-lg border px-4 py-3 shadow-lg ${
+          dirty ? "border-osrs-gold/60" : "border-osrs-bronze/30"
         }`}
       >
         {error && <Alert variant="error">{error}</Alert>}

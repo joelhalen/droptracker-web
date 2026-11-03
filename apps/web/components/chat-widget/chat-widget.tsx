@@ -225,7 +225,7 @@ function ChatWidgetInner({ me }: { me: Me }) {
         }
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="border-osrs-bronze/50 bg-osrs-surface-2 text-osrs-gold hover:border-osrs-gold/60 hover:text-osrs-gold-bright fixed right-4 bottom-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border shadow-lg transition-colors"
+        className="chat-launcher border-osrs-bronze/50 bg-osrs-surface-2 text-osrs-gold hover:border-osrs-gold/60 hover:text-osrs-gold-bright fixed right-4 bottom-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border shadow-lg transition-colors"
       >
         <ChatIcon className="size-6" />
         {totalUnread > 0 && (

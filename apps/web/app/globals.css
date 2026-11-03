@@ -615,3 +615,17 @@ body {
 [data-pl-slot]:has([data-pl-empty]):not([data-block-id]) {
   display: none;
 }
+
+/*
+ * Save bars (`.save-bar`) sit along the bottom of the viewport, where the chat
+ * launcher also lives, and the launcher used to cover their Save button. While
+ * a save bar is on the page, lift the launcher, and its desktop panel, above it.
+ */
+body:has(.save-bar) .chat-launcher {
+  bottom: 5.5rem;
+}
+@media (min-width: 640px) {
+  body:has(.save-bar) .chat-panel {
+    bottom: 9.5rem;
+  }
+}

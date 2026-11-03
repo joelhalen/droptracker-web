@@ -14,7 +14,7 @@
  * Clicking any member opens their drilldown: their numbers, rank in the clan,
  * skills, bosses, sources, items and activity for the same period.
  */
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import type { GroupStats, GroupStatsMember, StandoutCategory, StandoutLeader } from "@droptracker/api-types";
@@ -354,7 +354,7 @@ function Members({ stats, onPick }: { stats: GroupStats; onPick: (pid: number) =
             {rows.map((m, i) => (
               <tr key={m.player_id} className="border-osrs-bronze/15 hover:bg-osrs-gold/5 border-t">
                 <td className="text-osrs-parchment-dark/50 px-2 py-1.5 text-right tabular-nums">{i + 1}</td>
-                <td className="bg-osrs-surface sticky left-0 max-w-[12rem] px-2 py-1.5">
+                <td className="bg-osrs-surface-1 sticky left-0 max-w-[12rem] px-2 py-1.5">
                   <button type="button" onClick={() => onPick(m.player_id)} className="text-osrs-parchment hover:text-osrs-gold-bright cursor-pointer truncate">
                     {memberName(stats, m.player_id)}
                   </button>
@@ -671,10 +671,18 @@ function Activity({ stats, Who }: { stats: GroupStats; Who: WhoComp }) {
 function MemberDrawer({ stats, playerId, onClose }: { stats: GroupStats; playerId: number; onClose: () => void }) {
   const d = useMemo(() => memberDetail(stats, playerId), [stats, playerId]);
   const columns = availableColumns(stats);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   const row = d.row;
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/60" onClick={onClose} role="dialog" aria-modal>
-      <div className="bg-osrs-surface border-osrs-bronze/40 h-full w-full max-w-xl overflow-y-auto border-l p-5" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal>
+      {/* The scrim is a sibling of the panel, not its parent, so the panel's
+          own blur reaches the page behind it. */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} aria-hidden />
+      <div className="glass border-osrs-bronze/40 shadow-osrs-pop relative h-full w-full max-w-xl overflow-y-auto border-l p-5">
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
             <div className="text-osrs-parchment-dark/60 text-xs uppercase">{periodLabel(stats.period)}</div>

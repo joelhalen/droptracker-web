@@ -752,7 +752,7 @@ function TierEditor({
 
       {error && <Alert variant="error">{error}</Alert>}
 
-      <div className="border-osrs-bronze/20 bg-osrs-surface-1/95 sticky bottom-0 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 backdrop-blur">
+      <div className="save-bar glass border-osrs-bronze/20 sticky bottom-0 -mx-4 flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
         <div className="flex items-center gap-3">
           <Button onClick={onSave} disabled={pending || !dirty || !form.key || !form.name}>
             {pending ? "Saving…" : isNew ? "Create tier" : "Save changes"}

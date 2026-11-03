@@ -772,7 +772,7 @@ export function RecapDesigner({
       </div>
 
       {/* ── save bar ───────────────────────────────────────────────────── */}
-      <div className="border-osrs-bronze/40 bg-osrs-surface/95 fixed inset-x-0 bottom-0 z-30 border-t backdrop-blur">
+      <div className="save-bar glass border-osrs-bronze/40 fixed inset-x-0 bottom-0 z-30 border-t">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <span className="text-osrs-parchment-dark/80 text-sm">
             {dirty ? "Unsaved changes" : "All changes saved"} · editing{" "}

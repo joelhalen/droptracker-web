@@ -90,7 +90,7 @@ export function WidgetPanel({ launcherRef }: { launcherRef: RefObject<HTMLButton
         role="dialog"
         aria-modal="true"
         aria-label="Messages and support"
-        className="card-pop menu-in fixed inset-x-0 bottom-0 z-[80] flex h-[85dvh] flex-col overflow-hidden rounded-t-2xl sm:inset-x-auto sm:right-4 sm:bottom-20 sm:z-50 sm:h-[min(70vh,34rem)] sm:w-[24rem] sm:rounded-xl"
+        className="chat-panel card-pop menu-in fixed inset-x-0 bottom-0 z-[80] flex h-[85dvh] flex-col overflow-hidden rounded-t-2xl sm:inset-x-auto sm:right-4 sm:bottom-20 sm:z-50 sm:h-[min(70vh,34rem)] sm:w-[24rem] sm:rounded-xl"
       >
         <header className="border-osrs-bronze/25 flex shrink-0 items-center gap-2 border-b px-3 py-2">
           {stack.length > 1 && (
