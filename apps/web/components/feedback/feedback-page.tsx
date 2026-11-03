@@ -21,7 +21,6 @@ export function FeedbackPage({
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const labelId = useId();
-  const group = groups.find((g) => g.group_id === draft.groupId) ?? null;
 
   if (sent) {
     return (
@@ -72,9 +71,7 @@ export function FeedbackPage({
         />
         <div>
           <p id={labelId} className="text-osrs-parchment mb-2 text-sm font-medium">
-            {group
-              ? `How would you rate The DropTracker for ${group.name}?`
-              : "How would you rate The DropTracker?"}
+            How would you rate The DropTracker?
           </p>
           <RatingRow value={draft.rating} labelledBy={labelId} onChange={(rating) => setDraft({ ...draft, rating })} />
         </div>

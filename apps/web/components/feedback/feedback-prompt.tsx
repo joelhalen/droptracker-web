@@ -132,7 +132,6 @@ function FeedbackCard({
   const titleId = useId();
   const seen = useRef(false);
 
-  const group = groups.find((g) => g.group_id === draft.groupId) ?? null;
   const key = closedKey(userId, requestId);
 
   useEffect(() => {
@@ -205,9 +204,7 @@ function FeedbackCard({
                 Quick question
               </p>
               <h2 id={titleId} className="text-osrs-gold mt-0.5 text-base leading-snug font-semibold">
-                {group
-                  ? `How would you rate The DropTracker for ${group.name}?`
-                  : "How would you rate The DropTracker?"}
+                How would you rate The DropTracker?
               </h2>
             </div>
             <CloseX onClick={() => close(false)} />

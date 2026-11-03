@@ -65,7 +65,7 @@ export function GroupPicker({
   onChange: (groupId: number) => void;
 }) {
   const id = useId();
-  if (groups.length < 2) return null;
+  if (groups.length === 0) return null;
   return (
     <label htmlFor={id} className="text-osrs-parchment-dark/80 flex items-center gap-2 text-xs">
       Answering for
