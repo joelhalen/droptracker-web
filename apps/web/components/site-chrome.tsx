@@ -4,6 +4,7 @@ import { ChatWidget } from "@/components/chat-widget/chat-widget";
 import { LiveDropTicker } from "@/components/live-drop-ticker";
 import { SiteHeader } from "@/components/site-header";
 import { SiteNotices } from "@/components/site-notices/site-notices";
+import { FeedbackPrompt } from "@/components/feedback/feedback-prompt";
 import type { NavTab } from "@/components/tab-nav";
 
 // "Events" owns a nested /events/[id] detail route — stay highlighted there too.
@@ -111,6 +112,8 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
       {/* Targeted pop-ups staff send from /admin/notices (web118a). Also a
           signed-out no-op, and also absent from the chromeless surfaces. */}
       <SiteNotices />
+      {/* Feedback card for people staff asked at /admin/feedback (web155a). */}
+      <FeedbackPrompt />
     </>
   );
 }

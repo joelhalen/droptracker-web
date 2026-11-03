@@ -63,6 +63,11 @@ export const ADMIN_SECTIONS: AdminNavSection[] = [
         label: "Pop-up notices",
         desc: "Send a pop-up to specific people, clan leaders, group members or supporters.",
       },
+      {
+        href: "/admin/feedback",
+        label: "Feedback",
+        desc: "Ask clan leaders or specific people for feedback; answers go to the staff Discord.",
+      },
       { href: "/admin/docs", label: "Docs", desc: "Add, edit, and delete documentation pages." },
       { href: "/admin/redirects", label: "Redirects", desc: "Manage vanity short links (e.g. /discord)." },
       { href: "/admin/badges", label: "Badges", desc: "Define badges and award them manually." },

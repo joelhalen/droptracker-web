@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { SetupBanner } from "@/components/group-setup-checklist";
 import { forbidden, notFound } from "next/navigation";
 import { api } from "@/lib/api";
@@ -147,6 +148,17 @@ export default async function GroupAdminLayout({
         <p className="text-osrs-parchment-dark/70 mt-1 text-sm">
           {group.member_count} member{group.member_count === 1 ? "" : "s"}
           {group.global_rank != null && <> · Global rank #{group.global_rank}</>}
+          {isAdmin && (
+            <>
+              {" · "}
+              <Link
+                href={`/feedback?group=${groupId}` as Route}
+                className="hover:text-osrs-gold-bright underline"
+              >
+                Share feedback
+              </Link>
+            </>
+          )}
         </p>
       </header>
 

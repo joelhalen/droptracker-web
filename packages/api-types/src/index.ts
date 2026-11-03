@@ -8771,6 +8771,8 @@ export * from "./rank-roles";
 
 // Targeted site pop-ups (web118a)
 export * from "./popup-notices";
+// Clan leader feedback (web155a)
+export * from "./feedback";
 export * from "./tester-builds";
 
 // Clan bank (web131a)
