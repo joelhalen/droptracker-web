@@ -49,6 +49,7 @@ import {
   unlinkWomCompetition,
 } from "@/app/(site)/(admin)/groups/[id]/events/actions";
 import type { WomPartialBosses } from "@/app/(site)/(admin)/groups/[id]/events/actions";
+import { metricIcon } from "@/lib/activity/img";
 
 const field =
   "w-full rounded border border-osrs-bronze/40 bg-osrs-brown-dark/60 px-2.5 py-1.5 text-sm text-osrs-parchment placeholder:text-osrs-parchment-dark/40 focus:border-osrs-gold focus:outline-none";
@@ -441,7 +442,7 @@ export function CompetitionSetup({
                   }`}
                 >
                   <Image
-                    src={`/img/metrics/${s.key}.png`}
+                    src={metricIcon(s.key)}
                     alt=""
                     width={16}
                     height={16}
