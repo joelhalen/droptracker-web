@@ -10,6 +10,7 @@
  * again.
  */
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   BANK_KIND_LABELS,
@@ -28,7 +29,14 @@ import { GpAmount } from "@/components/gp-amount";
 import { ProofAttach, type ProofUpload } from "@/components/proof-attach";
 import { formatDate } from "@/lib/format";
 import { describeGp } from "@/lib/gp";
-import { EARLIEST_BANK_DAY, bankLedgerCsv, dayToUnix, localDay, todayLocal } from "@/lib/group-bank";
+import {
+  EARLIEST_BANK_DAY,
+  bankLedgerCsv,
+  dayToUnix,
+  isCofferMove,
+  localDay,
+  todayLocal,
+} from "@/lib/group-bank";
 import {
   deleteBankEntry,
   exportBankLedger,
@@ -78,8 +86,16 @@ function SourceBadge({ source }: { source: BankEntrySource }) {
   );
 }
 
-function SignedGp({ money }: { money: Money }) {
+/** A ledger row's amount. `muted` is a coffer move: listed, not counted. */
+function SignedGp({ money, muted = false }: { money: Money; muted?: boolean }) {
   const negative = money.value < 0;
+  if (muted) {
+    return (
+      <span className="text-osrs-parchment-dark/50 tabular-nums" title="Held outside the coffer. Doesn't change the balance.">
+        {money.value_formatted.replace(/^-/, "")}
+      </span>
+    );
+  }
   return (
     <span className={negative ? "text-osrs-red tabular-nums" : "text-osrs-green tabular-nums"}>
       {negative ? "" : "+"}
@@ -108,6 +124,12 @@ export function GroupBankManager({
   const [busy, startTransition] = useTransition();
 
   const balance = summary.balance?.value ?? 0;
+  const neutral = summary.coffer_withdrawals_neutral;
+  const held = summary.held_outside_coffer_total;
+  // Synced withdrawals still lower the balance: point at the setting, since a
+  // clan holding GP outside the 50M coffer usually wants them not to.
+  const showNeutralHint =
+    !neutral && ledger.entries.some((e) => e.source === "coffer" && e.kind === "withdrawal" && e.status === "confirmed");
   // Synced coffer rows but no opening balance: the site starts from 0 while
   // the in-game coffer may not have.
   const showOpeningHint =
@@ -154,7 +176,7 @@ export function GroupBankManager({
         setError(res.message);
         return;
       }
-      const blob = new Blob([bankLedgerCsv(res.entries)], { type: "text/csv" });
+      const blob = new Blob([bankLedgerCsv(res.entries, neutral)], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -179,6 +201,7 @@ export function GroupBankManager({
         <StatTile
           label="Balance"
           value={summary.balance ? <GpAmount money={summary.balance} /> : "0"}
+          hint={neutral && held && held.value > 0 ? `${held.value_formatted} held outside the coffer` : undefined}
           className={balance < 0 ? "ring-osrs-red/50 ring-1" : ""}
         />
         <StatTile
@@ -207,12 +230,24 @@ export function GroupBankManager({
         )
       )}
 
+      {showNeutralHint && (
+        <Alert variant="info">
+          Synced coffer withdrawals lower the balance. If your admins take GP out of the coffer to hold it,
+          turn on &quot;Coffer withdrawals stay in the bank&quot; in{" "}
+          <Link href={`/groups/${groupId}/settings`} className="underline">
+            Settings
+          </Link>{" "}
+          so only payouts and event funding count as GP taken out.
+        </Alert>
+      )}
+
       {error && <Alert>{error}</Alert>}
       {notice && <Alert variant="success">{notice}</Alert>}
 
       {pendingRows.length > 0 && (
         <PendingQueue
           rows={pendingRows}
+          neutral={neutral}
           busy={busy}
           onConfirm={(e) => run(() => updateBankEntry(groupId, e.id, { status: "confirmed" }), "Confirmed.")}
           onReject={(e, reason) =>
@@ -252,6 +287,7 @@ export function GroupBankManager({
               <LedgerRow
                 key={e.id}
                 entry={e}
+                neutral={neutral}
                 busy={busy}
                 onReopen={() => run(() => updateBankEntry(groupId, e.id, { status: "pending" }), "Back in the queue.")}
                 onRemove={() => {
@@ -339,6 +375,7 @@ type EntryPatch = { amount?: number; rsn?: string | null; note?: string | null; 
 
 function LedgerRow({
   entry: e,
+  neutral,
   busy,
   onReopen,
   onRemove,
@@ -346,6 +383,7 @@ function LedgerRow({
   onEdit,
 }: {
   entry: GroupBankEntry;
+  neutral: boolean;
   busy: boolean;
   onReopen: () => void;
   onRemove: () => void;
@@ -355,11 +393,12 @@ function LedgerRow({
   const status = STATUS_BADGE[e.status];
   const editable = e.status !== "void";
   const [editing, setEditing] = useState(false);
+  const move = isCofferMove(e, neutral);
   return (
     <li className={`flex flex-wrap items-center gap-3 px-4 py-3 text-sm ${e.status === "void" ? "opacity-60" : ""}`}>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{BANK_KIND_LABELS[e.kind]}</span>
+          <span className="font-medium">{move ? "Out of coffer" : BANK_KIND_LABELS[e.kind]}</span>
           {entryWho(e) && <span className="text-osrs-parchment-dark/80 truncate">{entryWho(e)}</span>}
           {e.status !== "confirmed" && (
             <Badge variant={status.variant} size="sm">
@@ -382,7 +421,7 @@ function LedgerRow({
         onRemove={editable && e.proof_url ? () => onProof(null) : undefined}
       />
       <div className="w-28 text-right font-semibold">
-        <SignedGp money={e.amount} />
+        <SignedGp money={e.amount} muted={move} />
       </div>
       <div className="flex w-36 justify-end gap-1">
         {e.status === "rejected" && (
@@ -519,11 +558,13 @@ function EntryEditor({
 
 function PendingQueue({
   rows,
+  neutral,
   busy,
   onConfirm,
   onReject,
 }: {
   rows: GroupBankEntry[];
+  neutral: boolean;
   busy: boolean;
   onConfirm: (e: GroupBankEntry) => void;
   onReject: (e: GroupBankEntry, reason: string) => void;
@@ -551,10 +592,11 @@ function PendingQueue({
                     </>
                   ) : (
                     <>
-                      {BANK_KIND_LABELS[e.kind]} {e.rsn && <span className="text-osrs-parchment-dark/60">{e.rsn}</span>}{" "}
+                      {isCofferMove(e, neutral) ? "Out of coffer" : BANK_KIND_LABELS[e.kind]}{" "}
+                      {e.rsn && <span className="text-osrs-parchment-dark/60">{e.rsn}</span>}{" "}
                     </>
                   )}
-                  <SignedGp money={e.amount} />
+                  <SignedGp money={e.amount} muted={isCofferMove(e, neutral)} />
                 </div>
                 <div className="text-osrs-parchment-dark/60 flex flex-wrap items-center gap-x-1 text-xs">
                   <SourceBadge source={e.source} />

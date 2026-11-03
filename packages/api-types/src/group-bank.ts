@@ -93,6 +93,11 @@ export const GroupBankSummarySchema = z.object({
   withdrawn_total: BankMoneySchema.optional(),
   payout_total: BankMoneySchema.optional(),
   transferred_total: BankMoneySchema.optional(),
+  /** `bank_coffer_withdrawals_neutral`: synced coffer withdrawals are GP
+   * moved out of the coffer, not spent. They stay in the ledger but leave the
+   * balance and the totals above, and are summed here instead. */
+  coffer_withdrawals_neutral: z.boolean().default(false),
+  held_outside_coffer_total: BankMoneySchema.optional(),
   adjustment_total: BankMoneySchema.optional(),
   donation_count: z.number().int().default(0),
   donor_count: z.number().int().default(0),

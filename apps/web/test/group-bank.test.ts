@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { GroupBankEntrySchema } from "@droptracker/api-types";
-import { bankLedgerCsv, dayToUnix, localDay, todayLocal } from "../lib/group-bank";
+import { bankLedgerCsv, dayToUnix, isCofferMove, localDay, todayLocal } from "../lib/group-bank";
 
 const NOW = new Date(2026, 10, 2, 21, 0, 0); // local time
 
@@ -48,7 +48,17 @@ test("ledger CSV is oldest first, signed, and formula-safe", () => {
   const [header = "", first = "", second = "", ...rest] = csv.split("\r\n");
   assert.equal(rest.length, 0);
   assert.ok(header.startsWith("Date,Type,Status,Source,Name,Amount (gp)"));
-  assert.ok(first.startsWith("2024-05-01,Donation,confirmed,coffer,'=HYPERLINK(1),5000000,"));
+  assert.ok(first.startsWith("2024-05-01,Donation,confirmed,coffer,'=HYPERLINK(1),5000000,yes,"));
   assert.ok(first.includes('"said ""thanks"", twice"'));
-  assert.ok(second.startsWith("2026-11-02,Withdrawal,confirmed,coffer,xCmase,-31069421,"));
+  assert.ok(second.startsWith("2026-11-02,Withdrawal,confirmed,coffer,xCmase,-31069421,yes,"));
+  // With coffer withdrawals neutral, the same row is listed but not counted.
+  const neutral = bankLedgerCsv([entry({ id: 2, kind: "withdrawal", amount: { value: -5, value_formatted: "-5" } })], true);
+  assert.ok(neutral.split("\r\n")[1]?.includes(",-5,no,"));
+});
+
+test("only synced withdrawals are coffer moves, and only when the setting is on", () => {
+  assert.equal(isCofferMove({ kind: "withdrawal", source: "coffer" }, true), true);
+  assert.equal(isCofferMove({ kind: "withdrawal", source: "coffer" }, false), false);
+  assert.equal(isCofferMove({ kind: "withdrawal", source: "staff" }, true), false);
+  assert.equal(isCofferMove({ kind: "donation", source: "coffer" }, true), false);
 });

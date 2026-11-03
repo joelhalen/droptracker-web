@@ -4,6 +4,13 @@
  */
 import { BANK_KIND_LABELS, type GroupBankEntry } from "@droptracker/api-types";
 
+/** A synced coffer withdrawal the group counts as GP held outside the
+ * coffer, not spent (`bank_coffer_withdrawals_neutral`; mirrors the backend's
+ * services/group_bank.is_coffer_move). */
+export function isCofferMove(e: Pick<GroupBankEntry, "kind" | "source">, neutral: boolean): boolean {
+  return neutral && e.kind === "withdrawal" && e.source === "coffer";
+}
+
 /** Old School's launch; the backend refuses anything earlier. */
 export const EARLIEST_BANK_DAY = "2013-02-22";
 
@@ -57,6 +64,7 @@ const CSV_HEADER = [
   "Source",
   "Name",
   "Amount (gp)",
+  "In balance",
   "Event",
   "Note",
   "Submitted by",
@@ -64,8 +72,9 @@ const CSV_HEADER = [
   "Screenshot",
 ];
 
-/** The whole ledger as CSV, oldest first, with signed raw amounts. */
-export function bankLedgerCsv(entries: GroupBankEntry[]): string {
+/** The whole ledger as CSV, oldest first, with signed raw amounts. "In
+ * balance" says whether the row counts: confirmed, and not a coffer move. */
+export function bankLedgerCsv(entries: GroupBankEntry[], cofferWithdrawalsNeutral = false): string {
   const rows = [...entries]
     .sort((a, b) => (a.created_at ?? 0) - (b.created_at ?? 0) || a.id - b.id)
     .map((e) => [
@@ -75,6 +84,7 @@ export function bankLedgerCsv(entries: GroupBankEntry[]): string {
       e.source,
       e.rsn,
       e.amount.value,
+      e.status === "confirmed" && !isCofferMove(e, cofferWithdrawalsNeutral) ? "yes" : "no",
       e.event_name,
       e.note,
       e.submitted_by,
