@@ -1,4 +1,5 @@
 import { apiGet, withFallback } from "./_client";
+import { slugify } from "../slug";
 import {
   ResolveResultSchema,
   type ResolveResult,
@@ -28,6 +29,13 @@ import {
   mockNpcDetail,
   mockNpcDropTable,
 } from "../mock-data";
+
+/** Cache tag on a slug lookup, keyed by the slug the backend will match on
+ * (it re-slugifies), so `the-pvm-god` and `The-PvM-God` share one tag. Lets
+ * the privacy toggles flush a cached "no match" when an account is unhidden. */
+export function resolveCacheTag(kind: string, slug: string): string {
+  return `resolve:${kind}:${slugify(slug)}`;
+}
 
 export const npcsApi = {
 
@@ -173,7 +181,10 @@ export const npcsApi = {
     return withFallback(
       async () =>
         ResolveResultSchema.parse(
-          await apiGet(`/resolve/${kind}?slug=${encodeURIComponent(slug)}`, { revalidate: 300 }),
+          await apiGet(`/resolve/${kind}?slug=${encodeURIComponent(slug)}`, {
+            revalidate: 300,
+            tags: [resolveCacheTag(kind, slug)],
+          }),
         ),
       () => mockResolve(kind, slug),
     );

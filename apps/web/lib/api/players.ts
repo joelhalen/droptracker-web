@@ -1,4 +1,4 @@
-import { apiGet, withFallback } from "./_client";
+import { ApiError, apiGet, withFallback } from "./_client";
 import {
   PersonalBestLoadoutSchema,
   PlayerAchievementsSchema,
@@ -18,11 +18,33 @@ import {
   mockPlayerProfile,
 } from "../mock-data";
 
+/** Cache tag on a player's profile + visibility reads. */
+export function playerCacheTag(id: number): string {
+  return `player:${id}`;
+}
+
 export const playersApi = {
 
+  /** Public profile; 404s (ApiError) for a missing or hidden account.
+   *
+   * The profile route 404s a hidden account, but the fetch cache only stores
+   * 200s, so a revalidation's 404 is dropped and the pre-hide profile would be
+   * served by id indefinitely (ticket #515). The visibility check always
+   * answers 200, so hiding reaches every page that loads a player through
+   * here. Both are tagged `player:{id}` for the settings actions to flush. */
   async player(id: number): Promise<PlayerProfile> {
     return withFallback(
-      async () => PlayerProfileSchema.parse(await apiGet(`/players/${id}`, { revalidate: 30 })),
+      async () => {
+        const tags = [playerCacheTag(id)];
+        const [visibility, profile] = await Promise.all([
+          apiGet(`/players/${id}/visibility`, { revalidate: 30, tags }),
+          apiGet(`/players/${id}`, { revalidate: 30, tags }),
+        ]);
+        if (!(visibility as { visible?: unknown })?.visible) {
+          throw new ApiError(404, `Web API 404 for /players/${id}`);
+        }
+        return PlayerProfileSchema.parse(profile);
+      },
       () => mockPlayerProfile(id),
     );
   },

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import {
   AccountSettingsPatchSchema,
   type AccountSettings,
@@ -10,12 +10,23 @@ import {
   type MyNitroBoost,
   type NotificationPrefs,
 } from "@droptracker/api-types";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, playerCacheTag, resolveCacheTag } from "@/lib/api";
+
+/** Hiding or unhiding has to reach the cached public reads at once: the
+ * profile + visibility by id and the slug lookup, which caches a "no match"
+ * while an account is hidden (ticket #515). */
+function flushPlayerVisibility(settings: AccountSettings) {
+  for (const p of settings.players) {
+    revalidateTag(playerCacheTag(p.id));
+    revalidateTag(resolveCacheTag("player", p.name));
+  }
+}
 
 /** Server Action: validate and persist account-settings changes. */
 export async function saveSettings(patch: AccountSettingsPatch) {
   const parsed = AccountSettingsPatchSchema.parse(patch);
-  await api.updateSettings(parsed);
+  const settings = await api.updateSettings(parsed);
+  if (parsed.hidden !== undefined) flushPlayerVisibility(settings);
   revalidatePath("/settings");
   return { ok: true as const };
 }
@@ -26,6 +37,7 @@ export async function setPlayerHidden(
   hidden: boolean,
 ): Promise<AccountSettings> {
   const settings = await api.setMyPlayerHidden(playerId, hidden);
+  flushPlayerVisibility(settings);
   revalidatePath("/settings");
   return settings;
 }

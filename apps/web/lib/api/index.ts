@@ -106,3 +106,5 @@ export const api = {
 
 export * from "./types";
 export { ApiError, apiErrorCode } from "./_client";
+export { playerCacheTag } from "./players";
+export { resolveCacheTag } from "./npcs";
