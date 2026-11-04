@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 
-export const RANK_ROLE_MODES = ["single", "cumulative"] as const;
+export const RANK_ROLE_MODES = ["single", "cumulative", "exact"] as const;
 export type RankRoleMode = (typeof RANK_ROLE_MODES)[number];
 
 export const RankRoleEntrySchema = z.object({

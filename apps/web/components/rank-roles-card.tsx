@@ -37,7 +37,17 @@ import {
 const MODE_OPTIONS: { value: RankRoleMode; label: string }[] = [
   { value: "single", label: "One role (their rank's)" },
   { value: "cumulative", label: "Ladder (their rank and below)" },
+  { value: "exact", label: "1:1 (only their own rank's role)" },
 ];
+
+const MODE_HELP: Record<RankRoleMode, string> = {
+  single:
+    "A rank with no role gets the role of the next rank below it in the list.",
+  cumulative:
+    "A ladder lets you lock channels to a rank and everyone above it.",
+  exact:
+    "Each rank gets only the role you pick for it. A rank with no role gets none, so the list order doesn't matter.",
+};
 
 export function RankRolesPanel({
   groupId,
@@ -229,7 +239,7 @@ export function RankRolesPanel({
         <label className="block min-w-0">
           <span className="block text-sm font-medium">Roles per member</span>
           <span className="text-osrs-parchment-dark/60 mb-1 block text-xs">
-            A ladder lets you lock channels to a rank and everyone above it.
+            {MODE_HELP[mode]}
           </span>
           <Select
             className="w-full min-w-0"
@@ -298,7 +308,9 @@ export function RankRolesPanel({
         <div className="mb-2 flex items-baseline justify-between gap-3">
           <span className="text-sm font-medium">Ranks, highest first</span>
           <span className="text-osrs-parchment-dark/50 text-xs">
-            Use the arrows to match your clan&apos;s order
+            {mode === "exact"
+              ? "Order only matters for someone with accounts in more than one rank: the higher one wins"
+              : "Highest rank first. Use the arrows to match your clan's order"}
           </span>
         </div>
         {rows.length === 0 ? (
@@ -313,7 +325,7 @@ export function RankRolesPanel({
                 count={rows.length}
                 roles={roles}
                 createRoles={createRoles}
-                fallback={fallbackLabel(rows, i)}
+                fallback={mode === "exact" ? null : fallbackLabel(rows, i)}
                 previewCount={preview ? (preview.by_rank[row.rank] ?? null) : null}
                 graceDays={data.limits.delete_grace_days}
                 maxName={data.limits.max_role_name}
@@ -448,7 +460,9 @@ function RankRowEditor({
             <span className="text-osrs-parchment-dark/50 block text-xs">
               {row.members} in clan, {row.linked_members} linked
               {previewCount !== null && (
-                <span className="text-osrs-gold">, {previewCount} would get this role</span>
+                <span className="text-osrs-gold">
+                  , {previewCount} {previewCount === 1 ? "person" : "people"} would get this role
+                </span>
               )}
             </span>
           </span>
