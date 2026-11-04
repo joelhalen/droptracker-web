@@ -19,7 +19,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { resolveTokens, resolveTokensInHtml } from "@/lib/site-tokens";
 import { SiteRoster } from "@/components/site-roster";
 import { CountUp } from "@/components/count-up";
-import { LeaderboardTable } from "@/components/leaderboard-table";
+import { FilterableLeaderboard } from "@/components/filterable-leaderboard";
 import { LiveDropTicker } from "@/components/live-drop-ticker";
 import { LootboardCanvas } from "@/components/lootboard-canvas";
 import { Markdown } from "@/components/markdown";
@@ -221,7 +221,8 @@ async function LootBoard({
   );
   const entries = pages.map((page) => page?.entries.slice(0, limit) ?? []);
   if (entries.every((e) => e.length === 0)) return <BlockEmpty hint={emptyHint} />;
-  if (want.length === 1) return <LeaderboardTable entries={entries[0]!} scope={scope} kind="players" />;
+  if (want.length === 1)
+    return <FilterableLeaderboard entries={entries[0]!} scope={scope} period={want[0]!} limit={limit} />;
   return (
     <PeriodTabs
       initial={period}
@@ -230,7 +231,7 @@ async function LootBoard({
         label: LOOT_PERIOD_LABELS[p] ?? p,
         content:
           entries[i]!.length > 0 ? (
-            <LeaderboardTable entries={entries[i]!} scope={scope} kind="players" />
+            <FilterableLeaderboard entries={entries[i]!} scope={scope} period={p} limit={limit} />
           ) : (
             <PeriodEmpty>No loot ranked {p === "all" ? "yet" : "in this period yet"}.</PeriodEmpty>
           ),

@@ -15,6 +15,7 @@ import { useLiveLeaderboard } from "@/lib/use-live-leaderboard";
 import { formatGp } from "@/lib/format";
 import { EmptyState, EntityChip, RankMedal } from "@/components/ui";
 import { PlayerBadgeIcons } from "@/components/player-badges";
+import { AccountTypeBadge } from "@/components/account-type-badge";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 
 type Props = {
@@ -22,9 +23,11 @@ type Props = {
   scope: string;
   /** "players" | "groups" — controls the profile link target. */
   kind: "players" | "groups";
+  /** Empty-state hint override (e.g. a filtered board with no matches). */
+  emptyHint?: string;
 };
 
-export function LeaderboardTable({ entries, scope, kind }: Props) {
+export function LeaderboardTable({ entries, scope, kind, emptyHint }: Props) {
   const { rows, flashing, state } = useLiveLeaderboard(entries, scope, kind);
 
   const maxLoot = rows.reduce((max, r) => Math.max(max, r.loot.value), 0);
@@ -44,7 +47,7 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
         title={
           kind === "players" ? "No ranked players yet" : "No ranked clans yet"
         }
-        hint="Leaderboards populate as drops are tracked for this period."
+        hint={emptyHint ?? "Leaderboards populate as drops are tracked for this period."}
       />
     );
   }
@@ -108,6 +111,7 @@ export function LeaderboardTable({ entries, scope, kind }: Props) {
                         tileClassName="max-sm:hidden"
                         playerId={r.id}
                       />
+                      <AccountTypeBadge type={r.account_type} size="sm" />
                       {r.badges?.length ? <PlayerBadgeIcons badges={r.badges} /> : null}
                     </EntityHoverCard>
                   ) : (

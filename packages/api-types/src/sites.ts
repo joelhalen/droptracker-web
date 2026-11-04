@@ -169,6 +169,8 @@ export const SiteRosterMemberSchema = z.object({
   rank: z.number().int().catch(0),
   monthly_loot: MoneySchema,
   all_time_loot: MoneySchema.optional(),
+  /** Game mode when known (plugin state sync). */
+  account_type: z.string().optional(),
 });
 export type SiteRosterMember = z.infer<typeof SiteRosterMemberSchema>;
 export const SiteRosterPayloadSchema = z.object({

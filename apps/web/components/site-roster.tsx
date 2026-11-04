@@ -7,13 +7,18 @@
  * position by monthly GP (assigned server-side before any display sort), so
  * "#3" means the same thing however the visitor chooses to order the list.
  * Visitors can re-sort client-side when the block allows it — the payload is
- * already loaded, so sorting costs nothing extra.
+ * already loaded, so sorting costs nothing extra. The account-type filter
+ * works the same way, offering only the modes present in the roster; ranks
+ * stay clan-wide under a filter.
  */
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { Route } from "next";
 import type { SiteRosterMember } from "@droptracker/api-types";
 import { RankMedal } from "@/components/ui";
+import { AccountTypeBadge } from "@/components/account-type-badge";
+import { AccountTypeFilterBar } from "@/components/account-type-filter";
+import { ACCOUNT_TYPE_FILTERS, accountTypeFilter } from "@/lib/account-types";
 
 type SortKey = "monthly" | "all_time" | "name";
 
@@ -48,9 +53,30 @@ export function SiteRoster({
   sortable?: boolean;
 }) {
   const [sort, setSort] = useState<SortKey>(initialSort);
-  const rows = useMemo(() => sortMembers(members, sort), [members, sort]);
+  const [type, setType] = useState<string | null>(null);
+  // Only the modes someone in this roster plays; pointless with fewer than two.
+  const typeOptions = useMemo(() => {
+    const present = new Set(members.map((m) => m.account_type).filter(Boolean));
+    return ACCOUNT_TYPE_FILTERS.filter((f) => f.modes.some((mode) => present.has(mode)));
+  }, [members]);
+  const rows = useMemo(() => {
+    const modes = accountTypeFilter(type)?.modes;
+    const kept = modes ? members.filter((m) => m.account_type && modes.includes(m.account_type)) : members;
+    return sortMembers(kept, sort);
+  }, [members, sort, type]);
 
-  const controls = sortable ? (
+  const typeBar =
+    typeOptions.length >= 2 ? (
+      <AccountTypeFilterBar
+        active={type}
+        onSelect={setType}
+        options={typeOptions}
+        size="sm"
+        className="mb-3"
+      />
+    ) : null;
+
+  const sortBar = sortable ? (
     <div className="mb-3 flex flex-wrap items-center gap-1.5">
       <span className="text-osrs-parchment-dark/60 mr-1 text-xs">Sort by</span>
       {SORT_LABELS.map((s) => (
@@ -70,12 +96,25 @@ export function SiteRoster({
     </div>
   ) : null;
 
-  const footer =
-    total > members.length ? (
-      <p className="text-osrs-parchment-dark/60 mt-3 text-xs">
-        Showing {members.length} of {total.toLocaleString()} members.
-      </p>
+  const controls =
+    typeBar || sortBar ? (
+      <>
+        {sortBar}
+        {typeBar}
+      </>
     ) : null;
+
+  const footer = type ? (
+    <p className="text-osrs-parchment-dark/60 mt-3 text-xs">
+      {rows.length === 0
+        ? "No members of this account type."
+        : `Showing ${rows.length} of ${members.length.toLocaleString()} listed members.`}
+    </p>
+  ) : total > members.length ? (
+    <p className="text-osrs-parchment-dark/60 mt-3 text-xs">
+      Showing {members.length} of {total.toLocaleString()} members.
+    </p>
+  ) : null;
 
   if (layout === "table") {
     return (
@@ -100,12 +139,15 @@ export function SiteRoster({
                     </td>
                   )}
                   <td className="py-2 pr-3">
-                    <Link
-                      href={`/players/${m.id}` as Route}
-                      className="hover:text-osrs-gold font-medium"
-                    >
-                      {m.name}
-                    </Link>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Link
+                        href={`/players/${m.id}` as Route}
+                        className="hover:text-osrs-gold font-medium"
+                      >
+                        {m.name}
+                      </Link>
+                      <AccountTypeBadge type={m.account_type} size="sm" />
+                    </span>
                   </td>
                   <td className="text-osrs-gold-bright py-2 pr-3 text-right tabular-nums">
                     {m.monthly_loot.value > 0 ? m.monthly_loot.value_formatted : "—"}
@@ -144,7 +186,10 @@ export function SiteRoster({
                   </span>
                 ))}
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{m.name}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate font-medium">{m.name}</span>
+                  <AccountTypeBadge type={m.account_type} size="sm" />
+                </span>
                 {m.all_time_loot && m.all_time_loot.value > 0 && (
                   <span className="text-osrs-parchment-dark/55 block text-[11px]">
                     {m.all_time_loot.value_formatted} all time

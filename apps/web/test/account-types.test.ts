@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { accountTypeDisplay, accountTypeIconPx } from "../lib/account-types";
+import { AccountTypeSchema } from "@droptracker/api-types";
+import {
+  ACCOUNT_TYPE_FILTERS,
+  accountTypeDisplay,
+  accountTypeFilter,
+  accountTypeIconPx,
+} from "../lib/account-types";
 
 test("badge sizes map to icon pixel heights, md by default", () => {
   assert.equal(accountTypeIconPx("sm"), 16);
@@ -50,4 +56,25 @@ test("prototype keys are not mistaken for modes", () => {
   assert.equal(accountTypeDisplay("constructor"), null);
   assert.equal(accountTypeDisplay("toString"), null);
   assert.equal(accountTypeDisplay("__proto__"), null);
+});
+
+test("board filter keys resolve; unknown or empty means all players", () => {
+  assert.equal(accountTypeFilter("ultimate_ironman")?.label, "Ultimate");
+  assert.equal(accountTypeFilter(null), null);
+  assert.equal(accountTypeFilter(""), null);
+  assert.equal(accountTypeFilter("constructor"), null);
+});
+
+test("filter families cover only real modes, and every mode is reachable", () => {
+  const known = new Set<string>(AccountTypeSchema.options);
+  const covered = new Set<string>();
+  for (const f of ACCOUNT_TYPE_FILTERS) {
+    assert.ok(f.modes.length > 0, f.key);
+    for (const m of f.modes) {
+      assert.ok(known.has(m), `${f.key} -> ${m}`);
+      covered.add(m);
+    }
+  }
+  assert.deepEqual([...covered].sort(), [...known].sort());
+  assert.ok(!accountTypeFilter("any_ironman")!.modes.includes("normal"));
 });

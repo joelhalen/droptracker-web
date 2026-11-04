@@ -14,10 +14,13 @@ export const leaderboardsApi = {
     scope?: string;
     page?: number;
     limit?: number;
+    /** An `ACCOUNT_TYPE_FILTERS` key; omit for every player. */
+    accountType?: string;
   }): Promise<LeaderboardPage> {
     const q = new URLSearchParams();
     if (params.period) q.set("period", params.period);
     if (params.scope) q.set("scope", params.scope);
+    if (params.accountType) q.set("account_type", params.accountType);
     if (params.page) q.set("page", String(params.page));
     if (params.limit) q.set("limit", String(params.limit));
     return withFallback(

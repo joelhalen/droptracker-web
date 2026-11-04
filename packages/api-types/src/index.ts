@@ -195,12 +195,17 @@ export const LeaderboardEntrySchema = z.object({
   badges: z.array(CompactBadgeSchema).optional(),
   /** Group tier flair (groups board only; present for subscribed groups). */
   flair: GroupFlairSchema.optional(),
+  /** Player's game mode when known (player boards only). Open string so a
+   * mode added backend-side never fails validation. */
+  account_type: z.string().optional(),
 });
 export type LeaderboardEntry = z.infer<typeof LeaderboardEntrySchema>;
 
 export const LeaderboardPageSchema = z.object({
   period: z.string(),
   scope: z.string(),
+  /** Echo of the `account_type` filter; absent on the unfiltered board. */
+  account_type: z.string().optional(),
   entries: z.array(LeaderboardEntrySchema),
   meta: PageMetaSchema,
 });

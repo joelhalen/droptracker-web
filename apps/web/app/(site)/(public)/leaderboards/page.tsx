@@ -4,6 +4,8 @@ import { api } from "@/lib/api";
 import { EntitySearch } from "@/components/entity-search";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { PvpStandingsTable } from "@/components/pvp-standings-table";
+import { AccountTypeFilterBar } from "@/components/account-type-filter";
+import { accountTypeFilter } from "@/lib/account-types";
 import { PVP_METRICS, PVP_METRIC_LABELS, type PvpMetric } from "@droptracker/api-types";
 import { PERIOD_OPTIONS, DEFAULT_PERIOD, resolvePeriod } from "@/lib/period";
 
@@ -14,7 +16,7 @@ export const metadata: Metadata = {
   description: "Global Old School RuneScape loot leaderboards for players and clans.",
 };
 
-type SearchParams = Promise<{ tab?: string; period?: string; page?: string; metric?: string }>;
+type SearchParams = Promise<{ tab?: string; period?: string; page?: string; metric?: string; type?: string }>;
 
 const TABS = ["players", "groups", "pvp"] as const;
 const TAB_LABELS: Record<(typeof TABS)[number], string> = {
@@ -30,6 +32,8 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
   const periodKey = sp.period ?? DEFAULT_PERIOD;
   const period = resolvePeriod(periodKey);
   const page = Math.max(1, Number(sp.page ?? "1") || 1);
+  // Game-mode filter (players tab only); absent = every player.
+  const accountType = tab === "players" ? (accountTypeFilter(sp.type)?.key ?? null) : null;
 
   const pvpBoard =
     tab === "pvp" ? await api.pvpLeaderboard({ period, scope: "global", metric, page, limit: 50 }) : null;
@@ -38,7 +42,7 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
       ? null
       : tab === "groups"
         ? await api.groupLeaderboard({ period, page, limit: 50 })
-        : await api.playerLeaderboard({ period, scope: "global", page, limit: 50 });
+        : await api.playerLeaderboard({ period, scope: "global", page, limit: 50, accountType: accountType ?? undefined });
   const active = pvpBoard ?? lootBoard;
   const board = {
     meta: active?.meta ?? { page, limit: 50, total: 0 },
@@ -50,8 +54,14 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
   // Prefer authoritative total when present; otherwise fall back to a full page.
   const hasNext = totalPages ? page < totalPages : board.count >= limit;
 
-  const qs = (over: Record<string, string | number>) => {
-    const params = new URLSearchParams({ tab, period: periodKey, page: String(page), ...(tab === "pvp" ? { metric } : {}), ...Object.fromEntries(Object.entries(over).map(([k, v]) => [k, String(v)])) });
+  const qs = (over: Record<string, string | number | null>) => {
+    const params = new URLSearchParams({ tab, period: periodKey, page: String(page), ...(tab === "pvp" ? { metric } : {}), ...(accountType ? { type: accountType } : {}) });
+    for (const [k, v] of Object.entries(over)) {
+      if (v == null) params.delete(k);
+      else params.set(k, String(v));
+    }
+    // The game-mode filter only exists on the players board.
+    if (params.get("tab") !== "players") params.delete("type");
     return `?${params}` as Route;
   };
 
@@ -125,7 +135,20 @@ export default async function LeaderboardsPage({ searchParams }: { searchParams:
           <PvpStandingsTable entries={pvpBoard?.entries ?? []} metric={metric} />
         </>
       ) : (
-        <LeaderboardTable entries={lootBoard?.entries ?? []} scope="global" kind={tab} />
+        <>
+          {tab === "players" && (
+            <AccountTypeFilterBar
+              active={accountType}
+              hrefFor={(key) => qs({ type: key, page: 1 })}
+            />
+          )}
+          <LeaderboardTable
+            entries={lootBoard?.entries ?? []}
+            scope="global"
+            kind={tab}
+            emptyHint={accountType ? "No players of this account type are ranked for this period yet." : undefined}
+          />
+        </>
       )}
 
       {board.count > 0 && (
