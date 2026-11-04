@@ -5276,6 +5276,10 @@ export const EventSummarySchema = z.object({
   /** Clan-chat team tags (web152a): whether the RuneLite plugin badges
    * teammates in clan chat. Off suits free-for-all events. */
   team_chat_tags: z.boolean().default(true),
+  /** Partial points (web156a): when the event ends, an unfinished "points
+   * from a list" task pays the share of its task points matching the share of
+   * the points goal reached (rounded down). Off = unfinished tasks score 0. */
+  partial_points: z.boolean().default(false),
   /** Derived: is the sign-up window open right now? Prefer this over
    * re-deriving from status/allow_late_signups — the API is the authority
    * and it refuses joins on the same answer. */
@@ -6088,6 +6092,8 @@ export const EventInputSchema = z.object({
   roster_clan_sync: z.boolean().optional(),
   /** web152a: badge teammates in clan chat (plugin). */
   team_chat_tags: z.boolean().optional(),
+  /** web156a: pay unfinished "points from a list" tasks their share at the end. */
+  partial_points: z.boolean().optional(),
   submission_policy: z.enum(EVENT_SUBMISSION_POLICIES).optional(),
   join_code: z.string().max(32).nullable().optional(),
   board_size: z.number().int().min(3).max(7).optional(),

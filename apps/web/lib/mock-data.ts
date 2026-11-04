@@ -2281,6 +2281,7 @@ export function mockEvents(groupId?: number, status?: string): EventSummary[] {
     allow_late_signups: true,
     roster_clan_sync: false,
     team_chat_tags: true,
+    partial_points: false,
     signups_open: true,
     submission_policy: "all" as const,
     board_size: 5,

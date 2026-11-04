@@ -61,6 +61,7 @@ const draftFromEvent = (event: EventDetail) => ({
   tasksVisibility: event.tasks_visibility,
   allowLateSignups: event.allow_late_signups,
   teamChatTags: event.team_chat_tags,
+  partialPoints: event.partial_points,
   submissionPolicy: event.submission_policy,
   leadershipEnabled: event.leadership.enabled,
   coLeaders: event.leadership.co_leaders,
@@ -207,6 +208,7 @@ export function EventGeneralSetup({
           tasks_visibility: draft.tasksVisibility,
           allow_late_signups: draft.allowLateSignups,
           team_chat_tags: draft.teamChatTags,
+          partial_points: draft.partialPoints,
           submission_policy: draft.submissionPolicy,
           leadership: {
             enabled: draft.leadershipEnabled,
@@ -435,6 +437,27 @@ export function EventGeneralSetup({
           help="Keeps the bingo board editable while the event runs. Tasks and teams are always adjustable mid-event, and scoring changes ask whether to re-score existing progress. Every change is audited."
         />
       </Section>
+
+      {/* Partial points (web156a): only task and bingo events score on task
+          points; the other kinds rank on their own rules. */}
+      {event.kind === "standard" && (
+        <Section title="Scoring">
+          <Check
+            checked={draft.partialPoints}
+            onChange={(v) => set("partialPoints", v)}
+            label="Give partial points for unfinished points tasks"
+            help={
+              <>
+                Applies to &quot;Points from a list&quot; tasks. When the event ends, a team that
+                didn&apos;t reach the points goal still gets its share of the task&apos;s points.
+                Example: a 10 point task with a 10 point goal pays 6 to a team that collected 6.
+                Off by default, where an unfinished task scores nothing.
+                {event.status === "past" && " Changing this now updates the final scores."}
+              </>
+            }
+          />
+        </Section>
+      )}
 
       <Section title="Privacy and visibility">
         <Check

@@ -195,6 +195,7 @@ export async function updateGroupEvent(
       | "allow_late_signups"
       | "roster_clan_sync"
       | "team_chat_tags"
+      | "partial_points"
       | "submission_policy"
       | "bonus_line_points"
       | "bonus_blackout_points"

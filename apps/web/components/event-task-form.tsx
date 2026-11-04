@@ -131,7 +131,8 @@ const ITEM_MODE_HELP: Record<ItemMode, string> = {
     "Each item on the list counts once, so a repeat of an item the team already has adds nothing. Set how many different items are needed (e.g. any 4 of 8 hilts).",
   all_of: "The team must collect every item on the list.",
   point_collection:
-    "Each item is worth points — the team races to the points goal. Weight rare drops higher.",
+    "Each item is worth points and the team races to the points goal. Weight rare drops higher. " +
+    "To pay teams that fall short their share when the event ends, turn on partial points in the General tab.",
   groups:
     "Combine lists: every group must be satisfied — e.g. ALL three godsword shards plus ANY one hilt.",
   any_path:
