@@ -107,7 +107,7 @@ const CATEGORY_META: Record<ConfigCategory, { nav: SettingsNav; blurb: string }>
   },
   bank: {
     nav: "Group",
-    blurb: "What visitors see of your clan bank on your group page. Record GP on the Bank tab.",
+    blurb: "What visitors see of your clan bank on your group page and in Discord. Record GP on the Bank tab.",
   },
   clan_chat: {
     nav: "Integrations",
@@ -199,7 +199,8 @@ export type SettingsInsertId =
   | "memberPbMessages"
   | "lootboardRepost"
   | "pvpLootboardRepost"
-  | "clanLogRepost";
+  | "clanLogRepost"
+  | "bankBoardRepost";
 
 export interface SettingsInsert {
   id: SettingsInsertId;
@@ -247,6 +248,13 @@ export const SETTINGS_INSERTS: readonly SettingsInsert[] = [
     position: "bottom",
     label: "Re-post the Clan Log",
     keywords: ["repost", "re-post", "message", "message id", "reset", "missing", "not updating", "stuck"],
+  },
+  {
+    id: "bankBoardRepost",
+    section: "bank",
+    position: "bottom",
+    label: "Re-post the bank board",
+    keywords: ["repost", "re-post", "message", "message id", "reset", "missing", "not updating", "stuck", "discord"],
   },
   {
     id: "memberDeathMessages",

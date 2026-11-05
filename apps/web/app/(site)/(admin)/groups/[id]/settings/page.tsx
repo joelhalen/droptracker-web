@@ -88,6 +88,7 @@ export default async function GroupSettingsPage({ params }: { params: Params }) 
             <BoardRepostPanel groupId={groupId} board="pvp_lootboard" name="PvP lootboard" />
           ),
           clanLogRepost: <BoardRepostPanel groupId={groupId} board="clan_log" name="Clan Log" />,
+          bankBoardRepost: <BoardRepostPanel groupId={groupId} board="bank_board" name="bank board" />,
           memberDeathMessages: (
             <MemberDeathMessagesReview groupId={groupId} initial={memberDeathMessages} />
           ),
