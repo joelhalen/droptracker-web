@@ -219,7 +219,12 @@ test("sectionForKey sends a seasonal mirror to the Seasonal section and a base k
 
 test("bot-managed message ids are never shown, saved, or left without a Re-post", () => {
   const managed = GROUP_CONFIG_FIELDS.filter((f) => f.managed).map((f) => f.key).sort();
-  assert.deepEqual(managed, ["clan_log_message_id", "lootboard_message_id", "pvp_lootboard_message_id"]);
+  assert.deepEqual(managed, [
+    "bank_board_message_id",
+    "clan_log_message_id",
+    "lootboard_message_id",
+    "pvp_lootboard_message_id",
+  ]);
   for (const f of GROUP_CONFIG_FIELDS.filter((f) => f.managed)) {
     assert.ok(!fieldsForCategory(f.category).some((g) => g.key === f.key), `${f.key} is rendered`);
     // The save schema drops it, so even a hand-crafted patch can't send one.
