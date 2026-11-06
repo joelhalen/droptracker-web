@@ -62,7 +62,10 @@ export const GroupBankEntrySchema = z.object({
   review_note: z.string().nullable().default(null),
   proof_url: z.string().nullable().default(null),
   event_id: z.number().int().nullable().default(null),
+  /** A DropTracker event's name, or the clan's own name for an outside event. */
   event_name: z.string().nullable().default(null),
+  /** A transfer to an event run outside DropTracker (no prize-pot row). */
+  outside_event: z.boolean().default(false),
   /** Username of the member who submitted it (staff reads only). */
   submitted_by: z.string().nullable().default(null),
   /** When the GP moved. Staff can backdate it; the ledger is ordered by it. */
@@ -119,10 +122,20 @@ export const GroupBankTransferEventSchema = z.object({
 export type GroupBankTransferEvent = z.infer<typeof GroupBankTransferEventSchema>;
 
 /** `GET /groups/{id}/bank/entries` (staff). */
+/** A name the group has funded an outside event under, with its running total. */
+export const GroupBankOutsideEventSchema = z.object({
+  name: z.string(),
+  total: BankMoneySchema,
+  count: z.number().int().default(0),
+  last_at: z.number().int().nullable().default(null),
+});
+export type GroupBankOutsideEvent = z.infer<typeof GroupBankOutsideEventSchema>;
+
 export const GroupBankLedgerSchema = z.object({
   entries: z.array(GroupBankEntrySchema),
   next_before_id: z.number().int().nullable().default(null),
   pending_count: z.number().int().default(0),
   transfer_events: z.array(GroupBankTransferEventSchema).default([]),
+  outside_events: z.array(GroupBankOutsideEventSchema).default([]),
 });
 export type GroupBankLedger = z.infer<typeof GroupBankLedgerSchema>;

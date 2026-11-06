@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { GroupBankEntrySchema } from "@droptracker/api-types";
+import { GroupBankEntrySchema, GroupBankLedgerSchema } from "@droptracker/api-types";
 import { bankLedgerCsv, dayToUnix, isCofferMove, localDay, todayLocal } from "../lib/group-bank";
 
 const NOW = new Date(2026, 10, 2, 21, 0, 0); // local time
@@ -61,4 +61,24 @@ test("only synced withdrawals are coffer moves, and only when the setting is on"
   assert.equal(isCofferMove({ kind: "withdrawal", source: "coffer" }, false), false);
   assert.equal(isCofferMove({ kind: "withdrawal", source: "staff" }, true), false);
   assert.equal(isCofferMove({ kind: "donation", source: "coffer" }, true), false);
+});
+
+test("an outside event's transfer carries its name and older payloads still parse", () => {
+  const base = {
+    id: 3,
+    kind: "event_transfer",
+    amount: { value: -2_000_000, value_formatted: "-2M" },
+    status: "confirmed",
+    source: "staff",
+  };
+  const outside = GroupBankEntrySchema.parse({ ...base, event_name: "Weekly PvM", outside_event: true });
+  assert.equal(outside.outside_event, true);
+  assert.equal(outside.event_name, "Weekly PvM");
+  assert.equal(GroupBankEntrySchema.parse(base).outside_event, false);
+  const ledger = GroupBankLedgerSchema.parse({
+    entries: [],
+    outside_events: [{ name: "Weekly PvM", total: { value: 6_000_000, value_formatted: "6M" }, count: 3 }],
+  });
+  assert.equal(ledger.outside_events[0]?.count, 3);
+  assert.deepEqual(GroupBankLedgerSchema.parse({ entries: [] }).outside_events, []);
 });

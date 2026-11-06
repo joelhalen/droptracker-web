@@ -99,6 +99,7 @@ export async function updateBankEntry(
     player_id?: number | null;
     rsn?: string | null;
     created_at?: number;
+    event_name?: string;
   },
 ) {
   return attempt(groupId, () => api.updateGroupBankEntry(groupId, entryId, patch));
@@ -110,11 +111,11 @@ export async function deleteBankEntry(groupId: number, entryId: number) {
 
 export async function transferBankToEvent(
   groupId: number,
-  input: { event_id: number; amount: number; note?: string | null },
+  input: Parameters<typeof api.transferGroupBankToEvent>[1],
 ) {
   return attempt(groupId, async () => {
     const out = await api.transferGroupBankToEvent(groupId, input);
-    revalidatePath(`/events/${input.event_id}`);
+    if (input.event_id != null) revalidatePath(`/events/${input.event_id}`);
     return out;
   });
 }

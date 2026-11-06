@@ -2,7 +2,8 @@
 
 /**
  * Clan bank admin tab (web131a). Staff record GP coming in and going out,
- * review members' pending donations, move GP into an event prize pot, and
+ * review members' pending donations, move GP into an event prize pot (or set
+ * it aside for an event run outside DropTracker), and
  * browse the full ledger, editing any entry in place.
  *
  * The bank only records GP; the clan trades it in game. Every write goes
@@ -269,7 +270,12 @@ export function GroupBankManager({
           ledger={ledger}
           balance={balance}
           busy={busy}
-          onTransfer={(input) => run(() => transferBankToEvent(groupId, input), "Moved to the event's prize pot.")}
+          onTransfer={(input) =>
+            run(
+              () => transferBankToEvent(groupId, input),
+              input.event_name ? `Set aside for ${input.event_name}.` : "Moved to the event's prize pot.",
+            )
+          }
         />
       </div>
 
@@ -292,9 +298,11 @@ export function GroupBankManager({
                 onReopen={() => run(() => updateBankEntry(groupId, e.id, { status: "pending" }), "Back in the queue.")}
                 onRemove={() => {
                   const what =
-                    e.kind === "event_transfer"
-                      ? "Remove this transfer? The GP comes back to the bank and leaves the event's prize pot."
-                      : "Remove this entry?";
+                    e.kind !== "event_transfer"
+                      ? "Remove this entry?"
+                      : e.outside_event
+                        ? "Remove this transfer? The GP comes back to the bank."
+                        : "Remove this transfer? The GP comes back to the bank and leaves the event's prize pot.";
                   if (window.confirm(what)) run(() => deleteBankEntry(groupId, e.id), "Removed.");
                 }}
                 onProof={(key) => run(() => updateBankEntry(groupId, e.id, { proof_key: key }))}
@@ -371,7 +379,13 @@ function entryWho(e: GroupBankEntry): string {
   return e.rsn ?? "";
 }
 
-type EntryPatch = { amount?: number; rsn?: string | null; note?: string | null; created_at?: number };
+type EntryPatch = {
+  amount?: number;
+  rsn?: string | null;
+  note?: string | null;
+  created_at?: number;
+  event_name?: string;
+};
 
 function LedgerRow({
   entry: e,
@@ -464,7 +478,8 @@ function LedgerRow({
 /** Edit an entry in place: who it was from or to, the amount, the note. The
  * amount is shown the way it was entered (positive GP; an adjustment keeps
  * its sign) and only changed fields are sent. A transfer's amount belongs to
- * the prize-pot row it wrote, so only its note can change here. */
+ * the prize-pot row it wrote, so only its note can change here; a transfer to
+ * an outside event has no pot row, so its event name takes the name's place. */
 function EntryEditor({
   entry: e,
   busy,
@@ -476,19 +491,25 @@ function EntryEditor({
   onSave: (patch: EntryPatch) => void;
   onCancel: () => void;
 }) {
-  const isTransfer = e.kind === "event_transfer";
+  // Fixed: a transfer into a prize pot. An outside event's transfer edits freely.
+  const isTransfer = e.kind === "event_transfer" && !e.outside_event;
+  const outside = e.kind === "event_transfer" && e.outside_event;
   const signed = e.kind === "adjustment";
   const startAmount = signed ? e.amount.value : Math.abs(e.amount.value);
-  const [rsn, setRsn] = useState(e.rsn ?? "");
+  const startName = outside ? (e.event_name ?? "") : (e.rsn ?? "");
+  const [rsn, setRsn] = useState(startName);
   const [amount, setAmount] = useState(startAmount);
   const [note, setNote] = useState(e.note ?? "");
   const startDay = e.created_at ? localDay(e.created_at) : "";
   const [day, setDay] = useState(startDay);
 
-  const needsName = e.kind === "donation" || e.kind === "payout";
+  const needsName = e.kind === "donation" || e.kind === "payout" || outside;
   const patch: EntryPatch = {};
   if (!isTransfer) {
-    if (rsn.trim() !== (e.rsn ?? "")) patch.rsn = rsn.trim() || null;
+    if (rsn.trim() !== startName) {
+      if (outside) patch.event_name = rsn.trim();
+      else patch.rsn = rsn.trim() || null;
+    }
     if (amount !== startAmount) patch.amount = amount;
     if (day && day !== startDay) {
       const ts = dayToUnix(day, e.created_at);
@@ -509,15 +530,15 @@ function EntryEditor({
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="block">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-              {e.kind === "payout" ? "Paid to" : e.kind === "donation" ? "Donor" : "Name"}
+              {outside ? "Event" : e.kind === "payout" ? "Paid to" : e.kind === "donation" ? "Donor" : "Name"}
               {needsName ? "" : " (optional)"}
             </span>
             <input
               type="text"
               value={rsn}
-              maxLength={24}
+              maxLength={outside ? 64 : 24}
               onChange={(ev) => setRsn(ev.target.value)}
-              placeholder="RSN"
+              placeholder={outside ? "Event name" : "RSN"}
               className={`${fieldInputClass} w-full`}
             />
           </label>
@@ -802,6 +823,12 @@ function RecordForm({
   );
 }
 
+type TransferInput = Parameters<typeof transferBankToEvent>[1];
+
+/** Fund an event: one of the group's own (GP goes into its prize pot) or one
+ * the clan runs outside DropTracker, named here (the GP is only booked out of
+ * the bank). Past outside-event names are offered back so a weekly event
+ * keeps one name and one running total. */
 function TransferForm({
   ledger,
   balance,
@@ -811,86 +838,175 @@ function TransferForm({
   ledger: GroupBankLedger;
   balance: number;
   busy: boolean;
-  onTransfer: (input: { event_id: number; amount: number; note?: string | null }) => void;
+  onTransfer: (input: TransferInput) => void;
 }) {
   const events = ledger.transfer_events;
+  const pastNames = ledger.outside_events;
   const firstOpen = useMemo(() => events.find((e) => e.pot_enabled)?.id ?? null, [events]);
+  const [mode, setMode] = useState<"ours" | "outside">(events.length > 0 ? "ours" : "outside");
   const [eventId, setEventId] = useState<number | null>(firstOpen);
+  const [eventName, setEventName] = useState("");
   const [amount, setAmount] = useState(0);
   const [note, setNote] = useState("");
+  const [day, setDay] = useState(() => todayLocal());
   const chosen = events.find((e) => e.id === eventId) ?? null;
-  const valid = chosen != null && chosen.pot_enabled && amount > 0;
+  const outside = mode === "outside";
+  const valid = amount > 0 && (outside ? eventName.trim().length > 0 : chosen != null && chosen.pot_enabled);
+
+  function submit() {
+    const base = { amount, note: note.trim() || null };
+    if (outside) {
+      const backdated = day && day !== todayLocal() ? dayToUnix(day) : null;
+      onTransfer({
+        ...base,
+        event_name: eventName.trim(),
+        ...(backdated != null ? { created_at: backdated } : {}),
+      });
+    } else {
+      if (eventId == null) return;
+      onTransfer({ ...base, event_id: eventId });
+    }
+    setAmount(0);
+    setNote("");
+    setDay(todayLocal());
+  }
+
+  const modes = [
+    { id: "ours", label: "DropTracker event" },
+    { id: "outside", label: "Other event" },
+  ] as const;
 
   return (
     <Card header={<h3 className="text-osrs-gold font-semibold">Fund an event</h3>}>
-      {events.length === 0 ? (
-        <p className="text-osrs-parchment-dark/70 text-sm">
-          Move GP from the bank into an event&apos;s prize pot. You don&apos;t have any upcoming or running
-          events right now.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-osrs-parchment-dark/60 text-xs">
-            Moves GP from the bank into an event&apos;s prize pot. Remove the transfer here to take it back.
-          </p>
-          <label className="block">
-            <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Event</span>
-            <select
-              value={eventId ?? ""}
-              onChange={(e) => setEventId(e.target.value ? Number(e.target.value) : null)}
-              className={`${fieldInputClass} w-full`}
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-1">
+          {modes.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setMode(m.id)}
+              aria-pressed={mode === m.id}
+              className={`rounded border px-2.5 py-1 text-sm ${
+                mode === m.id
+                  ? "border-osrs-gold/60 text-osrs-gold-bright bg-osrs-gold/10"
+                  : "border-osrs-bronze/30 text-osrs-parchment-dark/80 hover:border-osrs-gold/40"
+              }`}
             >
-              <option value="">Choose an event</option>
-              {events.map((ev) => (
-                <option key={ev.id} value={ev.id} disabled={!ev.pot_enabled}>
-                  {ev.name}
-                  {ev.pot_enabled ? "" : " (prize pot is off)"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className="grid gap-3 sm:grid-cols-2">
+              {m.label}
+            </button>
+          ))}
+        </div>
+
+        {outside ? (
+          <>
+            <p className="text-osrs-parchment-dark/60 text-xs">
+              For a clan event you run yourselves, like a weekly prize pool. Name it and the GP is set aside
+              for it. Use the same name each week to keep a running total.
+            </p>
             <label className="block">
-              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Amount</span>
-              <GpInput
-                value={amount}
-                min={0}
-                emptyAs={0}
-                onChange={setAmount}
-                className={`${fieldInputClass} w-full`}
-              />
-            </label>
-            <label className="block">
-              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Note (optional)</span>
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Event name</span>
               <input
                 type="text"
-                value={note}
-                maxLength={255}
-                onChange={(e) => setNote(e.target.value)}
+                value={eventName}
+                maxLength={64}
+                list="bank-outside-events"
+                onChange={(e) => setEventName(e.target.value)}
+                placeholder="Weekly PvM night"
                 className={`${fieldInputClass} w-full`}
               />
+              <datalist id="bank-outside-events">
+                {pastNames.map((ev) => (
+                  <option key={ev.name} value={ev.name} />
+                ))}
+              </datalist>
             </label>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {amount > balance ? (
-              <span className="text-osrs-ember text-xs">More than the bank holds.</span>
-            ) : (
-              <span />
+            {pastNames.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {pastNames.slice(0, 8).map((ev) => (
+                  <button
+                    key={ev.name}
+                    type="button"
+                    onClick={() => setEventName(ev.name)}
+                    title={`${ev.count} ${ev.count === 1 ? "time" : "times"}, ${ev.total.value_formatted} in all`}
+                    className={`rounded border px-2 py-0.5 text-xs ${
+                      eventName.trim().toLowerCase() === ev.name.toLowerCase()
+                        ? "border-osrs-gold/60 text-osrs-gold-bright bg-osrs-gold/10"
+                        : "border-osrs-bronze/30 text-osrs-parchment-dark/70 hover:border-osrs-gold/40"
+                    }`}
+                  >
+                    {ev.name} <span className="text-osrs-parchment-dark/50">· {describeGp(ev.total.value)}</span>
+                  </button>
+                ))}
+              </div>
             )}
-            <Button
-              disabled={!valid || busy}
-              onClick={() => {
-                if (eventId == null) return;
-                onTransfer({ event_id: eventId, amount, note: note.trim() || null });
-                setAmount(0);
-                setNote("");
-              }}
-            >
-              Move to prize pot
-            </Button>
-          </div>
-        </div>
-      )}
+          </>
+        ) : events.length === 0 ? (
+          <p className="text-osrs-parchment-dark/70 text-sm">
+            Move GP from the bank into an event&apos;s prize pot. You don&apos;t have any upcoming or running
+            events right now.
+          </p>
+        ) : (
+          <>
+            <p className="text-osrs-parchment-dark/60 text-xs">
+              Moves GP from the bank into an event&apos;s prize pot. Remove the transfer here to take it back.
+            </p>
+            <label className="block">
+              <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Event</span>
+              <select
+                value={eventId ?? ""}
+                onChange={(e) => setEventId(e.target.value ? Number(e.target.value) : null)}
+                className={`${fieldInputClass} w-full`}
+              >
+                <option value="">Choose an event</option>
+                {events.map((ev) => (
+                  <option key={ev.id} value={ev.id} disabled={!ev.pot_enabled}>
+                    {ev.name}
+                    {ev.pot_enabled ? "" : " (prize pot is off)"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+
+        {(outside || events.length > 0) && (
+          <>
+            <div className={`grid gap-3 ${outside ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+              <label className="block">
+                <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Amount</span>
+                <GpInput
+                  value={amount}
+                  min={0}
+                  emptyAs={0}
+                  onChange={setAmount}
+                  className={`${fieldInputClass} w-full`}
+                />
+              </label>
+              {outside && <DateField value={day} onChange={setDay} />}
+              <label className="block">
+                <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Note (optional)</span>
+                <input
+                  type="text"
+                  value={note}
+                  maxLength={255}
+                  onChange={(e) => setNote(e.target.value)}
+                  className={`${fieldInputClass} w-full`}
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {amount > balance ? (
+                <span className="text-osrs-ember text-xs">More than the bank holds.</span>
+              ) : (
+                <span />
+              )}
+              <Button disabled={!valid || busy} onClick={submit}>
+                {outside ? "Set aside" : "Move to prize pot"}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
     </Card>
   );
 }

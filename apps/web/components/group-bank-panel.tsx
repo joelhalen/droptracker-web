@@ -33,7 +33,9 @@ function activityLine(e: GroupBankEntry) {
       </>
     );
   }
-  if (e.kind === "event_transfer") return <>Moved to {e.event_name ?? "an event"}</>;
+  if (e.kind === "event_transfer") {
+    return e.outside_event ? <>Set aside for {e.event_name}</> : <>Moved to {e.event_name ?? "an event"}</>;
+  }
   if (e.kind === "payout") {
     return (
       <>

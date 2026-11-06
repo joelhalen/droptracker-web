@@ -77,7 +77,8 @@ export const groupBankApi = {
    * `amount` is entered like a new entry's (positive GP; an adjustment
    * carries its own sign). A typed `rsn` that names a tracked account is
    * linked to it, as when recording. `created_at` (unix seconds) re-dates
-   * it. A transfer only takes `note` and `proof_key`. */
+   * it. A transfer into a prize pot only takes `note` and `proof_key`; one to
+   * an outside event also takes `amount`, `created_at` and `event_name`. */
   async updateGroupBankEntry(
     groupId: number,
     entryId: number,
@@ -90,6 +91,7 @@ export const groupBankApi = {
       player_id?: number | null;
       rsn?: string | null;
       created_at?: number;
+      event_name?: string;
     },
   ): Promise<{ ok: true }> {
     await apiSend("PATCH", `/groups/${groupId}/bank/entries/${entryId}`, patch);
@@ -106,10 +108,19 @@ export const groupBankApi = {
   },
 
 
-  /** Move GP from the bank into one of the group's event prize pots. */
+  /** Move GP from the bank into one of the group's event prize pots, or set
+   * it aside for an event the clan runs outside DropTracker. */
   async transferGroupBankToEvent(
     groupId: number,
-    input: { event_id: number; amount: number; note?: string | null },
+    input: {
+      /** One of the group's events, or `event_name` for one run outside DropTracker. */
+      event_id?: number;
+      event_name?: string;
+      amount: number;
+      note?: string | null;
+      /** Unix seconds; outside events only (a pot transfer is dated now). */
+      created_at?: number;
+    },
   ): Promise<{ id: number }> {
     return (await apiSend("POST", `/groups/${groupId}/bank/transfer`, input)) as { id: number };
   },
