@@ -145,7 +145,7 @@ export const SECTIONS: ApiSection[] = [
     cost: 50,
     category: "Feed",
     summary:
-      "Individual drops, newest first, inside a bounded window: since / until as unix seconds (default the last 24 hours, at most 7 days) and max_drops rows per player (default 50, at most 200). Every entry carries received_at as unix seconds UTC. Priced per 24 hours of window — a week costs 350. Not part of `all`; ask for it by name.",
+      "Individual drops, newest first, inside a bounded window: since / until as unix seconds (default the last 24 hours, at most 7 days) and max_drops rows per player (default 50, at most 200). Every entry carries received_at as unix seconds UTC and image_url (the submitted screenshot, or null). Priced per 24 hours of window — a week costs 350. Not part of `all`; ask for it by name.",
   },
   {
     key: "drop_ids",
@@ -270,6 +270,7 @@ export const ENDPOINTS: ApiEndpoint[] = [
       { name: "until", default: "now", description: "`drops` only: window end, unix seconds UTC. Clamped to now." },
       { name: "max_drops", default: "50", description: "`drops` only: rows per player, newest first. Maximum 200." },
       { name: "npc", description: "`drops` only: a boss name or Wise Old Man boss slug (`barrows_chests`). Restricts the feed, and the per-player cap, to that boss." },
+      { name: "min_value", default: "0", description: "`drops` only: skip drops worth less than this many gp (stack total, value × quantity). The per-player cap counts only drops that pass." },
     ],
     example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
   "${API_BASE}/players/Crawlicious?include=identity,stats,loot"`,
@@ -291,6 +292,7 @@ export const ENDPOINTS: ApiEndpoint[] = [
       { name: "until", default: "now", description: "`drops` only: window end, unix seconds UTC. Clamped to now." },
       { name: "max_drops", default: "50", description: "`drops` only: rows per player, newest first. Maximum 200." },
       { name: "npc", description: "`drops` only: a boss name or Wise Old Man boss slug (`barrows_chests`). Restricts the feed, and the per-player cap, to that boss — the Boss-of-the-Week query." },
+      { name: "min_value", default: "0", description: "`drops` only: skip drops worth less than this many gp (stack total, value × quantity). The per-player cap counts only drops that pass." },
     ],
     example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
   "${API_BASE}/groups/19/players?include=identity,drops,drop_ids&npc=barrows_chests&since=1788343200&limit=100"`,

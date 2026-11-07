@@ -348,7 +348,10 @@ X-RateLimit-Cost-Remaining   165600`}
           own price: 50 per player per 24 hours of window, rounded up, so a week costs 350. Rows per
           player are capped by <code>max_drops</code>, newest first, and the payload says when that
           cap bit. Every entry carries <code>received_at</code> as unix seconds UTC — when
-          DropTracker accepted the submission, not when the drop happened in game. Add{" "}
+          DropTracker accepted the submission, not when the drop happened in game, and{" "}
+          <code>image_url</code>, the screenshot taken with the drop (null when there is none). Pass{" "}
+          <code>min_value</code> (gp) to skip cheap drops, for example <code>min_value=1000000</code>{" "}
+          for 1M+ only. Add{" "}
           <code>drop_ids</code> when you need the stable <code>drop_id</code> for exactly-once
           processing.
         </p>
@@ -362,6 +365,7 @@ X-RateLimit-Cost-Remaining   165600`}
       "npc_id": 415, "npc_name": "Abyssal Sire",
       "quantity": 1, "value_each": 2000000, "total_value": 2000000,
       "received_at": 1788343200, "received_at_iso": "2026-09-02T10:00:00",
+      "image_url": "https://www.droptracker.io/img/user-upload/...png",
       "drop_id": 203743875 }     // only with include=drop_ids
   ]
 }
