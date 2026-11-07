@@ -564,9 +564,10 @@ test("group-config registry resolves all keys", () => {
 // weren't offered at all — so pin both which keys are marked and that nothing
 // else is, since a stray mark would offer a voice channel as a drops
 // destination.
-test("only the voice stat-display settings ask for a voice channel", () => {
+test("only the voice settings ask for a voice channel", () => {
   const voiceKeys = GROUP_CONFIG_FIELDS.filter((f) => f.channelKind === "voice").map((f) => f.key);
   assert.deepEqual(voiceKeys.sort(), [
+    "vc_join_to_create",
     "vc_to_display_droptracker_users",
     "vc_to_display_monthly_loot",
   ]);
