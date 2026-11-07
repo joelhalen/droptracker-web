@@ -67,6 +67,15 @@ test("the collection-log endpoint is documented and needs a key", () => {
   assert.equal(endpoint!.auth, true);
 });
 
+test("the NPC endpoints are documented and personal_bests names its boss", () => {
+  const paths = ENDPOINTS.map((e) => e.path);
+  assert.ok(paths.includes("/v2/npcs"));
+  assert.ok(paths.includes("/v2/npcs/{npc_id}"));
+  assert.ok(ENDPOINTS.filter((e) => e.path.startsWith("/v2/npcs")).every((e) => e.auth));
+  const pb = SECTIONS.find((s) => s.key === "personal_bests")!;
+  assert.match(pb.summary, /npc_name/);
+});
+
 test("the expensive sections cost more than the cheap ones", () => {
   const cost = (key: string) => SECTIONS.find((s) => s.key === key)!.cost;
   assert.ok(cost("clog_slots") > cost("loot_items"));

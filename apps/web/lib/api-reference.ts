@@ -118,7 +118,8 @@ export const SECTIONS: ApiSection[] = [
     key: "personal_bests",
     cost: 8,
     category: "Progress",
-    summary: "Best time per boss, split by team-size bracket.",
+    summary:
+      "Best time per boss, split by team-size bracket. Each entry carries npc_id and npc_name, so there is no id table to keep up to date; /v2/npcs has the full list.",
   },
   {
     key: "loot_npcs",
@@ -229,6 +230,30 @@ export const ENDPOINTS: ApiEndpoint[] = [
     auth: true,
     example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
   "${API_BASE}/collection-log"`,
+  },
+  {
+    method: "GET",
+    path: "/v2/npcs",
+    title: "NPC list",
+    summary:
+      "Every NPC id DropTracker uses (the npc_id in personal_bests, drops and loot_npcs) with its name and Wise Old Man boss slug. Raids, minigames and other content with no single NPC get DropTracker's own ids from 900000 up, flagged synthetic. Any valid key may read it. Flat cost of 10 for the full list, 2 when filtered; new ids only appear with new content, so fetch it once and cache it.",
+    auth: true,
+    params: [
+      { name: "name", description: "One boss, in any spelling or as a Wise Old Man slug (`theatre_of_blood`). Can match more than one id." },
+      { name: "q", description: "Names containing this text, ignoring case (`doom` returns every Doom of Mokhaiotl level)." },
+    ],
+    example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
+  "${API_BASE}/npcs?q=doom"`,
+  },
+  {
+    method: "GET",
+    path: "/v2/npcs/{npc_id}",
+    title: "One NPC",
+    summary:
+      "One NPC's name, icon, wiki link and drop table from the OSRS Wiki (refreshed weekly). Each drop has item_id, item_name, quantity, noted, rarity (chance per roll, null when the wiki gives none) and rolls. Some bosses keep their table on a related entry, such as raid modes; then source is wiki_family and source_npc_id names the entry it came from. Raid rarities are the chance within the unique table, not per completion. Flat cost of 5.",
+    auth: true,
+    example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
+  "${API_BASE}/npcs/2042"`,
   },
   {
     method: "GET",
