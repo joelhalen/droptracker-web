@@ -6,6 +6,11 @@
  * withdrawal or payout, a transfer into one of the group's event prize pots,
  * or a staff adjustment. Amounts are signed (outflows negative) and only
  * confirmed rows count toward the balance. Timestamps are unix seconds.
+ *
+ * Holders (web159a): the coffer holds at most 50M, so clans keep GP with their
+ * staff. A row's holder is whose keeping it moved GP into or out of. GP moving
+ * between the coffer and a holder, or between two holders, stays out of the
+ * balance (see `isHeldMove` in apps/web/lib/group-bank.ts).
  */
 import { z } from "zod";
 
@@ -23,11 +28,12 @@ export const BANK_ENTRY_KINDS = [
   "payout",
   "event_transfer",
   "adjustment",
+  "holder_transfer",
 ] as const;
 export type BankEntryKind = (typeof BANK_ENTRY_KINDS)[number];
 
 /** Kinds staff record directly. Transfers have their own action. */
-export const BANK_RECORDABLE_KINDS = ["donation", "withdrawal", "payout", "adjustment"] as const;
+export const BANK_RECORDABLE_KINDS = ["donation", "withdrawal", "payout", "adjustment", "holder_transfer"] as const;
 export type BankRecordableKind = (typeof BANK_RECORDABLE_KINDS)[number];
 
 export const BANK_OUTFLOW_KINDS: readonly BankEntryKind[] = ["withdrawal", "payout", "event_transfer"];
@@ -45,6 +51,7 @@ export const BANK_KIND_LABELS: Record<BankEntryKind, string> = {
   payout: "Payout",
   event_transfer: "Event transfer",
   adjustment: "Adjustment",
+  holder_transfer: "Internal transfer",
 };
 
 export const GroupBankEntrySchema = z.object({
@@ -66,6 +73,11 @@ export const GroupBankEntrySchema = z.object({
   event_name: z.string().nullable().default(null),
   /** A transfer to an event run outside DropTracker (no prize-pot row). */
   outside_event: z.boolean().default(false),
+  /** Whose keeping this moved GP into or out of: who holds a withdrawal, who
+   * returned a deposit, who paid a payout or funded an event, who passed GP on
+   * in an internal transfer (`rsn` is who received it). */
+  holder_player_id: z.number().int().nullable().default(null),
+  holder_rsn: z.string().nullable().default(null),
   /** Username of the member who submitted it (staff reads only). */
   submitted_by: z.string().nullable().default(null),
   /** When the GP moved. Staff can backdate it; the ledger is ordered by it. */
@@ -81,6 +93,13 @@ export const GroupBankDonorSchema = z.object({
   count: z.number().int().default(0),
 });
 export type GroupBankDonor = z.infer<typeof GroupBankDonorSchema>;
+
+export const GroupBankHolderSchema = z.object({
+  player_id: z.number().int().nullable().default(null),
+  rsn: z.string().nullable().default(null),
+  held: BankMoneySchema,
+});
+export type GroupBankHolder = z.infer<typeof GroupBankHolderSchema>;
 
 /** `GET /groups/{id}/bank`. `visible: false` means the group keeps its bank
  * private and nothing else is sent. */
@@ -100,7 +119,11 @@ export const GroupBankSummarySchema = z.object({
    * moved out of the coffer, not spent. They stay in the ledger but leave the
    * balance and the totals above, and are summed here instead. */
   coffer_withdrawals_neutral: z.boolean().default(false),
+  /** GP the clan's staff hold outside the coffer: the sum of `holders`. */
   held_outside_coffer_total: BankMoneySchema.optional(),
+  /** Who holds it, most first (staff reads only; null for the public). Below
+   * zero means more was paid from them than was recorded as held. */
+  holders: z.array(GroupBankHolderSchema).nullable().default(null),
   adjustment_total: BankMoneySchema.optional(),
   donation_count: z.number().int().default(0),
   donor_count: z.number().int().default(0),

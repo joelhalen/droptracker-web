@@ -60,6 +60,9 @@ export const groupBankApi = {
       amount: number;
       player_id?: number | null;
       rsn?: string | null;
+      /** Whose keeping the GP moved into or out of (see the api-types doc). */
+      holder_player_id?: number | null;
+      holder_rsn?: string | null;
       note?: string | null;
       /** Object key from the proof uploader; the backend builds the URL. */
       proof_key?: string | null;
@@ -76,9 +79,10 @@ export const groupBankApi = {
   /** Edit or review an entry. `proof_key: null` detaches the screenshot.
    * `amount` is entered like a new entry's (positive GP; an adjustment
    * carries its own sign). A typed `rsn` that names a tracked account is
-   * linked to it, as when recording. `created_at` (unix seconds) re-dates
-   * it. A transfer into a prize pot only takes `note` and `proof_key`; one to
-   * an outside event also takes `amount`, `created_at` and `event_name`. */
+   * linked to it, as when recording (so is `holder_rsn`; null clears the
+   * holder). `created_at` (unix seconds) re-dates it. A transfer into a
+   * prize pot only takes `note`, `proof_key` and its holder; one to an
+   * outside event also takes `amount`, `created_at` and `event_name`. */
   async updateGroupBankEntry(
     groupId: number,
     entryId: number,
@@ -90,6 +94,9 @@ export const groupBankApi = {
       proof_key?: string | null;
       player_id?: number | null;
       rsn?: string | null;
+      /** Whose keeping the GP moved into or out of (see the api-types doc). */
+      holder_player_id?: number | null;
+      holder_rsn?: string | null;
       created_at?: number;
       event_name?: string;
     },
@@ -120,6 +127,9 @@ export const groupBankApi = {
       note?: string | null;
       /** Unix seconds; outside events only (a pot transfer is dated now). */
       created_at?: number;
+      /** Who paid it, from GP they hold for the clan. */
+      holder_player_id?: number | null;
+      holder_rsn?: string | null;
     },
   ): Promise<{ id: number }> {
     return (await apiSend("POST", `/groups/${groupId}/bank/transfer`, input)) as { id: number };

@@ -11,6 +11,44 @@ export function isCofferMove(e: Pick<GroupBankEntry, "kind" | "source">, neutral
   return neutral && e.kind === "withdrawal" && e.source === "coffer";
 }
 
+type HolderFields = Pick<GroupBankEntry, "kind" | "source" | "holder_player_id" | "holder_rsn">;
+
+export function hasHolder(e: Pick<GroupBankEntry, "holder_player_id" | "holder_rsn">): boolean {
+  return e.holder_player_id != null || Boolean(e.holder_rsn);
+}
+
+/** GP moving between the coffer and the staff who hold it, or between two
+ * of them: listed, but not in the balance (mirrors the backend's
+ * services/group_bank.is_held_move). */
+export function isHeldMove(e: HolderFields, neutral: boolean): boolean {
+  if (e.kind === "holder_transfer") return true;
+  if (hasHolder(e) && (e.kind === "withdrawal" || e.kind === "donation")) return true;
+  return isCofferMove(e, neutral);
+}
+
+/** Who holds the GP a row moved, and how it reads: a held withdrawal (set or,
+ * for a neutral coffer withdrawal, whoever made it), a returned deposit, GP
+ * paid from someone, or an internal transfer. null when no one does. */
+export function holderNote(e: GroupBankEntry, neutral: boolean): string | null {
+  const holder = e.holder_rsn;
+  switch (e.kind) {
+    case "holder_transfer":
+      return holder ? `From ${holder}` : null;
+    case "withdrawal":
+      if (holder) return `Held by ${holder}`;
+      return isCofferMove(e, neutral) && e.rsn ? `Held by ${e.rsn}` : null;
+    case "donation": {
+      if (!holder) return null;
+      const same = e.holder_player_id != null ? e.holder_player_id === e.player_id : holder === e.rsn;
+      return same ? "Returned" : `Returned by ${holder}`;
+    }
+    case "adjustment":
+      return holder ? `Held by ${holder}` : null;
+    default:
+      return holder ? `Paid by ${holder}` : null;
+  }
+}
+
 /** Old School's launch; the backend refuses anything earlier. */
 export const EARLIEST_BANK_DAY = "2013-02-22";
 
@@ -63,6 +101,7 @@ const CSV_HEADER = [
   "Status",
   "Source",
   "Name",
+  "Holder",
   "Amount (gp)",
   "In balance",
   "Event",
@@ -72,8 +111,10 @@ const CSV_HEADER = [
   "Screenshot",
 ];
 
-/** The whole ledger as CSV, oldest first, with signed raw amounts. "In
- * balance" says whether the row counts: confirmed, and not a coffer move. */
+/** The whole ledger as CSV, oldest first, with signed raw amounts. "Holder"
+ * is whose keeping the GP moved into or out of. "In balance" says whether
+ * the row counts: confirmed, and not GP moving between the coffer and its
+ * holders. */
 export function bankLedgerCsv(entries: GroupBankEntry[], cofferWithdrawalsNeutral = false): string {
   const rows = [...entries]
     .sort((a, b) => (a.created_at ?? 0) - (b.created_at ?? 0) || a.id - b.id)
@@ -83,8 +124,9 @@ export function bankLedgerCsv(entries: GroupBankEntry[], cofferWithdrawalsNeutra
       e.status === "void" ? "removed" : e.status,
       e.source,
       e.rsn,
+      e.holder_rsn ?? (isCofferMove(e, cofferWithdrawalsNeutral) ? e.rsn : null),
       e.amount.value,
-      e.status === "confirmed" && !isCofferMove(e, cofferWithdrawalsNeutral) ? "yes" : "no",
+      e.status === "confirmed" && !isHeldMove(e, cofferWithdrawalsNeutral) ? "yes" : "no",
       e.event_name,
       e.note,
       e.submitted_by,

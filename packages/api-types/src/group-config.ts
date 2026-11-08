@@ -527,7 +527,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // Suggestion #160: the coffer caps at 50M, so clans withdraw to hold GP
   // elsewhere. On, synced withdrawals don't lower the balance (backend reads
   // it in web_api/routes/group_bank.py).
-  { key: "bank_coffer_withdrawals_neutral", label: "Coffer withdrawals stay in the bank", category: "bank", type: "boolean", help: "Turn on if your admins take GP out of the coffer to hold it, since the coffer holds at most 50M. Synced withdrawals then show in the ledger without lowering the balance, and only payouts and event funding count as GP taken out. If held GP goes back into the coffer, remove that deposit so it isn't counted twice.", default: false },
+  { key: "bank_coffer_withdrawals_neutral", label: "Coffer withdrawals stay in the bank", category: "bank", type: "boolean", help: "Turn on if your admins take GP out of the coffer to hold it, since the coffer holds at most 50M. Synced withdrawals then show in the ledger without lowering the balance, and only payouts and event funding count as GP taken out. Each withdrawal counts as held by whoever made it, and the Holders list shows who has what. If held GP goes back into the coffer, mark that deposit as returned so it isn't counted twice.", default: false },
   // Discord (suggestion #230, backend services/group_bank_discord): a post per
   // confirmed entry, and a standing board message the core bot edits.
   { key: "bank_post_channel_id", label: "Bank activity channel", category: "bank", type: "channel", help: "Post a message here each time a donation is counted in the bank, from the coffer or recorded on the site. Nothing is posted until you set it. Entries you backdate more than a week aren't posted.", default: null },

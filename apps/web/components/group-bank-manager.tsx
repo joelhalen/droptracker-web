@@ -6,6 +6,11 @@
  * it aside for an event run outside DropTracker), and
  * browse the full ledger, editing any entry in place.
  *
+ * Holders (suggestion #160): GP outside the coffer sits with the clan's
+ * staff. Withdrawals can be kept by someone, payouts and event funding can
+ * say who paid, internal transfers pass GP between holders, and a deposit
+ * can be marked as held GP going back. The Holders card shows who has what.
+ *
  * The bank only records GP; the clan trades it in game. Every write goes
  * through a server action that re-checks admin rights, and the backend checks
  * again.
@@ -16,10 +21,12 @@ import { useRouter } from "next/navigation";
 import {
   BANK_KIND_LABELS,
   BANK_OUTFLOW_KINDS,
+  type BankEntryKind,
   type BankEntrySource,
   type BankEntryStatus,
   type BankRecordableKind,
   type GroupBankEntry,
+  type GroupBankHolder,
   type GroupBankLedger,
   type GroupBankSummary,
   type Money,
@@ -34,7 +41,10 @@ import {
   EARLIEST_BANK_DAY,
   bankLedgerCsv,
   dayToUnix,
+  hasHolder,
+  holderNote,
   isCofferMove,
+  isHeldMove,
   localDay,
   todayLocal,
 } from "@/lib/group-bank";
@@ -59,10 +69,38 @@ const FILTERS: { id: Filter; label: string }[] = [
 
 const KIND_HINTS: Record<BankRecordableKind, string> = {
   donation: "GP a member gave the clan.",
-  withdrawal: "GP taken out of the bank.",
+  withdrawal: "GP taken out of the bank, or out of the coffer for someone to hold.",
   payout: "GP paid to a member, like a prize.",
   adjustment: "Set an opening balance or fix a mistake. Can be negative.",
+  holder_transfer: "GP passed from one holder to another. Doesn't change the balance.",
 };
+
+/** The datalist every holder field suggests names from. */
+const HOLDERS_LIST_ID = "bank-holders";
+
+/** What the holder field is called for each kind. */
+const HOLDER_LABELS: Record<BankEntryKind, string> = {
+  donation: "Returned by",
+  withdrawal: "Held by",
+  payout: "Paid by",
+  event_transfer: "Paid by",
+  adjustment: "Held by",
+  holder_transfer: "From",
+};
+
+/** Matches the backend's services/group_bank.holder_key for free-text names. */
+function nameKey(name: string | null | undefined): string {
+  return (name ?? "").replace(/[-_]/g, " ").split(/\s+/).filter(Boolean).join(" ").toLowerCase();
+}
+
+/** The holder this row's person is, if they hold any GP right now. */
+function currentHolder(e: GroupBankEntry, holders: GroupBankHolder[]): GroupBankHolder | null {
+  return (
+    holders.find((h) =>
+      h.held.value > 0 && (h.player_id != null ? h.player_id === e.player_id : nameKey(h.rsn) === nameKey(e.rsn)),
+    ) ?? null
+  );
+}
 
 const STATUS_BADGE: Record<BankEntryStatus, { label: string; variant: "green" | "gold" | "red" | "neutral" }> = {
   confirmed: { label: "Confirmed", variant: "green" },
@@ -87,12 +125,12 @@ function SourceBadge({ source }: { source: BankEntrySource }) {
   );
 }
 
-/** A ledger row's amount. `muted` is a coffer move: listed, not counted. */
+/** A ledger row's amount. `muted` is a held move: listed, not counted. */
 function SignedGp({ money, muted = false }: { money: Money; muted?: boolean }) {
   const negative = money.value < 0;
   if (muted) {
     return (
-      <span className="text-osrs-parchment-dark/50 tabular-nums" title="Held outside the coffer. Doesn't change the balance.">
+      <span className="text-osrs-parchment-dark/50 tabular-nums" title="GP moving between the coffer and the staff who hold it. Doesn't change the balance.">
         {money.value_formatted.replace(/^-/, "")}
       </span>
     );
@@ -127,6 +165,7 @@ export function GroupBankManager({
   const balance = summary.balance?.value ?? 0;
   const neutral = summary.coffer_withdrawals_neutral;
   const held = summary.held_outside_coffer_total;
+  const holders = summary.holders ?? [];
   // Synced withdrawals still lower the balance: point at the setting, since a
   // clan holding GP outside the 50M coffer usually wants them not to.
   const showNeutralHint =
@@ -202,7 +241,7 @@ export function GroupBankManager({
         <StatTile
           label="Balance"
           value={summary.balance ? <GpAmount money={summary.balance} /> : "0"}
-          hint={neutral && held && held.value > 0 ? `${held.value_formatted} held outside the coffer` : undefined}
+          hint={held && held.value !== 0 ? `${held.value_formatted} held by staff` : undefined}
           className={balance < 0 ? "ring-osrs-red/50 ring-1" : ""}
         />
         <StatTile
@@ -260,6 +299,12 @@ export function GroupBankManager({
         />
       )}
 
+      <datalist id={HOLDERS_LIST_ID}>
+        {holders.map((h) => (h.rsn ? <option key={`${h.player_id ?? ""}:${h.rsn}`} value={h.rsn} /> : null))}
+      </datalist>
+
+      <HoldersCard holders={holders} />
+
       <div className="grid gap-6 lg:grid-cols-2">
         <RecordForm
           balance={balance}
@@ -294,6 +339,7 @@ export function GroupBankManager({
                 key={e.id}
                 entry={e}
                 neutral={neutral}
+                returner={e.kind === "donation" && e.status === "confirmed" && !hasHolder(e) ? currentHolder(e, holders) : null}
                 busy={busy}
                 onReopen={() => run(() => updateBankEntry(groupId, e.id, { status: "pending" }), "Back in the queue.")}
                 onRemove={() => {
@@ -306,6 +352,17 @@ export function GroupBankManager({
                   if (window.confirm(what)) run(() => deleteBankEntry(groupId, e.id), "Removed.");
                 }}
                 onProof={(key) => run(() => updateBankEntry(groupId, e.id, { proof_key: key }))}
+                onReturned={(h) =>
+                  run(
+                    () =>
+                      updateBankEntry(
+                        groupId,
+                        e.id,
+                        h.player_id != null ? { holder_player_id: h.player_id } : { holder_rsn: h.rsn },
+                      ),
+                    "Marked as returned. It no longer counts as a donation.",
+                  )
+                }
                 onEdit={(patch) => run(() => updateBankEntry(groupId, e.id, patch), "Saved.")}
               />
             ))}
@@ -320,6 +377,39 @@ export function GroupBankManager({
         )}
       </Card>
     </div>
+  );
+}
+
+/** Who holds the clan's GP outside the coffer, most first. Someone who has
+ * paid out everything they held drops off; below zero means more was paid
+ * from them than was recorded as held. */
+function HoldersCard({ holders }: { holders: GroupBankHolder[] }) {
+  const shown = holders.filter((h) => h.held.value !== 0);
+  if (shown.length === 0) return null;
+  return (
+    <Card padding="p-0" header={<h3 className="text-osrs-gold font-semibold">Holders</h3>}>
+      <ul className="divide-osrs-bronze/15 divide-y">
+        {shown.map((h) => (
+          <li key={`${h.player_id ?? ""}:${h.rsn}`} className="flex items-center gap-3 px-4 py-2 text-sm">
+            <span className="min-w-0 flex-1 truncate">{h.rsn ?? "Unknown"}</span>
+            {h.held.value < 0 ? (
+              <span
+                className="text-osrs-red tabular-nums"
+                title="More was paid from them than was recorded as held. Record the withdrawal or internal transfer that gave it to them."
+              >
+                {h.held.value_formatted}
+              </span>
+            ) : (
+              <GpAmount money={h.held} />
+            )}
+          </li>
+        ))}
+      </ul>
+      <p className="text-osrs-parchment-dark/60 border-osrs-bronze/15 border-t px-4 py-2 text-xs">
+        GP staff hold for the clan. It counts in the balance. Withdrawals add to it, payouts and event funding
+        they made take it off, and internal transfers move it between them.
+      </p>
+    </Card>
   );
 }
 
@@ -376,12 +466,15 @@ function outflowHint(summary: GroupBankSummary): string | undefined {
 
 function entryWho(e: GroupBankEntry): string {
   if (e.kind === "event_transfer") return e.event_name ? `To ${e.event_name}` : "To an event";
+  if (e.kind === "holder_transfer") return e.rsn ? `To ${e.rsn}` : "";
   return e.rsn ?? "";
 }
 
 type EntryPatch = {
   amount?: number;
   rsn?: string | null;
+  holder_player_id?: number | null;
+  holder_rsn?: string | null;
   note?: string | null;
   created_at?: number;
   event_name?: string;
@@ -390,30 +483,41 @@ type EntryPatch = {
 function LedgerRow({
   entry: e,
   neutral,
+  returner,
   busy,
   onReopen,
   onRemove,
   onProof,
+  onReturned,
   onEdit,
 }: {
   entry: GroupBankEntry;
   neutral: boolean;
+  /** Set on a deposit by someone who holds GP: offer to mark it returned. */
+  returner: GroupBankHolder | null;
   busy: boolean;
   onReopen: () => void;
   onRemove: () => void;
   onProof: (key: string | null) => void;
+  onReturned: (holder: GroupBankHolder) => void;
   onEdit: (patch: EntryPatch) => void;
 }) {
   const status = STATUS_BADGE[e.status];
   const editable = e.status !== "void";
   const [editing, setEditing] = useState(false);
-  const move = isCofferMove(e, neutral);
+  const move = isHeldMove(e, neutral);
+  const heldBy = holderNote(e, neutral);
   return (
     <li className={`flex flex-wrap items-center gap-3 px-4 py-3 text-sm ${e.status === "void" ? "opacity-60" : ""}`}>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{move ? "Out of coffer" : BANK_KIND_LABELS[e.kind]}</span>
+          <span className="font-medium">{isCofferMove(e, neutral) ? "Out of coffer" : BANK_KIND_LABELS[e.kind]}</span>
           {entryWho(e) && <span className="text-osrs-parchment-dark/80 truncate">{entryWho(e)}</span>}
+          {heldBy && (
+            <Badge variant="neutral" size="sm">
+              {heldBy}
+            </Badge>
+          )}
           {e.status !== "confirmed" && (
             <Badge variant={status.variant} size="sm">
               {status.label}
@@ -437,7 +541,18 @@ function LedgerRow({
       <div className="w-28 text-right font-semibold">
         <SignedGp money={e.amount} muted={move} />
       </div>
-      <div className="flex w-36 justify-end gap-1">
+      <div className="flex w-36 flex-wrap justify-end gap-1">
+        {returner && (
+          <Button
+            variant="link"
+            size="xs"
+            disabled={busy}
+            title={`${returner.rsn} holds ${returner.held.value_formatted} for the clan. If this deposit was that GP going back, it isn't a new donation.`}
+            onClick={() => onReturned(returner)}
+          >
+            Returned
+          </Button>
+        )}
         {e.status === "rejected" && (
           <Button variant="link" size="xs" disabled={busy} onClick={onReopen}>
             Reopen
@@ -463,6 +578,7 @@ function LedgerRow({
       {editing && editable && (
         <EntryEditor
           entry={e}
+          neutral={neutral}
           busy={busy}
           onCancel={() => setEditing(false)}
           onSave={(patch) => {
@@ -475,18 +591,21 @@ function LedgerRow({
   );
 }
 
-/** Edit an entry in place: who it was from or to, the amount, the note. The
- * amount is shown the way it was entered (positive GP; an adjustment keeps
- * its sign) and only changed fields are sent. A transfer's amount belongs to
- * the prize-pot row it wrote, so only its note can change here; a transfer to
- * an outside event has no pot row, so its event name takes the name's place. */
+/** Edit an entry in place: who it was from or to, who holds the GP, the
+ * amount, the note. The amount is shown the way it was entered (positive GP;
+ * an adjustment keeps its sign) and only changed fields are sent. A
+ * transfer's amount belongs to the prize-pot row it wrote, so only its note
+ * and who paid it can change here; a transfer to an outside event has no pot
+ * row, so its event name takes the name's place. */
 function EntryEditor({
   entry: e,
+  neutral,
   busy,
   onSave,
   onCancel,
 }: {
   entry: GroupBankEntry;
+  neutral: boolean;
   busy: boolean;
   onSave: (patch: EntryPatch) => void;
   onCancel: () => void;
@@ -502,9 +621,19 @@ function EntryEditor({
   const [note, setNote] = useState(e.note ?? "");
   const startDay = e.created_at ? localDay(e.created_at) : "";
   const [day, setDay] = useState(startDay);
+  const startHolder = e.holder_rsn ?? "";
+  const [holder, setHolder] = useState(startHolder);
+  const handOver = e.kind === "holder_transfer";
+  // A synced coffer withdrawal with no holder set is held by whoever made it.
+  const impliedHolder = !e.holder_rsn && isCofferMove(e, neutral) ? e.rsn : null;
 
-  const needsName = e.kind === "donation" || e.kind === "payout" || outside;
+  const needsName = e.kind === "donation" || e.kind === "payout" || outside || handOver;
   const patch: EntryPatch = {};
+  if (holder.trim() !== startHolder) {
+    const name = holder.trim();
+    // A cleared holder clears the account link too.
+    Object.assign(patch, name ? { holder_rsn: name } : { holder_rsn: null, holder_player_id: null });
+  }
   if (!isTransfer) {
     if (rsn.trim() !== startName) {
       if (outside) patch.event_name = rsn.trim();
@@ -518,19 +647,42 @@ function EntryEditor({
   }
   if (note.trim() !== (e.note ?? "")) patch.note = note.trim() || null;
   const changed = Object.keys(patch).length > 0;
-  const valid = isTransfer || ((signed ? amount !== 0 : amount > 0) && (!needsName || rsn.trim().length > 0));
+  const valid =
+    (isTransfer || ((signed ? amount !== 0 : amount > 0) && (!needsName || rsn.trim().length > 0))) &&
+    (!handOver || holder.trim().length > 0);
+  const holderField = (
+    <HolderField
+      label={HOLDER_LABELS[e.kind]}
+      required={handOver}
+      value={holder}
+      onChange={setHolder}
+      placeholder={impliedHolder ?? undefined}
+    />
+  );
 
   return (
     <div className="border-osrs-bronze/20 bg-osrs-bronze/5 basis-full space-y-3 rounded border p-3">
       {isTransfer ? (
-        <p className="text-osrs-parchment-dark/60 text-xs">
-          A transfer&apos;s amount and date are fixed. Remove it and make a new one to change them.
-        </p>
+        <>
+          <p className="text-osrs-parchment-dark/60 text-xs">
+            A transfer&apos;s amount and date are fixed. Remove it and make a new one to change them.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">{holderField}</div>
+        </>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-4">
+          {holderField}
           <label className="block">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-              {outside ? "Event" : e.kind === "payout" ? "Paid to" : e.kind === "donation" ? "Donor" : "Name"}
+              {outside
+                ? "Event"
+                : e.kind === "payout"
+                  ? "Paid to"
+                  : e.kind === "donation"
+                    ? "Donor"
+                    : handOver
+                      ? "To"
+                      : "Name"}
               {needsName ? "" : " (optional)"}
             </span>
             <input
@@ -617,7 +769,7 @@ function PendingQueue({
                       {e.rsn && <span className="text-osrs-parchment-dark/60">{e.rsn}</span>}{" "}
                     </>
                   )}
-                  <SignedGp money={e.amount} muted={isCofferMove(e, neutral)} />
+                  <SignedGp money={e.amount} muted={isHeldMove(e, neutral)} />
                 </div>
                 <div className="text-osrs-parchment-dark/60 flex flex-wrap items-center gap-x-1 text-xs">
                   <SourceBadge source={e.source} />
@@ -674,6 +826,39 @@ function PendingQueue({
   );
 }
 
+/** Who holds the GP a row moved: a name, with the clan's holders suggested. */
+function HolderField({
+  label,
+  required = false,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  required?: boolean;
+  value: string;
+  onChange: (name: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
+        {label}
+        {required ? "" : " (optional)"}
+      </span>
+      <input
+        type="text"
+        value={value}
+        maxLength={24}
+        list={HOLDERS_LIST_ID}
+        onChange={(ev) => onChange(ev.target.value)}
+        placeholder={placeholder ?? "RSN"}
+        className={`${fieldInputClass} w-full`}
+      />
+    </label>
+  );
+}
+
 /** When the GP moved. Defaults to today; an earlier day backdates the entry. */
 function DateField({ value, onChange }: { value: string; onChange: (day: string) => void }) {
   return (
@@ -702,6 +887,7 @@ function RecordForm({
     kind: BankRecordableKind;
     amount: number;
     rsn?: string | null;
+    holder_rsn?: string | null;
     note?: string | null;
     proof_key?: string | null;
     created_at?: number;
@@ -713,11 +899,22 @@ function RecordForm({
   const [note, setNote] = useState("");
   const [proof, setProof] = useState<ProofUpload | null>(null);
   const [day, setDay] = useState(() => todayLocal());
+  // Withdrawals and deposits: the named person is the holder (keeping it, or
+  // returning it). Payouts, adjustments and internal transfers name one.
+  const [kept, setKept] = useState(false);
+  const [holder, setHolder] = useState("");
 
-  const needsName = kind === "donation" || kind === "payout";
+  const handOver = kind === "holder_transfer";
+  const selfHeld = kind === "withdrawal" || kind === "donation";
+  const needsName = kind === "donation" || kind === "payout" || handOver;
+  const name = rsn.trim();
+  const holderName = selfHeld ? (kept && name ? name : null) : holder.trim() || null;
   const isOutflow = BANK_OUTFLOW_KINDS.includes(kind);
-  const valid = (kind === "adjustment" ? amount !== 0 : amount > 0) && (!needsName || rsn.trim().length > 0);
-  const overdraw = isOutflow && amount > balance;
+  const valid =
+    (kind === "adjustment" ? amount !== 0 : amount > 0) &&
+    (!needsName || name.length > 0) &&
+    (!handOver || (holderName != null && nameKey(holderName) !== nameKey(name)));
+  const overdraw = isOutflow && !(kind === "withdrawal" && holderName) && amount > balance;
 
   return (
     <Card header={<h3 className="text-osrs-gold font-semibold">Record</h3>}>
@@ -730,6 +927,8 @@ function RecordForm({
               onClick={() => {
                 setKind(k);
                 setAmount(0);
+                setKept(false);
+                setHolder("");
               }}
               aria-pressed={kind === k}
               className={`rounded border px-2.5 py-1 text-sm ${
@@ -744,10 +943,26 @@ function RecordForm({
         </div>
         <p className="text-osrs-parchment-dark/60 text-xs">{KIND_HINTS[kind]}</p>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className={`grid gap-3 ${selfHeld ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
+          {!selfHeld && (
+            <HolderField
+              label={HOLDER_LABELS[kind]}
+              required={handOver}
+              value={holder}
+              onChange={setHolder}
+            />
+          )}
           <label className="block">
             <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">
-              {kind === "payout" ? "Paid to" : kind === "donation" ? "Donor" : "Name"}
+              {kind === "payout"
+                ? "Paid to"
+                : kind === "donation"
+                  ? "Donor"
+                  : kind === "withdrawal"
+                    ? "Taken out by"
+                    : handOver
+                      ? "To"
+                      : "Name"}
               {needsName ? "" : " (optional)"}
             </span>
             <input
@@ -756,6 +971,7 @@ function RecordForm({
               maxLength={24}
               onChange={(e) => setRsn(e.target.value)}
               placeholder="RSN"
+              list={handOver || selfHeld ? HOLDERS_LIST_ID : undefined}
               className={`${fieldInputClass} w-full`}
             />
           </label>
@@ -771,6 +987,27 @@ function RecordForm({
           </label>
           <DateField value={day} onChange={setDay} />
         </div>
+        {selfHeld && (
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={kept}
+              disabled={!name}
+              onChange={(e) => setKept(e.target.checked)}
+              className="mt-1"
+            />
+            <span>
+              {kind === "withdrawal"
+                ? "They're holding it for the clan"
+                : "Held GP going back into the coffer"}
+              <span className="text-osrs-parchment-dark/60 block text-xs">
+                {kind === "withdrawal"
+                  ? "It stays in the balance and is listed under Holders until they pay it out."
+                  : "Not a new donation: it comes off what they hold and the balance stays the same."}
+              </span>
+            </span>
+          </label>
+        )}
         <label className="block">
           <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Note (optional, staff only)</span>
           <input
@@ -798,7 +1035,8 @@ function RecordForm({
               onRecord({
                 kind,
                 amount,
-                rsn: rsn.trim() || null,
+                rsn: name || null,
+                holder_rsn: holderName,
                 note: note.trim() || null,
                 proof_key: proof?.key ?? null,
                 ...(backdated != null ? { created_at: backdated } : {}),
@@ -808,6 +1046,8 @@ function RecordForm({
               setNote("");
               setProof(null);
               setDay(todayLocal());
+              setKept(false);
+              setHolder("");
             }}
           >
             Save {BANK_KIND_LABELS[kind].toLowerCase()}
@@ -849,12 +1089,13 @@ function TransferForm({
   const [amount, setAmount] = useState(0);
   const [note, setNote] = useState("");
   const [day, setDay] = useState(() => todayLocal());
+  const [holder, setHolder] = useState("");
   const chosen = events.find((e) => e.id === eventId) ?? null;
   const outside = mode === "outside";
   const valid = amount > 0 && (outside ? eventName.trim().length > 0 : chosen != null && chosen.pot_enabled);
 
   function submit() {
-    const base = { amount, note: note.trim() || null };
+    const base = { amount, note: note.trim() || null, holder_rsn: holder.trim() || null };
     if (outside) {
       const backdated = day && day !== todayLocal() ? dayToUnix(day) : null;
       onTransfer({
@@ -869,6 +1110,7 @@ function TransferForm({
     setAmount(0);
     setNote("");
     setDay(todayLocal());
+    setHolder("");
   }
 
   const modes = [
@@ -971,7 +1213,8 @@ function TransferForm({
 
         {(outside || events.length > 0) && (
           <>
-            <div className={`grid gap-3 ${outside ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+            <div className={`grid gap-3 ${outside ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
+              <HolderField label="Paid by" value={holder} onChange={setHolder} />
               <label className="block">
                 <span className="text-osrs-parchment-dark/70 mb-1 block text-xs">Amount</span>
                 <GpInput

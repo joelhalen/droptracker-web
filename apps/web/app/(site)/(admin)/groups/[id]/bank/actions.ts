@@ -79,6 +79,8 @@ export async function recordBankEntry(
     amount: number;
     player_id?: number | null;
     rsn?: string | null;
+    holder_player_id?: number | null;
+    holder_rsn?: string | null;
     note?: string | null;
     proof_key?: string | null;
     created_at?: number;
@@ -98,6 +100,8 @@ export async function updateBankEntry(
     proof_key?: string | null;
     player_id?: number | null;
     rsn?: string | null;
+    holder_player_id?: number | null;
+    holder_rsn?: string | null;
     created_at?: number;
     event_name?: string;
   },

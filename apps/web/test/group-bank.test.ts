@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { GroupBankEntrySchema, GroupBankLedgerSchema } from "@droptracker/api-types";
-import { bankLedgerCsv, dayToUnix, isCofferMove, localDay, todayLocal } from "../lib/group-bank";
+import { bankLedgerCsv, dayToUnix, holderNote, isCofferMove, isHeldMove, localDay, todayLocal } from "../lib/group-bank";
 
 const NOW = new Date(2026, 10, 2, 21, 0, 0); // local time
 
@@ -47,13 +47,17 @@ test("ledger CSV is oldest first, signed, and formula-safe", () => {
   ]);
   const [header = "", first = "", second = "", ...rest] = csv.split("\r\n");
   assert.equal(rest.length, 0);
-  assert.ok(header.startsWith("Date,Type,Status,Source,Name,Amount (gp)"));
-  assert.ok(first.startsWith("2024-05-01,Donation,confirmed,coffer,'=HYPERLINK(1),5000000,yes,"));
+  assert.ok(header.startsWith("Date,Type,Status,Source,Name,Holder,Amount (gp)"));
+  assert.ok(first.startsWith("2024-05-01,Donation,confirmed,coffer,'=HYPERLINK(1),,5000000,yes,"));
   assert.ok(first.includes('"said ""thanks"", twice"'));
-  assert.ok(second.startsWith("2026-11-02,Withdrawal,confirmed,coffer,xCmase,-31069421,yes,"));
-  // With coffer withdrawals neutral, the same row is listed but not counted.
-  const neutral = bankLedgerCsv([entry({ id: 2, kind: "withdrawal", amount: { value: -5, value_formatted: "-5" } })], true);
-  assert.ok(neutral.split("\r\n")[1]?.includes(",-5,no,"));
+  assert.ok(second.startsWith("2026-11-02,Withdrawal,confirmed,coffer,xCmase,,-31069421,yes,"));
+  // With coffer withdrawals neutral, the same row is listed but not counted,
+  // and whoever made it holds it.
+  const neutral = bankLedgerCsv(
+    [entry({ id: 2, kind: "withdrawal", rsn: "xCmase", amount: { value: -5, value_formatted: "-5" } })],
+    true,
+  );
+  assert.ok(neutral.split("\r\n")[1]?.includes(",xCmase,xCmase,-5,no,"));
 });
 
 test("only synced withdrawals are coffer moves, and only when the setting is on", () => {
@@ -81,4 +85,30 @@ test("an outside event's transfer carries its name and older payloads still pars
   });
   assert.equal(ledger.outside_events[0]?.count, 3);
   assert.deepEqual(GroupBankLedgerSchema.parse({ entries: [] }).outside_events, []);
+});
+
+test("GP moving between the coffer and its holders stays out of the balance", () => {
+  const row = (kind: string, over: Record<string, unknown> = {}) =>
+    GroupBankEntrySchema.parse({
+      id: 1,
+      kind,
+      amount: { value: -5, value_formatted: "-5" },
+      status: "confirmed",
+      source: "staff",
+      ...over,
+    });
+  assert.equal(isHeldMove(row("holder_transfer", { rsn: "Croc", holder_rsn: "Mahj" }), false), true);
+  assert.equal(isHeldMove(row("withdrawal", { holder_rsn: "Mahj" }), false), true);
+  assert.equal(isHeldMove(row("donation", { holder_rsn: "Croc" }), false), true);
+  assert.equal(isHeldMove(row("withdrawal"), false), false);
+  assert.equal(isHeldMove(row("withdrawal", { source: "coffer" }), true), true);
+  assert.equal(isHeldMove(row("payout", { holder_rsn: "Mahj" }), true), false);
+
+  assert.equal(holderNote(row("payout", { rsn: "Winner", holder_rsn: "Mahj" }), false), "Paid by Mahj");
+  assert.equal(holderNote(row("withdrawal", { source: "coffer", rsn: "Mahj" }), true), "Held by Mahj");
+  assert.equal(holderNote(row("withdrawal", { source: "coffer", rsn: "Mahj" }), false), null);
+  assert.equal(holderNote(row("donation", { rsn: "Croc", holder_rsn: "Croc" }), false), "Returned");
+  assert.equal(holderNote(row("holder_transfer", { rsn: "Croc", holder_rsn: "Mahj" }), false), "From Mahj");
+  // Older payloads without holder fields still parse.
+  assert.equal(row("payout").holder_rsn, null);
 });
