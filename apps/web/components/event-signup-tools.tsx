@@ -13,12 +13,15 @@ import { Alert, Button, EmptyState, Input, Select } from "@/components/ui";
 import { EntityHoverCard } from "@/components/entity-hover-card";
 import { formatGp, formatRelativeTime } from "@/lib/format";
 import { rsnIncludes } from "@/lib/rsn";
+import { PlayerAddInput, type PlayerHit } from "@/components/player-add-input";
 import {
+  addEventSignups,
   assignEventSignup,
   listEventSignups,
   postEventSignupMessage,
   randomizeEventSignups,
   removeEventSignup,
+  searchParticipantPlayers,
   signupAllEventMembers,
   unassignEventSignup,
   updateGroupEvent,
@@ -165,7 +168,9 @@ const SignupRow = memo(function SignupRow({
             <span className="text-osrs-parchment-dark/50 flex min-w-0 items-center gap-1 text-xs">
               {row.group_name && <span className="truncate">{row.group_name}</span>}
               {row.source === "discord" && <span className="shrink-0">· via Discord</span>}
-              {row.source === "bulk" && <span className="shrink-0">· added by a manager</span>}
+              {(row.source === "bulk" || row.source === "manual") && (
+                <span className="shrink-0">· added by a manager</span>
+              )}
             </span>
           )}
         </div>
@@ -247,10 +252,14 @@ export function EventSignupTools({
   event,
   teams,
   clanScopeId,
+  participantGroupIds,
 }: {
   groupId: number | null;
   event: EventDetail;
   teams: EventTeam[];
+  /** Clans whose members the "Add players" search covers (the event's clan,
+   * or its accepted participants on a clan-vs-clan event). */
+  participantGroupIds?: number[];
   /** web119a: a staff-hosted event's clan panel — the pool is this clan's
    * sign-ups, "randomize" fills its one team, and the Discord post goes to
    * this clan's own channels. */
@@ -427,6 +436,46 @@ export function EventSignupTools({
       });
     },
     [groupId, eventId],
+  );
+
+  // Manual add: pick a member from search, or paste a list of names.
+  const searchGroupIds = useMemo(
+    () => (clanScopeId != null ? [clanScopeId] : (participantGroupIds ?? [])),
+    [clanScopeId, participantGroupIds],
+  );
+  const searchMembers = useCallback(
+    (q: string) => searchParticipantPlayers(groupId, eventId, searchGroupIds, q),
+    [groupId, eventId, searchGroupIds],
+  );
+  const onAddPlayer = useCallback(
+    (player: PlayerHit) => {
+      setError(null);
+      setNotice(null);
+      startTransition(async () => {
+        try {
+          const res = await addEventSignups(groupId, eventId, { playerIds: [player.id] }, clanScopeId);
+          if (res.added.length) {
+            setNotice(`Added ${player.name} to the sign-ups.`);
+            refresh();
+          } else {
+            setError(`Couldn't add ${player.name}: ${res.skipped[0]?.reason ?? "unknown reason"}`);
+          }
+        } catch (err) {
+          setError(getErrorMessage(err, "Couldn't add the player."));
+        }
+      });
+    },
+    [groupId, eventId, clanScopeId, refresh],
+  );
+  const onAddPlayers = useCallback(
+    async (names: string[]) => {
+      setError(null);
+      setNotice(null);
+      const res = await addEventSignups(groupId, eventId, { names }, clanScopeId);
+      if (res.added.length) refresh();
+      return res;
+    },
+    [groupId, eventId, clanScopeId, refresh],
   );
 
   const onRandomize = () => {
@@ -701,6 +750,19 @@ export function EventSignupTools({
               <span className="text-osrs-red/80 text-xs">Create teams first.</span>
             )}
           </div>
+
+          <PlayerAddInput
+            placeholder={
+              groupId == null && clanScopeId == null
+                ? "Add players to the sign-ups: type a name, or paste a list…"
+                : "Add clan members to the sign-ups: type a name, or paste a list…"
+            }
+            existingIds={(pool ?? []).map((r) => r.player_id)}
+            disabled={pending}
+            search={searchMembers}
+            onPick={onAddPlayer}
+            onBulkAdd={onAddPlayers}
+          />
 
           {pool && pool.length > 0 && (
             <>

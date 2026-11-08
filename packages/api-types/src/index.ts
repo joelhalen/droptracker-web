@@ -7009,7 +7009,8 @@ export type EventTeamPatch = z.infer<typeof EventTeamPatchSchema>;
 
 /** Per-name outcomes of the bulk "paste a list of names" roster add. Skipped
  * rows carry a human-readable reason (not tracked / wrong clan / already
- * placed); the endpoint never moves a player between teams. */
+ * placed); the endpoint never moves a player between teams. Also the response
+ * of POST /events/{id}/signups (managers adding players to a sign-up pool). */
 export const EventTeamBulkAddResultSchema = z.object({
   added: z.array(z.object({ id: z.number().int(), name: z.string() })),
   skipped: z.array(z.object({ name: z.string(), reason: z.string() })),
@@ -7300,8 +7301,9 @@ export const EventSignupSchema = z.object({
   group_id: z.number().int().nullable().optional(),
   group_name: z.string().nullable().optional(),
   team_id: z.number().int().nullable(),
-  /** "bulk" = a manager's "Sign up all clan members". */
-  source: z.enum(["web", "discord", "bulk"]).catch("web"),
+  /** "bulk" = a manager's "Sign up all clan members"; "manual" = a manager
+   * added this player by hand (POST /events/{id}/signups). */
+  source: z.enum(["web", "discord", "bulk", "manual"]).catch("web"),
   signed_up_at: z.number().int().nullable().optional(),
   ehb: z.number().nullable().optional(),
   total_level: z.number().int().nullable().optional(),

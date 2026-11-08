@@ -318,6 +318,27 @@ export const eventMembershipApi = {
   },
 
 
+  /** Put chosen players into a sign-up pool by hand: picked ids or a pasted
+   * list of names, optionally scoped to one clan. Same per-name outcome shape
+   * as the team bulk add. */
+  async addEventSignups(
+    eventId: number,
+    input: { playerIds: number[] } | { names: string[] },
+    groupId?: number,
+  ): Promise<EventTeamBulkAddResult> {
+    const body = {
+      ...("names" in input ? { names: input.names } : { player_ids: input.playerIds }),
+      ...(groupId != null ? { group_id: groupId } : {}),
+    };
+    return withFallback(
+      async () => EventTeamBulkAddResultSchema.parse(await apiSend("POST", `/events/${eventId}/signups`, body)),
+      () => ({
+        added: "names" in input ? input.names.map((name, i) => ({ id: 9000 + i, name })) : [],
+        skipped: [],
+      }),
+    );
+  },
+
   /** Sign up every current member of the event's clan(s); optional clan scope. */
   async signupAllEventMembers(eventId: number, groupId?: number): Promise<EventSignupAllResult> {
     return withFallback(

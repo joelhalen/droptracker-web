@@ -1765,7 +1765,14 @@ export function EventManager({
 
       {/* Self-service sign-ups: pool sorting + "post to Discord" */}
       <div className={tab === "teams" ? "" : "hidden"}>
-        <EventSignupTools groupId={groupId} event={event} teams={teams} />
+        <EventSignupTools
+          groupId={groupId}
+          event={event}
+          teams={teams}
+          participantGroupIds={
+            isClanVsClan ? acceptedParticipantIds : groupId != null ? [groupId] : []
+          }
+        />
       </div>
 
       {/* Prize pot: buy-ins, donations, distribution config (web52a). */}

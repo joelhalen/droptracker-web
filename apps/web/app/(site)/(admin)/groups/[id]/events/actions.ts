@@ -1364,6 +1364,23 @@ export async function randomizeEventSignups(
   return result;
 }
 
+/** Put chosen players into the sign-up pool by hand (picked or pasted);
+ * returns per-name outcomes. Optional clan scope, as for sign-up-all. */
+export async function addEventSignups(
+  groupId: EventGroupId,
+  eventId: number,
+  input: { playerIds: number[] } | { names: string[] },
+  clanGroupId?: number,
+) {
+  await assertCanManageEvent(groupId);
+  const result = await api.addEventSignups(eventId, input, clanGroupId);
+  if (result.added.length) {
+    revalidatePath(eventAdminPath(groupId, eventId));
+    revalidatePath(`/events/${eventId}`);
+  }
+  return result;
+}
+
 /** Sign up every current member of the event's clan(s); optional clan scope. */
 export async function signupAllEventMembers(
   groupId: EventGroupId,
