@@ -1148,6 +1148,11 @@ export const ManualSubmissionSchema = z.object({
    * named players + 1.
    */
   split_size: z.number().int().min(2).max(MAX_SPLIT_SIZE).optional(),
+  /**
+   * Raid loot: the raid was done alone. A raid drop must carry this or a
+   * split, since a manual submission has no party for the server to read.
+   */
+  raid_solo: z.boolean().optional(),
   proof_upload_key: z.string().optional(),
   notes: z.string().max(500).optional(),
 });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   describeSplit,
+  isRaidSource,
   parseSplitNames,
   resolveSplitSize,
   splitValidationError,
@@ -93,4 +94,29 @@ test("the incident numbers come out right", () => {
   // split would have paid.
   assert.equal(Math.floor(777_800_000 / 4), 194_450_000);
   assert.equal(describeSplit(4, 2, Math.floor(777_800_000 / 4)).includes("194,450,000"), true);
+});
+
+// Raid loot must say who was in the raid. Every raid chest name in npc_list,
+// which the backend's is_raid_source classifies the same way.
+test("recognises every raid chest, in every mode", () => {
+  for (const name of [
+    "Theatre of Blood",
+    "Theatre of Blood: Entry Mode",
+    "Theatre of Blood: Hard Mode",
+    "Tombs of Amascut",
+    "Tombs of Amascut: Entry Mode",
+    "Tombs of Amascut: Expert Mode",
+    "Chambers of Xeric",
+    "Chambers of Xeric Challenge Mode",
+    "Fractured Archive",
+    "The Fractured Archive",
+  ]) {
+    assert.equal(isRaidSource(name), true, name);
+  }
+});
+
+test("leaves non-raid sources alone", () => {
+  for (const name of ["Zulrah", "Vorkath", "Lunar Chest", "Barrows", "", undefined, null]) {
+    assert.equal(isRaidSource(name), false, String(name));
+  }
 });

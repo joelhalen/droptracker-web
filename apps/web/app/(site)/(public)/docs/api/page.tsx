@@ -480,6 +480,8 @@ done`}
               ["item", "The item, collection log slot or pet. Needed for drop, clog and pet."],
               ["npc", "Where it came from. Needed for drop, and the boss for pb."],
               ["quantity, value, kc", "Optional, for drops. Leave value out and we price it from the GE."],
+              ["split_with, split_size", "Drops: the other players it was split with (a list or comma-separated names), and how many ways it went including the receiver, for players we don't track."],
+              ["raid_solo", "Raid loot: true if the raid was done alone. Raid drops need either this or a split."],
               ["time or time_ms", "Personal bests: a time like 1:23.4, or milliseconds. team_size is optional."],
               ["task, tier", "Combat achievements: the task name and its tier (easy to grandmaster)."],
               ["external_id", "Your own id for this submission, up to 64 characters. Sending the same one again returns the first answer instead of submitting twice, so retries are safe."],

@@ -110,6 +110,17 @@ export function splitValidationError(size: number | undefined, names: string[]):
   return tooLong ? `“${tooLong}” isn't a valid RuneScape name.` : null;
 }
 
+/**
+ * Whether a drop source is a raid reward chest, any mode. Raid loot has to say
+ * who was in the raid. Mirrors `is_raid_source` in the backend's
+ * data/submissions/manual_policy.py, which enforces the same rule.
+ */
+const RAID_SOURCE = /^(the\s+)?(theatre of blood|tombs of amascut|chambers of xeric|fractured archive)\b/i;
+
+export function isRaidSource(npcName: string | undefined | null): boolean {
+  return !!npcName && RAID_SOURCE.test(npcName.trim());
+}
+
 /** Plain-English preview, so the shares going to untracked players are visible
  * before submitting rather than surprising anyone on the leaderboard after. */
 export function describeSplit(
@@ -148,6 +159,10 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
   const [kc, setKc] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [wasSplit, setWasSplit] = useState<boolean>(false);
+  // Raid loot only: who was in the raid. Required, because a manual submission
+  // has no party for the server to read, and a blank split scored a team raid
+  // as solo.
+  const [raidParty, setRaidParty] = useState<"" | "solo" | "team">("");
   const [splitWith, setSplitWith] = useState<string>("");
   const [splitSize, setSplitSize] = useState<string>("");
   const [proofKey, setProofKey] = useState<string | undefined>(undefined);
@@ -214,11 +229,17 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
 
   // Per-type required inputs — mirrors the server-side validation so the
   // button only lights up once the submission can actually succeed.
+  const isRaid = type === "drop" && isRaidSource(npc[0]?.name);
+  const splitOn = isRaid ? raidParty === "team" : wasSplit;
+
   const missing: string | null = (() => {
     switch (type) {
       case "drop":
         if (!item.length) return "Pick the item you received.";
         if (!npc.length) return "Pick the NPC or boss it came from.";
+        if (isRaid && !raidParty) return "Say whether you did this raid solo or with a team.";
+        if (isRaid && raidParty === "team" && !splitWith.trim() && !splitSize.trim())
+          return "List who you split it with, or how many ways it went.";
         return null;
       case "clog":
         return item.length ? null : "Pick the collection log item.";
@@ -240,12 +261,12 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
     [splitWith, receiverName],
   );
   const resolvedSplitSize = useMemo(
-    () => (wasSplit ? resolveSplitSize(splitSize, splitNames.length) : undefined),
-    [wasSplit, splitSize, splitNames],
+    () => (splitOn ? resolveSplitSize(splitSize, splitNames.length) : undefined),
+    [splitOn, splitSize, splitNames],
   );
-  const splitError = wasSplit ? splitValidationError(resolvedSplitSize, splitNames) : null;
+  const splitError = splitOn ? splitValidationError(resolvedSplitSize, splitNames) : null;
   const splitPreview = (() => {
-    if (!wasSplit || splitError || resolvedSplitSize == null) return null;
+    if (!splitOn || splitError || resolvedSplitSize == null) return null;
     const perShare =
       value > 0 ? Math.floor((value * Math.max(1, quantity)) / resolvedSplitSize) : null;
     return describeSplit(resolvedSplitSize, splitNames.length, perShare);
@@ -267,10 +288,11 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
       payload.npc_name = npc[0]?.name;
       payload.quantity = Math.max(1, quantity);
       if (value > 0) payload.value = value;
-      if (wasSplit && resolvedSplitSize != null) {
+      if (splitOn && resolvedSplitSize != null) {
         if (splitNames.length) payload.split_players = splitNames;
         payload.split_size = resolvedSplitSize;
       }
+      if (isRaid && raidParty === "solo") payload.raid_solo = true;
     } else if (type === "clog") {
       payload.item_name = item[0]?.name;
       if (item[0]?.id != null) payload.item_id = item[0].id;
@@ -415,15 +437,39 @@ export function SubmitForm({ players }: { players: Me["players"] }) {
 
       {type === "drop" && (
         <div className="border-osrs-bronze/30 space-y-3 rounded border p-3">
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
-              checked={wasSplit}
-              onChange={(e) => setWasSplit(e.target.checked)}
-            />
-            This drop was split with other players
-          </label>
-          {wasSplit && (
+          {isRaid ? (
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium">Who was in the raid?</legend>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="raid-party"
+                  checked={raidParty === "solo"}
+                  onChange={() => setRaidParty("solo")}
+                />
+                Just me
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="radio"
+                  name="raid-party"
+                  checked={raidParty === "team"}
+                  onChange={() => setRaidParty("team")}
+                />
+                A team (the loot is split)
+              </label>
+            </fieldset>
+          ) : (
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                checked={wasSplit}
+                onChange={(e) => setWasSplit(e.target.checked)}
+              />
+              This drop was split with other players
+            </label>
+          )}
+          {splitOn && (
             <>
               <label className="block">
                 <span className={label}>Split with</span>
