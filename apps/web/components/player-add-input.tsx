@@ -20,7 +20,8 @@ import type { EventTeamBulkAddResult } from "@droptracker/api-types";
 import { getErrorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui";
 
-export type PlayerHit = { id: number; name: string };
+/** `guest`: not in any of the event's clans, so adding them makes a guest. */
+export type PlayerHit = { id: number; name: string; guest?: boolean };
 
 /** "a, b\nc" → ["a", "b", "c"] — trimmed, de-duplicated case-insensitively. */
 export function parseNameList(raw: string): string[] {
@@ -214,7 +215,17 @@ export function PlayerAddInput({
                   disabled={disabled}
                   className="hover:bg-osrs-bronze/10 flex w-full items-center justify-between px-3 py-1.5 text-left text-sm disabled:opacity-50"
                 >
-                  <span>{p.name}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate">{p.name}</span>
+                    {p.guest && (
+                      <span
+                        className="border-osrs-bronze/40 text-osrs-parchment-dark/70 shrink-0 rounded border px-1 text-[10px] uppercase"
+                        title="Not in this event's clans. They join as a guest."
+                      >
+                        guest
+                      </span>
+                    )}
+                  </span>
                   <span className="text-osrs-gold-bright text-xs">Add</span>
                 </button>
               </li>
@@ -234,7 +245,12 @@ export function PlayerAddInput({
               {bulkResult.added.length > 0 ? (
                 <span className="text-osrs-green">
                   Added {bulkResult.added.length} player
-                  {bulkResult.added.length === 1 ? "" : "s"}.
+                  {bulkResult.added.length === 1 ? "" : "s"}
+                  {(() => {
+                    const guests = bulkResult.added.filter((a) => a.guest).length;
+                    return guests ? ` (${guests} as guest${guests === 1 ? "" : "s"})` : "";
+                  })()}
+                  .
                 </span>
               ) : (
                 <span className="text-osrs-parchment-dark/70">No players added.</span>

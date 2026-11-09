@@ -3717,6 +3717,9 @@ export const EventMemberSchema = z.object({
   effort_ehb: z.number().optional(),
   /** Derived-rate portion of `effort_ehb` — >0 marks it as an estimate. */
   effort_ehb_estimated: z.number().optional(),
+  /** Added by a manager from outside the event's clans (web160a); absent
+   * for members. */
+  guest: z.boolean().optional(),
 });
 export type EventMember = z.infer<typeof EventMemberSchema>;
 
@@ -7012,7 +7015,10 @@ export type EventTeamPatch = z.infer<typeof EventTeamPatchSchema>;
  * placed); the endpoint never moves a player between teams. Also the response
  * of POST /events/{id}/signups (managers adding players to a sign-up pool). */
 export const EventTeamBulkAddResultSchema = z.object({
-  added: z.array(z.object({ id: z.number().int(), name: z.string() })),
+  /** `guest`: joined from outside the event's clans (web160a). */
+  added: z.array(
+    z.object({ id: z.number().int(), name: z.string(), guest: z.boolean().optional() }),
+  ),
   skipped: z.array(z.object({ name: z.string(), reason: z.string() })),
 });
 export type EventTeamBulkAddResult = z.infer<typeof EventTeamBulkAddResultSchema>;
@@ -7304,6 +7310,8 @@ export const EventSignupSchema = z.object({
   /** "bulk" = a manager's "Sign up all clan members"; "manual" = a manager
    * added this player by hand (POST /events/{id}/signups). */
   source: z.enum(["web", "discord", "bulk", "manual"]).catch("web"),
+  /** A manager added this player from outside the event's clans (web160a). */
+  guest: z.boolean().optional(),
   signed_up_at: z.number().int().nullable().optional(),
   ehb: z.number().nullable().optional(),
   total_level: z.number().int().nullable().optional(),

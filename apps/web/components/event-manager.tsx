@@ -383,7 +383,7 @@ export function EventManager({
 
   /** Roster add (also moves a player already on another team in this event —
    * their join timestamp resets, so credit starts over on the new team). */
-  const onAddMember = (teamId: number, player: { id: number; name: string }) => {
+  const onAddMember = (teamId: number, player: { id: number; name: string; guest?: boolean }) => {
     setError(null);
     startTransition(async () => {
       try {
@@ -393,7 +393,12 @@ export function EventManager({
           prev.map((t) => {
             const members = (t.members ?? []).filter((m) => m.player_id !== player.id);
             if (t.id === teamId) {
-              members.push({ player_id: player.id, player_name: player.name, joined_at: joinedAt });
+              members.push({
+                player_id: player.id,
+                player_name: player.name,
+                joined_at: joinedAt,
+                ...(player.guest ? { guest: true } : {}),
+              });
             }
             return { ...t, members, member_count: members.length };
           }),
@@ -421,7 +426,12 @@ export function EventManager({
           const members = [...(t.members ?? [])];
           for (const p of result.added) {
             if (!members.some((m) => m.player_id === p.id)) {
-              members.push({ player_id: p.id, player_name: p.name, joined_at: joinedAt });
+              members.push({
+                player_id: p.id,
+                player_name: p.name,
+                joined_at: joinedAt,
+                ...(p.guest ? { guest: true } : {}),
+              });
             }
           }
           return { ...t, members, member_count: members.length };
@@ -1865,7 +1875,7 @@ function TeamRoster({
   accentColor: string;
   participants: EventParticipant[];
   pending: boolean;
-  onAddMember: (teamId: number, player: { id: number; name: string }) => void;
+  onAddMember: (teamId: number, player: { id: number; name: string; guest?: boolean }) => void;
   onBulkAdd: (teamId: number, names: string[]) => Promise<EventTeamBulkAddResult>;
   onRemoveMember: (teamId: number, playerId: number) => void;
   /** Team leadership (web48a); null when the event doesn't run it. */
@@ -2178,6 +2188,14 @@ function TeamRoster({
                 >
                   <span className="min-w-0">
                     {m.player_name}
+                    {m.guest && (
+                      <span
+                        className="border-osrs-bronze/40 text-osrs-parchment-dark/70 ml-2 rounded border px-1 py-px text-[10px] uppercase"
+                        title="Added from outside this event's clans"
+                      >
+                        guest
+                      </span>
+                    )}
                     {role && (
                       <span
                         className={`ml-2 rounded border px-1.5 py-px text-[10px] font-semibold ${ROLE_BADGE[role].className}`}
@@ -2242,9 +2260,7 @@ function TeamRoster({
           placeholder={
             groupId == null
               ? "Add players — type a name, or paste a list…"
-              : participantGroupIds.length > 1
-                ? "Add participant clan members — type a name, or paste a list…"
-                : "Add group members — type a name, or paste a list…"
+              : "Add players: type a name, or paste a list. Anyone outside the clan joins as a guest."
           }
           existingIds={members.map((m) => m.player_id)}
           disabled={pending}

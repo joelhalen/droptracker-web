@@ -171,6 +171,14 @@ const SignupRow = memo(function SignupRow({
               {(row.source === "bulk" || row.source === "manual") && (
                 <span className="shrink-0">· added by a manager</span>
               )}
+              {row.guest && (
+                <span
+                  className="border-osrs-bronze/40 shrink-0 rounded border px-1 text-[10px] uppercase"
+                  title="Added from outside this event's clans"
+                >
+                  guest
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -331,7 +339,10 @@ export function EventSignupTools({
 
   const optionsFor = useCallback(
     (row: EventSignup) =>
-      clanVsClan ? teamsByGroup?.get(row.group_id ?? null) ?? NO_TEAMS : teams,
+      // A guest staff added to the whole event (no clan) may go on any team.
+      clanVsClan && !(row.guest && row.group_id == null)
+        ? teamsByGroup?.get(row.group_id ?? null) ?? NO_TEAMS
+        : teams,
     [clanVsClan, teamsByGroup, teams],
   );
 
@@ -455,7 +466,11 @@ export function EventSignupTools({
         try {
           const res = await addEventSignups(groupId, eventId, { playerIds: [player.id] }, clanScopeId);
           if (res.added.length) {
-            setNotice(`Added ${player.name} to the sign-ups.`);
+            setNotice(
+              res.added[0]?.guest
+                ? `Added ${player.name} to the sign-ups as a guest.`
+                : `Added ${player.name} to the sign-ups.`,
+            );
             refresh();
           } else {
             setError(`Couldn't add ${player.name}: ${res.skipped[0]?.reason ?? "unknown reason"}`);
@@ -755,7 +770,7 @@ export function EventSignupTools({
             placeholder={
               groupId == null && clanScopeId == null
                 ? "Add players to the sign-ups: type a name, or paste a list…"
-                : "Add clan members to the sign-ups: type a name, or paste a list…"
+                : "Add players to the sign-ups: type a name, or paste a list. Anyone outside the clan joins as a guest."
             }
             existingIds={(pool ?? []).map((r) => r.player_id)}
             disabled={pending}

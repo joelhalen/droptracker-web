@@ -447,7 +447,9 @@ export async function removeEventTeamMember(
 }
 
 /** Search players across every accepted participant clan (clan-vs-clan roster
- * picker). Falls back to the host group for standard events. */
+ * picker). Falls back to the host group for standard events. Other tracked
+ * players follow, flagged `guest`: a manager may add anyone from outside the
+ * event's clans (web160a). The server still refuses a rival clan's member. */
 export async function searchParticipantPlayers(
   groupId: EventGroupId,
   _eventId: number,
@@ -466,7 +468,7 @@ export async function searchParticipantPlayers(
   }
   const gids = participantGroupIds.length ? participantGroupIds : [groupId];
   const seen = new Set<number>();
-  const out: { id: number; name: string }[] = [];
+  const out: { id: number; name: string; guest?: boolean }[] = [];
   for (const gid of gids) {
     const page = await api.groupMembers(gid, 1, trimmed);
     for (const m of page.members) {
@@ -474,6 +476,14 @@ export async function searchParticipantPlayers(
         seen.add(m.id);
         out.push({ id: m.id, name: m.name });
       }
+    }
+  }
+  // Guests: any other tracked player matching the name.
+  const others = await api.search(trimmed);
+  for (const p of others.players) {
+    if (!seen.has(p.id)) {
+      seen.add(p.id);
+      out.push({ id: p.id, name: p.name, guest: true });
     }
   }
   return out;
