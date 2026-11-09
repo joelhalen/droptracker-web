@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 const POLICY = `
 # Privacy Policy
 
-**Effective date: 20 October 2026**
+**Effective date: 9 November 2026**
 
 DropTracker ("we", "us") is a loot- and achievement-tracking service for Old
 School RuneScape, consisting of a RuneLite plugin, a Discord bot and
@@ -72,9 +72,19 @@ channels:
 - **Support tickets** — messages written inside DropTracker ticket channels
   are stored as transcripts so you and group staff can review past support
   conversations.
+- **Moderation logging**: in the DropTracker Discord server, and in any server
+  whose admins turn on the audit log, the bot keeps a copy of messages that
+  people post (text, attachment details, and a copy of small images) so that
+  when a message is edited or deleted, the server's admins can see what it
+  said in a private audit channel. The same audit channel also records joins,
+  leaves, kicks, bans, timeouts, and nickname and role changes. Messages from
+  bots, and channels the admins exclude, are not copied. These copies are only
+  used for moderation: they are never shown on the website or returned by our
+  API. Message copies are deleted after 30 days (or a shorter period the
+  server's admins choose) and image copies after 7 days.
 
-Outside of these admin-configured channels, we do not read, store, or process
-the content of Discord messages. We do not use message content for
+Outside of these uses, we do not read, store, or process the content of
+Discord messages. We do not use message content for
 advertising, profiling, or training machine-learning models, and we do not
 sell it to anyone.
 
@@ -135,8 +145,9 @@ Each provider processes data under its own privacy policy.
 
 Gameplay records power historical leaderboards and are retained while the
 service operates. Relayed clan chat is transient and not retained as a
-long-term record. Server logs and error reports are kept for short operational
-windows. If a Discord server removes the bot, its configuration becomes
+long-term record. Moderation logging copies of Discord messages are deleted
+after 30 days or less, and copies of images after 7 days. Server logs and
+error reports are kept for short operational windows. If a Discord server removes the bot, its configuration becomes
 inactive; ticket transcripts are retained so past support history stays
 available to the people involved.
 
@@ -158,6 +169,8 @@ kept as a record.
   settings.
 - **Group features** — the clan chat bridge and notification features are
   opt-in per group and can be disabled by group admins at any time.
+- **Moderation logging**: you can ask us to delete the stored copies of your
+  messages in the DropTracker Discord server at any time by opening a ticket.
 - **Access, correction, and deletion** — you can ask us for a copy of the
   data we hold about you, ask us to correct it, or ask us to delete your
   account data (including gameplay submissions and screenshots). We will
