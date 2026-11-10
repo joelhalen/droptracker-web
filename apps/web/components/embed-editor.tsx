@@ -138,6 +138,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{item_id}", help: "OSRS item id", sample: "13576" },
     { token: "{item_rarity}", help: "The item's drop rate from its source, from the wiki drop table. A field or line holding it is left out when there is no clear rate (raids and clue caskets have none)", sample: "1 in 5,000 (0.02%)" },
     { token: "{collection_name}", help: "Collection the item belongs to", sample: "Lizardman Shamans" },
+    { token: "{completed_collection}", help: "The collection log page this slot completed (blank unless it was the last slot on the page)", sample: "Royal Titans" },
     { token: "{npc_name}", help: "NPC / source name", sample: "Lizardman shaman" },
     { token: "{npc_link}", help: "NPC / source linked to its wiki page (empty when unknown)", sample: "[Lizardman shaman](https://oldschool.runescape.wiki/w/Lizardman_shaman)" },
     { token: "{kc_received}", help: "Kill count when received", sample: "412" },

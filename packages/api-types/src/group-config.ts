@@ -320,7 +320,21 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // Everything a member unlocks rather than loots. Same runtime-fallback rule
   // as the drop toggles above.
   { key: "notify_clogs", label: "Notify collection logs", category: "achievements", group: "Collection log & pets", type: "boolean", help: "Post a notification on new collection-log slots.", default: true, seasonalMirror: true },
-  { key: "clog_message_variants", label: "Collection log messages", category: "achievements", group: "Collection log messages", type: "messagelist", help: "Your own collection log messages, one picked at random each time. Placeholders like {player_name}, {item_name}, {source}, {kill_count}, {slots_unlocked} and {slots_total} are filled in. A message is skipped when one of its placeholders is blank, so you can write lines that only fit some collection log slots. Leave empty for the default message. In a custom embed or a Components layout, place the picked message with {clog_message}.", default: "" },
+  // Suggestion #238 (backend utils/clog_collections.completed_page).
+  {
+    key: "clog_notify_mode",
+    label: "Which collection log slots to post",
+    category: "achievements",
+    group: "Collection log & pets",
+    type: "select",
+    help: "Every new slot, or only the slot that completes a collection log page. Completed pages are only spotted for members who have opened their collection log with the plugin since joining, or whose every slot on that page we saw them get.",
+    default: "all",
+    options: [
+      { value: "all", label: "Every new slot" },
+      { value: "completed", label: "Only completed pages" },
+    ],
+  },
+  { key: "clog_message_variants", label: "Collection log messages", category: "achievements", group: "Collection log messages", type: "messagelist", help: "Your own collection log messages, one picked at random each time. Placeholders like {player_name}, {item_name}, {source}, {kill_count}, {slots_unlocked}, {slots_total} and {completed_collection} (only on the slot that completes a page) are filled in. A message is skipped when one of its placeholders is blank, so you can write lines that only fit some collection log slots. Leave empty for the default message. In a custom embed or a Components layout, place the picked message with {clog_message}.", default: "" },
   { key: "clog_message_as_embed_description", label: "Show message inside the embed", category: "achievements", group: "Collection log messages", type: "boolean", help: "On: the picked message replaces the embed description (including a custom embed's). Off: it's sent as the plain message text above the embed.", default: false },
   { key: "allow_member_clog_messages", label: "Let members write their own collection log message", category: "achievements", group: "Collection log messages", type: "boolean", help: "Members set their own message on the website, with /settings in Discord, or in the RuneLite plugin. A member's message is posted instead of yours, and members without one get yours. Review what members wrote, and block anyone, below.", default: false },
   { key: "notify_pets", label: "Notify pets", category: "achievements", group: "Collection log & pets", type: "boolean", help: "Post a notification on pet drops.", default: true, seasonalMirror: true },
@@ -437,6 +451,8 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   // Fame fields below are premium (entitlement: "hall_of_fame");
   // create_pb_embeds is the master switch the HOF bot keys off of.
   { key: "notify_pbs", label: "Notify personal bests", category: "pbs", type: "boolean", help: "Post personal-best notifications in Discord. Available to all groups.", default: true, seasonalMirror: true },
+  // Suggestion #239 (backend utils/pb_rank.outside_group_top). 0 = every PB.
+  { key: "pb_notify_top_ranks", label: "Only post top-ranked PBs", category: "pbs", type: "int", help: "Post a personal best only when it places in your clan's top this many for that boss and team size. 0 posts every personal best. The time is still recorded either way.", default: 0, min: 0, max: 100 },
   { key: "pb_message_variants", label: "Personal best messages", category: "pbs", group: "Personal best messages", type: "messagelist", help: "Your own personal best messages, one picked at random each time. Placeholders like {player_name}, {boss}, {time}, {team_size} and {kill_count} are filled in. A message is skipped when one of its placeholders is blank, so you can write lines that only fit some personal bests. Leave empty for the default message. In a custom embed or a Components layout, place the picked message with {pb_message}.", default: "" },
   { key: "pb_message_as_embed_description", label: "Show message inside the embed", category: "pbs", group: "Personal best messages", type: "boolean", help: "On: the picked message replaces the embed description (including a custom embed's). Off: it's sent as the plain message text above the embed.", default: false },
   { key: "allow_member_pb_messages", label: "Let members write their own personal best message", category: "pbs", group: "Personal best messages", type: "boolean", help: "Members set their own message on the website, with /settings in Discord, or in the RuneLite plugin. A member's message is posted instead of yours, and members without one get yours. Review what members wrote, and block anyone, below.", default: false },

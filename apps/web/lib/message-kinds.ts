@@ -116,10 +116,12 @@ export const MESSAGE_KINDS: Record<MemberMessageType, MessageKindProfile> = {
       { token: "{kill_count}", help: "The player's kill count there", sample: "412" },
       { token: "{slots_unlocked}", help: "The player's collection log slots", sample: "1,024" },
       { token: "{slots_total}", help: "Collection log slots in the game", sample: "1,692" },
+      { token: "{completed_collection}", help: "The collection log page this slot completed (only on the last slot of a page)", sample: "Royal Titans" },
     ],
     contentOverrides: CONTENT_OVERRIDES,
     suggested: [
       "{player_name} added {item_name} to their collection log!",
+      "{player_name} has completed the {completed_collection} collection log!",
       "New log slot for {player_name}: {item_name} from {source}.",
       "{player_name} is now on {slots_unlocked}/{slots_total} log slots.",
       "{item_name} finally showed up for {player_name} after {kill_count} kills.",

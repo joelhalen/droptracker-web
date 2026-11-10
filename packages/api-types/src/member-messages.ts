@@ -47,7 +47,7 @@ export const MEMBER_MESSAGE_NOUNS: Record<MemberMessageType, string> = {
 /** Placeholders per type, in display order (backend `MessageKind.tokens`). */
 export const MEMBER_MESSAGE_TOKENS: Record<MemberMessageType, readonly string[]> = {
   death: MEMBER_DEATH_TOKENS,
-  clog: ["{player_name}", "{item_name}", "{source}", "{kill_count}", "{slots_unlocked}", "{slots_total}"],
+  clog: ["{player_name}", "{item_name}", "{source}", "{kill_count}", "{slots_unlocked}", "{slots_total}", "{completed_collection}"],
   drop: ["{player_name}", "{item_name}", "{source}", "{value}", "{quantity}", "{kill_count}"],
   pb: ["{player_name}", "{boss}", "{time}", "{team_size}", "{kill_count}"],
 };
