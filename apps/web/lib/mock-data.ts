@@ -621,9 +621,20 @@ export function mockGroupMembers(_groupId: number, page = 1, limit = 25): GroupM
       group_rank: i === 0 ? "Owner" : i < 3 ? "Admin" : "Member",
       total_loot: money(Math.round(500_000_000 / (n + 1))),
       hidden: n % 11 === 0,
+      discord_linked: n % 3 !== 0,
+      plugin: (n % 4 === 0 ? "never" : n % 5 === 0 ? "inactive" : "active") as
+        | "active"
+        | "inactive"
+        | "never",
+      plugin_last_seen_ts: n % 4 === 0 ? null : Math.floor(Date.now() / 1000) - n * 3600,
+      plugin_version: n % 4 === 0 ? null : "6.1.19",
     };
   });
-  return { members, meta: { page, limit, total: 128 } };
+  return {
+    members,
+    summary: { total: 128, discord_linked: 85, plugin: 96, plugin_active: 80, linked_and_plugin: 70 },
+    meta: { page, limit, total: 128 },
+  };
 }
 
 export function mockWomSync(): WomSyncResult {

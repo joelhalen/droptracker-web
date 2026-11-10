@@ -4,11 +4,12 @@ import { notFound } from "next/navigation";
 import { api } from "@/lib/api";
 import { MembersManager } from "@/components/members-manager";
 import { normalizeQuery } from "@/lib/points-leaderboard";
+import { GROUP_MEMBER_STATUS_FILTERS, type GroupMemberStatusFilter } from "@droptracker/api-types";
 
 export const metadata: Metadata = { title: "Members" };
 
 type Params = Promise<{ id: string }>;
-type SearchParams = Promise<{ page?: string; q?: string }>;
+type SearchParams = Promise<{ page?: string; q?: string; status?: string }>;
 
 export default async function GroupMembersAdminPage({
   params,
@@ -22,11 +23,14 @@ export default async function GroupMembersAdminPage({
   await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
-  const { page: pageParam, q: qParam } = await searchParams;
+  const { page: pageParam, q: qParam, status: statusParam } = await searchParams;
   const page = Math.max(1, Number(pageParam ?? "1") || 1);
   const q = normalizeQuery(qParam);
+  const status = (GROUP_MEMBER_STATUS_FILTERS as readonly string[]).includes(statusParam ?? "")
+    ? (statusParam as GroupMemberStatusFilter)
+    : undefined;
 
-  const data = await api.groupMembers(groupId, page, q || undefined);
+  const data = await api.groupMembers(groupId, page, q || undefined, status);
 
   return (
     <MembersManager
@@ -36,6 +40,8 @@ export default async function GroupMembersAdminPage({
       page={data.meta.page || page}
       limit={data.meta.limit || 25}
       query={q}
+      status={status}
+      summary={data.summary}
     />
   );
 }

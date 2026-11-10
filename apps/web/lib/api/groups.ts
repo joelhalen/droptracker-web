@@ -31,6 +31,7 @@ import {
   type RepostBoard,
   type GroupDiagnostics,
   type GroupMembersPage,
+  type GroupMemberStatusFilter,
   type GroupProfile,
   type GuildStatus,
   type AuthorizedUsersResponse,
@@ -203,9 +204,15 @@ export const groupsApi = {
     );
   },
 
-  async groupMembers(groupId: number, page = 1, q?: string): Promise<GroupMembersPage> {
+  async groupMembers(
+    groupId: number,
+    page = 1,
+    q?: string,
+    status?: GroupMemberStatusFilter,
+  ): Promise<GroupMembersPage> {
     const params = new URLSearchParams({ page: String(page) });
     if (q) params.set("q", q);
+    if (status) params.set("status", status);
     return withFallback(
       async () =>
         GroupMembersPageSchema.parse(

@@ -1286,11 +1286,43 @@ export const GroupMemberSchema = z.object({
   group_rank: z.string().optional(),
   total_loot: MoneySchema.optional(),
   hidden: z.boolean().default(false),
+  /** The account is claimed by a DropTracker user (everyone signs in with Discord). */
+  discord_linked: z.boolean().default(false),
+  /**
+   * "active": the plugin submitted in the last 30 days; "inactive": it has
+   * submitted before; "never": no plugin data at all. Ticket 521.
+   */
+  plugin: z.enum(["active", "inactive", "never"]).default("never"),
+  /** Last plugin sighting (unix seconds). Sightings start 2026-10-04. */
+  plugin_last_seen_ts: z.number().int().nullable().default(null),
+  plugin_version: z.string().nullable().default(null),
 });
 export type GroupMember = z.infer<typeof GroupMemberSchema>;
 
+/** Filters the members endpoint accepts as `?status=`. */
+export const GROUP_MEMBER_STATUS_FILTERS = [
+  "linked",
+  "not_linked",
+  "plugin",
+  "plugin_active",
+  "no_plugin",
+] as const;
+export type GroupMemberStatusFilter = (typeof GROUP_MEMBER_STATUS_FILTERS)[number];
+
+/** Whole-roster counts, independent of the search and status filter. */
+export const GroupMembersSummarySchema = z.object({
+  total: z.number().int(),
+  discord_linked: z.number().int(),
+  plugin: z.number().int(),
+  plugin_active: z.number().int(),
+  linked_and_plugin: z.number().int(),
+});
+export type GroupMembersSummary = z.infer<typeof GroupMembersSummarySchema>;
+
 export const GroupMembersPageSchema = z.object({
   members: z.array(GroupMemberSchema),
+  /** Absent from API builds before ticket 521. */
+  summary: GroupMembersSummarySchema.nullable().default(null),
   meta: PageMetaSchema,
 });
 export type GroupMembersPage = z.infer<typeof GroupMembersPageSchema>;

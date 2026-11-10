@@ -5,11 +5,17 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { entityPath } from "@/lib/slug";
-import type { GroupMember, WomSyncResult } from "@droptracker/api-types";
+import type {
+  GroupMember,
+  GroupMembersSummary,
+  GroupMemberStatusFilter,
+  WomSyncResult,
+} from "@droptracker/api-types";
 import { setHidden, syncWom } from "@/app/(site)/(admin)/groups/[id]/members/actions";
 import { getErrorMessage } from "@/lib/errors";
 import { MAX_LEADERBOARD_QUERY, normalizeQuery } from "@/lib/points-leaderboard";
 import { EntityHoverCard } from "@/components/entity-hover-card";
+import { formatRelativeTime } from "@/lib/format";
 import { Alert, Badge, Button, EmptyState, EntityChip } from "@/components/ui";
 
 /** "in 34 min" / "in 45 sec" — the cooldown is at most an hour. */
@@ -20,10 +26,14 @@ function formatCooldown(seconds: number): string {
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-function membersHref(groupId: number, { q, page }: { q?: string; page?: number }): string {
+function membersHref(
+  groupId: number,
+  { q, page, status }: { q?: string; page?: number; status?: GroupMemberStatusFilter },
+): string {
   const qs = new URLSearchParams();
   const query = normalizeQuery(q);
   if (query) qs.set("q", query);
+  if (status) qs.set("status", status);
   if (page && page > 1) qs.set("page", String(page));
   const suffix = qs.toString();
   return `/groups/${groupId}/members${suffix ? `?${suffix}` : ""}`;
@@ -36,7 +46,15 @@ function membersHref(groupId: number, { q, page }: { q?: string; page?: number }
  * 1. A plain GET form underneath, so Enter works before hydration too. Same
  * shape as the points leaderboard search.
  */
-function MembersSearch({ groupId, initialQuery }: { groupId: number; initialQuery: string }) {
+function MembersSearch({
+  groupId,
+  initialQuery,
+  status,
+}: {
+  groupId: number;
+  initialQuery: string;
+  status?: GroupMemberStatusFilter;
+}) {
   const router = useRouter();
   const [value, setValue] = useState(initialQuery);
   const [pending, startTransition] = useTransition();
@@ -60,7 +78,7 @@ function MembersSearch({ groupId, initialQuery }: { groupId: number; initialQuer
     if (q === applied.current) return;
     applied.current = q;
     startTransition(() => {
-      router.replace(membersHref(groupId, { q }) as Route, { scroll: false });
+      router.replace(membersHref(groupId, { q, status }) as Route, { scroll: false });
     });
   };
 
@@ -82,6 +100,7 @@ function MembersSearch({ groupId, initialQuery }: { groupId: number; initialQuer
       }}
       className="relative w-full sm:w-72"
     >
+      {status && <input type="hidden" name="status" value={status} />}
       <svg
         viewBox="0 0 24 24"
         aria-hidden="true"
@@ -126,6 +145,126 @@ function MembersSearch({ groupId, initialQuery }: { groupId: number; initialQuer
   );
 }
 
+/**
+ * Roster-wide counts that double as filters (ticket 521): a clan of 500 wants
+ * to see who has linked Discord and who runs the plugin, not a flat list.
+ * Counts cover the whole roster, whatever the search or filter.
+ */
+function StatusFilters({
+  groupId,
+  query,
+  status,
+  summary,
+}: {
+  groupId: number;
+  query: string;
+  status?: GroupMemberStatusFilter;
+  summary: GroupMembersSummary;
+}) {
+  const chips: { label: string; count: number; value?: GroupMemberStatusFilter; title: string }[] = [
+    { label: "All", count: summary.total, title: "Everyone on the roster" },
+    {
+      label: "Discord linked",
+      count: summary.discord_linked,
+      value: "linked",
+      title: "The account is claimed by someone who signed in to The DropTracker with Discord",
+    },
+    {
+      label: "Not linked",
+      count: summary.total - summary.discord_linked,
+      value: "not_linked",
+      title: "Nobody has claimed this account yet",
+    },
+    {
+      label: "Uses the plugin",
+      count: summary.plugin,
+      value: "plugin",
+      title: "The plugin has sent something for this account at some point",
+    },
+    {
+      label: "Active in 30 days",
+      count: summary.plugin_active,
+      value: "plugin_active",
+      title: "The plugin sent something in the last 30 days",
+    },
+    {
+      label: "No plugin",
+      count: summary.total - summary.plugin,
+      value: "no_plugin",
+      title: "No plugin data for this account yet",
+    },
+  ];
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter members">
+        {chips.map((chip) => {
+          const active = (chip.value ?? undefined) === status;
+          return (
+            <Link
+              key={chip.label}
+              href={membersHref(groupId, { q: query, status: chip.value }) as Route}
+              scroll={false}
+              title={chip.title}
+              aria-current={active ? "true" : undefined}
+              className={`rounded border px-2.5 py-1 text-xs transition-colors ${
+                active
+                  ? "border-osrs-gold/70 bg-osrs-gold/15 text-osrs-gold-bright"
+                  : "border-osrs-bronze/30 text-osrs-parchment-dark/80 hover:border-osrs-gold/50 hover:text-osrs-gold-bright"
+              }`}
+            >
+              {chip.label} <span className="tabular-nums opacity-80">{chip.count}</span>
+            </Link>
+          );
+        })}
+      </div>
+      <p className="text-osrs-parchment-dark/60 text-xs">
+        {summary.linked_and_plugin} of {summary.total} members have linked Discord and use the
+        plugin.
+      </p>
+    </div>
+  );
+}
+
+const PLUGIN_LABEL: Record<GroupMember["plugin"], string> = {
+  active: "Active",
+  inactive: "Inactive",
+  never: "Not seen",
+};
+
+function PluginCell({ groupId, member }: { groupId: number; member: GroupMember }) {
+  const seen = member.plugin_last_seen_ts
+    ? `Last seen ${formatRelativeTime(member.plugin_last_seen_ts)}${
+        member.plugin_version ? `, v${member.plugin_version}` : ""
+      }`
+    : member.plugin === "inactive"
+      ? "Used the plugin before October 2026"
+      : "No plugin data yet";
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <Badge
+        variant={member.plugin === "active" ? "green" : member.plugin === "inactive" ? "bronze" : "neutral"}
+      >
+        {PLUGIN_LABEL[member.plugin]}
+      </Badge>
+      <span className="text-osrs-parchment-dark/60 text-[11px]" title={seen}>
+        {member.plugin_last_seen_ts ? formatRelativeTime(member.plugin_last_seen_ts) : null}
+        {member.plugin !== "never" && (
+          <>
+            {member.plugin_last_seen_ts ? " · " : null}
+            <Link
+              href={`/groups/${groupId}/members/${member.id}/plugin-config` as Route}
+              className="hover:text-osrs-gold-bright underline-offset-2 hover:underline"
+              title="How this player's DropTracker plugin is set up"
+            >
+              Settings
+            </Link>
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
 export function MembersManager({
   groupId,
   members,
@@ -133,6 +272,8 @@ export function MembersManager({
   page = 1,
   limit = 25,
   query = "",
+  status,
+  summary = null,
 }: {
   groupId: number;
   members: GroupMember[];
@@ -141,6 +282,10 @@ export function MembersManager({
   limit?: number;
   /** Active name search (already normalized); empty = the whole roster. */
   query?: string;
+  /** Active status filter; undefined = everyone. */
+  status?: GroupMemberStatusFilter;
+  /** Whole-roster counts; null from API builds before ticket 521. */
+  summary?: GroupMembersSummary | null;
 }) {
   const [rows, setRows] = useState(members);
   const [pending, startTransition] = useTransition();
@@ -182,9 +327,9 @@ export function MembersManager({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto">
-          <MembersSearch groupId={groupId} initialQuery={query} />
+          <MembersSearch groupId={groupId} initialQuery={query} status={status} />
           <span className="text-osrs-parchment-dark/70 text-sm">
-            {query
+            {query || status
               ? `${total} match${total === 1 ? "" : "es"}`
               : `${total} member${total === 1 ? "" : "s"}`}
           </span>
@@ -210,6 +355,10 @@ export function MembersManager({
         </div>
       </div>
 
+      {summary && summary.total > 0 && (
+        <StatusFilters groupId={groupId} query={query} status={status} summary={summary} />
+      )}
+
       {error && <Alert variant="error">{error}</Alert>}
 
       {rows.length ? (
@@ -220,6 +369,7 @@ export function MembersManager({
                 <th className="px-3 py-2">Player</th>
                 <th className="px-3 py-2">Rank</th>
                 <th className="px-3 py-2 text-right">Loot</th>
+                <th className="px-3 py-2">Discord</th>
                 <th className="px-3 py-2 text-right">Plugin</th>
                 <th className="px-3 py-2 text-right">Visibility</th>
               </tr>
@@ -250,14 +400,15 @@ export function MembersManager({
                   <td className="text-osrs-gold-bright px-3 py-2 text-right tabular-nums">
                     {m.total_loot?.value_formatted ?? "—"}
                   </td>
+                  <td className="px-3 py-2">
+                    {m.discord_linked ? (
+                      <Badge variant="sky">Linked</Badge>
+                    ) : (
+                      <span className="text-osrs-parchment-dark/50 text-xs">Not linked</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right">
-                    <Link
-                      href={`/groups/${groupId}/members/${m.id}/plugin-config` as Route}
-                      className="hover:text-osrs-gold-bright text-xs underline-offset-2 hover:underline"
-                      title="How this player's DropTracker plugin is set up"
-                    >
-                      Settings
-                    </Link>
+                    <PluginCell groupId={groupId} member={m} />
                   </td>
                   <td className="px-3 py-2 text-right">
                     <button
@@ -281,8 +432,10 @@ export function MembersManager({
       ) : query ? (
         <EmptyState
           title="No matching members"
-          hint={`Nobody in this group has "${query}" in their name.`}
+          hint={`Nobody in this group has "${query}" in their name${status ? " and matches this filter" : ""}.`}
         />
+      ) : status ? (
+        <EmptyState title="No matching members" hint="Nobody on the roster matches this filter." />
       ) : (
         <EmptyState
           title="No members yet"
@@ -294,7 +447,7 @@ export function MembersManager({
         <div className="flex items-center justify-between pt-2 text-sm">
           {page > 1 ? (
             <Link
-              href={membersHref(groupId, { q: query, page: page - 1 }) as Route}
+              href={membersHref(groupId, { q: query, status, page: page - 1 }) as Route}
               className="hover:text-osrs-gold-bright"
             >
               ← Previous
@@ -307,7 +460,7 @@ export function MembersManager({
           </span>
           {page < totalPages ? (
             <Link
-              href={membersHref(groupId, { q: query, page: page + 1 }) as Route}
+              href={membersHref(groupId, { q: query, status, page: page + 1 }) as Route}
               className="hover:text-osrs-gold-bright"
             >
               Next →
