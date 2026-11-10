@@ -157,6 +157,7 @@ const PLACEHOLDERS: Record<EmbedType, PlaceholderDoc[]> = {
     { token: "{npc_id}", help: "NPC id", sample: "10852" },
     { token: "{personal_best}", help: "New personal best time", sample: "14:23.4" },
     { token: "{team_size}", help: "Team size for the kill", sample: "4" },
+    { token: "{speed_tier}", help: "The hardest combat achievement speed tier the time meets (Elite, Master or Grandmaster; empty when none)", sample: "Grandmaster" },
     { token: "{global_rank}", help: "Rank on the global PB board", sample: "58" },
     { token: "{total_ranked_global}", help: "Players ranked globally", sample: "4,120" },
     { token: "{group_rank}", help: "Rank within the group", sample: "1" },

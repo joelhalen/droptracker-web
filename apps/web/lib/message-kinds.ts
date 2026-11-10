@@ -150,10 +150,12 @@ export const MESSAGE_KINDS: Record<MemberMessageType, MessageKindProfile> = {
       { token: "{personal_best}", help: "Same as {time}", sample: "1:02.40" },
       { token: "{team_size}", help: "Team size", sample: "Solo" },
       { token: "{kill_count}", help: "The player's kill count there", sample: "1,204" },
+      { token: "{speed_tier}", help: "The combat achievement speed tier the time meets (only when it meets one)", sample: "Grandmaster" },
     ],
     contentOverrides: CONTENT_OVERRIDES,
     suggested: [
       "{player_name} set a new {boss} PB: {time}!",
+      "{player_name} got a {speed_tier} time at {boss}: {time}!",
       "{player_name} is getting faster: {boss} in {time}.",
       "New personal best! {player_name} cleared {boss} in {time} ({team_size}).",
       "{player_name} shaved their {boss} time down to {time}.",

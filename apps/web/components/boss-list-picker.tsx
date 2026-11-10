@@ -124,8 +124,8 @@ export function BossListPicker({
       {unrecognized.length > 0 && (
         <div className="border-osrs-bronze/20 mb-2 border-b pb-2">
           <p className="text-osrs-gold-bright mb-1 text-xs">
-            Not matching any boss with recorded personal bests (possible typos — the Hall of Fame
-            will ignore them):
+            Not matching any boss with recorded personal bests (maybe a typo), so these are
+            ignored:
           </p>
           <div className="flex flex-wrap gap-1.5">
             {unrecognized.map((name) => (
