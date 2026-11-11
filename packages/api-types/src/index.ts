@@ -388,6 +388,8 @@ export const DiaryTierSchema = z.object({
   tier: z.number().int(),
   name: z.string(),
   completed: z.number().int(),
+  /** Tasks the tier holds; absent on a backend older than the diary journal. */
+  total: z.number().int().nullable().optional(),
 });
 
 export const DiaryAreaSchema = z.object({
@@ -423,18 +425,35 @@ export const PlayerAchievementsSchema = z.object({
           monster: z.string(),
           completed: z.number().int(),
           total: z.number().int(),
+          /** First-party boss icon, where there is art for the monster. */
+          icon_url: z.string().nullable().optional(),
           tasks: z.array(
             z.object({
               name: z.string(),
               description: z.string(),
               tier: z.string(),
               type: z.string(),
+              /** What the task is worth: 1 (Easy) to 6 (Grandmaster). */
+              points: z.number().int().optional(),
               completed: z.boolean(),
+              /** Unix seconds the plugin saw it completed. Null for a task
+               * done before the plugin was tracking the account. */
+              completed_at: z.number().int().nullable().optional(),
             }),
           ),
         }),
       )
       .default([]),
+    /** Points total and the tier it earns, as the in-game overview shows. */
+    points: z.number().int().nullable().optional(),
+    points_total: z.number().int().nullable().optional(),
+    tier: z.string().nullable().optional(),
+    next_tier: z.string().nullable().optional(),
+    next_tier_points: z.number().int().nullable().optional(),
+    points_to_next: z.number().int().nullable().optional(),
+    progress: z.number().nullable().optional(),
+    /** Tier name -> points needed to unlock it. */
+    thresholds: z.record(z.string(), z.number()).optional().default({}),
   }),
   quests: z.object({
     not_started: z.number().int(),
@@ -444,6 +463,172 @@ export const PlayerAchievementsSchema = z.object({
   diaries: z.array(DiaryAreaSchema),
 });
 export type PlayerAchievements = z.infer<typeof PlayerAchievementsSchema>;
+
+/** One task of an achievement diary tier. `completed` is null when only the
+ * tier's count is known, not which tasks make it up. */
+export const DiaryTaskSchema = z.object({
+  description: z.string(),
+  requirements: z.array(z.string()).optional().default([]),
+  note: z.string().nullable().optional(),
+  completed: z.boolean().nullable(),
+});
+export type DiaryTask = z.infer<typeof DiaryTaskSchema>;
+
+export const DiaryJournalTierSchema = z.object({
+  tier: z.number().int(),
+  name: z.string(),
+  /** Null when this tier has never been synced. */
+  completed: z.number().int().nullable(),
+  total: z.number().int(),
+  complete: z.boolean(),
+  /** True when every task's own state is known. */
+  tasks_known: z.boolean(),
+  /** `sync` (inferred from a full or empty tier) or `wikisync`. */
+  task_source: z.string().nullable().optional(),
+  tasks: z.array(DiaryTaskSchema),
+});
+export type DiaryJournalTier = z.infer<typeof DiaryJournalTierSchema>;
+
+export const DiaryJournalAreaSchema = z.object({
+  area_id: z.number().int(),
+  name: z.string(),
+  completed: z.number().int(),
+  total: z.number().int(),
+  tiers: z.array(DiaryJournalTierSchema),
+});
+export type DiaryJournalArea = z.infer<typeof DiaryJournalAreaSchema>;
+
+/** Every achievement diary task for one player (`/players/{id}/diaries`). */
+export const PlayerDiariesSchema = z.object({
+  player_id: z.number().int(),
+  has_synced: z.boolean(),
+  last_synced: z.string().nullable(),
+  areas: z.array(DiaryJournalAreaSchema),
+  completed: z.number().int(),
+  total: z.number().int(),
+  wikisync_used: z.boolean().optional().default(false),
+});
+export type PlayerDiaries = z.infer<typeof PlayerDiariesSchema>;
+
+export const OVERVIEW_PERIODS = ["day", "week", "month"] as const;
+export type OverviewPeriod = (typeof OVERVIEW_PERIODS)[number];
+
+/** What a player gained over one rolling period, from tracked submissions. */
+export const PlayerGainsSchema = z.object({
+  loot: MoneySchema,
+  drops: z.number().int(),
+  npcs: z.number().int().optional().default(0),
+  top_npcs: z
+    .array(
+      z.object({
+        npc_id: z.number().int(),
+        name: z.string(),
+        loot: MoneySchema,
+        drops: z.number().int(),
+        icon_url: z.string().nullable().optional(),
+      }),
+    )
+    .default([]),
+  clog: z.number().int().default(0),
+  combat_achievements: z.number().int().default(0),
+  personal_bests: z.number().int().default(0),
+  quests: z.number().int().default(0),
+  pets: z.number().int().default(0),
+});
+export type PlayerGains = z.infer<typeof PlayerGainsSchema>;
+
+/** XP gained per skill over a period. `since` is where the history starts,
+ * which is later than the period's start when `partial`. */
+export const XpGainsSchema = z.object({
+  total: z.number().int(),
+  skills: z.record(z.string(), z.number().int()),
+  since: z.number().int(),
+  partial: z.boolean().optional().default(false),
+});
+export type XpGains = z.infer<typeof XpGainsSchema>;
+
+export const PlayerSkillSchema = z.object({
+  skill: z.string(),
+  xp: z.number().int(),
+  level: z.number().int(),
+  /** Percent of the way to the next level. */
+  progress: z.number().optional().default(0),
+});
+export type PlayerSkill = z.infer<typeof PlayerSkillSchema>;
+
+/** One line of the recent-achievements feed. */
+export const PlayerActivityItemSchema = z.object({
+  type: z.string(),
+  title: z.string(),
+  detail: z.string().nullable().optional(),
+  icon_url: z.string().nullable().optional(),
+  /** Combat achievement tier, for the tier's sword icon. */
+  tier: z.string().nullable().optional(),
+  item_id: z.number().int().nullable().optional(),
+  npc_id: z.number().int().nullable().optional(),
+  value: MoneySchema.nullable().optional(),
+  ts: z.number().int(),
+});
+export type PlayerActivityItem = z.infer<typeof PlayerActivityItemSchema>;
+
+const periodRecord = <T extends z.ZodTypeAny>(schema: T) =>
+  z.object({ day: schema, week: schema, month: schema });
+
+/** The profile's Overview and Skills tabs (`/players/{id}/overview`). */
+export const PlayerOverviewSchema = z.object({
+  player_id: z.number().int(),
+  generated_at: z.number().int().optional(),
+  skills: z.object({
+    has_data: z.boolean(),
+    skills: z.array(PlayerSkillSchema).default([]),
+    total_level: z.number().int().nullable(),
+    total_xp: z.number().int().nullable(),
+    combat_level: z.number().int().nullable(),
+    updated_at: z.number().int().nullable(),
+    gains: periodRecord(XpGainsSchema.nullable()),
+  }),
+  gains: periodRecord(PlayerGainsSchema),
+  activity: z.array(PlayerActivityItemSchema).default([]),
+  wom_gains_enabled: z.boolean().optional().default(false),
+});
+export type PlayerOverview = z.infer<typeof PlayerOverviewSchema>;
+
+/** Wise Old Man's gains for one period (`/players/{id}/wom-gains`). Every
+ * field past `enabled` is absent when the lookup is off or found nothing. */
+export const PlayerWomGainsSchema = z.object({
+  enabled: z.boolean(),
+  period: z.string(),
+  available: z.boolean().optional().default(false),
+  starts_at: z.string().nullable().optional(),
+  ends_at: z.string().nullable().optional(),
+  total_xp: z.number().int().optional().default(0),
+  skills: z.record(z.string(), z.number().int()).optional().default({}),
+  bosses: z
+    .array(
+      z.object({
+        metric: z.string(),
+        name: z.string().optional(),
+        kills: z.number().int(),
+        icon_url: z.string().nullable().optional(),
+      }),
+    )
+    .optional()
+    .default([]),
+  ehp: z.number().optional().default(0),
+  ehb: z.number().optional().default(0),
+  achievements: z
+    .array(
+      z.object({
+        name: z.string(),
+        metric: z.string(),
+        created_at: z.string(),
+        icon_url: z.string().nullable().optional(),
+      }),
+    )
+    .optional()
+    .default([]),
+});
+export type PlayerWomGains = z.infer<typeof PlayerWomGainsSchema>;
 
 /** One occupied slot of a gear/inventory snapshot taken at a personal best. */
 export const LoadoutEntrySchema = z.object({

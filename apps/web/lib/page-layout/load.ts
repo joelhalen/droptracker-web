@@ -44,12 +44,14 @@ export async function loadPlayerPageContext(playerId: number): Promise<PlayerPag
   const player = await api.player(playerId);
   // Non-critical: a profile must still render for the majority who have
   // never synced.
-  const [loot, collectionLog, achievements, pvp] = await Promise.all([
+  const [loot, collectionLog, achievements, pvp, overview] = await Promise.all([
     api.playerLoot(playerId).catch(() => null),
     api.playerCollectionLog(playerId).catch(() => null),
     api.playerAchievements(playerId).catch(() => null),
     // PvP record (web136a): only shown once the player has a kill or a death.
     api.playerPvp(playerId).catch(() => null),
+    // Recent achievements, gains and skills for the Overview tab.
+    api.playerOverview(playerId).catch(() => null),
   ]);
-  return { player, loot, collectionLog, achievements, pvp };
+  return { player, loot, collectionLog, achievements, pvp, overview };
 }

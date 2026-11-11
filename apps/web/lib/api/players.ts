@@ -3,14 +3,21 @@ import {
   PersonalBestLoadoutSchema,
   PlayerAchievementsSchema,
   PlayerCollectionLogSchema,
+  PlayerDiariesSchema,
   PlayerLootTrackerSchema,
+  PlayerOverviewSchema,
   PlayerProfileSchema,
+  PlayerWomGainsSchema,
   type LootPeriod,
+  type OverviewPeriod,
   type PersonalBestLoadout,
   type PlayerAchievements,
   type PlayerCollectionLog,
+  type PlayerDiaries,
   type PlayerLootTracker,
+  type PlayerOverview,
   type PlayerProfile,
+  type PlayerWomGains,
 } from "@droptracker/api-types";
 import {
   mockPersonalBestLoadout,
@@ -81,6 +88,29 @@ export const playersApi = {
   async playerAchievements(id: number): Promise<PlayerAchievements> {
     return PlayerAchievementsSchema.parse(
       await apiGet(`/players/${id}/achievements`, { revalidate: 60 }),
+    );
+  },
+
+  /** Skill levels, gains over the last day/week/month and the recent
+   * achievements feed. All from our own tracking. */
+  async playerOverview(id: number): Promise<PlayerOverview> {
+    return PlayerOverviewSchema.parse(
+      await apiGet(`/players/${id}/overview`, { revalidate: 60 }),
+    );
+  },
+
+  /** Every achievement diary task with what is known about each. */
+  async playerDiaries(id: number): Promise<PlayerDiaries> {
+    return PlayerDiariesSchema.parse(
+      await apiGet(`/players/${id}/diaries`, { revalidate: 300 }),
+    );
+  },
+
+  /** Wise Old Man's gains for a period. `enabled: false` when the backend
+   * has the lookup switched off. */
+  async playerWomGains(id: number, period: OverviewPeriod): Promise<PlayerWomGains> {
+    return PlayerWomGainsSchema.parse(
+      await apiGet(`/players/${id}/wom-gains?period=${period}`, { revalidate: 600 }),
     );
   },
 

@@ -19,12 +19,11 @@ import { resolveRef } from "@/lib/entity-ref";
 import { EmptyState } from "@/components/ui";
 import { OsrsWindow, completionTone } from "@/components/osrs-panel";
 import { CombatAchievementsBrowser } from "@/components/combat-achievements-browser";
+import { DiaryBrowser } from "@/components/diary-browser";
 import { SyncSettings } from "@/components/sync-settings";
 import { PLUGIN_SETTINGS, stateSyncEmpty } from "@/lib/plugin-features";
 
 export const revalidate = 60;
-
-const DIARY_TIERS = ["Easy", "Medium", "Hard", "Elite"];
 
 export async function generateMetadata({
   params,
@@ -96,53 +95,14 @@ export default async function AchievementsPage({ params }: { params: Promise<{ i
         )}
       </OsrsWindow>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="space-y-6">
         <OsrsWindow title="Achievement Diaries" subtitle={`${data.diaries.length} areas`}>
           {data.diaries.length === 0 ? (
             <div className="p-4">
               <EmptyState title="No diary progress recorded yet" />
             </div>
           ) : (
-            <div className="max-h-[22rem] overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-osrs-bronze/30 text-osrs-parchment-dark/60 border-b">
-                    <th className="px-2 py-1 text-left font-normal">Area</th>
-                    {DIARY_TIERS.map((tier) => (
-                      <th key={tier} className="px-2 py-1 text-right font-normal">
-                        {tier}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="font-osrs">
-                  {data.diaries.map((area) => {
-                    const byTier = new Map(area.tiers.map((t) => [t.tier, t.completed]));
-                    return (
-                      <tr
-                        key={area.area_id}
-                        className="border-osrs-bronze/15 border-b last:border-0"
-                      >
-                        <td className="text-osrs-parchment/90 px-2 py-1">{area.name}</td>
-                        {[0, 1, 2, 3].map((tier) => {
-                          const done = byTier.get(tier) ?? 0;
-                          return (
-                            <td
-                              key={tier}
-                              className={`px-2 py-1 text-right tabular-nums ${
-                                done > 0 ? "text-osrs-gold-bright" : "text-osrs-parchment-dark/40"
-                              }`}
-                            >
-                              {done}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <DiaryBrowser playerId={playerId} diaries={data.diaries} />
           )}
         </OsrsWindow>
 

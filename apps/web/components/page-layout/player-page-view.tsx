@@ -14,6 +14,7 @@ import { BLOCK_DEF } from "@/lib/page-layout/catalog";
 import { entityPath } from "@/lib/slug";
 import { SOON_BADGE, SOON_TITLE, STATE_SYNC_RELEASED } from "@/lib/plugin-features";
 import { momDelta, percentileHint } from "@/lib/player-profile";
+import { SITE_IMG_BASE, caTierIcon } from "@/lib/player-progress";
 import { AccountTypeBadge } from "@/components/account-type-badge";
 import { CountUp } from "@/components/count-up";
 import { EntityHoverCard } from "@/components/entity-hover-card";
@@ -39,6 +40,7 @@ export type PlayerPageContext = {
   collectionLog: Awaited<ReturnType<Api["playerCollectionLog"]>> | null;
   achievements: Awaited<ReturnType<Api["playerAchievements"]>> | null;
   pvp: Awaited<ReturnType<Api["playerPvp"]>> | null;
+  overview?: Awaited<ReturnType<Api["playerOverview"]>> | null;
 };
 
 function PlayerHeader({ ctx, theme }: { ctx: PlayerPageContext; theme: PageTheme }) {
@@ -62,8 +64,29 @@ function PlayerHeader({ ctx, theme }: { ctx: PlayerPageContext; theme: PageTheme
       )}
     </h1>
   );
+  const facts = playerFacts(ctx);
   const subtitle = theme.show_description ? (
-    <p className={`text-sm ${banner ? "text-white/85" : "text-osrs-parchment-dark/80"}`}>Old School RuneScape player</p>
+    facts.length > 0 ? (
+      // What you would glance at on an account in game: levels, combat
+      // achievement tier, collection log.
+      <ul
+        className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm ${centered ? "justify-center" : ""} ${
+          banner ? "text-white/90" : "text-osrs-parchment-dark/85"
+        }`}
+      >
+        {facts.map((fact) => (
+          <li key={fact.label} className="flex items-center gap-1.5" title={fact.title}>
+            <img src={fact.icon} alt="" className="size-4 object-contain [image-rendering:pixelated]" />
+            <span className={banner ? "font-semibold text-white" : "text-osrs-parchment font-semibold"}>
+              {fact.value}
+            </span>
+            <span>{fact.label}</span>
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p className={`text-sm ${banner ? "text-white/85" : "text-osrs-parchment-dark/80"}`}>Old School RuneScape player</p>
+    )
   ) : null;
 
   if (banner) {
@@ -88,6 +111,44 @@ function PlayerHeader({ ctx, theme }: { ctx: PlayerPageContext; theme: PageTheme
       </div>
     </header>
   );
+}
+
+type PlayerFact = { label: string; value: string; icon: string; title?: string };
+
+/** The header's one-line summary, from whatever the account has synced. */
+function playerFacts(ctx: PlayerPageContext): PlayerFact[] {
+  const out: PlayerFact[] = [];
+  const skills = ctx.overview?.skills;
+  const combatLevel = skills?.combat_level ?? ctx.achievements?.combat_level;
+  if (combatLevel != null) {
+    out.push({ label: "combat", value: String(combatLevel), icon: `${SITE_IMG_BASE}/metrics/attack.png` });
+  }
+  if (skills?.has_data && skills.total_level != null) {
+    out.push({
+      label: "total level",
+      value: skills.total_level.toLocaleString("en-US"),
+      icon: `${SITE_IMG_BASE}/metrics/overall.png`,
+    });
+  }
+  const ca = ctx.achievements?.combat_achievements;
+  if (ca?.points != null && ca.points > 0) {
+    out.push({
+      label: ca.tier ? `${ca.tier} combat achievements` : "combat achievement points",
+      value: ca.points.toLocaleString("en-US"),
+      icon: caTierIcon(ca.tier) ?? "/osrs/ca.png",
+      title: `${ca.points.toLocaleString("en-US")} combat achievement points`,
+    });
+  }
+  const clog = ctx.collectionLog;
+  const slots = clog?.has_synced ? (clog.slots ?? clog.obtained_unique) : null;
+  if (slots != null && slots > 0) {
+    out.push({
+      label: "collection log slots",
+      value: slots.toLocaleString("en-US"),
+      icon: `${SITE_IMG_BASE}/itemdb/22711.png`,
+    });
+  }
+  return out;
 }
 
 function playerLinks(ctx: PlayerPageContext, keys: readonly string[]): LinkItem[] {
@@ -293,6 +354,7 @@ function renderPlayerBlock(block: PageBlock, ctx: PlayerPageContext, light: bool
           achievements={ctx.achievements}
           loot={ctx.loot}
           submissions={player.recent_submissions}
+          overview={ctx.overview ?? null}
           badges={player.badges && player.badges.length > 0 ? <ProfileBadgeIcons badges={player.badges} /> : null}
           stats={<PlayerStatTiles ctx={ctx} stats={["monthly_loot", "rank", "clan_points", "top_npc"]} stacked />}
         />

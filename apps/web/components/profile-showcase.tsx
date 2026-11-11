@@ -15,6 +15,7 @@ import type {
   PlayerAchievements,
   PlayerCollectionLog,
   PlayerLootTracker,
+  PlayerOverview,
   Submission,
 } from "@droptracker/api-types";
 
@@ -23,6 +24,10 @@ import { LootTracker, type LootTrackerEmbed } from "@/components/loot-tracker";
 import { SubmissionList } from "@/components/submission-list";
 import { CollectionLogBrowser } from "@/components/collection-log-browser";
 import { CombatAchievementsBrowser } from "@/components/combat-achievements-browser";
+import { DiaryBrowser } from "@/components/diary-browser";
+import { ProfileOverview } from "@/components/profile-overview";
+import { SkillsPanel } from "@/components/skills-panel";
+import { SITE_IMG_BASE } from "@/lib/player-progress";
 import { EmptyState } from "@/components/ui";
 import { OsrsWindow, completionTone } from "@/components/osrs-panel";
 import { SyncSettings } from "@/components/sync-settings";
@@ -34,7 +39,15 @@ import {
   stateSyncEmpty,
 } from "@/lib/plugin-features";
 
-type TabKey = "loot" | "submissions" | "collection" | "combat" | "diaries" | "quests";
+type TabKey =
+  | "overview"
+  | "loot"
+  | "submissions"
+  | "skills"
+  | "collection"
+  | "combat"
+  | "diaries"
+  | "quests";
 
 /**
  * What a host other than the site swaps in. The Discord Activity mounts this
@@ -58,6 +71,7 @@ export function ProfileShowcase({
   achievements,
   loot,
   submissions,
+  overview,
   stats,
   badges,
   embed,
@@ -69,6 +83,9 @@ export function ProfileShowcase({
   achievements: PlayerAchievements | null;
   loot: PlayerLootTracker | null;
   submissions: Submission[];
+  /** Recent achievements, gains and skills. Omitted by a host that has no
+   * way to load it; the Overview and Skills tabs are then left out. */
+  overview?: PlayerOverview | null;
   /** Stat tiles, rendered under the character. Server-rendered by the page. */
   stats?: React.ReactNode;
   /** Badge icons, rendered with the character rather than in their own card. */
@@ -93,12 +110,20 @@ export function ProfileShowcase({
 
   const hasLoot = !!loot;
   const hasSubmissions = submissions.length > 0;
+  const hasSkills = !!overview?.skills.has_data;
+  // Worth opening on: something has happened on this account that we tracked.
+  const hasOverview = !!overview && (overview.activity.length > 0 || hasSkills);
+  const imgBase = embed?.loot?.imgBase ?? SITE_IMG_BASE;
+  const links = embed?.loot?.links ?? true;
 
-  // Loot first by default: tracking drops is what this site is for, and a
-  // profile is far more likely to have loot than a synced collection log.
+  // The overview first when there is one: it answers "what has this account
+  // been up to?" in one screen. Otherwise loot, which a profile is far more
+  // likely to have than a synced collection log.
   const [tab, setTab] = useState<TabKey>(
-    hasLoot
-      ? "loot"
+    hasOverview
+      ? "overview"
+      : hasLoot
+        ? "loot"
       : hasSubmissions
         ? "submissions"
         : hasLog
@@ -116,13 +141,32 @@ export function ProfileShowcase({
   const soon = STATE_SYNC_RELEASED ? undefined : SOON_BADGE;
   const soonTone = "text-osrs-parchment-dark/50";
 
+  const diaryDone = achievements?.diaries.reduce(
+    (n, area) => n + area.tiers.reduce((m, t) => m + t.completed, 0),
+    0,
+  );
+  const diaryTotal = achievements?.diaries.reduce(
+    (n, area) => n + area.tiers.reduce((m, t) => m + (t.total ?? 0), 0),
+    0,
+  );
+
   const tabs: { key: TabKey; label: string; badge?: string; tone?: string }[] = [
+    ...(overview ? [{ key: "overview" as const, label: "Overview" }] : []),
     { key: "loot", label: "Loot" },
     {
       key: "submissions",
       label: "Submissions",
       badge: hasSubmissions ? String(submissions.length) : undefined,
     },
+    ...(overview
+      ? [
+          {
+            key: "skills" as const,
+            label: "Skills",
+            badge: hasSkills ? String(overview.skills.total_level ?? "") : undefined,
+          },
+        ]
+      : []),
     {
       key: "collection",
       label: "Collection Log",
@@ -151,8 +195,12 @@ export function ProfileShowcase({
     {
       key: "diaries",
       label: "Diaries",
-      badge: hasDiaries ? `${achievements!.diaries.length}` : soon,
-      tone: hasDiaries ? undefined : soonTone,
+      badge: hasDiaries ? (diaryTotal ? `${diaryDone}/${diaryTotal}` : `${diaryDone}`) : soon,
+      tone: hasDiaries
+        ? diaryTotal
+          ? completionTone(diaryDone ?? 0, diaryTotal)
+          : undefined
+        : soonTone,
     },
     {
       key: "quests",
@@ -262,6 +310,25 @@ export function ProfileShowcase({
               ))}
             </div>
 
+            {tab === "overview" && overview && (
+              <ProfileOverview playerId={playerId} overview={overview} embed={{ imgBase, links }} />
+            )}
+
+            {tab === "skills" &&
+              overview &&
+              (hasSkills ? (
+                <div className="mx-auto max-w-xl p-3">
+                  <SkillsPanel skills={overview.skills} gains={overview.skills.gains.week} imgBase={imgBase} />
+                  {overview.skills.gains.week && overview.skills.gains.week.total > 0 && (
+                    <p className="text-osrs-parchment-dark/50 mt-2 px-1 text-xs">
+                      Green figures are XP gained in the last 7 days.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <Empty label="Skills" hint="Update to DropTracker plugin v6, with both of these settings on:" />
+              ))}
+
             {tab === "loot" &&
               (hasLoot ? (
                 <div className="p-3">
@@ -305,7 +372,7 @@ export function ProfileShowcase({
 
             {tab === "combat" &&
               (hasCombat ? (
-                <CombatAchievementsBrowser combat={combat!} />
+                <CombatAchievementsBrowser combat={combat!} imgBase={imgBase} />
               ) : (
                 <Empty
                   label="Combat achievements"
@@ -315,48 +382,7 @@ export function ProfileShowcase({
 
             {tab === "diaries" &&
               (hasDiaries ? (
-                <div className="max-h-[26rem] overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-osrs-bronze/30 text-osrs-parchment-dark/60 border-b">
-                        <th className="px-2 py-1 text-left font-normal">Area</th>
-                        {["Easy", "Medium", "Hard", "Elite"].map((t) => (
-                          <th key={t} className="px-2 py-1 text-right font-normal">
-                            {t}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="font-osrs">
-                      {achievements!.diaries.map((area) => {
-                        const byTier = new Map(area.tiers.map((t) => [t.tier, t.completed]));
-                        return (
-                          <tr
-                            key={area.area_id}
-                            className="border-osrs-bronze/15 border-b last:border-0"
-                          >
-                            <td className="text-osrs-parchment/90 px-2 py-1">{area.name}</td>
-                            {[0, 1, 2, 3].map((tier) => {
-                              const done = byTier.get(tier) ?? 0;
-                              return (
-                                <td
-                                  key={tier}
-                                  className={`px-2 py-1 text-right tabular-nums ${
-                                    done > 0
-                                      ? "text-osrs-gold-bright"
-                                      : "text-osrs-parchment-dark/40"
-                                  }`}
-                                >
-                                  {done}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <DiaryBrowser playerId={playerId} diaries={achievements!.diaries} imgBase={imgBase} />
               ) : (
                 <Empty
                   label="Achievement diaries"
