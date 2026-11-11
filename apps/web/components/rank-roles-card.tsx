@@ -286,7 +286,7 @@ export function RankRolesPanel({
 
       {!data.has_rank_data && data.wom_linked && (
         <Alert variant="info">
-          No clan ranks from WiseOldMan yet. They arrive with the hourly member sync once your
+          No clan ranks from WiseOldMan yet. They arrive with the next member sync once your
           WiseOldMan group has been synced in game.
         </Alert>
       )}

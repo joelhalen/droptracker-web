@@ -18,11 +18,16 @@ import { EntityHoverCard } from "@/components/entity-hover-card";
 import { formatRelativeTime } from "@/lib/format";
 import { Alert, Badge, Button, EmptyState, EntityChip } from "@/components/ui";
 
-/** "in 34 min" / "in 45 sec" — the cooldown is at most an hour. */
+/** "5 hr" / "34 min" / "45 sec": the manual refresh is once per 24 hours. */
 function formatCooldown(seconds: number): string {
   if (seconds <= 60) return `${Math.max(seconds, 1)} sec`;
-  return `${Math.ceil(seconds / 60)} min`;
+  if (seconds < 3600) return `${Math.ceil(seconds / 60)} min`;
+  return `${Math.ceil(seconds / 3600)} hr`;
 }
+
+const SYNC_CONFIRM =
+  "Your member list updates automatically (every 12 hours, or every 6 for subscribed groups).\n\n" +
+  "You can request an instant refresh from WiseOldMan once every 24 hours. Use it now?";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -299,7 +304,9 @@ export function MembersManager({
 
   const totalPages = total > 0 ? Math.ceil(total / limit) : 1;
 
-  const onSync = () =>
+  const onSync = () => {
+    // One manual refresh a day, so make sure the admin means it.
+    if (!window.confirm(SYNC_CONFIRM)) return;
     startTransition(async () => {
       setError(null);
       try {
@@ -308,6 +315,7 @@ export function MembersManager({
         setError(getErrorMessage(err, "WOM sync failed. Please try again."));
       }
     });
+  };
 
   const onToggle = (playerId: number, hidden: boolean) => {
     // Optimistic update with revert on failure.
@@ -341,7 +349,8 @@ export function MembersManager({
               // would read as "your roster is already up to date" — the exact
               // wrong conclusion. Say why nothing happened and when to retry.
               <span className="text-osrs-parchment-dark/70 text-xs">
-                Synced recently — try again in {formatCooldown(sync.cooldown_remaining_seconds)}
+                Today&apos;s manual refresh is used. Next one in{" "}
+                {formatCooldown(sync.cooldown_remaining_seconds)}
               </span>
             ) : (
               <span className="text-osrs-green text-xs">
@@ -350,7 +359,7 @@ export function MembersManager({
               </span>
             ))}
           <Button variant="secondary" size="sm" onClick={onSync} disabled={pending}>
-            {pending ? "Working…" : "Sync from WOM"}
+            {pending ? "Working…" : "Refresh from WOM"}
           </Button>
         </div>
       </div>
