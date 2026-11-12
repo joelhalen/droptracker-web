@@ -13,6 +13,29 @@ import {
 import { getErrorMessage } from "@/lib/errors";
 import { Alert, Button, EmptyState } from "@/components/ui";
 
+/** The Discord copy's state, for group posts. Archive deletes a posted copy
+ *  and an edit changes it, so the list says which copy there is to change. */
+function DiscordBadge({ discord }: { discord: Announcement["discord"] }) {
+  if (!discord || discord.status === "off") return null;
+  const label: Record<"posted" | "sending" | "failed" | "not_sent", [string, string]> = {
+    posted: ["On Discord", "text-osrs-green border-osrs-green/40"],
+    sending: ["Sending to Discord…", "text-osrs-parchment-dark/70 border-osrs-bronze/40"],
+    failed: ["Discord post failed", "text-osrs-red border-osrs-red/50"],
+    not_sent: ["Not on Discord", "text-osrs-parchment-dark/60 border-osrs-bronze/30"],
+  };
+  const [text, tone] = label[discord.status];
+  // A failure is spelled out under the post; this covers the quiet case.
+  const why =
+    discord.status === "not_sent"
+      ? "No announcements channel was set when this was published."
+      : undefined;
+  return (
+    <span title={why} className={`rounded border px-1.5 py-0.5 text-[11px] ${tone}`}>
+      {text}
+    </span>
+  );
+}
+
 const field =
   "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold w-full rounded border px-3 py-2 text-sm outline-none";
 
@@ -135,6 +158,7 @@ export function AnnouncementList({ items, groupId }: { items: Announcement[]; gr
                       </span>
                     )}
                     <span className="font-medium">{a.title}</span>
+                    {groupId != null && <DiscordBadge discord={a.discord} />}
                   </div>
                   <div className="flex items-center gap-3 text-xs">
                     <button
@@ -145,6 +169,9 @@ export function AnnouncementList({ items, groupId }: { items: Announcement[]; gr
                     </button>
                     {confirmArchiveId === a.id ? (
                       <>
+                        {groupId != null && a.discord?.status === "posted" && (
+                          <span className="text-osrs-parchment-dark/60">Also deletes it from Discord.</span>
+                        )}
                         <button
                           onClick={() => doArchive(a.id)}
                           disabled={pending}
@@ -171,6 +198,15 @@ export function AnnouncementList({ items, groupId }: { items: Announcement[]; gr
                   </div>
                 </div>
                 <p className="text-osrs-parchment-dark/70 mt-1 line-clamp-2 text-sm">{a.body_md}</p>
+                {groupId != null && a.discord?.status === "failed" && (
+                  <p className="text-osrs-red/90 mt-1 text-xs">
+                    {a.discord.reason === "missing_permissions"
+                      ? "The bot can't post in your announcements channel. Give it View Channel, Send Messages and Embed Links there."
+                      : a.discord.reason === "channel_missing"
+                        ? "Your announcements channel no longer exists. Pick a new one in Settings → Channels."
+                        : "Discord refused this post. Check the announcements channel in Settings → Channels."}
+                  </p>
+                )}
               </>
             )}
           </li>

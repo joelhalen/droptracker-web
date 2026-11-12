@@ -15,10 +15,14 @@ export default async function GroupAnnouncementsPage({ params }: { params: Param
   await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
-  const [existing, group] = await Promise.all([
+  const [existing, group, config] = await Promise.all([
     api.announcements(`group:${groupId}`),
     api.group(groupId).catch(() => null),
+    api.groupConfig(groupId).catch(() => null),
   ]);
+  // null = couldn't tell (config unreachable): leave Discord on and let the
+  // backend's own check have the final say.
+  const discordChannelSet = config ? Boolean(config.announcements_channel_id) : null;
 
   return (
     <div className="grid gap-10 lg:grid-cols-2">
@@ -26,7 +30,11 @@ export default async function GroupAnnouncementsPage({ params }: { params: Param
         <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
           New announcement
         </h2>
-        <AnnouncementComposer groupId={groupId} groupName={group?.name ?? null} />
+        <AnnouncementComposer
+          groupId={groupId}
+          groupName={group?.name ?? null}
+          discordChannelSet={discordChannelSet}
+        />
       </section>
 
       <section>

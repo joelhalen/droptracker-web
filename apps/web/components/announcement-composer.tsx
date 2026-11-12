@@ -14,7 +14,9 @@ import {
 import { publishGlobalAnnouncement } from "@/app/(site)/(admin)/admin/announcements/actions";
 import { getErrorMessage, unwrapActionResult } from "@/lib/errors";
 import { Alert, Button } from "@/components/ui";
+import Link from "next/link";
 import { Markdown } from "@/components/markdown";
+import { sectionAnchor } from "@/lib/group-settings-sections";
 import {
   AnnouncementDiscordPreview,
   AnnouncementInGamePreview,
@@ -49,10 +51,15 @@ const isHttpUrl = (v: string) => /^https?:\/\/\S+$/i.test(v.trim());
 export function AnnouncementComposer({
   groupId,
   groupName = null,
+  discordChannelSet = null,
 }: {
   groupId?: number;
   groupName?: string | null;
+  /** Group scope: whether an announcements channel is set. false locks the
+   * Discord option off (the backend refuses it too); null = unknown. */
+  discordChannelSet?: boolean | null;
 }) {
+  const noChannel = groupId != null && discordChannelSet === false;
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +70,7 @@ export function AnnouncementComposer({
     title: "",
     body_md: "",
     pinned: false,
-    post_to_discord: true,
+    post_to_discord: !(groupId != null && discordChannelSet === false),
     ping_role_ids: [],
     ping_user_ids: [],
     ping_everyone: false,
@@ -238,10 +245,14 @@ export function AnnouncementComposer({
           />
           Pin to top
         </label>
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
+        <label
+          className={`flex items-center gap-2 text-sm ${noChannel ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+          title={noChannel ? "Set an announcements channel first" : undefined}
+        >
           <input
             type="checkbox"
-            checked={form.post_to_discord}
+            checked={form.post_to_discord && !noChannel}
+            disabled={noChannel}
             onChange={(e) => set("post_to_discord", e.target.checked)}
             className="size-4"
           />
@@ -259,6 +270,19 @@ export function AnnouncementComposer({
           </label>
         )}
       </div>
+
+      {noChannel && (
+        <Alert variant="info">
+          Your clan has no announcements channel, so this can&apos;t go to Discord yet.{" "}
+          <Link
+            href={`/groups/${groupId}/settings#${sectionAnchor("channels")}`}
+            className="text-osrs-gold-bright underline"
+          >
+            Choose one in Settings → Channels
+          </Link>
+          , then come back to post here and on Discord.
+        </Alert>
+      )}
 
       {groupId != null && form.send_in_game && (
         <fieldset className="border-osrs-bronze/20 space-y-3 rounded border p-3">
@@ -285,7 +309,8 @@ export function AnnouncementComposer({
             message={inGameText}
           />
           <p className="text-osrs-parchment-dark/60 text-xs leading-relaxed">
-            Shown as a chat line and a pop-up to every clan member running the DropTracker plugin
+            The pop-up shows your clan name and the title; the full message goes in the chatbox.
+            Shown to every clan member running the DropTracker plugin
             (6.1.12 or newer, with API connections and event notifications on). Members who are
             offline get it when they next log in, within 24 hours. Plain text only, and it
             can&apos;t be recalled once sent. Members can turn clan announcements off in their

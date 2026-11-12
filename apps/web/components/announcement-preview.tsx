@@ -107,9 +107,12 @@ export function AnnouncementDiscordPreview({ draft }: { draft: AnnouncementEmbed
 }
 
 /**
- * What the plugin draws: a `[DropTracker]` console line in the chatbox and a
- * pop-up card with the title over the same text. Mirrors
- * `services/plugin_notifications.clan_announcement_envelope`.
+ * What the plugin draws (default "Chat + text pop-ups" display): the slim
+ * banner at the top of the game screen — the clan's name over the title,
+ * flag emblem on blue — and the full message as a `[DropTracker]` line in the
+ * chatbox. Mirrors `services/plugin_notifications.clan_announcement_envelope`
+ * and the plugin's BannerRenderer; the banner cuts long titles short, the
+ * chat line wraps.
  */
 export function AnnouncementInGamePreview({
   groupName,
@@ -123,14 +126,30 @@ export function AnnouncementInGamePreview({
   const text = `${groupName}: ${message || title || "…"}`;
   return (
     <div className="space-y-2">
-      <div className="max-w-[360px] rounded border-2 border-[#5c5141] bg-[#3e3529] p-3 shadow-lg">
-        <div className="text-[13px] font-bold text-[#ff981f]">{title || "Title"}</div>
-        <div className="mt-1 text-[12px] leading-snug text-white">{text}</div>
+      <div
+        className="flex h-10 w-full max-w-[340px] items-stretch border border-black text-[12px] shadow-lg"
+        style={{
+          background: "linear-gradient(90deg, rgba(20,48,74,0.95), rgba(11,9,6,0.9))",
+          borderTop: "1px solid #3d9be9",
+        }}
+      >
+        <div className="flex w-10 shrink-0 items-center justify-center border-r border-[#3d9be9] bg-[#1d4466]">
+          <svg viewBox="0 0 16 16" className="h-5 w-5" aria-hidden>
+            <path d="M3 1v14" stroke="#cfe6fb" strokeWidth="1.6" />
+            <path d="M4 2h9l-2.5 3.5L13 9H4z" fill="#cfe6fb" />
+          </svg>
+        </div>
+        <div className="min-w-0 px-2 py-0.5 leading-tight">
+          <div className="truncate text-[10px] tracking-wide text-[#3d9be9] uppercase">
+            {groupName} announcement
+          </div>
+          <div className="truncate font-bold text-[#efe6d2]">{title || "Title"}</div>
+        </div>
       </div>
-      <div className="rounded bg-[#c7b38d] px-2 py-1.5 font-mono text-[12px] text-black">
-        <span>[</span>
-        <span className="text-[#0000ff]">DropTracker</span>
-        <span>] </span>
+      <div className="rounded bg-black/70 px-2 py-1.5 font-mono text-[12px] text-white">
+        <span className="text-[#ef1020]">[</span>
+        DropTracker
+        <span className="text-[#ef1020]">] </span>
         {text}
       </div>
     </div>

@@ -1048,6 +1048,14 @@ export const AnnouncementSchema = z.object({
   pinned: z.boolean().default(false),
   author_name: z.string().optional(),
   published_at: z.number().int(),
+  /** Group posts in the group's own list: where the Discord copy stands.
+   * `reason` is a classified failure, never the bot's raw error. */
+  discord: z
+    .object({
+      status: z.enum(["posted", "sending", "failed", "off", "not_sent"]),
+      reason: z.enum(["missing_permissions", "channel_missing", "error"]).optional(),
+    })
+    .optional(),
 });
 export type Announcement = z.infer<typeof AnnouncementSchema>;
 
