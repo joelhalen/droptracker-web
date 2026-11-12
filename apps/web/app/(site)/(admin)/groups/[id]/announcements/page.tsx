@@ -15,7 +15,10 @@ export default async function GroupAnnouncementsPage({ params }: { params: Param
   await requireGroupAdminPage(groupId); // web64a: event managers only reach Events
   if (!Number.isFinite(groupId)) notFound();
 
-  const existing = await api.announcements(`group:${groupId}`);
+  const [existing, group] = await Promise.all([
+    api.announcements(`group:${groupId}`),
+    api.group(groupId).catch(() => null),
+  ]);
 
   return (
     <div className="grid gap-10 lg:grid-cols-2">
@@ -23,7 +26,7 @@ export default async function GroupAnnouncementsPage({ params }: { params: Param
         <h2 className="heading-rule text-osrs-gold mb-4 pb-1 text-lg font-semibold">
           New announcement
         </h2>
-        <AnnouncementComposer groupId={groupId} />
+        <AnnouncementComposer groupId={groupId} groupName={group?.name ?? null} />
       </section>
 
       <section>

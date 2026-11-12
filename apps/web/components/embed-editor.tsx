@@ -490,7 +490,7 @@ function PreviewTitle({
   );
 }
 
-function PreviewText({
+export function PreviewText({
   text,
   className = "",
   useSamples,
@@ -512,7 +512,7 @@ function PreviewText({
   );
 }
 
-function HiddenOnError({ src, className }: { src: string; className?: string }) {
+export function HiddenOnError({ src, className }: { src: string; className?: string }) {
   const [failed, setFailed] = useState(false);
   if (failed || !src) return null;
   // Plain <img>: preview URLs are arbitrary user input, not next/image targets.

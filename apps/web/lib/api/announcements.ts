@@ -27,15 +27,25 @@ export const announcementsApi = {
 
   /** `status` is "draft" when a site-wide post went to the owner's review
    * queue instead of being published (web129a). */
-  async createAnnouncement(input: AnnouncementInput): Promise<{ id: number; status: string }> {
+  async createAnnouncement(
+    input: AnnouncementInput,
+  ): Promise<{ id: number; status: string; in_game_recipients?: number }> {
     const path =
       input.scope_type === "group" && input.group_id
         ? `/groups/${input.group_id}/announcements`
         : `/announcements`;
     return withFallback(
       async () => {
-        const res = (await apiSend("POST", path, input)) as { id: number; status?: string };
-        return { id: res.id, status: res.status ?? "published" };
+        const res = (await apiSend("POST", path, input)) as {
+          id: number;
+          status?: string;
+          in_game_recipients?: number;
+        };
+        return {
+          id: res.id,
+          status: res.status ?? "published",
+          in_game_recipients: res.in_game_recipients,
+        };
       },
       () => ({ id: Math.floor(Math.random() * 100000), status: "published" }),
     );

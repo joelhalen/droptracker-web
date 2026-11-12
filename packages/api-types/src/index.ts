@@ -1421,8 +1421,22 @@ export const AnnouncementInputSchema = z.object({
   ping_role_ids: z.array(z.string()).default([]),
   ping_user_ids: z.array(z.string()).default([]),
   ping_everyone: z.boolean().default(false),
+  /** Group scope: also queue a one-line message in every member's plugin
+   * (chat line + pop-up). At most ANNOUNCEMENT_IN_GAME_DAILY_LIMIT a day. */
+  send_in_game: z.boolean().default(false),
+  /** The in-game text; empty = the title. One line. */
+  in_game_message: z.string().max(200).optional(),
+  /** Discord embed options (the embed builder's set). Applied when posted. */
+  embed_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+  embed_url: z.string().url().nullable().optional(),
+  embed_thumbnail_url: z.string().url().nullable().optional(),
+  embed_footer: z.string().max(2048).nullable().optional(),
+  embed_timestamp: z.boolean().default(false),
 });
 export type AnnouncementInput = z.infer<typeof AnnouncementInputSchema>;
+/** Mirrors IN_GAME_DAILY_LIMIT / CLAN_ANNOUNCEMENT_MAX_CHARS in the backend. */
+export const ANNOUNCEMENT_IN_GAME_DAILY_LIMIT = 3;
+export const ANNOUNCEMENT_IN_GAME_MAX_CHARS = 200;
 
 /** A guild role, for the announcement ping picker (bot-cached via Redis). */
 export const DiscordRoleSchema = z.object({
