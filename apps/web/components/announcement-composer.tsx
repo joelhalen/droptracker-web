@@ -77,6 +77,7 @@ export function AnnouncementComposer({
     send_in_game: false,
     in_game_message: "",
     in_game_until: null,
+    in_game_channel: "game",
     embed_timestamp: false,
   });
   // The "stop showing after" picker's local value (datetime-local has no zone).
@@ -321,6 +322,21 @@ export function AnnouncementComposer({
             title={form.title.trim()}
             message={inGameText}
           />
+          <label className="grid gap-1 text-xs sm:max-w-xs">
+            <span className="text-osrs-parchment-dark/70">Show it as</span>
+            <select
+              value={form.in_game_channel ?? "game"}
+              onChange={(e) => set("in_game_channel", e.target.value as "game" | "clan")}
+              className={field}
+            >
+              <option value="game">Game message (chatbox)</option>
+              <option value="clan">Clan chat broadcast line</option>
+            </select>
+            <span className="text-osrs-parchment-dark/50">
+              The clan chat style needs plugin 6.1.27 or newer; older clients show a game message.
+              Pet icons: write a pet&apos;s name between colons, like :vorki: or :chaos elemental:.
+            </span>
+          </label>
           <label className="grid gap-1 text-xs sm:max-w-xs">
             <span className="text-osrs-parchment-dark/70">Stop showing after (optional)</span>
             <input

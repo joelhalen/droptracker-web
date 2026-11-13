@@ -1442,6 +1442,9 @@ export const AnnouncementInputSchema = z.object({
   /** ISO 8601 instant after which the in-game message is no longer shown to
    * members logging in (suggestion #247). Null/absent = the inbox's 24h. */
   in_game_until: z.string().nullable().optional(),
+  /** How the plugin draws the line: a game message (default) or a clan
+   * broadcast line. Pet icons as ":vorki:" work in both. */
+  in_game_channel: z.enum(["game", "clan"]).optional(),
   /** Discord embed options (the embed builder's set). Applied when posted. */
   embed_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
   embed_url: z.string().url().nullable().optional(),
