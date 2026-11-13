@@ -76,8 +76,13 @@ export function AnnouncementComposer({
     ping_everyone: false,
     send_in_game: false,
     in_game_message: "",
+    in_game_until: null,
     embed_timestamp: false,
   });
+  // The "stop showing after" picker's local value (datetime-local has no zone).
+  const [untilLocal, setUntilLocal] = useState("");
+  const untilDate = untilLocal ? new Date(untilLocal) : null;
+  const untilInvalid = untilDate != null && (Number.isNaN(untilDate.getTime()) || untilDate.getTime() <= Date.now());
   const [style, setStyle] = useState<EmbedStyle>(DEFAULT_STYLE);
   const [showStyle, setShowStyle] = useState(false);
   const setStyleKey = <K extends keyof EmbedStyle>(k: K, v: EmbedStyle[K]) =>
@@ -124,11 +129,15 @@ export function AnnouncementComposer({
   );
   const inGameText = (form.in_game_message ?? "").replace(/\s+/g, " ").trim();
   const inGameTooLong = inGameText.length > ANNOUNCEMENT_IN_GAME_MAX_CHARS;
+  // A post that only goes in game needs no write-up: the backend uses the
+  // in-game line (or the title) as the body (suggestion #247).
+  const bodyOk = form.body_md.trim().length > 0 || (groupId != null && form.send_in_game);
   const valid =
     form.title.trim().length > 0 &&
-    form.body_md.trim().length > 0 &&
+    bodyOk &&
     badLinks.length === 0 &&
-    !inGameTooLong;
+    !inGameTooLong &&
+    !(form.send_in_game && untilInvalid);
 
   const pingNames = useMemo(() => {
     const names: string[] = [];
@@ -144,6 +153,8 @@ export function AnnouncementComposer({
   const payload = (): AnnouncementInput => ({
     ...form,
     in_game_message: form.send_in_game ? inGameText : undefined,
+    in_game_until:
+      form.send_in_game && untilDate && !untilInvalid ? untilDate.toISOString() : null,
     cover_image_url: style.image.trim() || null,
     embed_color: style.color !== DEFAULT_STYLE.color ? style.color : null,
     embed_url: style.url.trim() || null,
@@ -185,7 +196,9 @@ export function AnnouncementComposer({
           // A follow-up post must not silently go in game again either.
           send_in_game: false,
           in_game_message: "",
+          in_game_until: null,
         }));
+        setUntilLocal("");
         setDone(message);
         setTimeout(() => setDone(null), 8000);
       } catch (err) {
@@ -308,13 +321,29 @@ export function AnnouncementComposer({
             title={form.title.trim()}
             message={inGameText}
           />
+          <label className="grid gap-1 text-xs sm:max-w-xs">
+            <span className="text-osrs-parchment-dark/70">Stop showing after (optional)</span>
+            <input
+              type="datetime-local"
+              value={untilLocal}
+              onChange={(e) => setUntilLocal(e.target.value)}
+              className={field}
+            />
+            <span className={untilInvalid ? "text-red-400" : "text-osrs-parchment-dark/50"}>
+              {untilInvalid
+                ? "Pick a time in the future."
+                : "For a reminder about something at a set time: members who log in after this won't see it. Empty = up to 24 hours."}
+            </span>
+          </label>
           <p className="text-osrs-parchment-dark/60 text-xs leading-relaxed">
             The pop-up shows your clan name and the title; the full message goes in the chatbox.
             Shown to every clan member running the DropTracker plugin
             (6.1.12 or newer, with API connections and event notifications on). Members who are
-            offline get it when they next log in, within 24 hours. Plain text only, and it
-            can&apos;t be recalled once sent. Members can turn clan announcements off in their
-            notification settings. Up to {ANNOUNCEMENT_IN_GAME_DAILY_LIMIT} a day per clan.
+            offline get it when they next log in, within 24 hours (or until the time above).
+            Plain text only, and it can&apos;t be recalled once sent. Members can turn clan
+            announcements off in their notification settings. Up to{" "}
+            {ANNOUNCEMENT_IN_GAME_DAILY_LIMIT} a day per clan. The write-up above is optional
+            when a post goes in game: the in-game line stands in for it.
           </p>
         </fieldset>
       )}

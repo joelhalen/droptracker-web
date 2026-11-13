@@ -695,6 +695,9 @@ export const LootTrackerNpcSchema = z.object({
   kills: z.number().int(),
   loot: MoneySchema,
   items: z.array(LootTrackerItemSchema),
+  /** Content heading for the tracker's filter (raids, gwd, dt2, bosses,
+   * slayer, wilderness, group, skilling, other); absent on old payloads. */
+  category: z.string().optional(),
 });
 export type LootTrackerNpc = z.infer<typeof LootTrackerNpcSchema>;
 
@@ -1419,7 +1422,9 @@ export const AnnouncementInputSchema = z.object({
   scope_type: z.enum(["global", "group"]),
   group_id: z.number().int().nullable().optional(),
   title: z.string().min(1).max(200),
-  body_md: z.string().min(1),
+  /** May be empty only for a group post that goes in game: the backend then
+   * uses the in-game line (or the title) as the body (suggestion #247). */
+  body_md: z.string(),
   pinned: z.boolean().default(false),
   cover_image_url: z.string().url().nullable().optional(),
   /** Also syndicate to the group's announcements Discord channel (§10.1). */
@@ -1434,6 +1439,9 @@ export const AnnouncementInputSchema = z.object({
   send_in_game: z.boolean().default(false),
   /** The in-game text; empty = the title. One line. */
   in_game_message: z.string().max(200).optional(),
+  /** ISO 8601 instant after which the in-game message is no longer shown to
+   * members logging in (suggestion #247). Null/absent = the inbox's 24h. */
+  in_game_until: z.string().nullable().optional(),
   /** Discord embed options (the embed builder's set). Applied when posted. */
   embed_color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
   embed_url: z.string().url().nullable().optional(),

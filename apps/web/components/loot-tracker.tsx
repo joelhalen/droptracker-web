@@ -9,7 +9,7 @@
  * through the BFF (`/api/players/[id]/loot`).
  */
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { entityPath } from "@/lib/slug";
 import {
@@ -20,7 +20,7 @@ import {
   type PlayerLootTracker,
 } from "@droptracker/api-types";
 import { CARD_SECTION_CLASS, CardStatLine, HoverCard } from "@/components/hover-card";
-import { Button, Card, EmptyState } from "@/components/ui";
+import { Button, Card, EmptyState, Input, ToggleChip } from "@/components/ui";
 import { formatGp, formatRelativeTime } from "@/lib/format";
 
 const IMG_BASE = "https://www.droptracker.io/img";
@@ -34,6 +34,90 @@ const INITIAL_BOXES = 12;
  */
 export type LootTrackerEmbed = { imgBase: string; links: boolean };
 const SITE_EMBED: LootTrackerEmbed = { imgBase: IMG_BASE, links: true };
+
+/** How the boxes can be ordered (suggestion #248). */
+type LootSort = "value" | "kills" | "recent" | "name";
+const SORT_LABELS: Record<LootSort, string> = {
+  value: "Most GP",
+  kills: "Most kills",
+  recent: "Most recent",
+  name: "A to Z",
+};
+
+/**
+ * Filter headings. The backend tags each NPC with the task generator's
+ * content category; several of those fold into one chip here so the row
+ * stays short. Anything untagged (slayer task monsters, chests, skilling
+ * loot) is "Other".
+ */
+type LootFilter = "all" | "raids" | "bosses" | "slayer" | "wilderness" | "other";
+const FILTER_LABELS: Record<LootFilter, string> = {
+  all: "All",
+  raids: "Raids",
+  bosses: "Bosses",
+  slayer: "Slayer bosses",
+  wilderness: "Wilderness",
+  other: "Other",
+};
+const FILTER_ORDER: LootFilter[] = ["all", "raids", "bosses", "slayer", "wilderness", "other"];
+
+export function lootFilterOf(category: string | undefined): Exclude<LootFilter, "all"> {
+  switch (category) {
+    case "raids":
+      return "raids";
+    case "slayer":
+      return "slayer";
+    case "wilderness":
+      return "wilderness";
+    case "gwd":
+    case "dt2":
+    case "bosses":
+    case "group":
+    case "skilling":
+      return "bosses";
+    default:
+      return "other";
+  }
+}
+
+/** Newest drop in the box (unix seconds), 0 when the payload carries none. */
+function newestDrop(npc: LootTrackerNpc): number {
+  return npc.items.reduce((max, item) => Math.max(max, item.last_ts ?? 0), 0);
+}
+
+/**
+ * Search, filter and order the boxes. A box matches a query when its NPC
+ * name does, or any item in it does; in the latter case only the matching
+ * items are shown, so "zenyte" lists the shards under Demonic gorillas and
+ * nothing else from them. Pure, so the Activity can reuse it.
+ */
+export function arrangeLoot(
+  npcs: LootTrackerNpc[],
+  { query, sort, filter }: { query: string; sort: LootSort; filter: LootFilter },
+): LootTrackerNpc[] {
+  const q = query.trim().toLowerCase();
+  const out: LootTrackerNpc[] = [];
+  for (const npc of npcs) {
+    if (filter !== "all" && lootFilterOf(npc.category) !== filter) continue;
+    if (!q) {
+      out.push(npc);
+      continue;
+    }
+    if (npc.name.toLowerCase().includes(q)) {
+      out.push(npc);
+      continue;
+    }
+    const items = npc.items.filter((item) => item.name.toLowerCase().includes(q));
+    if (items.length) out.push({ ...npc, items });
+  }
+  const by: Record<LootSort, (a: LootTrackerNpc, b: LootTrackerNpc) => number> = {
+    value: (a, b) => b.loot.value - a.loot.value,
+    kills: (a, b) => b.kills - a.kills || b.loot.value - a.loot.value,
+    recent: (a, b) => newestDrop(b) - newestDrop(a) || b.loot.value - a.loot.value,
+    name: (a, b) => a.name.localeCompare(b.name),
+  };
+  return out.sort(by[sort]);
+}
 
 function currentPartition(): number {
   const now = new Date();
@@ -193,6 +277,9 @@ export function LootTracker({
   const [error, setError] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [loadingAllTime, setLoadingAllTime] = useState(false);
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<LootSort>("value");
+  const [filter, setFilter] = useState<LootFilter>("all");
   // Periods already fetched this visit — switching back is instant.
   const cache = useRef(new Map<LootPeriod, PlayerLootTracker>([[initial.partition, initial]]));
   // The month to come back to when leaving the all-time view.
@@ -237,7 +324,19 @@ export function LootTracker({
   }
 
   const periodTotal = data.npcs.reduce((sum, npc) => sum + npc.loot.value, 0);
-  const visible = showAll ? data.npcs : data.npcs.slice(0, INITIAL_BOXES);
+  // Only chips for headings this period actually has loot under.
+  const filters = useMemo(() => {
+    const present = new Set(data.npcs.map((npc) => lootFilterOf(npc.category)));
+    return FILTER_ORDER.filter((f) => f === "all" || present.has(f));
+  }, [data.npcs]);
+  const arranged = useMemo(
+    () => arrangeLoot(data.npcs, { query, sort, filter }),
+    [data.npcs, query, sort, filter],
+  );
+  const narrowed = query.trim().length > 0 || filter !== "all";
+  const visible = showAll ? arranged : arranged.slice(0, INITIAL_BOXES);
+  const toolbarField =
+    "border-osrs-bronze/40 bg-osrs-brown-dark/40 focus:border-osrs-gold rounded border px-2 py-1 text-sm outline-none";
 
   return (
     <div>
@@ -293,10 +392,57 @@ export function LootTracker({
         {error && <span className="text-sm text-red-400">{error}</span>}
       </div>
 
+      {data.npcs.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search NPCs or items…"
+            aria-label="Search loot by NPC or item"
+            className="w-full sm:w-56"
+          />
+          <label className="flex items-center gap-1.5 text-xs">
+            <span className="text-osrs-parchment-dark/60">Sort</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as LootSort)}
+              className={toolbarField}
+              aria-label="Sort loot boxes"
+            >
+              {(Object.keys(SORT_LABELS) as LootSort[]).map((key) => (
+                <option key={key} value={key}>
+                  {SORT_LABELS[key]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {filters.length > 2 && (
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter loot by content">
+              {filters.map((key) => (
+                <ToggleChip key={key} active={filter === key} onClick={() => setFilter(key)}>
+                  {FILTER_LABELS[key]}
+                </ToggleChip>
+              ))}
+            </div>
+          )}
+          {narrowed && (
+            <span className="text-osrs-parchment-dark/60 text-xs">
+              {arranged.length.toLocaleString()} of {data.npcs.length.toLocaleString()} NPCs
+            </span>
+          )}
+        </div>
+      )}
+
       {data.npcs.length === 0 ? (
         <EmptyState
           title={allTime ? "No tracked loot yet" : `No tracked loot in ${partitionLabel(data.partition)}`}
           hint="Drops submitted with the DropTracker plugin will appear here."
+        />
+      ) : arranged.length === 0 ? (
+        <EmptyState
+          title="Nothing matches"
+          hint="Try another search, or clear the filter."
         />
       ) : (
         <>
@@ -307,7 +453,7 @@ export function LootTracker({
               <NpcBox key={npc.npc_id} npc={npc} embed={embed} />
             ))}
           </div>
-          {data.npcs.length > INITIAL_BOXES && (
+          {arranged.length > INITIAL_BOXES && (
             <Button
               variant="ghost"
               size="sm"
@@ -315,7 +461,7 @@ export function LootTracker({
               onClick={() => setShowAll((v) => !v)}
               className="mt-4"
             >
-              {showAll ? "Show fewer" : `Show all ${data.npcs.length.toLocaleString()} NPCs`}
+              {showAll ? "Show fewer" : `Show all ${arranged.length.toLocaleString()} NPCs`}
             </Button>
           )}
         </>

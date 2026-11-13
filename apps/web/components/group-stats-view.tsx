@@ -210,7 +210,11 @@ function LeaderList({
 }: {
   title: string; rows: StandoutLeader[]; unit: StatUnit; suffix?: string; Who: WhoComp; empty: string;
 }) {
-  const max = Math.max(...rows.map((r) => r.total), 1);
+  // The figure beside the leader is THEIR number; the clan's total sits under
+  // it. Showing the clan total alone made it read as one player's 60k kc
+  // (suggestion #224).
+  const lead = (r: StandoutLeader) => r.entries[0]?.value ?? 0;
+  const max = Math.max(...rows.map(lead), 1);
   return (
     <Card padding="p-4">
       <h3 className="text-osrs-gold mb-2 font-semibold">{title}</h3>
@@ -224,12 +228,18 @@ function LeaderList({
                 <MetricIcon metric={r.metric} />
                 <span className="text-osrs-parchment w-36 shrink-0 truncate">{metricLabel(r.metric)}</span>
                 <span className="min-w-0 flex-1 truncate">{r.entries[0] && <Who pid={r.entries[0].player_id} className="text-sm" />}</span>
-                <span className="text-osrs-gold shrink-0 tabular-nums">
-                  {formatStat(r.total, unit)}
-                  {suffix}
+                <span className="shrink-0 text-right tabular-nums">
+                  <span className="text-osrs-gold">
+                    {formatStat(lead(r), unit)}
+                    {suffix}
+                  </span>
+                  <span className="text-osrs-parchment-dark/50 block text-[11px] leading-tight">
+                    clan {formatStat(r.total, unit)}
+                    {suffix}
+                  </span>
                 </span>
               </div>
-              <Bar value={r.total} max={max} />
+              <Bar value={lead(r)} max={max} />
             </li>
           ))}
         </ul>

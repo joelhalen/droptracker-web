@@ -327,11 +327,12 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
     category: "achievements",
     group: "Collection log & pets",
     type: "select",
-    help: "Every new slot, or only the slot that completes a collection log page. Completed pages are only spotted for members who have opened their collection log with the plugin since joining, or whose every slot on that page we saw them get.",
+    help: "Every new slot, only the slot that completes a collection log page, or completed pages plus notable slots (boss uniques, pets, jars, ornament kits, champion scrolls and the like). Completed pages are only spotted for members who have opened their collection log with the plugin since joining, or whose every slot on that page we saw them get.",
     default: "all",
     options: [
       { value: "all", label: "Every new slot" },
       { value: "completed", label: "Only completed pages" },
+      { value: "completed_notable", label: "Completed pages and notable slots" },
     ],
   },
   { key: "clog_message_variants", label: "Collection log messages", category: "achievements", group: "Collection log messages", type: "messagelist", help: "Your own collection log messages, one picked at random each time. Placeholders like {player_name}, {item_name}, {source}, {kill_count}, {slots_unlocked}, {slots_total} and {completed_collection} (only on the slot that completes a page) are filled in. A message is skipped when one of its placeholders is blank, so you can write lines that only fit some collection log slots. Leave empty for the default message. In a custom embed or a Components layout, place the picked message with {clog_message}.", default: "" },
@@ -598,7 +599,7 @@ export const GROUP_CONFIG_FIELDS: ConfigField[] = [
   { key: "vc_to_display_droptracker_users", label: "Member count voice channel", category: "voice", group: "Member count", type: "channel", channelKind: "voice", help: "Voice channel renamed every 10 minutes to show the group's tracked member count. Nobody needs to be able to talk in it — the name is the display. Give the bot Manage Channel on it.", default: null },
   { key: "vc_to_display_droptracker_users_text", label: "Member count channel text", category: "voice", group: "Member count", type: "string", help: "Template for the member-count voice channel name. Placeholder: {member_count}.", default: "{member_count} members", templateTokens: [{ token: "{member_count}", sample: "345", required: true }] },
   { key: "vc_join_to_create", label: "Join-to-create voice channel", category: "voice", group: "Join-to-create", type: "channel", channelKind: "voice", help: "Members who join this voice channel get their own temporary voice channel next to it and are moved into it. Anyone can join them there, and it is deleted once it is empty. On the hub's category, allow the DropTracker bot's role View Channel, Manage Channels, Connect, Move Members and Manage Permissions (or give it Administrator). If one is missing, the bot says which in the hub's chat.", default: null },
-  { key: "vc_join_to_create_name", label: "Temporary channel name", category: "voice", group: "Join-to-create", type: "string", help: "Name for each temporary voice channel. Placeholder: {name}, the member's server name.", default: "{name}'s Channel", templateTokens: [{ token: "{name}", sample: "Zezima" }] },
+  { key: "vc_join_to_create_name", label: "Temporary channel name", category: "voice", group: "Join-to-create", type: "string", help: "Name for each temporary voice channel. Placeholders: {name}, the member's server name, and {number}, the room's slot (01, 02, ...) for generic names like \"Channel {number}\".", default: "{name}'s Channel", templateTokens: [{ token: "{name}", sample: "Zezima" }, { token: "{number}", sample: "01" }] },
 
   // --- WiseOldMan & API ---------------------------------------------------
   { key: "auto_provision_members", label: "Auto-add WiseOldMan members", category: "integration", type: "boolean", help: "Creates DropTracker profiles ahead of time for everyone in this group's linked WiseOldMan group, so members join this group automatically the moment they install the plugin — instead of waiting up to an hour for the next member sync.", default: false },
