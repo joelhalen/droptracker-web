@@ -51,6 +51,7 @@ import { feedbackApi } from "./feedback";
 import { eventConquestApi } from "./event-conquest";
 import { testerBuildsApi } from "./tester-builds";
 import { dataRemovalApi } from "./data-removal";
+import { apiAccessApi } from "./api-access";
 import { botProfileApi } from "./bot-profile";
 import { rankRolesApi } from "./rank-roles";
 
@@ -58,6 +59,7 @@ export const api = {
   ...leaderboardsApi,
   ...discordRelayApi,
   ...dataRemovalApi,
+  ...apiAccessApi,
   ...playersApi,
   ...sitesApi,
   ...pageLayoutsApi,

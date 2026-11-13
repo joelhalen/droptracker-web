@@ -45,6 +45,27 @@ export function DocsSidebar({ groups }: { groups: { category: string; docs: DocS
           </ul>
         </div>
       ))}
+      {/* Repo-versioned rather than CMS-authored: it documents code, so it
+          changes in the same review as the code. */}
+      <div>
+        <div className="text-osrs-parchment-dark/50 mb-1.5 text-xs font-semibold uppercase tracking-wide">
+          Developers
+        </div>
+        <ul className="space-y-1">
+          <li>
+            <Link
+              href={"/docs/api" as Route}
+              className={`block rounded px-2 py-1 ${
+                pathname === "/docs/api"
+                  ? "bg-osrs-bronze/40 text-osrs-gold"
+                  : "text-osrs-parchment-dark/80 hover:text-osrs-gold-bright"
+              }`}
+            >
+              Data API
+            </Link>
+          </li>
+        </ul>
+      </div>
     </nav>
   );
 }

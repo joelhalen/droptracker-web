@@ -118,6 +118,7 @@ export default async function GroupAdminLayout({
         },
         { href: `/groups/${groupId}/subscription`, label: "Subscription" },
         { href: `/groups/${groupId}/diagnostics`, label: "Diagnostics" },
+        { href: `/groups/${groupId}/api`, label: "API access" },
       ]
     : [eventsTab];
 

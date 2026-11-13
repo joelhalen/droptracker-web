@@ -273,7 +273,7 @@ export const ENDPOINTS: ApiEndpoint[] = [
       { name: "min_value", default: "0", description: "`drops` only: skip drops worth less than this many gp (stack total, value × quantity). The per-player cap counts only drops that pass." },
     ],
     example: `curl -H "Authorization: Bearer $DT_API_KEY" \\
-  "${API_BASE}/players/Crawlicious?include=identity,stats,loot"`,
+  "${API_BASE}/players/joelhalen?include=identity,stats,loot"`,
   },
   {
     method: "GET",

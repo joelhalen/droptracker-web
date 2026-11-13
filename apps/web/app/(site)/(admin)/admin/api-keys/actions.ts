@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ApiKey, ApiKeyTier } from "@droptracker/api-types";
+import type { ApiKey, ApiKeyRequest, ApiKeyTier } from "@droptracker/api-types";
 import { api } from "@/lib/api";
 import { requireSuperadmin } from "@/lib/auth";
 
@@ -87,5 +87,21 @@ export async function deleteApiKeyTier(tierKey: string): Promise<Result<null>> {
     return { ok: true as const, value: null };
   } catch (e) {
     return failed(e, "Could not delete the tier.");
+  }
+}
+
+/** Approve or deny a key request (web163a): the same decision as the ticket's
+ *  buttons. The claim link goes to the ticket, never back to staff. */
+export async function decideApiKeyRequest(
+  id: number,
+  action: "approve" | "deny",
+): Promise<Result<ApiKeyRequest>> {
+  await requireSuperadmin(PATH);
+  try {
+    const value = await api.adminDecideApiKeyRequest(id, action);
+    revalidatePath(PATH);
+    return { ok: true as const, value };
+  } catch (e) {
+    return failed(e, "Could not decide the request.");
   }
 }

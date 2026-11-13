@@ -75,6 +75,22 @@ export default async function DocsIndexPage() {
             </ul>
           </section>
         ))}
+        <section>
+          <h2 className="ink-heading ink-rule mb-3 border-b pb-1 text-lg font-semibold">
+            Developers
+          </h2>
+          <ul className="space-y-2">
+            <li>
+              <Link href={"/docs/api" as Route} className="ink-link font-medium">
+                Data API
+              </Link>
+              <p className="ink-muted text-sm">
+                Read your clan&apos;s data from your own site or bot. Every endpoint, with real
+                example responses, and how to get a key.
+              </p>
+            </li>
+          </ul>
+        </section>
       </div>
 
       {/* Source links for the three parts of the app */}

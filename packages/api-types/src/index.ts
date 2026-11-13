@@ -3650,6 +3650,53 @@ export const AdminApiKeyListSchema = z.object({
 });
 export type AdminApiKeyList = z.infer<typeof AdminApiKeyListSchema>;
 
+// ── Asking for a Data API key (web163a) ────────────────────────────────────
+// A group admin or a signed-in user asks; staff approve or deny in the support
+// ticket the request opens. See disc db/api_key_requests.py.
+
+export const ApiKeyRequestStatuses = ["pending", "approved", "denied", "cancelled"] as const;
+export type ApiKeyRequestStatus = (typeof ApiKeyRequestStatuses)[number];
+
+export const ApiKeyRequestSchema = z.object({
+  id: z.number().int(),
+  scope: z.enum(["user", "group"]),
+  group_id: z.number().int().nullable(),
+  requested_by_user_id: z.number().int().nullable(),
+  label: z.string(),
+  purpose: z.string(),
+  status: z.enum(ApiKeyRequestStatuses),
+  ticket_id: z.number().int().nullable(),
+  api_key_id: z.number().int().nullable(),
+  /** Unix seconds. */
+  created_at: z.number().int().nullable(),
+  decided_at: z.number().int().nullable(),
+  /** The one-time link to the key. Only ever sent to the person who asked,
+   *  and only until it is opened or expires. */
+  claim_url: z.string().nullable().default(null),
+  /** Staff listing only. */
+  requested_by_name: z.string().nullable().optional(),
+  group_name: z.string().nullable().optional(),
+  decided_by_user_id: z.number().int().nullable().optional(),
+});
+export type ApiKeyRequest = z.infer<typeof ApiKeyRequestSchema>;
+
+export const ApiKeyRequestListSchema = z.object({
+  requests: ApiKeyRequestSchema.array(),
+  /** Is the viewer in the DropTracker Discord? null = unknown. */
+  discord_member: z.boolean().nullable().default(null),
+});
+export type ApiKeyRequestList = z.infer<typeof ApiKeyRequestListSchema>;
+
+export const AdminApiKeyRequestListSchema = z.object({
+  requests: ApiKeyRequestSchema.array(),
+  pending: z.number().int().default(0),
+});
+export type AdminApiKeyRequestList = z.infer<typeof AdminApiKeyRequestListSchema>;
+
+/** The keys one user or one group holds (never carries a token). */
+export const OwnedApiKeyListSchema = z.object({ keys: ApiKeySchema.array() });
+export type OwnedApiKeyList = z.infer<typeof OwnedApiKeyListSchema>;
+
 // ── Discord delivery relay (web153a) ───────────────────────────────────────
 // A group's own Discord bot posts DropTracker's messages in its server. Staff
 // only for now; see disc services/discord_relay_core.py.

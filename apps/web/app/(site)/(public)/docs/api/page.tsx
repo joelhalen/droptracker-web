@@ -1,7 +1,16 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import Link from "next/link";
 import { CodeBlock } from "@/components/code-block";
 import { ScrollPanel } from "@/components/scroll-panel";
+import {
+  EXAMPLES_CAPTURED_AT,
+  EXAMPLE_PLAYER,
+  curlFor,
+  endpointExample,
+  example,
+  sectionExample,
+  type ApiExample,
+} from "@/lib/api-examples";
 import {
   API_BASE,
   BUDGETS,
@@ -15,25 +24,20 @@ export const metadata: Metadata = {
   title: "Data API",
   description:
     "Read DropTracker player and group data from your own app: authentication, rate limits, endpoints and the full section catalogue.",
-  // UNLISTED while the API is in limited testing. Nothing links here — not the
-  // docs sidebar, the docs index, the header nav, or the sitemap — so the only
-  // way in is a URL someone was given. noindex makes that hold even if a
-  // tester's browser or a referrer leaks the address to a crawler. Remove this
-  // block, and add the page back to lib/docs.REPO_DOCS + app/sitemap.ts, when
-  // the API is announced.
-  robots: { index: false, follow: false },
 };
 
 // Repo-versioned rather than CMS-authored, for the same reason as /privacy: it
 // documents code, so it should change in the same review as the code does.
 
 const CONTENTS = [
+  { href: "#key", label: "Getting a key" },
   { href: "#quickstart", label: "Quickstart" },
   { href: "#auth", label: "Authentication" },
   { href: "#limits", label: "Rate limits" },
   { href: "#cost", label: "How requests are priced" },
   { href: "#endpoints", label: "Endpoints" },
   { href: "#sections", label: "Sections" },
+  { href: "#section-examples", label: "What each section returns" },
   { href: "#paging", label: "Paging a roster" },
   { href: "#submissions", label: "Submitting entries" },
   { href: "#errors", label: "Errors" },
@@ -45,6 +49,25 @@ function Heading({ id, children }: { id: string; children: React.ReactNode }) {
     <h2 id={id} className="ink-heading ink-rule mb-3 mt-10 border-b pb-1 text-xl font-semibold">
       {children}
     </h2>
+  );
+}
+
+/**
+ * A captured response, folded away so the page stays scannable. The request
+ * line is shown with it: the sample is only meaningful next to what asked.
+ */
+function ExampleResponse({ ex, summary }: { ex: ApiExample; summary?: string }) {
+  return (
+    <details className="ink-rule mt-3 rounded-md border">
+      <summary className="ink-heading cursor-pointer px-3 py-2 text-sm font-medium">
+        {summary ?? "Example response"}{" "}
+        <span className="ink-muted font-normal">· HTTP {ex.status}</span>
+      </summary>
+      <div className="space-y-2 px-3 pb-3">
+        <CodeBlock label="Request" code={curlFor(ex)} />
+        <CodeBlock label={`Response · ${ex.status}`} code={ex.body} />
+      </div>
+    </details>
   );
 }
 
@@ -83,11 +106,44 @@ export default function DataApiPage() {
         </ul>
       </nav>
 
+      <Heading id="key">Getting a key</Heading>
+      <p className="ink-muted text-sm">
+        Keys are free, and each one is approved by DropTracker staff. You ask on the site and say
+        what you&apos;re building; that opens a support ticket where staff can ask questions, and
+        approve or decline.
+      </p>
+      <ul className="ink-muted mt-3 list-disc space-y-2 pl-5 text-sm">
+        <li>
+          <strong>For a clan:</strong> a group admin opens the group&apos;s admin pages and picks
+          the <strong>API access</strong> tab. The key reads that group&apos;s members.
+        </li>
+        <li>
+          <strong>For yourself:</strong> open{" "}
+          <Link href={"/api-keys" as Route} className="ink-link">
+            API access
+          </Link>{" "}
+          in your dashboard. The key reads the accounts you have claimed.
+        </li>
+        <li>
+          <strong>For every group</strong> (a site that lists clans, for example): open a support
+          ticket and choose API Token Request. Global keys are only issued by hand.
+        </li>
+      </ul>
+      <p className="ink-muted mt-3 text-sm">
+        Once approved, the person who asked gets a link that shows the key a single time. If you
+        are in the DropTracker Discord, the ticket is a channel there; if not, it lives on the
+        site under My tickets. Every response on this page is a real one, captured from the live
+        API on {EXAMPLES_CAPTURED_AT}, so you can see what you would be working with before you
+        ask. Long lists are cut where marked.
+      </p>
+
       <Heading id="quickstart">Quickstart</Heading>
       <ol className="ink-muted mb-4 list-decimal space-y-2 pl-5 text-sm">
         <li>
-          Create a key. Group admins make one from their group settings; individual supporters can
-          make one from account settings.
+          <a href="#key" className="ink-link">
+            Get a key
+          </a>
+          .
         </li>
         <li>Copy it when it is shown — it is displayed once and cannot be retrieved again.</li>
         <li>Send it as a bearer token on every request.</li>
@@ -105,8 +161,11 @@ curl -H "Authorization: Bearer $DT_API_KEY" \\
       </p>
       <CodeBlock
         code={`curl -H "Authorization: Bearer $DT_API_KEY" \\
-  "${API_BASE}/players/Crawlicious?include=identity,stats,loot"`}
+  "${API_BASE}/players/${EXAMPLE_PLAYER}?include=identity,stats,loot"`}
       />
+      {example("player") && (
+        <ExampleResponse ex={example("player")!} summary="What that returns" />
+      )}
 
       <Heading id="auth">Authentication</Heading>
       <p className="ink-muted text-sm">
@@ -271,6 +330,9 @@ X-RateLimit-Cost-Remaining   165600`}
                 <CodeBlock code={endpoint.example} />
               </div>
             )}
+            {endpointExample(endpoint.path) && (
+              <ExampleResponse ex={endpointExample(endpoint.path)!} />
+            )}
           </article>
         ))}
       </div>
@@ -316,6 +378,29 @@ X-RateLimit-Cost-Remaining   165600`}
           </div>
         </section>
       ))}
+
+      <h3
+        id="section-examples"
+        className="ink-heading mb-2 mt-8 text-sm font-semibold uppercase tracking-wide"
+      >
+        What each section returns
+      </h3>
+      <p className="ink-muted text-sm">
+        Each of these is what one section added to <code>/v2/players/{EXAMPLE_PLAYER}</code>,
+        shown without the identity fields every response carries. An empty or{" "}
+        <code>null</code> value is real too: it is what you get for a player with nothing
+        recorded in that section.
+      </p>
+      <div className="mt-2">
+        {sectionsByCategory().flatMap((group) =>
+          group.sections.map((section) => {
+            const ex = sectionExample(section.key);
+            return ex ? (
+              <ExampleResponse key={section.key} ex={ex} summary={`include=${section.key}`} />
+            ) : null;
+          }),
+        )}
+      </div>
 
       <div className="ink-rule mt-6 rounded-md border p-4">
         <div className="ink-heading mb-2 text-sm font-semibold">
@@ -542,6 +627,17 @@ done`}
         </table>
       </div>
 
+      <p className="ink-muted mt-4 text-sm">
+        Errors are JSON too, with an <code>error</code> code and a <code>detail</code> you can show
+        a person:
+      </p>
+      {example("error_section") && (
+        <ExampleResponse ex={example("error_section")!} summary="An unknown section" />
+      )}
+      {example("error_scope") && (
+        <ExampleResponse ex={example("error_scope")!} summary="Another group's roster" />
+      )}
+
       <Heading id="notes">Notes on the data</Heading>
       <ul className="ink-muted list-disc space-y-2 pl-5 text-sm">
         <li>
@@ -566,11 +662,15 @@ done`}
 
       <footer className="ink-rule mt-10 border-t pt-4">
         <p className="ink-muted text-sm">
-          Need a higher tier, or think something here is wrong?{" "}
+          Need a higher tier, or think something here is wrong? Open a{" "}
+          <Link href={"/tickets" as Route} className="ink-link">
+            support ticket
+          </Link>
+          , or{" "}
           <Link href="/docs" className="ink-link">
-            Browse the rest of the docs
-          </Link>{" "}
-          or open a support ticket from your dashboard.
+            browse the rest of the docs
+          </Link>
+          .
         </p>
       </footer>
     </ScrollPanel>

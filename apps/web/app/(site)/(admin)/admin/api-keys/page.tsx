@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { api } from "@/lib/api";
 import { ApiKeysManager } from "@/components/admin/api-keys-manager";
+import { ApiKeyRequestsPanel } from "@/components/admin/api-key-requests";
 import { requireDeveloper } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Data API keys" };
@@ -12,12 +13,13 @@ export default async function AdminApiKeysPage() {
   // Developers may read (this is the diagnostic view for "who is making us
   // slow"); every mutation re-asserts superadmin in its server action and
   // again in the backend.
-  await requireDeveloper("/admin/api-keys");
+  const user = await requireDeveloper("/admin/api-keys");
 
-  const [list, tiers, usage] = await Promise.all([
+  const [list, tiers, usage, requests] = await Promise.all([
     api.adminApiKeys(),
     api.adminApiKeyTiers(),
     api.adminApiUsage(24),
+    api.adminApiKeyRequests(),
   ]);
 
   return (
@@ -29,11 +31,15 @@ export default async function AdminApiKeysPage() {
         overrides beat the tier field by field.
         <br />
         <span className="text-osrs-parchment-dark/50">
-          Self-serve minting is currently disabled site-wide
-          (<code>DATA_API_SELF_SERVE_KEYS</code>), so keys exist only if staff create them here
-          or with <code>scripts/mint_api_key.py</code>.
+          Group admins ask for a key from their group&apos;s API access tab and anyone can ask for
+          a personal one at <code>/api-keys</code>; each request opens a support ticket and waits
+          here. Keys can also be created directly below or with{" "}
+          <code>scripts/mint_api_key.py</code>.
         </span>
       </p>
+      <div className="mb-6">
+        <ApiKeyRequestsPanel initial={requests.requests} canDecide={user.is_superadmin} />
+      </div>
       <ApiKeysManager
         initialKeys={list.keys}
         initialTiers={tiers.length > 0 ? tiers : list.tiers}

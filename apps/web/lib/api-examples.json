@@ -1,0 +1,193 @@
+{
+  "captured_at": "2026-11-13",
+  "player": "joelhalen",
+  "group_id": 31,
+  "examples": [
+    {
+      "id": "health",
+      "request": "GET https://api.droptracker.io/v2/health",
+      "status": 200,
+      "body": "{\n  \"pid\": 1606305,\n  \"service\": \"data_api\",\n  \"status\": \"ok\",\n  \"uptime_seconds\": 0\n}"
+    },
+    {
+      "id": "meta",
+      "request": "GET https://api.droptracker.io/v2/meta",
+      "status": 200,
+      "body": "{\n  \"group_id\": 31,\n  \"key_id\": 12,\n  \"label\": \"Clan website\",\n  \"limits\": {\n    \"cost_units_per_min\": 200000,\n    \"max_concurrency\": 4,\n    \"requests_per_day\": 20000,\n    \"requests_per_min\": 60\n  },\n  \"owner_type\": \"group\",\n  \"scope\": \"group\",\n  \"tier\": \"standard\"\n}"
+    },
+    {
+      "id": "sections",
+      "request": "GET https://api.droptracker.io/v2/sections",
+      "status": 200,
+      "body": "{\n  \"cost_model\": \"request cost = players x sum(cost_per_player of each requested section); charged against the key's cost_units_per_min budget before the query runs.\",\n  \"default\": [\n    \"identity\"\n  ],\n  \"sections\": [\n    {\n      \"cost_per_player\": 0,\n      \"description\": \"Name, account type, combat/total level, EHB, last sync, and last_seen: when the player's DropTracker plugin was last seen (any submission, account sync or ev...\",\n      \"key\": \"identity\"\n    },\n    {\n      \"cost_per_player\": 1,\n      \"description\": \"The Discord account that has claimed this player, from /claim-rsn: discord_id (a string) and claimed. One indexed lookup for the whole page — priced rather t...\",\n      \"key\": \"discord\"\n    },\n    {\n      \"cost_per_player\": 1,\n      \"description\": \"Experience in all 24 skills, and their total.\",\n      \"key\": \"stats\"\n    },\n    // … 17 more\n  ],\n  \"your_limits\": {\n    \"cost_units_per_min\": 200000,\n    \"max_concurrency\": 4,\n    \"requests_per_day\": 20000,\n    \"requests_per_min\": 60\n  }\n}"
+    },
+    {
+      "id": "player",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=identity,stats,loot",
+      "status": 200,
+      "body": "{\n  \"player\": {\n    \"account_type\": \"unranked_group_ironman\",\n    \"combat_level\": 108,\n    \"ehb\": 17.09,\n    \"first_seen\": \"2024-10-01T21:33:30\",\n    \"last_seen\": \"2026-11-12T21:31:27\",\n    \"last_synced\": \"2026-11-12T21:31:21\",\n    \"loot\": {\n      \"all_time_gp\": 416303249,\n      \"month_gp\": 562806,\n      \"partition\": 202611\n    },\n    \"name\": \"joelhalen\",\n    \"player_id\": 1,\n    \"stats\": {\n      \"last_updated\": \"2026-11-12T21:31:27\",\n      \"skills\": {\n        \"agility\": 13487274,\n        \"attack\": 3008732,\n        \"construction\": 10332773,\n        \"cooking\": 2171547,\n        \"crafting\": 3265933,\n        \"defence\": 2735860,\n        \"farming\": 1289458,\n        \"firemaking\": 13150461,\n        \"fishing\": 2011175,\n        \"fletching\": 746851,\n        \"herblore\": 1790805,\n        \"hitpoints\": 5652900,\n        \"hunter\": 778535,\n        \"magic\": 3317753,\n        \"mining\": 13384018,\n        \"prayer\": 1213242,\n        \"ranged\": 4963901,\n        \"runecraft\": 561287,\n        \"sailing\": 0,\n        \"slayer\": 3366716,\n        \"smithing\": 3655019,\n        \"strength\": 4802652,\n        \"thieving\": 4104890,\n        \"woodcutting\": 1108867\n      },\n      \"total_experience\": 100900649\n    },\n    \"total_level\": 1925\n  },\n  \"sections\": [\n    \"identity\",\n    \"stats\",\n    \"loot\"\n  ]\n}"
+    },
+    {
+      "id": "roster",
+      "request": "GET https://api.droptracker.io/v2/groups/31/players?include=identity,loot,meta&limit=2",
+      "status": 200,
+      "body": "{\n  \"count\": 2,\n  \"group\": {\n    \"all_time_gp\": 2403379205,\n    \"created\": \"2025-02-21T05:29:54\",\n    \"group_id\": 31,\n    \"members\": 5,\n    \"month_gp\": 562806,\n    \"month_rank\": 270,\n    \"name\": \"GIMs\",\n    \"partition\": 202611,\n    \"ranked_groups\": 391\n  },\n  \"group_id\": 31,\n  \"next_cursor\": 266,\n  \"players\": [\n    {\n      \"account_type\": \"unranked_group_ironman\",\n      \"combat_level\": 108,\n      \"ehb\": 17.09,\n      \"first_seen\": \"2024-10-01T21:33:30\",\n      \"last_seen\": \"2026-11-12T21:31:27\",\n      \"last_synced\": \"2026-11-12T21:31:21\",\n      \"loot\": {\n        \"all_time_gp\": 416303249,\n        \"month_gp\": 562806,\n        \"partition\": 202611\n      },\n      \"meta\": {\n        \"all_time_rank\": 2725,\n        \"groups\": [\n          {\n            \"group_id\": 31,\n            \"name\": \"GIMs\"\n          },\n          {\n            \"group_id\": 267,\n            \"name\": \"DropTracker Test\"\n          }\n        ],\n        \"month_rank\": 5592,\n        \"partition\": 202611,\n        \"ranked_players\": 6719,\n        \"ranked_players_all_time\": 19240\n      },\n      \"name\": \"joelhalen\",\n      \"player_id\": 1,\n      \"total_level\": 1925\n    },\n    {\n      \"account_type\": null,\n      \"combat_level\": null,\n      \"ehb\": 684.61,\n      \"first_seen\": \"2024-10-15T23:53:30\",\n      \"last_seen\": \"2025-05-26T06:25:31\",\n      \"last_synced\": null,\n      \"loot\": {\n        \"all_time_gp\": 1826672964,\n        \"month_gp\": 0,\n        \"partition\": 202611\n      },\n      \"meta\": {\n        \"all_time_rank\": 837,\n        \"groups\": [\n          {\n            \"group_id\": 31,\n            \"name\": \"GIMs\"\n          }\n        ],\n        \"month_rank\": null,\n        \"partition\": 202611,\n        \"ranked_players\": 6719,\n        \"ranked_players_all_time\": 19240\n      },\n      \"name\": \"catlover1944\",\n      \"player_id\": 266,\n      \"total_level\": 2134\n    }\n  ],\n  \"sections\": [\n    \"identity\",\n    \"loot\",\n    \"meta\"\n  ]\n}"
+    },
+    {
+      "id": "group_events",
+      "request": "GET https://api.droptracker.io/v2/groups/7/events?past_limit=1",
+      "status": 200,
+      "body": "{\n  \"active\": [\n    {\n      \"description\": \"\\nScavenger Hunt: \\nMonthly item hunt; earn clan points, based on item value / difficulty.\\nIn case you have multiple accounts, select one account for to be eli...\",\n      \"ends_at\": \"2026-12-01T01:00:00Z\",\n      \"ends_at_unix\": 1796086800,\n      \"host_group_id\": 7,\n      \"host_group_name\": \"Realists\",\n      \"id\": 160,\n      \"kind\": \"bingo\",\n      \"mode\": \"standard\",\n      \"name\": \"November Scavenger Hunt\",\n      \"player_count\": 287,\n      \"self_signup\": true,\n      \"signups_close_at\": \"2026-12-01T01:00:00Z\",\n      \"signups_close_at_unix\": 1796086800,\n      \"signups_open\": true,\n      \"staff_hosted\": false,\n      \"starts_at\": \"2026-11-01T00:00:00Z\",\n      \"starts_at_unix\": 1793491200,\n      \"status\": \"active\",\n      \"team_count\": 288,\n      \"url\": \"https://www.droptracker.io/events/160\",\n      \"visibility\": \"public\"\n    }\n  ],\n  \"events_url\": \"https://www.droptracker.io/events\",\n  \"generated_at\": \"2026-11-13T11:16:32.501007Z\",\n  \"group_id\": 7,\n  \"group_name\": \"Realists\",\n  \"past\": [\n    {\n      \"description\": null,\n      \"ends_at\": \"2026-10-19T18:00:00Z\",\n      \"ends_at_unix\": 1792432800,\n      \"host_group_id\": 7,\n      \"host_group_name\": \"Realists\",\n      \"id\": 125,\n      \"kind\": \"board_game\",\n      \"mode\": \"standard\",\n      \"name\": \"Snakes and Ladders\",\n      \"player_count\": 39,\n      \"self_signup\": false,\n      \"signups_close_at\": null,\n      \"signups_close_at_unix\": null,\n      \"signups_open\": false,\n      \"staff_hosted\": false,\n      \"starts_at\": \"2026-10-05T18:00:00Z\",\n      \"starts_at_unix\": 1791223200,\n      \"status\": \"past\",\n      \"team_count\": 3,\n      \"url\": \"https://www.droptracker.io/events/125\",\n      \"visibility\": \"public\"\n    }\n  ],\n  \"past_total\": 3,\n  \"upcoming\": []\n}"
+    },
+    {
+      "id": "groups",
+      "request": "GET https://api.droptracker.io/v2/groups?limit=2&include=meta",
+      "status": 200,
+      "body": "{\n  \"count\": 2,\n  \"groups\": [\n    {\n      \"created\": null,\n      \"group_id\": 1,\n      \"members\": 0,\n      \"name\": \"DropTracker Global\",\n      \"stats\": {\n        \"month_gp\": 0,\n        \"month_rank\": null,\n        \"partition\": 202611,\n        \"ranked_groups\": 391\n      }\n    },\n    {\n      \"created\": \"2024-10-15T11:15:47\",\n      \"group_id\": 5,\n      \"members\": 22,\n      \"name\": \"Varietyz\",\n      \"stats\": {\n        \"month_gp\": 27987763,\n        \"month_rank\": 190,\n        \"partition\": 202611,\n        \"ranked_groups\": 391\n      }\n    }\n  ],\n  \"next_cursor\": 5\n}"
+    },
+    {
+      "id": "players",
+      "request": "GET https://api.droptracker.io/v2/players?include=identity,loot&limit=2",
+      "status": 200,
+      "body": "{\n  \"count\": 2,\n  \"next_cursor\": 2,\n  \"players\": [\n    {\n      \"account_type\": \"unranked_group_ironman\",\n      \"combat_level\": 108,\n      \"ehb\": 17.09,\n      \"first_seen\": \"2024-10-01T21:33:30\",\n      \"last_seen\": \"2026-11-12T21:31:27\",\n      \"last_synced\": \"2026-11-12T21:31:21\",\n      \"loot\": {\n        \"all_time_gp\": 416303249,\n        \"month_gp\": 562806,\n        \"partition\": 202611\n      },\n      \"name\": \"joelhalen\",\n      \"player_id\": 1,\n      \"total_level\": 1925\n    },\n    {\n      \"account_type\": \"normal\",\n      \"combat_level\": 126,\n      \"ehb\": 824.63,\n      \"first_seen\": \"2024-10-01T21:39:56\",\n      \"last_seen\": \"2026-11-13T02:14:04\",\n      \"last_synced\": \"2026-11-13T02:14:04\",\n      \"loot\": {\n        \"all_time_gp\": 133838594,\n        \"month_gp\": 7019358,\n        \"partition\": 202611\n      },\n      \"name\": \"Koeppy\",\n      \"player_id\": 2,\n      \"total_level\": 2376\n    }\n  ],\n  \"sections\": [\n    \"identity\",\n    \"loot\"\n  ]\n}"
+    },
+    {
+      "id": "npcs",
+      "request": "GET https://api.droptracker.io/v2/npcs?q=doom",
+      "status": 200,
+      "body": "{\n  \"count\": 11,\n  \"npcs\": [\n    {\n      \"name\": \"Doomion\",\n      \"npc_id\": 8995,\n      \"synthetic\": false,\n      \"wom_metric\": null\n    },\n    {\n      \"name\": \"Doom of Mokhaiotl\",\n      \"npc_id\": 14707,\n      \"synthetic\": false,\n      \"wom_metric\": \"doom_of_mokhaiotl\"\n    },\n    {\n      \"name\": \"Doom of Mokhaiotl (Level: 1)\",\n      \"npc_id\": 14708,\n      \"synthetic\": false,\n      \"wom_metric\": null\n    },\n    // … 8 more\n  ]\n}"
+    },
+    {
+      "id": "npc",
+      "request": "GET https://api.droptracker.io/v2/npcs/2042",
+      "status": 200,
+      "body": "{\n  \"drop_table\": {\n    \"items\": [\n      {\n        \"item_id\": 3993,\n        \"item_name\": \"Zulrah's scales\",\n        \"noted\": false,\n        \"quantity\": \"100-299\",\n        \"rarity\": 1.0,\n        \"rolls\": 1\n      },\n      {\n        \"item_id\": 12938,\n        \"item_name\": \"Zul-andra teleport\",\n        \"noted\": false,\n        \"quantity\": \"4\",\n        \"rarity\": 0.060241,\n        \"rolls\": 2\n      },\n      {\n        \"item_id\": 560,\n        \"item_name\": \"Death rune\",\n        \"noted\": false,\n        \"quantity\": \"250\",\n        \"rarity\": 0.0481928,\n        \"rolls\": 2\n      },\n      // … 72 more\n    ],\n    \"source\": \"wiki\",\n    \"source_npc_id\": 2042\n  },\n  \"icon_url\": \"https://www.droptracker.io/img/npcdb/2042.png\",\n  \"name\": \"Zulrah\",\n  \"npc_id\": 2042,\n  \"synthetic\": false,\n  \"wiki_url\": \"https://oldschool.runescape.wiki/w/Zulrah\",\n  \"wom_metric\": \"zulrah\"\n}"
+    },
+    {
+      "id": "collection_log",
+      "request": "GET https://api.droptracker.io/v2/collection-log",
+      "status": 200,
+      "body": "{\n  \"distinct_items\": 1738,\n  \"items\": {\n    \"10280\": \"Willow comp bow\",\n    \"10282\": \"Yew comp bow\",\n    \"10284\": \"Magic comp bow\",\n    \"10286\": \"Rune helm (h1)\",\n    \"10288\": \"Rune helm (h2)\",\n    \"10290\": \"Rune helm (h3)\",\n    // … 1732 more\n  },\n  \"slot_count\": 1944,\n  \"source\": \"osrs game cache (scripts/sync_collection_log.py)\",\n  \"tabs\": [\n    {\n      \"name\": \"Bosses\",\n      \"pages\": [\n        {\n          \"items\": [\n            13262,\n            25624,\n            7979,\n            13274,\n            13275,\n            13276,\n            13277,\n            13265,\n            // … 1 more\n          ],\n          \"name\": \"Abyssal Sire\",\n          \"names\": [\n            \"Abyssal orphan\",\n            \"Unsired\",\n            \"Abyssal head\",\n            \"Bludgeon spine\",\n            \"Bludgeon claw\",\n            \"Bludgeon axon\",\n            \"Jar of Miasma\",\n            \"Abyssal dagger\",\n            // … 1 more\n          ]\n        },\n        {\n          \"items\": [\n            22746,\n            22966,\n            22988,\n            22983,\n            22971,\n            22973,\n            22969,\n            22804,\n            // … 3 more\n          ],\n          \"name\": \"Alchemical Hydra\",\n          \"names\": [\n            \"Ikkle Hydra\",\n            \"Hydra's claw\",\n            \"Hydra tail\",\n            \"Hydra leather\",\n            \"Hydra's fang\",\n            \"Hydra's eye\",\n            \"Hydra's heart\",\n            \"Dragon knife\",\n            // … 3 more\n          ]\n        },\n        // … 55 more\n      ]\n    },\n    {\n      \"name\": \"Raids\",\n      \"pages\": [\n        {\n          \"items\": [\n            20851,\n            22386,\n            20997,\n            21003,\n            21043,\n            13652,\n            21018,\n            21021,\n            // … 15 more\n          ],\n          \"name\": \"Chambers of Xeric\",\n          \"names\": [\n            \"Olmlet\",\n            \"Metamorphic dust\",\n            \"Twisted bow\",\n            \"Elder maul\",\n            \"Kodai insignia\",\n            \"Dragon claws\",\n            \"Ancestral hat\",\n            \"Ancestral robe top\",\n            // … 15 more\n          ]\n        },\n        {\n          \"items\": [\n            34646,\n            34717,\n            34681,\n            34727,\n            34719,\n            34679,\n            34675,\n            34677,\n            // … 9 more\n          ],\n          \"name\": \"The Fractured Archive\",\n          \"names\": [\n            \"Orion\",\n            \"Obligator (uncharged)\",\n            \"Ascension crossbows\",\n            \"Zorya's tome (uncharged)\",\n            \"Rondache\",\n            \"Horn of Bran\",\n            \"Fragment of whispering wind\",\n            \"Fragment of burning fire\",\n            // … 9 more\n          ]\n        },\n        // … 2 more\n      ]\n    },\n    // … 3 more\n  ],\n  \"updated_at\": \"2026-11-03T10:09:01\",\n  // … 1 more\n}"
+    },
+    {
+      "id": "error_scope",
+      "request": "GET https://api.droptracker.io/v2/groups/7/players",
+      "status": 403,
+      "body": "{\n  \"detail\": \"This key is not scoped to that group.\",\n  \"error\": \"forbidden\"\n}"
+    },
+    {
+      "id": "error_section",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=loot,banana",
+      "status": 400,
+      "body": "{\n  \"available\": [\n    \"identity\",\n    \"discord\",\n    \"stats\",\n    \"clog\",\n    \"clog_slots\",\n    \"combat_achievements\",\n    \"quests\",\n    \"diaries\",\n    // … 12 more\n  ],\n  \"detail\": \"No section named 'banana'.\",\n  \"error\": \"unknown_section\"\n}"
+    },
+    {
+      "id": "section:discord",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=discord",
+      "status": 200,
+      "body": "{\n  \"discord\": {\n    \"claimed\": true,\n    \"discord_id\": \"123456789012345678\"\n  }\n}"
+    },
+    {
+      "id": "section:stats",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=stats",
+      "status": 200,
+      "body": "{\n  \"stats\": {\n    \"last_updated\": \"2026-11-12T21:31:27\",\n    \"skills\": {\n      \"agility\": 13487274,\n      \"attack\": 3008732,\n      \"construction\": 10332773,\n      \"cooking\": 2171547,\n      \"crafting\": 3265933,\n      \"defence\": 2735860,\n      \"farming\": 1289458,\n      \"firemaking\": 13150461,\n      \"fishing\": 2011175,\n      \"fletching\": 746851,\n      \"herblore\": 1790805,\n      \"hitpoints\": 5652900,\n      // … 12 more\n    },\n    \"total_experience\": 100900649\n  }\n}"
+    },
+    {
+      "id": "section:clog",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=clog",
+      "status": 200,
+      "body": "{\n  \"clog\": {\n    \"obtained\": 181,\n    \"total\": 1734,\n    \"tracked_items\": 185\n  }\n}"
+    },
+    {
+      "id": "section:clog_slots",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=clog_slots",
+      "status": 200,
+      "body": "{\n  \"clog_slots\": {\n    \"items\": [\n      2996,\n      3058,\n      3059,\n      3060,\n      3061,\n      4101,\n      4103,\n      4113,\n      // … 177 more\n    ],\n    \"quantities\": {\n      \"10476\": 10,\n      \"10976\": 7,\n      \"11849\": 4568,\n      \"11902\": 3,\n      \"12934\": 57025,\n      \"12938\": 136,\n      \"19677\": 29,\n      \"19679\": 11,\n      \"19681\": 10,\n      \"19683\": 8,\n      \"20238\": 13,\n      \"20704\": 3,\n      // … 40 more\n    }\n  }\n}"
+    },
+    {
+      "id": "section:combat_achievements",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=combat_achievements",
+      "status": 200,
+      "body": "{\n  \"combat_achievements\": {\n    \"next_tier\": \"Medium\",\n    \"next_tier_points\": 169,\n    \"points\": 164,\n    \"points_to_next\": 5,\n    \"progress\": 96.09,\n    \"tasks_completed\": 61,\n    \"tier\": \"Easy\",\n    \"updated_at\": \"2026-10-10T00:16:40\"\n  }\n}"
+    },
+    {
+      "id": "section:quests",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=quests",
+      "status": 200,
+      "body": "{\n  \"quests\": {\n    \"finished\": 166,\n    \"grandmaster_quests\": [],\n    \"in_progress\": 3,\n    \"not_started\": 48,\n    \"quest_cape\": false,\n    \"quest_points\": null,\n    \"quest_points_at\": null,\n    \"total_quest_points\": null\n  }\n}"
+    },
+    {
+      "id": "section:diaries",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=diaries",
+      "status": 200,
+      "body": "{\n  \"diaries\": {\n    \"areas\": {\n      \"0\": {\n        \"0\": 10,\n        \"1\": 19,\n        \"2\": 10,\n        \"3\": 1\n      },\n      \"1\": {\n        \"0\": 10,\n        \"1\": 12,\n        \"2\": 12,\n        \"3\": 2\n      },\n      \"10\": {\n        \"0\": 3,\n        \"1\": 4,\n        \"2\": 3,\n        \"3\": 0\n      },\n      \"11\": {\n        \"0\": 12,\n        \"1\": 12,\n        \"2\": 3,\n        \"3\": 2\n      },\n      \"2\": {\n        \"0\": 4,\n        \"1\": 6,\n        \"2\": 5,\n        \"3\": 1\n      },\n      \"3\": {\n        \"0\": 3,\n        \"1\": 1,\n        \"2\": 4,\n        \"3\": 1\n      },\n      \"4\": {\n        \"0\": 5,\n        \"1\": 4,\n        \"2\": 3,\n        \"3\": 0\n      },\n      \"5\": {\n        \"0\": 6,\n        \"1\": 9,\n        \"2\": 4,\n        \"3\": 0\n      },\n      \"6\": {\n        \"0\": 12,\n        \"1\": 12,\n        \"2\": 2,\n        \"3\": 0\n      },\n      \"7\": {\n        \"0\": 4,\n        \"1\": 7,\n        \"2\": 2,\n        \"3\": 0\n      },\n      \"8\": {\n        \"0\": 14,\n        \"1\": 13,\n        \"2\": 1,\n        \"3\": 0\n      },\n      \"9\": {\n        \"0\": 12,\n        \"1\": 9,\n        \"2\": 1,\n        \"3\": 0\n      }\n    }\n  }\n}"
+    },
+    {
+      "id": "section:personal_bests",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=personal_bests",
+      "status": 200,
+      "body": "{\n  \"personal_bests\": {\n    \"bests\": [\n      {\n        \"best_ms\": 72000,\n        \"npc_id\": 2042,\n        \"npc_name\": \"Zulrah\",\n        \"team_size\": \"Solo\"\n      },\n      {\n        \"best_ms\": 2429400,\n        \"npc_id\": 3127,\n        \"npc_name\": \"TzTok-Jad\",\n        \"team_size\": \"Solo\"\n      },\n      {\n        \"best_ms\": 143400,\n        \"npc_id\": 8060,\n        \"npc_name\": \"Vorkath\",\n        \"team_size\": \"Solo\"\n      },\n      // … 7 more\n    ]\n  }\n}"
+    },
+    {
+      "id": "section:points",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=points",
+      "status": 200,
+      "body": "{\n  \"points\": {\n    \"lifetime_earned\": 2\n  }\n}"
+    },
+    {
+      "id": "section:badges",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=badges",
+      "status": 200,
+      "body": "{\n  \"badges\": null\n}"
+    },
+    {
+      "id": "section:pets",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=pets",
+      "status": 200,
+      "body": "{\n  \"pets\": {\n    \"pets\": [\n      {\n        \"item_id\": 20659,\n        \"name\": \"Giant squirrel\",\n        \"received\": null\n      }\n    ]\n  }\n}"
+    },
+    {
+      "id": "section:deaths",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=deaths",
+      "status": 200,
+      "body": "{\n  \"deaths\": {\n    \"count\": 12,\n    \"last\": \"2026-11-12T00:34:48\"\n  }\n}"
+    },
+    {
+      "id": "section:meta",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=meta",
+      "status": 200,
+      "body": "{\n  \"meta\": {\n    \"all_time_rank\": 2725,\n    \"groups\": [\n      {\n        \"group_id\": 31,\n        \"name\": \"GIMs\"\n      },\n      {\n        \"group_id\": 267,\n        \"name\": \"DropTracker Test\"\n      }\n    ],\n    \"month_rank\": 5592,\n    \"partition\": 202611,\n    \"ranked_players\": 6719,\n    \"ranked_players_all_time\": 19240\n  }\n}"
+    },
+    {
+      "id": "section:loot",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=loot",
+      "status": 200,
+      "body": "{\n  \"loot\": {\n    \"all_time_gp\": 416303249,\n    \"month_gp\": 562806,\n    \"partition\": 202611\n  }\n}"
+    },
+    {
+      "id": "section:loot_npcs",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=loot_npcs",
+      "status": 200,
+      "body": "{\n  \"loot_npcs\": {\n    \"from\": \"2026-10-14-11\",\n    \"npcs\": [\n      {\n        \"drops\": 729,\n        \"gp\": 9862621,\n        \"npc_id\": 9756\n      },\n      {\n        \"drops\": 6,\n        \"gp\": 562512,\n        \"npc_id\": 13696\n      },\n      {\n        \"drops\": 16,\n        \"gp\": 257994,\n        \"npc_id\": 13953\n      },\n      // … 7 more\n    ],\n    \"to\": \"2026-11-13-11\"\n  }\n}"
+    },
+    {
+      "id": "section:loot_items",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=loot_items",
+      "status": 200,
+      "body": "{\n  \"loot_items\": {\n    \"from\": \"2026-10-14-11\",\n    \"items\": [\n      {\n        \"drops\": 1,\n        \"gp\": 8442420,\n        \"item_id\": 24777,\n        \"quantity\": 1\n      },\n      {\n        \"drops\": 1,\n        \"gp\": 368144,\n        \"item_id\": 566,\n        \"quantity\": 1211\n      },\n      {\n        \"drops\": 365,\n        \"gp\": 312705,\n        \"item_id\": 3325,\n        \"quantity\": 365\n      },\n      // … 7 more\n    ],\n    \"to\": \"2026-11-13-11\"\n  }\n}"
+    },
+    {
+      "id": "section:plugin_config",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=plugin_config",
+      "status": 200,
+      "body": "{\n  \"plugin_config\": {\n    \"captured_at\": \"2026-11-12T21:31:36\",\n    \"customized\": [\n      \"lootEmbeds\",\n      \"pbEmbeds\",\n      \"clogEmbeds\",\n      \"caEmbeds\",\n      \"petEmbeds\",\n      \"levelEmbed\",\n      \"xpMilestoneEmbeds\",\n      \"questsEmbed\",\n      // … 33 more\n    ],\n    \"env\": {\n      \"chatbox_transparent\": false,\n      \"custom_api_endpoint\": true,\n      \"loot_tracker_enabled\": true,\n      \"resizable\": true,\n      \"runelite_version\": \"1.13.6\"\n    },\n    \"plugin_version\": \"6.1.20\",\n    \"runelite_version\": \"1.13.6\",\n    \"settings\": {\n      \"Advanced\": {\n        \"debugLogging\": false,\n        \"dropConfirmations\": false,\n        \"inGameMessages\": false,\n        \"receiveDiscordChat\": true,\n        \"showSidePanel\": true,\n        \"syncAccountState\": true,\n        \"uploadCharacterModel\": true,\n        \"useApi\": true\n      },\n      \"Events\": {\n        \"eventDisplayMode\": \"POPUP\",\n        \"eventHudDetail\": \"DETAILED\",\n        \"eventNotifications\": true,\n        \"eventTaskProgressNotifications\": true,\n        \"eventTeamIndicatorColorNames\": true,\n        \"eventTeamIndicators\": \"ORB\",\n        \"eventTeamIndicatorsPublicChat\": false\n      },\n      \"Hidden\": {\n        \"eventImportantPopupsOnly\": false,\n        \"hideWhispers\": false,\n        \"pollUpdates\": true,\n        \"sendLoadoutWithPbs\": true,\n        \"trackExperience\": true,\n        \"trackTrawling\": true\n      },\n      \"Screenshots\": {\n        \"compressImages\": true,\n        \"minLevelToScreenshot\": 1,\n        \"privacyMode\": \"NONE\",\n        \"screenshotCompressionKb\": 1500,\n        \"screenshotUntradeables\": false,\n        \"screenshotValue\": 100000,\n        \"screenshots\": false\n      },\n      \"Tracking\": {\n        \"caEmbeds\": true,\n        \"clanChatSync\": true,\n        \"clogEmbeds\": true,\n        \"deathEmbeds\": true,\n        \"diaryEmbeds\": true,\n        \"levelEmbed\": true,\n        \"lootEmbeds\": true,\n        \"pbEmbeds\": true,\n        \"petEmbeds\": true,\n        \"questsEmbed\": true,\n        \"slayerEmbeds\": true,\n        \"trackActivities\": true,\n        // … 1 more\n      }\n    },\n    \"transport\": \"api\"\n  }\n}"
+    },
+    {
+      "id": "section:drops",
+      "request": "GET https://api.droptracker.io/v2/players/joelhalen?include=drops,drop_ids&max_drops=2&since=1793963791",
+      "status": 200,
+      "body": "{\n  \"drops\": {\n    \"count\": 2,\n    \"drops\": [\n      {\n        \"drop_id\": 264016153,\n        \"image_url\": null,\n        \"item_id\": 13421,\n        \"item_name\": \"Saltpetre\",\n        \"npc_id\": 13696,\n        \"npc_name\": \"Chambers of Xeric\",\n        \"quantity\": 310,\n        \"received_at\": 1794443781,\n        \"received_at_iso\": \"2026-11-12T00:36:21\",\n        \"total_value\": 620,\n        \"value_each\": 2\n      },\n      {\n        \"drop_id\": 264016145,\n        \"image_url\": null,\n        \"item_id\": 1623,\n        \"item_name\": \"Uncut sapphire\",\n        \"npc_id\": 13696,\n        \"npc_name\": \"Chambers of Xeric\",\n        \"quantity\": 46,\n        \"received_at\": 1794443781,\n        \"received_at_iso\": \"2026-11-12T00:36:21\",\n        \"total_value\": 6992,\n        \"value_each\": 152\n      }\n    ],\n    \"from\": 1793963792,\n    \"oldest\": 1794443781,\n    \"to\": 1794568592,\n    \"truncated\": true\n  }\n}"
+    }
+  ]
+}

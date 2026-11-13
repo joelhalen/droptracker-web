@@ -1,3 +1,4 @@
+import type { Route } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 
@@ -10,6 +11,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     { href: "/settings", label: "Settings" },
     { href: "/submit", label: "Submit a drop" },
     { href: "/tickets", label: "My tickets" },
+    { href: "/api-keys", label: "API access" },
   ] as const;
 
   return (
@@ -19,7 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {tabs.map((t) => (
             <Link
               key={t.href}
-              href={t.href}
+              href={t.href as Route}
               className="hover:bg-osrs-bronze/30 rounded px-3 py-2 transition-colors"
             >
               {t.label}
