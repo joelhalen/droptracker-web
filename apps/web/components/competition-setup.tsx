@@ -115,6 +115,9 @@ const TASK_BONUS_PRESETS: {
   },
 ];
 
+/** What a new task-style bonus pays until the admin changes it. */
+const DEFAULT_TASK_BONUS_POINTS = 25;
+
 /** A rule's embedded criteria → the shape EventTaskForm pre-fills from. */
 function taskFromRule(rule: BonusRuleInput, label: string): EventTask {
   const task = rule.task;
@@ -124,7 +127,7 @@ function taskFromRule(rule: BonusRuleInput, label: string): EventTask {
     label,
     target: task?.target ?? null,
     target_value: task?.target_value ?? null,
-    points: 0,
+    points: rule.points,
     requires_confirmation: false,
     visibility: "private",
     difficulty: null,
@@ -132,9 +135,9 @@ function taskFromRule(rule: BonusRuleInput, label: string): EventTask {
   } as EventTask;
 }
 
-/** EventTaskForm's draft output → the rule's embedded criteria. The form's own
- * `points` is the TASK's points, which a bonus rule doesn't have — the bonus
- * award is the rule's `points`, edited beside it. */
+/** EventTaskForm's draft output → the rule's embedded criteria. The form's
+ * Points box is not part of the criteria: `commitTaskRule` reads it as the
+ * rule's bonus award (the same number the rule card edits). */
 function ruleTaskFromDraft(input: EventTaskInput): EmbeddedTask {
   return {
     type: input.type as EmbeddedTask["type"],
@@ -367,15 +370,19 @@ export function CompetitionSetup({
   const commitTaskRule = (idx: number, input: EventTaskInput) => {
     const task = ruleTaskFromDraft(input);
     const label = input.label?.trim() || undefined;
+    // The form's Points box IS the bonus award: what the admin typed there is
+    // what the rule pays (it used to be dropped for a fixed 25). A rule pays
+    // at least 1, like the Points input on the rule card.
+    const points = Math.max(Math.floor(input.points ?? DEFAULT_TASK_BONUS_POINTS) || 0, 1);
     if (idx < 0) {
       patch({
         bonus_rules: [
           ...rules,
-          { type: "task", points: 25, max_awards: 1, task, ...(label ? { label } : {}) },
+          { type: "task", points, max_awards: 1, task, ...(label ? { label } : {}) },
         ],
       });
     } else {
-      setRule(idx, { ...rules[idx]!, task, ...(label ? { label } : {}) });
+      setRule(idx, { ...rules[idx]!, points, task, ...(label ? { label } : {}) });
     }
     setEditing(null);
   };
@@ -1192,7 +1199,7 @@ export function CompetitionSetup({
                   label: "",
                   target: null,
                   target_value: null,
-                  points: 0,
+                  points: DEFAULT_TASK_BONUS_POINTS,
                   requires_confirmation: false,
                   visibility: "private",
                   difficulty: null,
