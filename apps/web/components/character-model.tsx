@@ -13,6 +13,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 
+import { frameCharacter } from "@/lib/character-framing";
+
 /** Space between the player and their pet, as a fraction of the player's height. */
 const PET_GAP = 0.1;
 
@@ -36,10 +38,22 @@ export type CharacterModelProps = {
   /**
    * Sets `window.__modelReady` once a frame has actually been drawn. The
    * screenshot service polls that flag; without it the capture races the
-   * asynchronous model load and photographs an empty canvas.
+   * asynchronous model load and photographs an empty canvas. Also sets
+   * `window.__modelSize` to the canvas's `[width, height]`, because the frame
+   * grows for a model that needs the room and the capture has to follow it.
    */
   signalReady?: boolean;
 };
+
+/**
+ * `width`, `height` and `aspect` describe the BASE frame: what a lone
+ * character is drawn in. Every character is drawn at the same scale, so a
+ * model that does not fit (a scythe, a banner, a pet) gets a bigger canvas
+ * rather than a smaller character; see lib/character-framing.ts. At a fixed
+ * size the element itself grows. In responsive mode the box keeps the
+ * container's width and the canvas hangs over both sides of it, centred, so
+ * the character stays where the layout put it; only extra height reflows.
+ */
 
 export function CharacterModel({
   src,
@@ -54,43 +68,59 @@ export function CharacterModel({
   const mountRef = useRef<HTMLDivElement | null>(null);
   const [failed, setFailed] = useState(false);
 
-  // Live drawing size. A ref, not state: a resize must not tear down the scene
-  // and re-download the model, which is what re-running the effect would do.
+  // How much bigger than the base frame the canvas is. State for the box the
+  // layout reserves, a ref for the sizing below.
+  const [grow, setGrow] = useState({ x: 1, y: 1 });
+  const growRef = useRef(grow);
+
+  // Live sizes. Refs, not state: a resize must not tear down the scene and
+  // re-download the model, which is what re-running the effect would do.
+  /** The base frame, in px. */
+  const baseRef = useRef({ w: width, h: height });
+  /** The canvas: the base frame times `grow`. */
   const sizeRef = useRef({ w: width, h: height });
   const rendererRef = useRef<{ setSize: (w: number, h: number) => void } | null>(null);
   const cameraRef = useRef<{ aspect: number; updateProjectionMatrix: () => void } | null>(null);
   /** Draws one frame. Needed because the loop stops itself when `spin` is off. */
   const redrawRef = useRef<(() => void) | null>(null);
 
+  /** Sizes the canvas from the base frame and the growth; a no-op if unchanged. */
+  const fitCanvas = useRef(() => {
+    const w = Math.max(1, Math.round(baseRef.current.w * growRef.current.x));
+    const h = Math.max(1, Math.round(baseRef.current.h * growRef.current.y));
+    if (w === sizeRef.current.w && h === sizeRef.current.h) return;
+    sizeRef.current = { w, h };
+    rendererRef.current?.setSize(w, h);
+    if (cameraRef.current) {
+      cameraRef.current.aspect = w / h;
+      cameraRef.current.updateProjectionMatrix();
+    }
+    // The still and the idle viewer both stop rendering once framed, so a
+    // resize has to ask for the one frame that shows the new size.
+    redrawRef.current?.();
+  }).current;
+
   useEffect(() => {
     if (!responsive) {
-      sizeRef.current = { w: width, h: height };
+      baseRef.current = { w: width, h: height };
+      fitCanvas();
       return;
     }
     const el = mountRef.current;
     if (!el) return;
 
     const apply = () => {
-      const w = Math.max(1, Math.round(el.clientWidth));
+      const w = Math.round(el.clientWidth);
       if (!w) return;
-      const h = Math.max(1, Math.round(w / aspect));
-      if (w === sizeRef.current.w && h === sizeRef.current.h) return;
-      sizeRef.current = { w, h };
-      rendererRef.current?.setSize(w, h);
-      if (cameraRef.current) {
-        cameraRef.current.aspect = w / h;
-        cameraRef.current.updateProjectionMatrix();
-      }
-      // The still and the idle viewer both stop rendering once framed, so a
-      // resize has to ask for the one frame that shows the new size.
-      redrawRef.current?.();
+      baseRef.current = { w, h: w / aspect };
+      fitCanvas();
     };
 
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [responsive, width, height, aspect]);
+  }, [responsive, width, height, aspect, fitCanvas]);
 
   useEffect(() => {
     let disposed = false;
@@ -115,6 +145,7 @@ export function CharacterModel({
       renderer.setSize(w0, h0);
       renderer.setClearColor(0x000000, 0);
       rendererRef.current = renderer;
+      renderer.domElement.style.flexShrink = "0";
       mount.appendChild(renderer.domElement);
 
       // Flat, even lighting. Game models carry their own baked vertex colours,
@@ -175,32 +206,31 @@ export function CharacterModel({
         root.add(petScene);
       }
 
-      // Frame whatever we ended up with, so one camera works for a gnome in
-      // rags and a maxed character with a two-handed sword.
-      const box = new THREE.Box3().setFromObject(root);
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      root.position.sub(center);
-
-      const tanHalfFov = Math.tan((camera.fov * Math.PI) / 360);
-      const radius = Math.max(size.x, size.y, size.z) || 1;
-      const fitHeight = ((radius / 2) / tanHalfFov) * 1.9;
-      // Turning sweeps the model round root's origin, and the portrait frame is
-      // narrow: a player with a pet is wide enough to clip at the edges
-      // mid-turn. Back off until the whole swept circle fits the width at any
-      // angle (seen from the camera it is widest along the tangent). A lone
-      // character practically always fits by height already, so this is what
-      // makes room for a pet rather than a change to the usual framing.
-      const reach =
-        Math.hypot(center.x, center.z) +
-        Math.hypot(Math.max(-box.min.x, box.max.x), Math.max(-box.min.z, box.max.z));
-      const tanHalfWidth = tanHalfFov * camera.aspect;
-      const fitSweep = reach * Math.sqrt(1 + 1 / (tanHalfWidth * tanHalfWidth));
-      camera.position.set(0, 0, Math.max(fitHeight, fitSweep));
-      camera.lookAt(0, 0, 0);
-
       // Three-quarter view: straight on hides the weapon, side-on hides the face.
-      root.rotation.y = Math.PI * 0.18;
+      const turn = Math.PI * 0.18;
+
+      // One scale for every character, and a frame that grows for whatever
+      // they hold: the camera stays where a lone player fills the base frame,
+      // looking at the middle of a standing body, and the canvas gets wider or
+      // taller when the model would not fit. Measured before the turn is
+      // applied: the model stands on its own origin, which is the axis it
+      // turns about and the ground it stands on.
+      const box = new THREE.Box3().setFromObject(root);
+      const framing = frameCharacter(
+        box,
+        baseRef.current.w / baseRef.current.h,
+        turn,
+        spin,
+      );
+      root.position.y = -framing.lookAtY;
+      root.rotation.y = turn;
+      camera.fov = framing.fov;
+      camera.position.set(0, 0, framing.distance);
+      camera.lookAt(0, 0, 0);
+      camera.updateProjectionMatrix();
+      growRef.current = { x: framing.growX, y: framing.growY };
+      setGrow(growRef.current);
+      fitCanvas();
 
       let frame = 0;
       let announced = false;
@@ -213,7 +243,9 @@ export function CharacterModel({
         // and even a completed load both happen before anything is on screen.
         if (signalReady && !announced && frame > 2) {
           announced = true;
-          (window as unknown as { __modelReady?: boolean }).__modelReady = true;
+          const page = window as unknown as { __modelReady?: boolean; __modelSize?: number[] };
+          page.__modelSize = [sizeRef.current.w, sizeRef.current.h];
+          page.__modelReady = true;
         }
         if (spin || frame <= 3) requestAnimationFrame(render);
       };
@@ -249,13 +281,14 @@ export function CharacterModel({
     // Deliberately not keyed on width/height: in responsive mode those change
     // on every container resize, and rebuilding here would re-download the
     // model. The observer above resizes the live renderer instead.
-  }, [src, petSrc, spin, signalReady]);
+  }, [src, petSrc, spin, signalReady, fitCanvas]);
 
   // In responsive mode the box is width-driven; aspect-ratio reserves the
-  // height so the card does not jump when the canvas appears.
+  // height so the card does not jump when the canvas appears. A grown frame
+  // adds height to the box, but its extra width hangs outside it.
   const boxStyle: React.CSSProperties = responsive
-    ? { width: "100%", aspectRatio: String(aspect) }
-    : { width, height };
+    ? { width: "100%", aspectRatio: String(aspect / grow.y) }
+    : { width: Math.round(width * grow.x), height: Math.round(height * grow.y) };
 
   if (failed) {
     return (
@@ -268,7 +301,8 @@ export function CharacterModel({
     );
   }
 
-  // grid + justify-items-center keeps the canvas centred if the measured size
-  // and the box ever disagree (a resize between measure and paint).
-  return <div ref={mountRef} style={boxStyle} className="grid justify-items-center" />;
+  // Centred flex, with a canvas that may not shrink: when the canvas is wider
+  // than the box (a grown frame) it hangs over both sides equally. A grid
+  // would widen its track to the canvas and hang it all off the right.
+  return <div ref={mountRef} style={boxStyle} className="flex items-start justify-center" />;
 }

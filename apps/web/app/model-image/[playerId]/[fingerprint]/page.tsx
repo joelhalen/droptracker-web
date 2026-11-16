@@ -17,7 +17,10 @@ import { CharacterModel } from "@/components/character-model";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// Keep in sync with MODEL_IMAGE_WIDTH / HEIGHT in services/gear_image.py.
+// The base frame; keep in sync with MODEL_IMAGE_WIDTH / HEIGHT in
+// services/gear_image.py. A model that needs more room (a scythe, a pet) is
+// drawn on a bigger canvas at the same scale, and the capture follows
+// `window.__modelSize` rather than these.
 const WIDTH = 400;
 const HEIGHT = 600;
 
@@ -59,17 +62,18 @@ export default async function ModelImagePage({
   return (
     <div
       style={{
-        width: WIDTH,
-        height: HEIGHT,
+        // Sized by the canvas, from the page's top-left corner, which is where
+        // the capture starts.
+        width: "max-content",
+        minWidth: WIDTH,
+        minHeight: HEIGHT,
+        lineHeight: 0,
         // The root layout paints the site background on <body>, which would be
         // captured behind the character. Clearing it here is not enough on its
         // own — chromium also paints its own opaque backdrop, which the
         // screenshot service overrides.
         background: "transparent",
         margin: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
       }}
     >
       {/* Overrides the root layout's background for this route only. */}
