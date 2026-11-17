@@ -439,8 +439,9 @@ export function EventGeneralSetup({
       </Section>
 
       {/* Partial points (web156a): only task and bingo events score on task
-          points; the other kinds rank on their own rules. */}
-      {event.kind === "standard" && (
+          points; the other kinds rank on their own rules. Keep in step with
+          PARTIAL_EVENT_KINDS in the backend's services/event_partial_points.py. */}
+      {(event.kind === "standard" || event.kind === "bingo") && (
         <Section title="Scoring">
           <Check
             checked={draft.partialPoints}
